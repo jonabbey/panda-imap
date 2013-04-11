@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	8 July 2004
+ * Last Edited:	10 November 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -239,6 +239,9 @@ void *unix_parameters (long function,void *value)
 {
   void *ret = NIL;
   switch ((int) function) {
+  case GET_INBOXPATH:
+    if (value) ret = dummy_file ((char *) value,"INBOX");
+    break;
   case SET_FROMWIDGET:
     unix_fromwidget = (long) value;
   case GET_FROMWIDGET:
@@ -835,11 +838,7 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* make sure valid mailbox */
   if (!unix_valid (mailbox)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
-	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
-	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
-	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+    if (!compare_cstring (mailbox,"INBOX")) {
       if (pc) return (*pc) (stream,sequence,mailbox,options);
       unix_create (NIL,"INBOX");/* create empty INBOX */
       break;
@@ -945,11 +944,7 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* make sure valid mailbox */
   if (!unix_valid (mailbox)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
-	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
-	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
-	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+    if (!compare_cstring (mailbox,"INBOX")) {
       unix_create (NIL,"INBOX");/* create empty INBOX */
       break;
     }
@@ -1076,13 +1071,14 @@ int unix_append_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
   if (putc ('\n',sf) == EOF) return NIL;
 
   while (SIZE (msg)) {		/* copy text to scratch file */
+				/* disregard CRs */
+    while ((c = (SIZE (msg)) ? (0xff & SNX (msg)) : '\n') == '\r');
 				/* see if line needs special treatment */
-    if (((c = 0xff & SNX (msg)) == 'F') ||
-	(hdrp && ((c == 'S') || (c == 'X')))) {
+    if ((c == 'F') || (hdrp && ((c == 'S') || (c == 'X')))) {
 				/* copy line to buffer */
-      for (i = 1,tmp[0] = c; SIZE (msg) && (c != '\n') && (i < MAILTMPLEN);)
-	if (((c = 0xff & SNX (msg)) != '\r') || !(SIZE (msg)) ||
-	    (CHR (msg) != '\n')) tmp[i++] = c;
+      for (i = 1,tmp[0] = c; (c != '\n') && (i < MAILTMPLEN); )
+	if ((c = (SIZE (msg)) ? (0xff & SNX (msg)) : '\n') != '\r')
+	  tmp[i++] = c;
 				/* possible "From " line? */
       if ((i > 4) && (tmp[0] == 'F') && (tmp[1] == 'r') && (tmp[2] == 'o') &&
 	  (tmp[3] == 'm') && (tmp[4] == ' ')) {
@@ -1117,19 +1113,10 @@ int unix_append_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
       if ((c != '\n') && SIZE (msg)) c = 0xff & SNX (msg);
       else continue;		/* end of line or end of message */
     }
-    else if (hdrp) switch (c) {	/* check for end of header */
-    case '\r':			/* possibly end of header, is it CRLF? */
-      if (!SIZE (msg) || ((c = 0xff & SNX (msg)) != '\n')) {
-				/* no, write random CR */
-	if (putc ('\r',sf) == EOF) return NIL;
-	break;			/* still in header */
-      }
-    case '\n':			/* definitely end of header */
-      hdrp = NIL;
-    }
-				/* copy line, toss out CR from CRLF */
-    do if (((c == '\r') && SIZE (msg) && ((c = 0xff & SNX (msg)) != '\n') &&
-	    (putc ('\r',sf) == EOF)) || (putc (c,sf) == EOF)) return NIL;
+				/* check for end of header */
+    else if (hdrp && (c == '\n')) hdrp = NIL;
+				/* copy line, tossing out CR */
+    do if ((c != '\r') && (putc (c,sf) == EOF)) return NIL;
     while ((c != '\n') && SIZE (msg) && ((c = 0xff & SNX (msg)) ? c : T));
   }
 				/* write trailing newline and return */
@@ -2228,12 +2215,7 @@ MAILSTREAM mboxproto = {&mboxdriver};
 DRIVER *mbox_valid (char *name)
 {
 				/* only INBOX, mbox must exist */
-  if (((name[0] == 'I') || (name[0] == 'i')) &&
-      ((name[1] == 'N') || (name[1] == 'n')) &&
-      ((name[2] == 'B') || (name[2] == 'b')) &&
-      ((name[3] == 'O') || (name[3] == 'o')) &&
-      ((name[4] == 'X') || (name[4] == 'x')) && !name[5] &&
-      (unix_valid ("mbox") || !errno) &&
+  if (!compare_cstring (name,"INBOX") && (unix_valid ("mbox") || !errno) &&
       (unix_valid (sysinbox()) || !errno || (errno == ENOENT)))
     return &mboxdriver;
   return NIL;			/* can't win (yet, anyway) */
@@ -2361,7 +2343,8 @@ long mbox_ping (MAILSTREAM *stream)
   DOTLOCK lock,lockx;
 				/* time to try snarf and sysinbox non-empty? */
   if (LOCAL && !stream->rdonly && !stream->lock &&
-      (time (0) > (LOCAL->lastsnarf + 30)) &&
+      (time (0) >= (LOCAL->lastsnarf +
+		    (long) mail_parameters (NIL,GET_SNARFINTERVAL,NIL))) &&
       !stat (sysinbox (),&sbuf) && sbuf.st_size) {
 				/* yes, open and lock sysinbox */
     if ((sfd = unix_lock (sysinbox (),O_RDWR,NIL,&lockx,LOCK_EX)) >= 0) {
@@ -2401,7 +2384,7 @@ long mbox_ping (MAILSTREAM *stream)
 	   */
 	  if (!fstat (sfd,&sbuf) && (size == sbuf.st_size))
 	    syslog (LOG_ALERT,"File %s and %s are the same file!",
-		    sysinbox,stream->mailbox);
+		    sysinbox (),stream->mailbox);
 	}
 	else {			/* data copied OK */
 	  ftruncate (sfd,0);	/* truncate sysinbox to zero bytes */

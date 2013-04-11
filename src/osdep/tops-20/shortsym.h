@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	3 June 2004
+ * Last Edited:	6 December 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -491,11 +491,9 @@
 #define smtp_auth s_auth
 #define smtp_challenge s_chal
 #define smtp_close s_clos
-#define smtp_debug s_dbug
 #define smtp_ehlo s_ehlo
 #define smtp_fake s_fake
 #define smtp_mail s_mail
-#define smtp_nodebug s_nodb
 #define smtp_open_full s_open
 #define smtp_rcpt s_rcpt
 #define smtp_reply s_repl

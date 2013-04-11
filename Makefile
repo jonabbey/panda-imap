@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	27 April 2004
+# Last Edited:	25 December 2004
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 1988-2004 University of Washington.
@@ -59,6 +59,7 @@
 # epx	EP/IX
 # ga4	GCC AIX 4.x for RS/6000
 # gas	GCC Altos SVR4
+# gcs	GCC Solaris with Blastwave Community Open Source Software
 # gh9   GCC HP-UX 9.x
 # ghp	GCC HP-UX 10.x
 # ghs	GCC HP-UX 10.x with Trusted Computer Base
@@ -76,7 +77,8 @@
 # lnx	Linux with traditional passwords and crypt() in the C library
 #	 (see lnp, sl4, sl5, and slx)
 # lnp	Linux with Pluggable Authentication Modules (PAM)
-# lrh	RedHat Linux 7.2
+# lmd	Mankdrake Linux
+# lrh	RedHat Linux 7.2 and later
 # lsu	SuSE Linux
 # lyn	LynxOS
 # mct	MachTen
@@ -283,7 +285,7 @@ SPECIALS:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx soc sol sos uw2: an
+a32 a41 aix bs3 bsi d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx soc sol sos uw2: an
 	$(BUILD) BUILDTYPE=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
@@ -295,13 +297,26 @@ aos art asv aux bsd cvx dpx dyn isc pyr sv4 ult vul vu2: ua
 
 # Knotheads moved Kerberos and SSL locations on these platforms
 
+
+bsf bso:	an
+	$(BUILD) BUILDTYPE=$@ \
+	SPECIALS="GSSDIR=/usr SSLDIR=/usr SSLINCLUDE=/usr/include/openssl SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private LOCKPGM=/usr/sbin/mlock"
+
 cyg:	an
 	$(BUILD) BUILDTYPE=cyg \
 	SPECIALS="SSLDIR=/usr/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
 
+gcs:	an
+	$(BUILD) BUILDTYPE=gso \
+	SPECIALS="SSLDIR=/opt/csw/ssl SSLINCLUDE=/opt/csw/include/openssl SSLLIB=/opt/csw/lib"
+
 ldb:	an
 	$(BUILD) BUILDTYPE=lnp \
 	SPECIALS="GSSDIR=/usr SSLDIR=/usr SSLINCLUDE=/usr/include/openssl SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private LOCKPGM=/usr/sbin/mlock"
+
+lmd:	an
+	$(BUILD) BUILDTYPE=lnp \
+	SPECIALS="SSLDIR=/usr/lib/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
 
 lrh:	an
 	$(BUILD) BUILDTYPE=lnp \
@@ -310,7 +325,7 @@ lrh:	an
 
 lsu:	an
 	$(BUILD) BUILDTYPE=lnp \
-	SPECIALS="SSLDIR=/usr/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
+	SPECIALS="SSLDIR=/usr/share/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
 
 osx:	an
 	$(BUILD) BUILDTYPE=osx \

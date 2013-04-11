@@ -1,3 +1,35 @@
+Updated: 18 January 2005
+
+imap-2004c is a maintenance release, released concurrently with Pine
+4.62, including fixes to quoted-printable encoding and CRAM-MD5
+authentication.
+
+NNTP proxy in imapd now supports the LIST and LSUB commands.
+
+There are no other user-visible functional enhancements in this version.
+
+
+Updated: 29 November 2004
+
+imap-2004b is a maintenance release, consisting primarily of bugfixes.
+Programs written for imap-2004a will build with this version without
+modifification.
+
+There are new ports for Solaris with Blastwave Community Open Source
+Software (gcs) and Mandrake Linux (lmd).
+
+SET_SNARFINTERVAL now controls how frequently local drivers will move new
+mail from the mail spool as well as from a maildrop.  Maildrops are still
+tied to a minimum interval of 1 minute, but there is now no minimum for the
+spool file.
+
+Character set conversions now map non-breaking space to space if the
+destination character set doesn't have nbsp.  JIS Roman yen sign is now
+mapped to Unicode yen sign.
+
+There are no user-visible functional enhancements in this version.
+
+
 Updated: 8 July 2004
 
 imap-2004a is a maintenance release, consisting primarily of critical

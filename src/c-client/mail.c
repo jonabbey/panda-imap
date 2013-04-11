@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	14 May 2004
+ * Last Edited:	18 January 2005
  *
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -29,7 +29,7 @@
 #include "utf8.h"
 #include "smtp.h"
 
-char *UW_copyright = "The IMAP toolkit provided in this Distribution is\nCopyright 1988-2004 University of Washington.\nThe full text of our legal notices is contained in the file called\nCPYRIGHT, included with this Distribution.\n";
+char *UW_copyright = "The IMAP toolkit provided in this Distribution is\nCopyright 1988-2005 University of Washington.\nThe full text of our legal notices is contained in the file called\nCPYRIGHT, included with this Distribution.\n";
 
 
 /* c-client global data */
@@ -299,6 +299,13 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
   DRIVER *d;
   AUTHENTICATOR *a;
   switch ((int) function) {
+  case SET_INBOXPATH:
+    fatal ("SET_INBOXPATH not permitted");
+  case GET_INBOXPATH:
+    if ((stream || (stream = mail_open (NIL,"INBOX",OP_PROTOTYPE))) &&
+	stream->dtb->parameters)
+      ret = (*stream->dtb->parameters) (function,value);
+    break;
   case SET_THREADERS:
     fatal ("SET_THREADERS not permitted");
   case GET_THREADERS:		/* use stream dtb instead of global */
@@ -321,12 +328,16 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
       (*stream->dtb->parameters) (function,stream) :
 	env_parameters (function,value);
     break;
+  case ENABLE_DEBUG:
+    fatal ("ENABLE_DEBUG not permitted");
+  case DISABLE_DEBUG:
+    fatal ("DISABLE_DEBUG not permitted");
+
   case SET_DRIVERS:
     fatal ("SET_DRIVERS not permitted");
   case GET_DRIVERS:		/* always return global */
     ret = (void *) maildrivers;
     break;
-
   case SET_DRIVER:
     fatal ("SET_DRIVER not permitted");
   case GET_DRIVER:
@@ -530,8 +541,8 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
   case GET_QUOTAROOT:
     ret = (void *) mailquotarootresults;
     break;
-  case SET_SNARFINTERVAL:	/* only cretins snarf faster than once/min */
-    mailsnarfinterval = max ((long) value,60);
+  case SET_SNARFINTERVAL:
+    mailsnarfinterval = (long) value;
   case GET_SNARFINTERVAL:
     ret = (void *) mailsnarfinterval;
     break;
@@ -1292,7 +1303,8 @@ MESSAGECACHE *mail_elt (MAILSTREAM *stream,unsigned long msgno)
 {
   if (msgno < 1 || msgno > stream->nmsgs) {
     char tmp[MAILTMPLEN];
-    sprintf (tmp,"Bad msgno %lu in mail_elt, nmsgs = %lu",msgno,stream->nmsgs);
+    sprintf (tmp,"Bad msgno %lu in mail_elt, nmsgs = %lu, mbx=%.80s",
+	     msgno,stream->nmsgs,stream->mailbox ? stream->mailbox : "???");
     fatal (tmp);
   }
   return (MESSAGECACHE *) (*mailcache) (stream,msgno,CH_MAKEELT);
@@ -2280,7 +2292,8 @@ long mail_ping (MAILSTREAM *stream)
 				/* do driver action */
   if ((ret = ((stream && stream->dtb) ? (stream->dtb->ping) (stream) : NIL)) &&
       stream->snarf.name &&	/* time to snarf? */
-      (time (0) > (time_t) (stream->snarf.time + mailsnarfinterval)) &&
+				/* prohibit faster than once/min */
+      (time (0) > (time_t) (stream->snarf.time + min(60,mailsnarfinterval))) &&
       (snarf = mail_open (NIL,stream->snarf.name,
 			  stream->snarf.options | OP_SILENT))) {
     if ((n = snarf->nmsgs) &&	/* yes, have messages to snarf? */
@@ -3032,7 +3045,12 @@ void mail_expunged (MAILSTREAM *stream,unsigned long msgno)
 
 void mail_lock (MAILSTREAM *stream)
 {
-  if (stream->lock) fatal ("Lock when already locked");
+  if (stream->lock) {
+    char tmp[MAILTMPLEN];
+    sprintf (tmp,"Lock when already locked, mbx=%.80s",
+	     stream->mailbox ? stream->mailbox : "???");
+    fatal (tmp);
+  }
   else stream->lock = T;	/* lock stream */
 }
 
@@ -3055,6 +3073,7 @@ void mail_unlock (MAILSTREAM *stream)
 void mail_debug (MAILSTREAM *stream)
 {
   stream->debug = T;		/* turn on debugging telemetry */
+  if (stream->dtb) (*stream->dtb->parameters) (ENABLE_DEBUG,stream);
 }
 
 
@@ -3065,6 +3084,7 @@ void mail_debug (MAILSTREAM *stream)
 void mail_nodebug (MAILSTREAM *stream)
 {
   stream->debug = NIL;		/* turn off debugging telemetry */
+  if (stream->dtb) (*stream->dtb->parameters) (DISABLE_DEBUG,stream);
 }
 
 

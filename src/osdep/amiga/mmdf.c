@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	8 July 2004
+ * Last Edited:	4 November 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -399,7 +399,13 @@ long mmdf_isvalid_fd (int fd,char *tmp)
 
 void *mmdf_parameters (long function,void *value)
 {
-  return NIL;
+  void *ret = NIL;
+  switch ((int) function) {
+  case GET_INBOXPATH:
+    if (value) ret = dummy_file ((char *) value,"INBOX");
+    break;
+  }
+  return ret;
 }
 
 /* MMDF mail scan mailboxes
@@ -990,11 +996,7 @@ long mmdf_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* make sure valid mailbox */
   if (!mmdf_isvalid (mailbox,file)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
-	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
-	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
-	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+    if (!compare_cstring (mailbox,"INBOX")) {
       if (pc) return (*pc) (stream,sequence,mailbox,options);
       mmdf_create (NIL,"INBOX");/* create empty INBOX */
       break;
@@ -1101,11 +1103,7 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* make sure valid mailbox */
   if (!mmdf_valid (mailbox)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
-	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
-	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
-	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+    if (!compare_cstring (mailbox,"INBOX")) {
       mmdf_create (NIL,"INBOX");/* create empty INBOX */
       break;
     }
@@ -1229,14 +1227,15 @@ int mmdf_append_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
       return NIL;
 				/* tie off flags */
   if (putc ('\n',sf) == EOF) return NIL;
-  while (SIZE (msg)) {		/* copy text, flush CTRL/A and CR from CRLF */
-    c = 0xff & SNX (msg);	/* sniff first character in line */
+  while (SIZE (msg)) {		/* copy text to scratch file */
+				/* disregard CRs */
+    while ((c = (SIZE (msg)) ? (c = 0xff & SNX (msg)) : '\n') == '\r');
 				/* see if line needs special treatment */
     if (hdrp && ((c == 'S') || (c == 'X'))) {
 				/* copy line to buffer */
-      for (i = 1,tmp[0] = c; SIZE (msg) && (c != '\n') && (i < MAILTMPLEN);)
-	if (((c = 0xff & SNX (msg)) != '\r') || !(SIZE (msg)) ||
-	    (CHR (msg) != '\n')) tmp[i++] = c;
+      for (i = 1,tmp[0] = c; (c != '\n') && (i < MAILTMPLEN); )
+	if ((c = (SIZE (msg)) ? (0xff & SNX (msg)) : '\n') != '\r')
+	  tmp[i++] = c;
 				/* insert X- before metadata header */
       if ((((i > 6) && (tmp[0] == 'S') && (tmp[1] == 't') &&
 	    (tmp[2] == 'a') && (tmp[3] == 't') && (tmp[4] == 'u') &&
@@ -1263,22 +1262,12 @@ int mmdf_append_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
       if ((c != '\n') && SIZE (msg)) c = 0xff & SNX (msg);
       else continue;		/* end of line or end of message */
     }
-    else if (hdrp) switch (c) {	/* check for end of header */
-    case '\r':			/* possibly end of header, is it CRLF? */
-      if (!SIZE (msg) || ((c = 0xff & SNX (msg)) != '\n')) {
-				/* no, write random CR */
-	if (putc ('\r',sf) == EOF) return NIL;
-	break;			/* still in header */
-      }
-    case '\n':			/* definitely end of header */
-      hdrp = NIL;
-    }
+				/* check for end of header */
+    else if (hdrp && (c == '\n')) hdrp = NIL;
     do switch (c) {		/* copy line */
     case MMDFCHR:		/* flush CTRL/A */
+    case '\r':			/* and CR */
       break;
-    case '\r':			/* flush CR if followed by LF */
-      if (SIZE (msg) && ((c = 0xff & SNX (msg)) != '\n') &&
-	  (putc ('\r',sf) == EOF)) return NIL;
     default:			/* any other character */
       if (putc (c,sf) == EOF) return NIL;
     }

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	12 June 2004
+ * Last Edited:	16 September 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -57,7 +57,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2004.88";	/* server version */
+char *version = "2004.89";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -882,12 +882,24 @@ void mm_log (char *string,long errflg)
   case WARN:			/* warning */
     syslog (LOG_DEBUG,"%s",string);
     break;
+  case BYE:			/* driver broke connection */
+    if (state != UPDATE) {
+      alarm (0);		/* disable all interrupts */
+      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      syslog (LOG_INFO,"Mailbox closed (%.80s) user=%.80s host=%.80s",
+	      string,user ? user : "???",tcp_clienthost ());
+				/* do logout hook if needed */
+      if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
+	(*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
+      _exit (1);
+    }
+    break;
   case ERROR:			/* error that broke command */
   default:			/* default should never happen */
     syslog (LOG_NOTICE,"%s",string);
     break;
   }
-}
+}    
 
 
 /* Log an event to debugging telemetry

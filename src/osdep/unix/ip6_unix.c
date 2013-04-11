@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	18 December 2003
- * Last Edited:	26 May 2004
+ * Last Edited:	12 October 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2004 University of Washington.
@@ -226,10 +226,6 @@ void *ip_nametoaddr (char *name,size_t *len,int *family,char **canonical,
   static struct addrinfo *hints;
   static struct addrinfo *ai = NIL;
   static char lcname[MAILTMPLEN];
-  if (ai) {
-    freeaddrinfo (ai);		/* free old addrinfo */
-    ai = NIL;
-  }
   if (!hints) {			/* hints set up yet? */
     hints = (struct addrinfo *) /* one-time setup */
       memset (fs_get (sizeof (struct addrinfo)),0,sizeof (struct addrinfo));
@@ -240,6 +236,10 @@ void *ip_nametoaddr (char *name,size_t *len,int *family,char **canonical,
     hints->ai_flags = AI_CANONNAME;
   }
   if (name) {			/* name supplied? */
+    if (ai) {
+      freeaddrinfo (ai);	/* free old addrinfo */
+      ai = NIL;
+    }
 				/* case-independent lookup */
     if ((strlen (name) < MAILTMPLEN) &&
 	(!getaddrinfo (lcase (strcpy (lcname,name)),NIL,hints,&ai))) {

@@ -10,7 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	8 July 2004
+    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
+	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
+	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
+	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
+	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+ * Last Edited:	4 November 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -789,11 +794,7 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* make sure valid mailbox */
   if (!unix_valid (mailbox)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
-	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
-	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
-	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+    if (!compare_cstring (mailbox,"INBOX")) {
       if (pc) return (*pc) (stream,sequence,mailbox,options);
       unix_create (NIL,"INBOX");/* create empty INBOX */
       break;
@@ -830,7 +831,11 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     if ((elt = mail_elt (stream,i))->sequence) {
       lseek (LOCAL->fd,elt->private.special.offset,L_SET);
       read (LOCAL->fd,LOCAL->buf,elt->private.special.text.size);
-      if (write (fd,LOCAL->buf,elt->private.special.text.size) < 0) ret = NIL;
+      if (LOCAL->buf[(j = elt->private.special.text.size) - 2] != '\r') {
+	LOCAL->buf[j - 1] = '\r';
+	LOCAL->buf[j++] = '\n';
+      }
+      if (write (fd,LOCAL->buf,j) < 0) ret = NIL;
       else {			/* internal header succeeded */
 	s = unix_header (stream,i,&j,NIL);
 				/* header size, sans trailing newline */
@@ -902,11 +907,7 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* make sure valid mailbox */
   if (!unix_valid (mailbox)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
-	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
-	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
-	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+    if (!compare_cstring (mailbox,"INBOX")) {
       unix_create (NIL,"INBOX");/* create empty INBOX */
       break;
     }
@@ -1036,14 +1037,18 @@ int unix_append_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
   if ((putc ('\r', sf) == EOF) || (putc ('\n',sf) == EOF)) return NIL;
 
   while (SIZE (msg)) {		/* copy text to scratch file */
-				/* possible delimiter if line starts with F */
-    if (((c = 0xff & SNX (msg)) == 'F') ||
-	(hdrp && ((c == 'S') || (c == 'X')))) {
+				/* disregard CRs */
+    while ((c = (SIZE (msg)) ? (0xff & SNX (msg)) : '\n') == '\r');
+				/* see if line needs special treatment */
+    if ((c == 'F') || (hdrp && ((c == 'S') || (c == 'X')))) {
 				/* copy line to buffer */
-      for (i = 1,tmp[0] = c; SIZE (msg) && (c != '\n') && (i < MAILTMPLEN);)
-	if (((c = 0xff & SNX (msg)) != '\r') || !(SIZE (msg)) ||
-	    (CHR (msg) != '\n')) {
-	  if (c == '\n') tmp[i++] = '\r';
+      for (i = 1,tmp[0] = c; (c != '\n') && (i < (MAILTMPLEN - 1)); )
+	switch (c = (SIZE (msg)) ? (0xff & SNX (msg)) : '\n') {
+	case '\r':		/* ignore CR */
+	  break;
+	case '\n':		/* write CRLF for NL */
+	  tmp[i++] = '\r';
+	default:		/* other characters */
 	  tmp[i++] = c;
 	}
       if ((i > 4) && (tmp[1] == 'r') && (tmp[2] == 'o') && (tmp[3] == 'm') &&
@@ -1079,22 +1084,16 @@ int unix_append_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
       if ((c != '\n') && SIZE (msg)) c = 0xff & SNX (msg);
       else continue;		/* end of line or end of message */
     }
-    else if (hdrp) switch (c) {	/* check for end of header */
-    case '\r':			/* possibly end of header, is it CRLF? */
-      if (!SIZE (msg) || ((c = 0xff & SNX (msg)) != '\n')) {
-				/* no, write random CR */
-	if (putc ('\r',sf) == EOF) return NIL;
-	break;			/* still in header */
-      }
-    case '\n':			/* definitely end of header */
+				/* check for end of header */
+    if (hdrp && (c == '\n')) hdrp = NIL;
+    do switch (c) {		/* copy line, writing CRLF for NL */
+    case '\r':			/* ignore CR */
+      break;
+    case '\n':			/* insert CR before LF */
       if (putc ('\r',sf) == EOF) return NIL;
-      hdrp = NIL;
+    default:
+      if (putc (c,sf) == EOF) return NIL;
     }
-				/* copy line, writing CRLF for NL */
-    do if (((c == '\r') && SIZE (msg) && ((c = 0xff & SNX (msg)) != '\n') &&
-	    (putc ('\r',sf) == EOF)) || (((c == '\n') &&
-					  (putc ('\r',sf) == EOF)) ||
-					 (putc (c,sf) == EOF))) return NIL;
     while ((c != '\n') && SIZE (msg) && ((c = 0xff & SNX (msg)) ? c : T));
   }
 				/* write trailing newline and return */

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	18 June 2004
+ * Last Edited:	7 December 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -200,11 +200,7 @@ int tenex_isvalid (char *name,char *tmp)
     }
   }
 				/* in case INBOX but not tenex format */
-  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
-	   ((name[1] == 'N') || (name[1] == 'n')) &&
-	   ((name[2] == 'B') || (name[2] == 'b')) &&
-	   ((name[3] == 'O') || (name[3] == 'o')) &&
-	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
+  else if ((errno == ENOENT) && !compare_cstring (name,"INBOX")) errno = -1;
   return ret;			/* return what we should */
 }
 
@@ -216,7 +212,13 @@ int tenex_isvalid (char *name,char *tmp)
 
 void *tenex_parameters (long function,void *value)
 {
-  return NIL;
+  void *ret = NIL;
+  switch ((int) function) {
+  case GET_INBOXPATH:
+    if (value) ret = tenex_file ((char *) value,"INBOX");
+    break;
+  }
+  return ret;
 }
 
 
@@ -740,57 +742,61 @@ void tenex_snarf (MAILSTREAM *stream)
   MAILSTREAM *sysibx = NIL;
   int ld;
 				/* give up if can't get exclusive permission */
-  if ((time (0) < (LOCAL->lastsnarf + 30)) ||
-      (!strcmp (sysinbox (),stream->mailbox)) ||
-      ((ld = lockfd (LOCAL->fd,lock,LOCK_EX)) < 0)) return;
-  MM_CRITICAL (stream);		/* go critical */
+  if ((time (0) >= (LOCAL->lastsnarf +
+		    (long) mail_parameters (NIL,GET_SNARFINTERVAL,NIL))) &&
+      strcmp (sysinbox (),stream->mailbox) &&
+      ((ld = lockfd (LOCAL->fd,lock,LOCK_EX)) >= 0)) {
+    MM_CRITICAL (stream);	/* go critical */
 				/* sizes match and anything in sysinbox? */
-  if (!stat (sysinbox (),&sbuf) && sbuf.st_size &&
-      !fstat (LOCAL->fd,&sbuf) && (sbuf.st_size == LOCAL->filesize) && 
-      (sysibx = mail_open (sysibx,sysinbox (),OP_SILENT)) &&
-      (!sysibx->rdonly) && (r = sysibx->nmsgs)) {
+    if (!stat (sysinbox (),&sbuf) && sbuf.st_size &&
+	!fstat (LOCAL->fd,&sbuf) && (sbuf.st_size == LOCAL->filesize) && 
+	(sysibx = mail_open (sysibx,sysinbox (),OP_SILENT)) &&
+	(!sysibx->rdonly) && (r = sysibx->nmsgs)) {
 				/* yes, go to end of file in our mailbox */
-    lseek (LOCAL->fd,sbuf.st_size,L_SET);
+      lseek (LOCAL->fd,sbuf.st_size,L_SET);
 				/* for each message in sysibx mailbox */
-    while (r && (++i <= sysibx->nmsgs)) {
+      while (r && (++i <= sysibx->nmsgs)) {
 				/* snarf message from system INBOX */
-      hdr = cpystr (mail_fetchheader_full (sysibx,i,NIL,&hdrlen,FT_INTERNAL));
-      txt = mail_fetchtext_full (sysibx,i,&txtlen,FT_INTERNAL|FT_PEEK);
-      if (j = hdrlen + txtlen) {/* if have a message */
+	hdr = cpystr (mail_fetchheader_full(sysibx,i,NIL,&hdrlen,FT_INTERNAL));
+	txt = mail_fetchtext_full (sysibx,i,&txtlen,FT_INTERNAL|FT_PEEK);
+				/* if have a message */
+	if (j = hdrlen + txtlen) {
 				/* calculate header line */
-	mail_date (LOCAL->buf,elt = mail_elt (sysibx,i));
-	sprintf (LOCAL->buf + strlen (LOCAL->buf),
-		 ",%lu;0000000000%02o\n",j,(unsigned)
-		 ((fSEEN * elt->seen) + (fDELETED * elt->deleted) +
-		  (fFLAGGED * elt->flagged) + (fANSWERED * elt->answered) +
-		  (fDRAFT * elt->draft)));
+	  mail_date (LOCAL->buf,elt = mail_elt (sysibx,i));
+	  sprintf (LOCAL->buf + strlen (LOCAL->buf),
+		   ",%lu;0000000000%02o\n",j,(unsigned)
+		   ((fSEEN * elt->seen) + (fDELETED * elt->deleted) +
+		    (fFLAGGED * elt->flagged) + (fANSWERED * elt->answered) +
+		    (fDRAFT * elt->draft)));
 				/* copy message */
-	if ((write (LOCAL->fd,LOCAL->buf,strlen (LOCAL->buf)) < 0) ||
-	    (write (LOCAL->fd,hdr,hdrlen) < 0) ||
-	    (write (LOCAL->fd,txt,txtlen) < 0)) r = 0;
+	  if ((write (LOCAL->fd,LOCAL->buf,strlen (LOCAL->buf)) < 0) ||
+	      (write (LOCAL->fd,hdr,hdrlen) < 0) ||
+	      (write (LOCAL->fd,txt,txtlen) < 0)) r = 0;
+	}
+	fs_give ((void **) &hdr);
       }
-      fs_give ((void **) &hdr);
-    }
+
 				/* make sure all the updates take */
-    if (fsync (LOCAL->fd)) r = 0;
-    if (r) {			/* delete all the messages we copied */
-      if (r == 1) strcpy (tmp,"1");
-      else sprintf (tmp,"1:%lu",r);
-      mail_flag (sysibx,tmp,"\\Deleted",ST_SET);
-      mail_expunge (sysibx);	/* now expunge all those messages */
+      if (fsync (LOCAL->fd)) r = 0;
+      if (r) {			/* delete all the messages we copied */
+	if (r == 1) strcpy (tmp,"1");
+	else sprintf (tmp,"1:%lu",r);
+	mail_flag (sysibx,tmp,"\\Deleted",ST_SET);
+	mail_expunge (sysibx);	/* now expunge all those messages */
+      }
+      else {
+	sprintf (LOCAL->buf,"Can't copy new mail: %s",strerror (errno));
+	MM_LOG (LOCAL->buf,ERROR);
+	ftruncate (LOCAL->fd,sbuf.st_size);
+      }
+      fstat (LOCAL->fd,&sbuf);	/* yes, get current file size */
+      LOCAL->filetime = sbuf.st_mtime;
     }
-    else {
-      sprintf (LOCAL->buf,"Can't copy new mail: %s",strerror (errno));
-      MM_LOG (LOCAL->buf,ERROR);
-      ftruncate (LOCAL->fd,sbuf.st_size);
-    }
-    fstat (LOCAL->fd,&sbuf);	/* yes, get current file size */
-    LOCAL->filetime = sbuf.st_mtime;
+    if (sysibx) mail_close (sysibx);
+    MM_NOCRITICAL (stream);	/* release critical */
+    unlockfd (ld,lock);		/* release exclusive parse/append permission */
+    LOCAL->lastsnarf = time (0);/* note time of last snarf */
   }
-  if (sysibx) mail_close (sysibx);
-  MM_NOCRITICAL (stream);	/* release critical */
-  unlockfd (ld,lock);		/* release exclusive parse/append permission */
-  LOCAL->lastsnarf = time (0);	/* note time of last snarf */
 }
 
 /* Tenex mail expunge mailbox
@@ -1036,12 +1042,7 @@ long tenex_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* make sure valid mailbox */
   if (!tenex_isvalid (mailbox,tmp)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
-	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
-	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
-	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5])
-      dummy_create (NIL,"mail.txt");
+    if (!compare_cstring (mailbox,"INBOX")) dummy_create (NIL,"mail.txt");
     else {
       MM_NOTIFY (stream,"[TRYCREATE] Must create mailbox before append",NIL);
       return NIL;

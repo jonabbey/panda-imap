@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	20 February 2004
+ * Last Edited:	3 September 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2004 University of Washington.
@@ -18,6 +18,8 @@
  * CPYRIGHT, included with this Distribution.
  */
 
+
+#define TCPMAXSEND 32768
 
 /* Private functions */
 
@@ -457,9 +459,11 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
       return tcp_abort (&stream->tcpsi);
     default:
       if (stream->tcpsi == stream->tcpso)
-	while (((i = send (stream->tcpso,string,(int) size,0)) ==
-		SOCKET_ERROR) && (WSAGetLastError () == WSAEINTR));
-      else while (((i = write (stream->tcpso,string,size)) < 0) &&
+	while (((i = send (stream->tcpso,string,
+			   (int) min (size,TCPMAXSEND),0)) == SOCKET_ERROR) &&
+	       (WSAGetLastError () == WSAEINTR));
+      else while (((i = write (stream->tcpso,string,
+			       min (size,TCPMAXSEND))) < 0) &&
 		  (errno == EINTR));
       if (i == SOCKET_ERROR) return tcp_abort (&stream->tcpsi);
       size -= i;		/* count this size */

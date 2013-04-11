@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	29 June 2004
+ * Last Edited:	20 January 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -27,6 +27,7 @@ extern int errno;		/* just in case */
 #include <signal.h>
 #include <time.h>
 #include "c-client.h"
+#include "newsrc.h"
 #include <sys/stat.h>
 
 
@@ -171,6 +172,8 @@ void pthread (THREADNODE *thr);
 void pcapability (long flag);
 long nameok (char *ref,char *name);
 char *bboardname (char *cmd,char *name);
+long isnewsproxy (char *name);
+long newsproxypattern (char *ref,char *pat,char *pattern,long flag);
 char *imap_responder (void *challenge,unsigned long clen,unsigned long *rlen);
 long proxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long proxy_append (MAILSTREAM *stream,void *data,char **flags,char **date,
@@ -183,7 +186,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2004.352";	/* version number of this server */
+char *version = "2004.357";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
@@ -197,6 +200,7 @@ int anonymous = 0;		/* non-zero if anonymous */
 int critical = NIL;		/* non-zero if in critical code */
 int quell_events = NIL;		/* non-zero if in FETCH response */
 int existsquelled = NIL;	/* non-zero if an EXISTS was quelled */
+int proxylist = NIL;		/* doing a proxy LIST */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 DRIVER *curdriver = NIL;	/* note current driver */
 MAILSTREAM *tstream = NIL;	/* temporary mailbox stream */
@@ -273,12 +277,13 @@ int main (int argc,char *argv[])
   mail_parameters (NIL,SET_IMAPREFERRAL,(void *) referral);
 
   if (stat (SHUTDOWNFILE,&sbuf)) {
+    char proxy[MAILTMPLEN];
     FILE *nntp = fopen (NNTPFILE,"r");
     if (nntp) {			/* desire NNTP proxy? */
-      if (fgets (tmp,MAILTMPLEN,nntp)) {
+      if (fgets (proxy,MAILTMPLEN,nntp)) {
 				/* remove newline and set NNTP proxy */
-	if (s = strchr (tmp,'\n')) *s = '\0';
-	nntpproxy = cpystr (tmp);
+	if (s = strchr (proxy,'\n')) *s = '\0';
+	nntpproxy = cpystr (proxy);
 				/* disable the news driver */
 	mail_parameters (NIL,DISABLE_DRIVER,"news");
       }
@@ -797,11 +802,7 @@ int main (int argc,char *argv[])
 	      stream->silent = NIL;
 	      mm_exists (stream,stream->nmsgs);
 	    }
-	    else if (!factory && nntpproxy && (s[0] == '#') &&
-		     ((s[1] == 'N') || (s[1] == 'n')) &&
-		     ((s[2] == 'E') || (s[2] == 'e')) &&
-		     ((s[3] == 'W') || (s[3] == 'w')) &&
-		     ((s[4] == 'S') || (s[4] == 's')) && (s[5] == '.')) {
+	    else if (!factory && isnewsproxy (s)) {
 	      sprintf (tmp,"{%.300s/nntp}%.300s",nntpproxy,(char *) s+6);
 	      stream = mail_open (stream,tmp,f);
 	    }
@@ -867,7 +868,14 @@ int main (int argc,char *argv[])
 	    response = misarg;
 	  else if (arg) response = badarg;
 				/* make sure anonymous can't do bad things */
-	  else if (nameok (s,t)) mail_list (NIL,s,t);
+	  else if (nameok (s,t)) {
+	    if (newsproxypattern (s,t,tmp,LONGT)) {
+	      proxylist = T;
+	      mail_list (NIL,"",tmp);
+	      proxylist = NIL;
+	    }
+	    else mail_list (NIL,s,t);
+	  }
 	  if (stream)		/* allow untagged EXPUNGE */
 	    mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,(void *) stream);
 	}
@@ -878,7 +886,11 @@ int main (int argc,char *argv[])
 		(u = snarf (&arg)))) response = misarg;
 	  else if (arg) response = badarg;
 				/* make sure anonymous can't do bad things */
-	  else if (nameok (s,t)) mail_scan (NIL,s,t,u);
+	  else if (nameok (s,t)) {
+	    if (newsproxypattern (s,t,tmp,NIL))
+	      mm_log ("SCAN not permitted for news",ERROR);
+	    else mail_scan (NIL,s,t,u);
+	  }
 	  if (stream)		/* allow untagged EXPUNGE */
 	    mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,(void *) stream);
 	}
@@ -889,7 +901,10 @@ int main (int argc,char *argv[])
 	    response = misarg;
 	  else if (arg) response = badarg;
 				/* make sure anonymous can't do bad things */
-	  else if (nameok (s,t)) mail_lsub (NIL,s,t);
+	  else if (nameok (s,t)) {
+	    if (newsproxypattern (s,t,tmp,NIL)) newsrc_lsub (NIL,tmp);
+	    else mail_lsub (NIL,s,t);
+	  }
 	  if (stream)		/* allow untagged EXPUNGE */
 	    mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,(void *) stream);
 	}
@@ -994,6 +1009,7 @@ int main (int argc,char *argv[])
 	    else if (arg) response = badarg;
 	    else mail_subscribe (NIL,s);
 	  }
+	  else if (isnewsproxy (s)) newsrc_update (NIL,s+6,':');
 	  else mail_subscribe (NIL,s);
 	  if (stream)		/* allow untagged EXPUNGE */
 	    mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,(void *) stream);
@@ -1006,6 +1022,7 @@ int main (int argc,char *argv[])
 	    if (compare_cstring (s,"MAILBOX")) response = badarg;
 	    else if (!(s = snarf (&arg))) response = misarg;
 	    else if (arg) response = badarg;
+	    else if (isnewsproxy (s)) newsrc_update (NIL,s+6,'!');
 	    else mail_unsubscribe (NIL,s);
 	  }
 	  else mail_unsubscribe (NIL,s);
@@ -3219,7 +3236,7 @@ void psizednstring (SIZEDTEXT *st)
 void psizedastring (SIZEDTEXT *s)
 {
   unsigned long i;
-  unsigned int atomp = T;
+  unsigned int atomp = s->size ? T : NIL;
   for (i = 0; i < s->size; i++){/* check if must use literal */
     if (!(s->data[i] & 0xe0) || (s->data[i] & 0x80) ||
 	(s->data[i] == '"') || (s->data[i] == '\\')) {
@@ -3227,7 +3244,10 @@ void psizedastring (SIZEDTEXT *s)
       return;
     }
     else switch (s->data[i]) {	/* else see if any atom-specials */
-    case '(': case ')': case '{': case '%': case '*':
+    case '(': case ')': case '{': case ' ':
+    case '%': case '*':		/* list-wildcards */
+    case ']':			/* resp-specials */
+				/* CTL and quoted-specials in literal check */
       atomp = NIL;		/* not an atom */
     }
   }
@@ -3450,6 +3470,59 @@ char *bboardname (char *cmd,char *name)
     name = s;
   }
   return name;
+}
+
+/* Test if name is news proxy
+ * Accepts: name
+ * Returns: T if news proxy, NIL otherwise
+ */
+
+long isnewsproxy (char *name)
+{
+  return (nntpproxy && (name[0] == '#') &&
+	  ((name[1] == 'N') || (name[1] == 'n')) &&
+	  ((name[2] == 'E') || (name[2] == 'e')) &&
+	  ((name[3] == 'W') || (name[3] == 'w')) &&
+	  ((name[4] == 'S') || (name[4] == 's')) && (name[5] == '.')) ?
+    LONGT : NIL;
+}
+
+
+/* News proxy generate canonical pattern
+ * Accepts: reference
+ *	    pattern
+ *	    buffer to return canonical pattern
+ * Returns: T on success with pattern in buffer, NIL on failure
+ */
+
+long newsproxypattern (char *ref,char *pat,char *pattern,long flag)
+{
+  if (!nntpproxy) return NIL;
+  if (strlen (ref) > NETMAXMBX) {
+    sprintf (pattern,"Invalid reference specification: %.80s",ref);
+    mm_log (pattern,ERROR);
+    return NIL;
+  }
+  if (strlen (pat) > NETMAXMBX) {
+    sprintf (pattern,"Invalid pattern specification: %.80s",pat);
+    mm_log (pattern,ERROR);
+    return NIL;
+  }
+  if (flag) {			/* prepend proxy specifier */
+    sprintf (pattern,"{%.300s/nntp}",nntpproxy);
+    pattern += strlen (pattern);
+  }
+  if (*ref) {			/* have a reference */
+    strcpy (pattern,ref);	/* copy reference to pattern */
+				/* # overrides mailbox field in reference */
+    if (*pat == '#') strcpy (pattern,pat);
+				/* pattern starts, reference ends, with . */
+    else if ((*pat == '.') && (pattern[strlen (pattern) - 1] == '.'))
+      strcat (pattern,pat + 1);	/* append, omitting one of the period */
+    else strcat (pattern,pat);	/* anything else is just appended */
+  }
+  else strcpy (pattern,pat);	/* just have basic name */
+  return isnewsproxy (pattern);
 }
 
 /* IMAP4rev1 Authentication responder
@@ -3801,6 +3874,7 @@ void mm_status (MAILSTREAM *stream,char *mailbox,MAILSTATUS *status)
 
 void mm_list_work (char *what,int delimiter,char *name,long attributes)
 {
+  char *s;
   if (!quell_events) {
     char tmp[MAILTMPLEN];
     if (finding) {
@@ -3835,7 +3909,9 @@ void mm_list_work (char *what,int delimiter,char *name,long attributes)
 	break;
       }
       PBOUT (' ');
-      pastring (name);		/* output mailbox name */
+				/* output mailbox name */
+      if (proxylist && (s = strchr (name,'}'))) pastring (s+1);
+      else pastring (name);
     }
     CRLF;
   }
@@ -3990,7 +4066,16 @@ void mm_critical (MAILSTREAM *s)
 
 void mm_nocritical (MAILSTREAM *s)
 {
-  --critical;
+				/* go non-critical, pending death? */
+  if (!--critical && (state == LOGOUT)) {
+				/* clean up */
+    if (s && !s->lock) s = mail_close (s);
+    if (stream && (stream != s) && !stream->lock) stream = mail_close (stream);
+				/* do logout hook if needed */
+    if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
+      (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
+    _exit (1);			/* die die die */
+  }
 }
 
 /* Disk error found

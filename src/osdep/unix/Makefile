@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	22 June 2004
+# Last Edited:	4 November 2004
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 1988-2004 University of Washington.
@@ -131,7 +131,7 @@ SH=sh
 BUILD=$(MAKE) build EXTRACFLAGS='$(EXTRACFLAGS)'\
  EXTRALDFLAGS='$(EXTRALDFLAGS)'\
  EXTRADRIVERS='$(EXTRADRIVERS)' EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
- PASSWDTYPE=$(PASSWDTYPE) SSLTYPE=$(SSLTYPE)
+ PASSWDTYPE=$(PASSWDTYPE) SSLTYPE=$(SSLTYPE) IP=$(IP)
 
 
 # Here if no make argument established
@@ -841,7 +841,7 @@ utf8.o: mail.h misc.h osdep.h utf8.h
 osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	osdep.h env_unix.h tcp_unix.h \
 	osdep.c env_unix.c fs_unix.c ftl_unix.c nl_unix.c tcp_unix.c ip_unix.c\
-	auths.c crexcl.c flocksim.c nfstest.c fsync.c gethstid.c \
+	auths.c crexcl.c flocksim.c nfstest.c fsync.c gethstid.c getspnam.c \
 	gr_wait.c gr_wait4.c gr_waitp.c \
 	kerb_mit.c \
 	auth_gss.c auth_log.c auth_md5.c auth_pla.c \

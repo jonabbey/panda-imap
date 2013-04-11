@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	27 April 2004
+ * Last Edited:	4 November 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -916,14 +916,7 @@ long mh_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* make sure valid mailbox */
   if (!mh_isvalid (mailbox,tmp,NIL)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if ((mailbox[0] == '#') && ((mailbox[1] == 'M') || (mailbox[1] == 'm')) &&
-	((mailbox[2] == 'H') || (mailbox[2] == 'h')) &&
-	((mailbox[3] == 'I') || (mailbox[3] == 'i')) &&
-	((mailbox[4] == 'N') || (mailbox[4] == 'n')) &&
-	((mailbox[5] == 'B') || (mailbox[5] == 'b')) &&
-	((mailbox[6] == 'O') || (mailbox[6] == 'o')) &&
-	((mailbox[7] == 'X') || (mailbox[7] == 'x')) && !mailbox[8])
-      mh_create (NIL,"INBOX");
+    if (!compare_cstring (mailbox,"#mhinbox")) mh_create (NIL,"INBOX");
     else {
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
       return NIL;

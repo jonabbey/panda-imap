@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	21 June 2004
+ * Last Edited:	6 December 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -62,6 +62,8 @@
 #define DISABLE_DRIVER (long) 2
 #define ENABLE_AUTHENTICATOR (long) 3
 #define DISABLE_AUTHENTICATOR (long) 4
+#define ENABLE_DEBUG (long) 5
+#define DISABLE_DEBUG (long) 6
 	/* 1xx: c-client globals */
 #define GET_DRIVERS (long) 101
 #define SET_DRIVERS (long) 102
@@ -307,6 +309,8 @@
 #define SET_SNARFINTERVAL (long) 565
 #define GET_SNARFPRESERVE (long) 566
 #define SET_SNARFPRESERVE (long) 567
+#define GET_INBOXPATH (long) 568
+#define SET_INBOXPATH (long) 569
 
 /* Driver flags */
 

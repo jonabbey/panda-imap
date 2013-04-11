@@ -1,5 +1,5 @@
 			   IMAP Toolkit Environment
-			        5 January 2004
+			      14 September 2004
 				 Mark Crispin
 
 
@@ -17,7 +17,8 @@ If you intend to build this software with a non-default configuration
 refer to the docs/BUILD file for more information.
 
 1) Look in imap-2004/Makefile and find your system type code.  For example,
-   modern versions of Linux will use either "slx", "lnp", "lrh", or "lsu".
+   modern versions of Linux will use either "slx", "lnp", or one of the
+   lnp-variants (such as "lrh").
 
 2) Type "make" followed by the system type, e.g. "make slx".
 

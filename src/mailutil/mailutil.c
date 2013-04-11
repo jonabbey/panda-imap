@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 February 1994
- * Last Edited:	11 July 2004
+ * Last Edited:	31 August 2004
  *
  * The IMAP tools software provided in this Distribution is
  * Copyright 1988-2004 by the University of Washington
@@ -485,9 +485,8 @@ long mm_append (MAILSTREAM *stream,void *data,char **flags,char **date,
     if (elt->answered) strcat (t," \\Answered");
     if (elt->draft) strcat (t," \\Draft");
     if (u = elt->user_flags) do	/* any user flags? */
-      if ((MAILTMPLEN - ((t += strlen (t)) - tmp)) > (long)
-	  (2 + strlen
-	   (t1 = ap->stream->user_flags[find_rightmost_bit (&u)]))) {
+      if ((t1 = ap->stream->user_flags[find_rightmost_bit (&u)]) &&
+	  (MAILTMPLEN - ((t += strlen (t)) - tmp)) > (long) (2 + strlen (t1))){
 	*t++ = ' ';		/* space delimiter */
 	strcpy (t,t1);		/* copy the user flag */
       }

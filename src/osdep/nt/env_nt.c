@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	8 July 2004
+ * Last Edited:	18 January 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -159,7 +159,11 @@ static void do_date (char *date,char *prefix,char *fmt,int suffix)
     char *tz;
     tzset ();			/* get timezone from TZ environment stuff */
     tz = tzname[daylight ? (((struct tm *) t)->tm_isdst > 0) : 0];
-    if (tz && tz[0]) sprintf (date + strlen (date)," (%.50s)",tz);
+    if (tz && tz[0]) {
+      char *s;
+      for (s = tz; *s; s++) if (*s & 0x80) return;
+      sprintf (date + strlen (date)," (%.50s)",tz);
+    }
   }
 }
 
@@ -574,11 +578,7 @@ char *mailboxfile (char *dst,char *name)
   char *dir = myhomedir ();
   *dst = '\0';			/* default to empty string */
 				/* check for INBOX */
-  if (((name[0] == 'I') || (name[0] == 'i')) &&
-      ((name[1] == 'N') || (name[1] == 'n')) &&
-      ((name[2] == 'B') || (name[2] == 'b')) &&
-      ((name[3] == 'O') || (name[3] == 'o')) &&
-      ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) return dst;
+  if (!compare_cstring (name,"INBOX")) return dst;
 				/* reject names with / */
   if (strchr (name,'/')) return NIL;
   else if (*name == '#') {	/* namespace names */

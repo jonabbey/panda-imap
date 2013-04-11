@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 April 2004
+ * Last Edited:	28 September 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -52,6 +52,8 @@
 
 #define direct dirent
 #define random lrand48
+
+#define scandir Scandir
 
 #define getpass getpassphrase
 

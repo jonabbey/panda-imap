@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	8 July 2004
+ * Last Edited:	17 December 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -1045,7 +1045,7 @@ long imap_anon (MAILSTREAM *stream,char *tmp)
     char tag[16];
     unsigned long i;
     char *broken = "[CLOSED] IMAP connection broken (anonymous auth)";
-    sprintf (tag,"%08lx",stream->gensym++);
+    sprintf (tag,"%08lx",0xffffffff & (stream->gensym++));
 				/* build command */
     sprintf (tmp,"%s AUTHENTICATE ANONYMOUS",tag);
     if (!imap_soutr (stream,tmp)) {
@@ -1110,7 +1110,7 @@ long imap_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
 	fs_give ((void **) &lsterr);
       }
       LOCAL->saslcancel = NIL;
-      sprintf (tag,"%08lx",stream->gensym++);
+      sprintf (tag,"%08lx",0xffffffff & (stream->gensym++));
 				/* build command */
       sprintf (tmp,"%s AUTHENTICATE %s",tag,at->name);
       if (imap_soutr (stream,tmp)) {
@@ -2819,7 +2819,7 @@ IMAPPARSEDREPLY *imap_send (MAILSTREAM *stream,char *cmd,IMAPARG *args[])
   char c,*s,*t,tag[10];
   stream->unhealthy = NIL;	/* make stream healthy again */
   				/* gensym a new tag */
-  sprintf (tag,"%08lx",stream->gensym++);
+  sprintf (tag,"%08lx",0xffffffff & (stream->gensym++));
   if (!LOCAL->netstream)	/* make sure have a session */
     return imap_fake (stream,tag,"[CLOSED] IMAP connection lost");
   mail_lock (stream);		/* lock up the stream */
@@ -3778,7 +3778,14 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
       fs_give ((void **) &stream->user_flags[i++]);
     i = 0;			/* add flags */
     if (reply->text && (s = (char *) strtok (reply->text+1," )"))) do
-      if (*s != '\\') stream->user_flags[i++] = cpystr (s);
+      if (*s != '\\') {
+	if (i < NUSERFLAGS) stream->user_flags[i++] = cpystr (s);
+	else {
+	  sprintf (LOCAL->tmp,"Too many server flags, discarding: %.80s",
+		   (char *) s);
+	  mm_notify (stream,LOCAL->tmp,WARN);
+	}
+      }
     while (s = (char *) strtok (NIL," )"));
   }
   else if (!strcmp (reply->key,"SEARCH")) {
@@ -4129,14 +4136,23 @@ void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy)
 {
   char *s,*t;
   size_t i;
+  unsigned long j;
+  MESSAGECACHE *elt;
+  mailcache_t mc = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
   if (text && (*text == '[') && (t = strchr (s = text + 1,']')) &&
       ((i = t - s) < IMAPTMPLEN)) {
     LOCAL->tmp[i] = '\0';	/* make mungable copy of text code */
     if (s = strchr (strncpy (LOCAL->tmp,s,i),' ')) *s++ = '\0';
     if (s) {			/* have argument? */
       ntfy = NIL;		/* suppress mm_notify if normal SELECT data */
-      if (!compare_cstring (LOCAL->tmp,"UIDVALIDITY"))
-	stream->uid_validity = strtoul (s,NIL,10);
+      if (!compare_cstring (LOCAL->tmp,"UIDVALIDITY") &&
+	  ((j = strtoul (s,NIL,10)) != stream->uid_validity)) {
+	stream->uid_validity = j;
+				/* purge any UIDs in cache */
+	for (j = 1; j <= stream->nmsgs; j++)
+	  if (elt = (MESSAGECACHE *) (*mc) (stream,j,CH_ELT))
+	    elt->private.uid = 0;
+      }
       else if (!compare_cstring (LOCAL->tmp,"UIDNEXT"))
 	stream->uid_last = strtoul (s,NIL,10) - 1;
       else if (!compare_cstring (LOCAL->tmp,"PERMANENTFLAGS") && (*s == '(') &&

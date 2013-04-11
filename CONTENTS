@@ -2,10 +2,9 @@
 
 Documentation:
  . CONTENTS		this file
- . CPYRIGHT		copyright notice
+ . CPYRIGHT		copyright notice and export warning
  . README		read this file first
  . SUPPORT		where to go to ask questions and/or report bugs
- . WARNING		export notice and warning
  . docs/BUILD		build and installation instructions
  . docs/CONFIG		detailed configuration notes
  . docs/FAQ.html	frequently asked questions and answers

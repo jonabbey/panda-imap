@@ -1,5 +1,5 @@
 /*
- * Program:	RFC 2822 routines (originally from SMTP)
+ * Program:	RFC 2822 and MIME routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	27 April 2004
+ * Last Edited:	18 January 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -66,34 +66,14 @@ char *body_encodings[ENCMAX+1] = {
 
 /* Token delimiting special characters */
 
-				/* RFC-822 specials excluding space */
+				/* RFC 2822 specials */
+const char *specials = " ()<>@,;:\\\"[].\1\2\3\4\5\6\7\10\11\12\13\14\15\16\17\20\21\22\23\24\25\26\27\30\31\32\33\34\35\36\37\177";
+				/* RFC 2822 phrase specials (no space) */
 const char *rspecials = "()<>@,;:\\\"[].\1\2\3\4\5\6\7\10\11\12\13\14\15\16\17\20\21\22\23\24\25\26\27\30\31\32\33\34\35\36\37\177";
-				/* body token specials */
-const char *tspecials = " ()<>@,;:\\\"[]./?=\1\2\3\4\5\6\7\10\11\12\13\14\15\16\17\20\21\22\23\24\25\26\27\30\31\32\33\34\35\36\37\177";
-
-
-/* Once upon a time, CSnet had a mailer which assigned special semantics to
- * dot in e-mail addresses.  For the sake of that mailer, dot was added to
- * the RFC-822 definition of `specials', even though it had numerous bad side
- * effects:
- *   1)	It broke mailbox names on systems which had dots in user names, such as
- *	Multics and TOPS-20.  RFC-822's syntax rules require that `Admin . MRC'
- *	be considered equivalent to `Admin.MRC'.  Fortunately, few people ever
- *	tried this in practice.
- *   2) It required that all personal names with an initial be quoted, a widely
- *	detested user interface misfeature.
- *   3)	It made the parsing of host names be non-atomic for no good reason.
- * To work around these problems, the following alternate specials lists are
- * defined.  wspecials is used in lieu of rspecials, and ptspecials is used in
- * lieu of tspecials.  These alternate specials lists make the parser work a
- * lot better in the real world.  It ain't politically correct, but it lets
- * the users get their job done!
- */
-
-				/* parse-word specials */
+				/* RFC 2822 dot-atom specials (no dot) */
 const char *wspecials = " ()<>@,;:\\\"[]\1\2\3\4\5\6\7\10\11\12\13\14\15\16\17\20\21\22\23\24\25\26\27\30\31\32\33\34\35\36\37\177";
-				/* parse-token specials for parsing */
-const char *ptspecials = " ()<>@,;:\\\"[]/?=\1\2\3\4\5\6\7\10\11\12\13\14\15\16\17\20\21\22\23\24\25\26\27\30\31\32\33\34\35\36\37\177";
+				/* RFC 2045 MIME body token specials */
+const char *tspecials = " ()<>@,;:\\\"[]/?=\1\2\3\4\5\6\7\10\11\12\13\14\15\16\17\20\21\22\23\24\25\26\27\30\31\32\33\34\35\36\37\177";
 
 /* RFC 2822 writing routines */
 
@@ -246,7 +226,7 @@ void rfc822_address (char *dest,ADDRESS *adr)
 /* Concatenate RFC 2822 string
  * Accepts: pointer to destination string
  *	    pointer to string to concatenate
- *	    list of special characters
+ *	    list of special characters or NIL for dot-atom format
  */
 
 void rfc822_cat (char *dest,char *src,const char *specials)
@@ -761,7 +741,7 @@ void rfc822_parse_content_header (BODY *body,char *name,char *s)
       body->description = cpystr (s);
     if (!(strcmp (name+1,"ISPOSITION") || body->disposition.type)) {
 				/* get type word */
-      if (!(name = rfc822_parse_word (s,ptspecials))) break;
+      if (!(name = rfc822_parse_word (s,tspecials))) break;
       c = *name;		/* remember delimiter */
       *name = '\0';		/* tie off type */
       body->disposition.type = ucase (cpystr (s));
@@ -773,7 +753,7 @@ void rfc822_parse_content_header (BODY *body,char *name,char *s)
   case 'L':			/* possible Content-Language */
     if (!(strcmp (name+1,"ANGUAGE") || body->language)) {
       stl = NIL;		/* process languages */
-      while (s && (name = rfc822_parse_word (s,ptspecials))) {
+      while (s && (name = rfc822_parse_word (s,tspecials))) {
 	c = *name;		/* save delimiter */
 	*name = '\0';		/* tie off subtype */
 	if (stl) stl = stl->next = mail_newstringlist ();
@@ -799,46 +779,45 @@ void rfc822_parse_content_header (BODY *body,char *name,char *s)
   case 'T':			/* possible Content-Type/Transfer-Encoding */
     if (!(strcmp (name+1,"YPE") || body->subtype || body->parameter)) {
 				/* get type word */
-      if (!(name = rfc822_parse_word (s,ptspecials))) break;
+      if (!(name = rfc822_parse_word (s,tspecials))) break;
       c = *name;		/* remember delimiter */
       *name = '\0';		/* tie off type */
-      ucase (s);		/* search for body type */
-      for (i=0; (i<=TYPEMAX) && body_types[i] && strcmp(s,body_types[i]); i++);
-      if (i > TYPEMAX) body->type = TYPEOTHER;
-      else {			/* if empty slot, assign it to this type */
-	if (!body_types[i]) body_types[i] = cpystr (s);
-	body->type = (unsigned short) i;
-      }
+      s = ucase (rfc822_cpy(s));/* search for body type */
+      for (i = 0; (i <= TYPEMAX) && body_types[i] &&
+	     strcmp (s,body_types[i]); i++);
+				/* record body type index */
+      body->type = (i <= TYPEMAX) ? (unsigned short) i : TYPEOTHER;
+				/* and name if new type */
+      if (body_types[body->type]) fs_give ((void **) &s);
+      else body_types[body->type] = s;
       *name = c;		/* restore delimiter */
       rfc822_skipws (&name);	/* skip whitespace */
       if ((*name == '/') &&	/* subtype? */
-	  (name = rfc822_parse_word ((s = ++name),ptspecials))) {
+	  (name = rfc822_parse_word ((s = ++name),tspecials))) {
 	c = *name;		/* save delimiter */
 	*name = '\0';		/* tie off subtype */
 	rfc822_skipws (&s);	/* copy subtype */
-	if (s) body->subtype = ucase (cpystr (s));
+	if (s) body->subtype = ucase (rfc822_cpy (s));
 	*name = c;		/* restore delimiter */
 	rfc822_skipws (&name);	/* skip whitespace */
       }
-      else {			/* no subtype */
-	if (!name) {		/* did the fool have a subtype delimiter? */
-	  name = s;		/* barf, restore pointer */
-	  rfc822_skipws (&name);/* skip leading whitespace */
-	}
+      else if (!name) {		/* no subtype, was a subtype delimiter? */
+	name = s;		/* barf, restore pointer */
+	rfc822_skipws (&name);	/* skip leading whitespace */
       }
       rfc822_parse_parameter (&body->parameter,name);
     }
     else if (!strcmp (name+1,"RANSFER-ENCODING")) {
-				/* flush out any confusing whitespace */
-      if (t = strchr (ucase (s),' ')) *t = '\0';
-				/* search for body encoding */
+      if (!(name = rfc822_parse_word (s,tspecials))) break;
+      *name = '\0';		/* tie off encoding */
+      s = ucase (rfc822_cpy(s));/* search for body encoding */
       for (i = 0; (i <= ENCMAX) && body_encodings[i] &&
 	   strcmp (s,body_encodings[i]); i++);
-      if (i > ENCMAX) body->encoding = ENCOTHER;
-      else {			/* if empty slot, assign it to this type */
-	if (!body_encodings[i]) body_encodings[i] = cpystr (s);
-	body->encoding = (unsigned short) i;
-      }
+				/* record body encoding index */
+      body->encoding = (i <= ENCMAX) ? (unsigned short) i : ENCOTHER;
+				/* and name if new encoding */
+      if (body_encodings[body->encoding]) fs_give ((void **) &s);
+      else body_encodings[body->encoding] = ucase (cpystr (s));
     }
     break;
   default:			/* otherwise unknown */
@@ -857,7 +836,7 @@ void rfc822_parse_parameter (PARAMETER **par,char *text)
   PARAMETER *param = NIL;
 				/* parameter list? */
   while (text && (*text == ';') &&
-	 (text = rfc822_parse_word ((s = ++text),ptspecials))) {
+	 (text = rfc822_parse_word ((s = ++text),tspecials))) {
     c = *text;			/* remember delimiter */
     *text = '\0';		/* tie off attribute name */
     rfc822_skipws (&s);		/* skip leading attribute whitespace */
@@ -869,7 +848,7 @@ void rfc822_parse_parameter (PARAMETER **par,char *text)
       *text = c;		/* restore delimiter */
       rfc822_skipws (&text);	/* skip whitespace before equal sign */
       if ((*text != '=') ||	/* missing value is a no-no too */
-	  !(text = rfc822_parse_word ((s = ++text),ptspecials)))
+	  !(text = rfc822_parse_word ((s = ++text),tspecials)))
 	param->value = cpystr ("UNKNOWN_PARAMETER_VALUE");
       else {			/* good, have equals sign */
 	c = *text;		/* remember delimiter */
@@ -911,8 +890,13 @@ void rfc822_parse_adrlist (ADDRESS **lst,char *string,char *host)
 				/* run to tail of list */
   if (last) while (last->next) last = last->next;
   while (string) {		/* loop until string exhausted */
+    while (*string == ',') {	/* RFC 822 allowed null addresses!! */
+      ++string;			/* skip the comma */
+      rfc822_skipws (&string);	/* and any leading WS */
+    }
+    if (!*string) string = NIL;	/* punt if ran out of string */
 				/* got an address? */
-    if (adr = rfc822_parse_address (lst,last,&string,host,0)) {
+    else if (adr = rfc822_parse_address (lst,last,&string,host,0)) {
       last = adr;		/* new tail address */
       if (string) {		/* analyze what follows */
 	rfc822_skipws (&string);
@@ -1562,8 +1546,9 @@ void rfc822_encode_body_7bit (ENVELOPE *env,BODY *body)
 	 param = &(*param)->next);
     if (!*param) {		/* cookie not set up yet? */
       char tmp[MAILTMPLEN];	/* make cookie not in BASE64 or QUOTEPRINT*/
-      sprintf (tmp,"%ld-%ld-%ld=:%ld",(long) gethostid (),random (),time (0),
-	       (long) getpid ());
+      sprintf (tmp,"%lu-%lu-%lu=:%lu",(unsigned long) gethostid (),
+	       (unsigned long) random (),(unsigned long) time (0),
+	       (unsigned long) getpid ());
       (*param) = mail_newbody_parameter ();
       (*param)->attribute = cpystr ("BOUNDARY");
       (*param)->value = cpystr (tmp);
@@ -1629,8 +1614,9 @@ void rfc822_encode_body_8bit (ENVELOPE *env,BODY *body)
 	 param = &(*param)->next);
     if (!*param) {		/* cookie not set up yet? */
       char tmp[MAILTMPLEN];	/* make cookie not in BASE64 or QUOTEPRINT*/
-      sprintf (tmp,"%ld-%ld-%ld=:%ld",(long) gethostid (),random (),time (0),
-	       (long) getpid ());
+      sprintf (tmp,"%lu-%lu-%lu=:%lu",(unsigned long) gethostid (),
+	       (unsigned long) random (),(unsigned long) time (0),
+	       (unsigned long) getpid ());
       (*param) = mail_newbody_parameter ();
       (*param)->attribute = cpystr ("BOUNDARY");
       (*param)->value = cpystr (tmp);
@@ -1686,8 +1672,9 @@ long rfc822_output_body (BODY *body,soutr_t f,void *s)
     for (param = body->parameter; param && !cookie; param = param->next)
       if (!strcmp (param->attribute,"BOUNDARY")) cookie = param->value;
     if (!cookie) {		/* make cookie not in BASE64 or QUOTEPRINT*/
-      sprintf (tmp,"%ld-%ld-%ld=:%ld",(long) gethostid (),random (),time (0),
-	       (long) getpid ());
+      sprintf (tmp,"%lu-%lu-%lu=:%lu",(unsigned long) gethostid (),
+	       (unsigned long) random (),(unsigned long) time (0),
+	       (unsigned long) getpid ());
       (param = mail_newbody_parameter ())->attribute = cpystr ("BOUNDARY");
       param->value = cpystr (tmp);
       param->next = body->parameter;
@@ -1728,7 +1715,7 @@ long rfc822_output_body (BODY *body,soutr_t f,void *s)
 void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
 {
   char c,*s,tmp[MAILTMPLEN];
-  void *ret = fs_get ((size_t) (*len = 4 + ((srcl * 3) / 4)));
+  void *ret = fs_get ((size_t) ((*len = 4 + ((srcl * 3) / 4))) + 1);
   char *d = (char *) ret;
   int e;
   static char decode[256] = {
@@ -1749,7 +1736,8 @@ void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
    JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
    JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK
   };
-  memset (ret,0,(size_t) *len);	/* initialize block */
+				/* initialize block */
+  memset (ret,0,((size_t) *len) + 1);
   *len = 0;			/* in case we return an error */
 
 				/* simple-minded decode */
@@ -1811,6 +1799,7 @@ void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
     return NIL;
   }
   *len = d - (char *) ret;	/* calculate data length */
+  *d = '\0';			/* NUL terminate just in case */
   return ret;			/* return the string */
 }
 
@@ -1953,7 +1942,7 @@ unsigned char *rfc822_8bit (unsigned char *src,unsigned long srcl,
 {
   unsigned long lp = 0;
   unsigned char *ret = (unsigned char *)
-    fs_get ((size_t) (3*srcl + (6*srcl)/MAXL + 3));
+    fs_get ((size_t) (3*srcl + 3*(((3*srcl)/MAXL) + 1)));
   unsigned char *d = ret;
   char *hex = "0123456789ABCDEF";
   unsigned char c;

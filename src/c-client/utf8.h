@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	3 June 2004
+ * Last Edited:	15 November 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -296,14 +296,26 @@
 #define BITS7 0x7f		/* 7-bit value mask */
 #define BIT8 0x80		/* 8th bit mask */
 
+
+#define UBOGON 0xfffd		/* UCS-2 bogus character */
+
+
+/* The following saves us from having to have yet more charset tables */
+
 				/* UCS2 codepoints */
 #define UCS2_POUNDSTERLING 0x00a3
 #define UCS2_YEN 0x00a5
 #define UCS2_OVERLINE 0x203e
 #define UCS2_KATAKANA 0xff61
-#define UBOGON 0xfffd		/* replacement character */
 
-				/* hankaku katakana parameters */
+				/* British ASCII codepoints */
+#define BRITISH_POUNDSTERLING 0x23
+
+				/* JIS Roman codepoints */
+#define JISROMAN_YEN 0x5c
+#define JISROMAN_OVERLINE 0x7e
+
+				/* hankaku katakana codepoints & parameters */
 #define MIN_KANA_7 0x21
 #define MAX_KANA_7 0x5f
 #define KANA_7 (UCS2_KATAKANA - MIN_KANA_7)

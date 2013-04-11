@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	2 February 2004
+ * Last Edited:	10 November 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -128,7 +128,13 @@ DRIVER *dummy_valid (char *name)
 
 void *dummy_parameters (long function,void *value)
 {
-  return NIL;
+  void *ret = NIL;
+  switch ((int) function) {
+  case GET_INBOXPATH:
+    if (value) ret = dummy_file ((char *) value,"INBOX");
+    break;
+  }
+  return ret;
 }
 
 /* Dummy scan mailboxes
@@ -294,11 +300,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 				/* ignore all-digit names from mx */
 	    /* Must use ctime for systems that don't update mtime properly */
 	    if (!(ismx && mx_select (d)) && pmatch_full (tmp,pat,'/') &&
-		!(((tmp[0] == 'I') || (tmp[0] == 'i')) &&
-		  ((tmp[1] == 'N') || (tmp[1] == 'n')) &&
-		  ((tmp[2] == 'B') || (tmp[2] == 'b')) &&
-		  ((tmp[3] == 'O') || (tmp[3] == 'o')) &&
-		  ((tmp[4] == 'X') || (tmp[4] == 'x')) && !tmp[5]))
+		compare_cstring (tmp,"INBOX"))
 	      dummy_listed (stream,'/',tmp,LATT_NOINFERIORS +
 			    ((sbuf.st_size && (sbuf.st_atime < sbuf.st_ctime))?
 			     LATT_MARKED : LATT_UNMARKED),contents);
@@ -365,8 +367,9 @@ long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,
       (d != &dummydriver)) attributes &= ~LATT_NOSELECT;
   if (!contents ||		/* notify main program */
       (!(attributes & LATT_NOSELECT) && (csiz = strlen (contents)) &&
-       (s = dummy_file (tmp,name)) && !stat (s,&sbuf) &&
-       (csiz <= sbuf.st_size) &&
+       (s = mailboxfile (tmp,name)) &&
+       (*s || (s = mail_parameters (NIL,GET_INBOXPATH,tmp))) &&
+       !stat (s,&sbuf) && (csiz <= sbuf.st_size) &&
        SAFE_SCAN_CONTENTS (d,tmp,contents,csiz,sbuf.st_size)))
     mm_list (stream,delimiter,name,attributes);
   return T;
@@ -563,8 +566,9 @@ void dummy_close (MAILSTREAM *stream,long options)
 long dummy_ping (MAILSTREAM *stream)
 {
   MAILSTREAM *test;
-				/* time to do another test? */
-  if (time (0) >= ((time_t) (stream->gensym + 30))) {
+  if (time (0) >=		/* time to do another test? */
+      ((time_t) (stream->gensym +
+		 (long) mail_parameters (NIL,GET_SNARFINTERVAL,NIL)))) {
 				/* has mailbox format changed? */
     if ((test = mail_open (NIL,stream->mailbox,OP_PROTOTYPE)) &&
 	(test->dtb != stream->dtb) &&

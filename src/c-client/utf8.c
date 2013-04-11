@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	3 June 2004
+ * Last Edited:	15 November 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -417,10 +417,18 @@ unsigned short *utf8_rmap (char *charset)
 	    rmap[u] = ((((sku + 1) >> 1) + ((sku < 95) ? 112 : 176)) << 8) +
 	      sten + ((sku % 2) ? ((sten > 95) ? 32 : 31) : 126);
 	  }
+				/* JIS Roman */
+      rmap[UCS2_YEN] = JISROMAN_YEN;
+      rmap[UCS2_OVERLINE] = JISROMAN_OVERLINE;
+				/* JIS hankaku katakana */
+      for (u = 0; u <= MAX_KANA_8 - MIN_KANA_8; u++)
+	rmap[UCS2_KATAKANA + u] = MIN_KANA_8 + u;
       break;
     }
     break;
   }
+				/* hack: map NBSP to SP if otherwise no map */
+  if (rmap[0x00a0] == 0xffff) rmap[0x00a0] = rmap[0x0020];
   return rmap;			/* return map */
 }
 
@@ -858,7 +866,7 @@ void utf8_text_sjis (SIZEDTEXT *text,SIZEDTEXT *ret)
   unsigned long i;
   unsigned char *s;
   unsigned int c,c1,ku,ten;
-  for (ret->size = i = 0; i < text->size; ret->size += UTF8_SIZE (c))
+  for (ret->size = i = 0; i < text->size; ret->size += UTF8_SIZE (c)) {
     if ((c = text->data[i++]) & BIT8) {
 				/* half-width katakana */
       if ((c >= MIN_KANA_8) && (c <= MAX_KANA_8)) c += KANA_8;
@@ -869,17 +877,22 @@ void utf8_text_sjis (SIZEDTEXT *text,SIZEDTEXT *ret)
 	c = JISTOUNICODE (c,c1,ku,ten);
       }
     }
+				/* compromise - do yen sign but not overline */
+    else if (c == JISROMAN_YEN) c = UCS2_YEN;
+  }
   (s = ret->data = (unsigned char *) fs_get (ret->size + 1))[ret->size] = NIL;
   for (i = 0; i < text->size;) {
     if ((c = text->data[i++]) & BIT8) {
 				/* half-width katakana */
       if ((c >= MIN_KANA_8) && (c <= MAX_KANA_8)) c += KANA_8;
-      else {		/* Shift-JIS */
+      else {			/* Shift-JIS */
 	c1 = text->data[i++];
 	SJISTOJIS (c,c1);
 	c = JISTOUNICODE (c,c1,ku,ten);
       }
     }
+				/* compromise - do yen sign but not overline */
+    else if (c == JISROMAN_YEN) c = UCS2_YEN;
     UTF8_PUT (s,c)		/* convert Unicode to UTF-8 */
   }
 }
@@ -1001,20 +1014,21 @@ void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret)
 	    break;		/* easy! */
 	  case I2CS_BRITISH:	/* British ASCII */
 				/* Pound sterling sign */
-	    if (c == 0x23) c = UCS2_POUNDSTERLING;
+	    if (c == BRITISH_POUNDSTERLING) c = UCS2_POUNDSTERLING;
 	    break;
 	  case I2CS_JIS_ROMAN:	/* JIS Roman */
 	  case I2CS_JIS_BUGROM:	/* old bugs */
 	    switch (c) {	/* two exceptions to ASCII */
-	    case 0x5c:		/* Yen sign */
+	    case JISROMAN_YEN:	/* Yen sign */
 	      c = UCS2_YEN;
 	      break;
-	    case 0x7e:		/* overline */
+				/* overline */
+	    case JISROMAN_OVERLINE:
 	      c = UCS2_OVERLINE;
 	      break;
 	    }
 	    break;
-	  case I2CS_JIS_KANA:	/* JIS katakana */
+	  case I2CS_JIS_KANA:	/* JIS hankaku katakana */
 	    if ((c >= MIN_KANA_7) && (c <= MAX_KANA_7)) c += KANA_7;
 	    break;
 

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	8 June 2004
+ * Last Edited:	4 November 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -194,11 +194,7 @@ int mtx_isvalid (char *name,char *tmp)
     }
   }
 				/* in case INBOX but not mtx format */
-  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
-	   ((name[1] == 'N') || (name[1] == 'n')) &&
-	   ((name[2] == 'B') || (name[2] == 'b')) &&
-	   ((name[3] == 'O') || (name[3] == 'o')) &&
-	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
+  else if ((errno == ENOENT) && !compare_cstring (name,"INBOX")) errno = -1;
   return ret;			/* return what we should */
 }
 
@@ -258,7 +254,11 @@ void mtx_lsub (MAILSTREAM *stream,char *ref,char *pat)
 
 long mtx_create (MAILSTREAM *stream,char *mailbox)
 {
-  return dummy_create (stream,mailbox);
+  char *s,mbx[MAILTMPLEN];
+  if (s = dummy_file (mbx,mailbox)) return dummy_create (stream,s);
+  sprintf (mbx,"Can't create %.80s: invalid name",mailbox);
+  mm_log (mbx,ERROR);
+  return NIL;
 }
 
 
@@ -842,12 +842,7 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* make sure valid mailbox */
   if (!mtx_isvalid (mailbox,tmp)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
-	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
-	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
-	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5])
-      dummy_create_path (NIL,"INBOX",NIL);
+    if (!compare_cstring (mailbox,"INBOX")) mtx_create (NIL,"INBOX");
     else {
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
       return NIL;

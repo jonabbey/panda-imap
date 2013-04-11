@@ -1,5 +1,5 @@
 /*
- * Program:	RFC-822 routines (originally from SMTP)
+ * Program:	RFC 2822 and MIME routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	8 November 2000
+ * Last Edited:	8 September 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *

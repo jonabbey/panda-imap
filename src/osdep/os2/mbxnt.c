@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	15 June 2004
+ * Last Edited:	10 November 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -216,11 +216,7 @@ int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp)
     }
   }
 				/* in case INBOX but not mbx format */
-  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
-	   ((name[1] == 'N') || (name[1] == 'n')) &&
-	   ((name[2] == 'B') || (name[2] == 'b')) &&
-	   ((name[3] == 'O') || (name[3] == 'o')) &&
-	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
+  else if ((errno == ENOENT) && !compare_cstring (name,"INBOX")) errno = -1;
   return ret;			/* return what we should */
 }
 
@@ -590,6 +586,7 @@ char *mbx_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
 long mbx_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 {
   unsigned long i,j;
+  char *s = LOCAL->text.data;
   MESSAGECACHE *elt;
 				/* UID call "impossible" */
   if (flags & FT_UID) return NIL;
@@ -604,8 +601,9 @@ long mbx_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 				/* update flags */
     mbx_flag (stream,NIL,NIL,NIL);
   }
+  if (!LOCAL) i = 0;		/* mbx_flaglock() could have aborted */
 				/* in case previous text cached */
-  if (elt->private.uid == LOCAL->uid)
+  else if (elt->private.uid == LOCAL->uid)
     i = elt->rfc822_size - elt->private.msg.header.text.size;
   else {			/* not cached, cache it now */
     LOCAL->uid = elt->private.uid;
@@ -619,11 +617,10 @@ long mbx_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
       LOCAL->text.data = (unsigned char *) fs_get ((LOCAL->text.size = i) + 1);
     }
 				/* slurp the data */
-    read (LOCAL->fd,LOCAL->text.data,i);
+    read (LOCAL->fd,s = LOCAL->text.data,i);
     LOCAL->text.data[i] = '\0';	/* tie off string */
   }
-				/* set up stringstruct */
-  INIT (bs,mail_string,LOCAL->text.data,i);
+  INIT (bs,mail_string,s,i);	/* set up stringstruct */
   return T;			/* success */
 }
 
@@ -639,7 +636,7 @@ void mbx_flag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
   struct utimbuf times;
   struct stat sbuf;
 				/* make sure the update takes */
-  if (!stream->rdonly && (LOCAL->fd >= 0) && (LOCAL->ld >= 0)) {
+  if (!stream->rdonly && LOCAL && (LOCAL->fd >= 0) && (LOCAL->ld >= 0)) {
     fsync (LOCAL->fd);
     fstat (LOCAL->fd,&sbuf);	/* get current write time */
     times.modtime = LOCAL->filetime = sbuf.st_mtime;
@@ -690,11 +687,12 @@ long mbx_ping (MAILSTREAM *stream)
 	 !stream->nmsgs) &&
 	((ld = lockname (lock,stream->mailbox,LOCK_EX)) >= 0)) {
       if (LOCAL->flagcheck) {	/* sweep mailbox for changed message status */
-	ret = mbx_parse (stream);
-	LOCAL->filetime = sbuf.st_mtime;
-	for (i = 1; i <= stream->nmsgs; )
-	  if (mbx_elt (stream,i,LOCAL->expok)) ++i;
-	LOCAL->flagcheck = NIL;	/* got all the updates */
+	if (ret = mbx_parse (stream)) {
+	  LOCAL->filetime = sbuf.st_mtime;
+	  for (i = 1; i <= stream->nmsgs; )
+	    if (mbx_elt (stream,i,LOCAL->expok)) ++i;
+	  LOCAL->flagcheck =NIL;/* got all the updates */
+	}
       }
       else if (i) ret = mbx_parse (stream);
       unlockfd (ld,lock);	/* release shared parse/append permission */
@@ -715,9 +713,9 @@ long mbx_ping (MAILSTREAM *stream)
 	  mm_log (LOCAL->buf,(long) NIL);
 	}
       }
+      LOCAL->expok = NIL;	/* no more expok */
     }
   }
-  LOCAL->expok = NIL;		/* no more expok */
   return ret;			/* return result of the parse */
 }
 
@@ -886,11 +884,7 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* make sure valid mailbox */
   if (!mbx_isvalid (&dstream,mailbox,tmp)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
-	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
-	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
-	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5])
+    if (!compare_cstring (mailbox,"INBOX"))
       mbx_create (dstream = stream ? stream : &mbxproto,"INBOX");
     else {
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
@@ -1333,7 +1327,6 @@ void mbx_update_status (MAILSTREAM *stream,unsigned long msgno,long flags)
 	       elt->private.special.text.size,(char *) LOCAL->buf);
       fatal (LOCAL->buf+50);
     }
-    LOCAL->buf[13] = '\0';	/* tie off buffer */
 				/* print new flag string */
     sprintf (LOCAL->buf,"%08lx%04x-%08lx",elt->user_flags,(unsigned)
 	     (((elt->deleted && flags) ?
@@ -1549,11 +1542,12 @@ long mbx_flaglock (MAILSTREAM *stream)
 {
   struct stat sbuf;
   unsigned long i;
+  int ld;
+  char lock[MAILTMPLEN];
 				/* no-op if readonly or already locked */
-  if (!stream->rdonly && (LOCAL->fd >= 0) && (LOCAL->ld < 0)) {
+  if (!stream->rdonly && LOCAL && (LOCAL->fd >= 0) && (LOCAL->ld < 0)) {
 				/* lock now */
-    if ((LOCAL->ld = lockname (LOCAL->lock,stream->mailbox,LOCK_EX)) < 0)
-      return NIL;
+    if ((ld = lockname (lock,stream->mailbox,LOCK_EX)) < 0) return NIL;
     if (!LOCAL->flagcheck) {	/* don't do this if flagcheck already needed */
       if (LOCAL->filetime) {	/* know previous time? */
 	fstat (LOCAL->fd,&sbuf);/* get current write time */
@@ -1561,12 +1555,14 @@ long mbx_flaglock (MAILSTREAM *stream)
 	LOCAL->filetime = 0;	/* don't do this test for any other messages */
       }
       if (!mbx_parse (stream)) {/* parse mailbox */
-	unlockfd (LOCAL->ld,LOCAL->lock);
+	unlockfd (ld,lock);	/* shouldn't happen */
 	return NIL;
       }
       if (LOCAL->flagcheck)	/* invalidate cache if flagcheck */
 	for (i = 1; i <= stream->nmsgs; ++i) mail_elt (stream,i)->valid = NIL;
     }
+    LOCAL->ld = ld;		/* copy to stream for subseuent calls */
+    memcpy (LOCAL->lock,lock,MAILTMPLEN);
   }
   return LONGT;
 }

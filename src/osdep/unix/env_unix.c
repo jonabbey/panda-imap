@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	8 July 2004
+ * Last Edited:	13 September 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -339,14 +339,14 @@ void *env_parameters (long function,void *value)
   case GET_BLOCKNOTIFY:
     ret = (void *) mailblocknotify;
     break;
-  case GET_LOGOUTHOOK:
-    maillogouthook = (logouthook_t) value;
   case SET_LOGOUTHOOK:
+    maillogouthook = (logouthook_t) value;
+  case GET_LOGOUTHOOK:
     ret = maillogouthook;
     break;
-  case GET_LOGOUTDATA:
-    maillogoutdata = (void *) value;
   case SET_LOGOUTDATA:
+    maillogoutdata = (void *) value;
+  case GET_LOGOUTDATA:
     ret = maillogoutdata;
   }
   return ret;
@@ -1484,6 +1484,10 @@ void dorc (char *file,long flag)
 	  mail_parameters (NIL,SET_RSHCOMMAND,(void *) k);
 	else if (!compare_cstring (s,"set rsh-path"))
 	  mail_parameters (NIL,SET_RSHPATH,(void *) k);
+	else if (!compare_cstring (s,"set ssh-command"))
+	  mail_parameters (NIL,SET_SSHCOMMAND,(void *) k);
+	else if (!compare_cstring (s,"set ssh-path"))
+	  mail_parameters (NIL,SET_SSHPATH,(void *) k);
 	else if (!compare_cstring (s,"set tcp-open-timeout"))
 	  mail_parameters (NIL,SET_OPENTIMEOUT,(void *) atol (k));
 	else if (!compare_cstring (s,"set tcp-read-timeout"))
@@ -1492,6 +1496,8 @@ void dorc (char *file,long flag)
 	  mail_parameters (NIL,SET_WRITETIMEOUT,(void *) atol (k));
 	else if (!compare_cstring (s,"set rsh-timeout"))
 	  mail_parameters (NIL,SET_RSHTIMEOUT,(void *) atol (k));
+	else if (!compare_cstring (s,"set ssh-timeout"))
+	  mail_parameters (NIL,SET_SSHTIMEOUT,(void *) atol (k));
 	else if (!compare_cstring (s,"set maximum-login-trials"))
 	  mail_parameters (NIL,SET_MAXLOGINTRIALS,(void *) atol (k));
 	else if (!compare_cstring (s,"set lookahead"))
@@ -1508,6 +1514,7 @@ void dorc (char *file,long flag)
 	  mail_parameters (NIL,SET_UIDLOOKAHEAD,(void *) atol (k));
 	else if (!compare_cstring (s,"set try-ssl-first"))
 	  mail_parameters (NIL,SET_TRYSSLFIRST,(void *) atol (k));
+
 	else if (!compare_cstring (s,"set mailbox-protection"))
 	  mbx_protection = atol (k);
 	else if (!compare_cstring (s,"set directory-protection"))

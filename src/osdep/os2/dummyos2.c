@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	22 January 2004
+ * Last Edited:	26 August 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2004 University of Washington.
@@ -117,7 +117,7 @@ DRIVER *dummy_valid (char *name)
     if (!*s) return &dummydriver;
 				/* remove trailing \ */
     if ((t = strrchr (s,'\\')) && !t[1]) *t = '\0';
-    else if (!stat (s,&sbuf)) switch (sbuf.st_mode & S_IFMT) {
+    if (!stat (s,&sbuf)) switch (sbuf.st_mode & S_IFMT) {
     case S_IFREG:		/* file */
     case S_IFDIR:		/* future use */
       return &dummydriver;

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	22 October 2003
+ * Last Edited:	6 December 2004
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2003 University of Washington.
@@ -64,5 +64,3 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 			    unsigned long port,long options);
 SENDSTREAM *smtp_close (SENDSTREAM *stream);
 long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *msg,BODY *body);
-void smtp_debug (SENDSTREAM *stream);
-void smtp_nodebug (SENDSTREAM *stream);
