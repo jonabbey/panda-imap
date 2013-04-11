@@ -1300,15 +1300,6 @@ int main (int argc,char *argv[])
 	    unsigned long donefake = 0;
 	    PSOUT ("+ Waiting for DONE\015\012");
 	    PFLUSH ();		/* dump output buffer */
-				/* maybe do a checkpoint if not anonymous */
-	    if (!anonymous && stream && (time (0) > lastcheck + CHECKTIMER)) {
-	      mail_check (stream);
-				/* cancel likely altwin from mail_check() */
-	      if (lsterr) fs_give ((void **) &lsterr);
-	      if (lstwrn) fs_give ((void **) &lstwrn);
-				/* remember last checkpoint */
-	      lastcheck = time (0);
-	    }
 				/* inactivity countdown */
 	    i = ((TIMEOUT) / (IDLETIMER)) + 1;
 	    do {		/* main idle loop */
@@ -1316,6 +1307,15 @@ int main (int argc,char *argv[])
 		mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,
 				 (void *) stream);
 		ping_mailbox (uid);
+				/* maybe do a checkpoint if not anonymous */
+		if (!anonymous && stream && (time (0) > lastcheck + CHECKTIMER)) {
+		  mail_check (stream);
+				/* cancel likely altwin from mail_check() */
+		  if (lsterr) fs_give ((void **) &lsterr);
+		  if (lstwrn) fs_give ((void **) &lstwrn);
+				/* remember last checkpoint */
+		  lastcheck = time (0);
+		}
 	      }
 	      if (lstwrn) {	/* have a warning? */
 		PSOUT ("* NO ");

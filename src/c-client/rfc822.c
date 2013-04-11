@@ -1351,6 +1351,7 @@ char *rfc822_skip_comment (char **s,long trim)
 
 static long rfc822_output_char (RFC822BUFFER *buf,int c)
 {
+  if ((buf->cur == buf->end) && !rfc822_output_flush (buf)) return NIL;
   *buf->cur++ = c;		/* add character, soutr buffer if full */
   return (buf->cur == buf->end) ? rfc822_output_flush (buf) : LONGT;
 }
@@ -1374,7 +1375,8 @@ static long rfc822_output_data (RFC822BUFFER *buf,char *string,long len)
       len -= i;
     }
 				/* soutr buffer now if full */
-    if (len && !rfc822_output_flush (buf)) return NIL;
+    if ((len || (buf->cur == buf->end)) && !rfc822_output_flush (buf))
+      return NIL;
   }
   return LONGT;
 }

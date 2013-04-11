@@ -11,6 +11,13 @@
  * ========================================================================
  */
 
+Updated: 16 December 2008
+
+imap-2007e is a maintenance release, consisting primarily of bugfixes to
+problems discovered in the release that affected a small number of users
+plus a security fix for users of the RFC822BUFFER routines.
+
+
 Updated: 29 October 2008
 
 imap-2007d is a maintenance release, consisting primarily of bugfixes to

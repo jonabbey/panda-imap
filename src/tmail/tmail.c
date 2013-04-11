@@ -275,7 +275,7 @@ int main (int argc,char *argv[])
 
 int deliver (FILE *f,unsigned long msglen,char *user)
 {
-  MAILSTREAM *ds;
+  MAILSTREAM *ds = NIL;
   char *s,*t,*mailbox,tmp[MAILTMPLEN],path[MAILTMPLEN];
   struct passwd *pwd;
   STRING st;
@@ -328,7 +328,7 @@ int deliver (FILE *f,unsigned long msglen,char *user)
 		 ((inbox[2] == 'B') || (inbox[2] == 'b')) &&
 		 ((inbox[3] == 'O') || (inbox[3] == 'o')) &&
 		 ((inbox[4] == 'X') || (inbox[4] == 'x')) && !inbox[5])) {
-    DRIVER *dv;
+    DRIVER *dv = NIL;
 				/* "-I #driver.xxx/name"? */
     if ((*inbox == '#') && ((inbox[1] == 'd') || (inbox[1] == 'D')) &&
 	((inbox[2] == 'r') || (inbox[2] == 'R')) &&
