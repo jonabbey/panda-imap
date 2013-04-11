@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	18 April 2000
+ * Last Edited:	1 November 1999
  *
- * Copyright 2000 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -577,8 +577,6 @@ void mail_list (MAILSTREAM *stream,char *ref,char *pat)
 {
   int remote = ((*pat == '{') || (ref && *ref == '{'));
   DRIVER *d = maildrivers;
-  if ((ref && (strlen (ref) > NETMAXMBX)) || (strlen (pat) > NETMAXMBX))
-    return;
   if (*pat == '{') ref = NIL;	/* ignore reference if pattern is remote */
   if (stream && stream->dtb) {	/* if have a stream, do it for that stream */
     if (!(((d = stream->dtb)->flags & DR_LOCAL) && remote))
@@ -601,8 +599,6 @@ void mail_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
   int remote = ((*pat == '{') || (ref && *ref == '{'));
   DRIVER *d = maildrivers;
-  if ((ref && (strlen (ref) > NETMAXMBX)) || (strlen (pat) > NETMAXMBX))
-    return;
   if (*pat == '{') ref = NIL;	/* ignore reference if pattern is remote */
   if (stream && stream->dtb) {	/* if have a stream, do it for that stream */
     if (!(((d = stream->dtb)->flags & DR_LOCAL) && remote))

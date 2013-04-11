@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited: 22 February 2000
+ * Last Edited:	14 October 1999
  *
- * Copyright 2000 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -947,21 +947,10 @@ int mmdf_lock (char *file,int flags,int mode,DOTLOCK *lock,int op)
   int fd;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   (*bn) (BLOCK_FILELOCK,NIL);
-  dotlock_lock (file,lock,-1);	/* try locking the easy way */
-  if (lock->lock[0]) {		/* easy open if we got a dotlock file*/
-    if ((fd = open (file,flags,mode)) >= 0) flock (fd,op);
-    else dotlock_unlock (lock);	/* open failed, free the dotlock */
-  }
-				/* no dot lock file, open file now */
-  else if ((fd = open (file,flags,mode)) >= 0) {
-    dotlock_lock (file,lock,fd);/* try paranoid way to make a dot lock file */
-				/* paranoid way failed, just flock() it */
-    if (!lock->lock[0]) flock (fd,op);
-    else {			/* get a fresh fd under dotclock... */
-      close (fd);		/* ...in case of timing race */
-      if ((fd = open (file,flags,mode)) >= 0) flock (fd,op);
-      else dotlock_unlock (lock); /* open failed, free the dotlock */
-    }
+				/* open file */
+  if ((fd = open (file,flags,mode)) >= 0) {
+    flock (fd,op);		/* lock the file */
+    dotlock_lock (file,lock,fd);/* make a dot lock file */
   }
   (*bn) (BLOCK_NONE,NIL);
   return fd;
@@ -1004,7 +993,7 @@ int mmdf_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
   int ti,zn;
   unsigned long i,j,k;
   char c,*s,*t,*u,tmp[MAILTMPLEN],date[30];
-  int pseudoseen = NIL,retain = T;
+  int pseudoseen = NIL;
   unsigned long nmsgs = stream->nmsgs;
   unsigned long prevuid = nmsgs ? mail_elt (stream,nmsgs)->private.uid : 0;
   unsigned long recent = stream->recent;
@@ -1184,7 +1173,6 @@ int mmdf_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 		  }
 		  s = u;	/* advance to next keyword */
 		}
-		retain = NIL;	/* don't retain continuation */
 		break;
 	      }
 
@@ -1232,7 +1220,6 @@ int mmdf_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 		    pseudoseen = T;
 		  }
 		}
-		retain = NIL;	/* don't retain continuation */
 		break;
 	      }
 
@@ -1276,7 +1263,6 @@ int mmdf_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 		  stream->uid_validity = 0;
 		  elt->private.uid = 0;
 		}
-		retain = NIL;	/* don't retain continuation */
 		break;
 	      }
 	    }
@@ -1311,47 +1297,11 @@ int mmdf_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 	      default:		/* some other crap */
 		break;
 	      } while (*s && *s != '\n');
-	      retain = NIL;	/* don't retain continuation */
 	      break;		/* all done */
 	    }
 				/* otherwise fall into default case */
 	  default:		/* ordinary header line */
-	    if ((*s == 'S') || (*s == 's') ||
-		(((*s == 'X') || (*s == 'x')) && (s[1] == '-'))) {
-	      char *e,*v;
-				/* must match what mail_filter() does */
-	      for (u = s,v = tmp,e = u + min (i,MAILTMPLEN - 1);
-		   (u < e) && ((c = *u) != ':') &&
-		   ((c > ' ') || ((c != ' ') && (c != '\t') &&
-				  (c != '\015') && (c != '\012')));
-		   *v++ = *u++);
-	      *v = '\0';	/* tie off */
-				/* matches internal header? */
-	      if (!strcmp (ucase (tmp),"STATUS") || !strcmp (tmp,"X-STATUS") ||
-		  !strcmp (tmp,"X-KEYWORDS") || !strcmp (tmp,"X-UID")) {
-		char err[MAILTMPLEN];
-		sprintf (err,"Discarding bogus %s header in message %lu",
-			 tmp,elt->msgno);
-		mm_log (err,WARN);
-		retain = NIL;	/* don't retain continuation */
-		break;		/* different case or something */
-	      }
-	    }
-				/* retain or non-continuation? */
-	    if (retain || ((*s != ' ') && (*s != '\t'))) {
-	      retain = T;	/* retaining continuation now */
-	      elt->rfc822_size += i + 1;
-	    }
-	    else {
-	      char err[MAILTMPLEN];
-	      sprintf (err,"Discarding bogus continuation in message %lu: ",
-		       elt->msgno);
-	      u = strncpy (err + strlen (err),s,(size_t) max (i,80));
-	      u[80] = '\0';	/* make sure tired off */
-	      if (u = strpbrk (u,"\r\n")) *u = '\0';
-	      mm_log (err,WARN);
-	      break;		/* different case or something */
-	    }
+	    elt->rfc822_size += i + 1;
 	    break;
 	  }
 	} while (i && (*t != '\n'));
