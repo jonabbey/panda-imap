@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	4 January 2001
+# Last Edited:	1 February 2001
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 2001 University of Washington.
@@ -92,7 +92,7 @@ BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o utf8.o siglocal.o \
  dummy.o pseudo.o netmsg.o flstring.o fdstring.o \
  rfc822.o nntp.o smtp.o imap4r1.o pop3.o \
  unix.o mbox.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
-CFLAGS=$(BASECFLAGS) $(EXTRACFLAGS)
+CFLAGS=-g
 
 CAT=cat
 MAKE=make
@@ -103,16 +103,15 @@ SH=sh
 
 # Primary build command
 
-BUILDOPTIONS= EXTRACFLAGS='$(EXTRACFLAGS)'\
+BUILD=$(MAKE) build EXTRACFLAGS='$(EXTRACFLAGS)'\
  EXTRALDFLAGS='$(EXTRALDFLAGS)'\
  EXTRADRIVERS='$(EXTRADRIVERS)' EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
  PASSWDTYPE=$(PASSWDTYPE) SPECIALAUTHENTICATORS='$(SPECIALAUTHENTICATORS)'
-BUILD=$(MAKE) build $(BUILDOPTIONS)
 
 # Here if no make argument established
 
 missing: osdep.h
-	$(MAKE) all CC=`$(CAT) CCTYPE` CFLAGS="`$(CAT) CFLAGS`" `$(CAT) SPECIALS`
+	$(MAKE) all `$(CAT) SPECIALS`
 
 osdep.h:
 	@echo You must specify what type of system
@@ -189,7 +188,7 @@ bsd:	# BSD UNIX
 	 BASECFLAGS="-g -Dconst="
 
 bsf:	# FreeBSD
-	$(BUILD) `$(CAT) SPECIALS` OS=bsi \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
 	 SIGTYPE=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/usr/local/news/lib/active \
@@ -728,6 +727,10 @@ $(ARCHIVE): $(BINARIES)
 	@$(CAT) ARCHIVE
 	@$(SH) ARCHIVE
 
+.c.o:
+	`$(CAT) CCTYPE` -c `$(CAT) CFLAGS` $*.c
+
+
 # Cleanup
 
 clean:
@@ -777,7 +780,7 @@ osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	write.c \
 	strerror.c strpbrk.c strstr.c strtok.c strtoul.c \
 	OSCFLAGS
-	$(CC) $(CFLAGS) `$(CAT) OSCFLAGS` -c osdep.c
+	`$(CAT) CCTYPE` -c `$(CAT) CFLAGS` `$(CAT) OSCFLAGS` -c osdep.c
 
 osdep.c: osdepbas.c osdepckp.c osdeplog.c
 	$(CAT) osdepbas.c osdepckp.c osdeplog.c > osdep.c
@@ -813,7 +816,7 @@ once:	onceenv ckp$(PASSWDTYPE) osdep.c
 onceenv:
 	@echo Once-only environment setup...
 	echo $(CC) > CCTYPE
-	echo $(CFLAGS) > CFLAGS
+	echo $(BASECFLAGS) '$(EXTRACFLAGS)' > CFLAGS
 	echo -DCREATEPROTO=$(CREATEPROTO) -DEMPTYPROTO=$(EMPTYPROTO) \
 	 -DMAILSPOOL=\"$(MAILSPOOL)\" \
 	 -DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" \

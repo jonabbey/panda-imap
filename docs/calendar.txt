@@ -258,15 +258,18 @@ INTERESTING FORMULAE
 
      There's another reason why the historical starting of the new year
 is significant.  Starting with March, the length of months follows a
-mathematical series.  This means that you can calculate the day of week
-for any arbitrary day/month/year of the Gregorian calendar with the
-following formula (note all divisions are integral):
+mathematical series:
+	31 30 31 30 31 31 30 31 30 31 31 28
+
+     This means that you can calculate the day of week for any
+arbitrary day/month/year of the Gregorian calendar with the following
+formula (note all divisions are integral):
         _                                      _
        |     7 + 31*(m - 1)       y    y     y  |
  dow = | d + -------------- + y + - - --- + --- | MOD 7
        |_          12             4   100   400_|
 where
- d   := day of month (0..31)
+ d   := day of month (1..31)
  m   := month in old style (March = 1..February = 12)
  y   := year in old style
  dow := day of week (Tuesday = 0..Monday = 6)
@@ -281,8 +284,20 @@ divisions are integral), using new style month/year this time:
                         m
                     m + -
                         8             y    y     y
- d + 30 * (m - 1) + ----- + y * 365 + - - --- + ---
+ d + 30 * (m - 1) + ----- + y * 365 + - - --- + --- - ld
                       2               4   100   400
+
+where:
+ d   := day of month (1..31)
+ m   := month in new style (January = 1..December = 12)
+ y   := year in new style
+ ld  := leap day correction factor:
+	0 for January and February in non-leap years
+	1 for January and February in leap years
+	2 for all other months in all years        
+
+     In C code, the leap day correction factor is calculated as:
+  (m < 3) ? !(y % 4) && ((y % 100) || !(y % 400)) : 2
 
      It's up to you to figure out how to adapt these formulas for the
 Y4K bugfix and the Orthodox calendar.  If you're really clever, try to

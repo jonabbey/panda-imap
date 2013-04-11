@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	4 January 2001
+ * Last Edited:	22 January 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -4793,8 +4793,12 @@ long mail_parse_flags (MAILSTREAM *stream,char *flag,unsigned long *uf)
       else for (j = 0; !i && j < NUSERFLAGS && (s =stream->user_flags[j]); ++j)
 	if (!mail_compare_cstring (t,s)) *uf |= i = 1 << j;
       if (!i) {			/* didn't find a matching flag? */
+	if (*t == '\\') {
+	  sprintf (flg,"Unsupported system flag: %.80s",t);
+	  mm_log (flg,WARN);
+	}
 				/* can we create it? */
-	if (stream->kwd_create && (j < NUSERFLAGS) &&
+	else if (stream->kwd_create && (j < NUSERFLAGS) &&
 	    (strlen (t) <= MAXUSERFLAG)) {
 	  *uf |= 1 << j;	/* set the bit */
 	  stream->user_flags[j] = cpystr (t);

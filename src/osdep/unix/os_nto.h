@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 September 1993
- * Last Edited:	2 January 2001
+ * Last Edited:	18 January 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -62,6 +62,7 @@
 #define utime portable_utime
 int portable_utime (char *file,time_t timep[2]);
 
+long gethostid (void);
 typedef int (*select_t) (struct direct *name);
 typedef int (*compar_t) (void *d1,void *d2);
 

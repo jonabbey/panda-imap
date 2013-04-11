@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- Linux version
+ * Program:	Operating-system dependent routines -- FreeBSD version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -9,28 +9,24 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:	10 September 1993
- * Last Edited:	30 January 2001
+ * Date:	5 March 1993
+ * Last Edited:	31 January 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2000 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
 
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/types.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <syslog.h>
 #include <sys/file.h>
 
-
-/* Linux gets this wrong */
-
-#define setpgrp setpgid
 
 #define direct dirent
 

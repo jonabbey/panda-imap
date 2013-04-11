@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	10 January 2001
+ * Last Edited:	23 January 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -224,15 +224,16 @@ long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags)
   }
 			
   if (strlen (charset) < 128)	/* otherwise look for charset */
-    for (i = 0, ucase (strcpy (tmp,charset)); utf8_csvalid[i].name; i++)
-      if (!strcmp (tmp,utf8_csvalid[i].name)) {
+    for (i = 0; utf8_csvalid[i].name; i++)
+      if (!mail_compare_cstring (charset,utf8_csvalid[i].name)) {
 	if (ret && utf8_csvalid[i].dsp)
 	  (*utf8_csvalid[i].dsp) (text,ret,utf8_csvalid[i].tab);
 	return LONGT;		/* success */
       }
   if (flags) {			/* charset not found */
     strcpy (tmp,"[BADCHARSET (");
-    for (i = 0, t = tmp + strlen (tmp); utf8_csvalid[i].name;
+    for (i = 0, t = tmp + strlen (tmp);
+	 utf8_csvalid[i].name && (t < (tmp + MAILTMPLEN - 200));
 	 i++,t += strlen (t)) sprintf (t,"%s ",utf8_csvalid[i].name);
     sprintf (t + strlen (t) - 1,")] Unknown charset: %.80s",charset);
     mm_log (tmp,ERROR);
@@ -918,7 +919,7 @@ long utf8_mime2text (SIZEDTEXT *src,SIZEDTEXT *dst)
 	  if (!dst->data) {	/* need to create buffer now? */
 				/* allocate for worst case */
 	    dst->data = (unsigned char *)
-	      fs_get ((size_t) ((src->size / 8) + 1) * 9);
+	      fs_get ((size_t) ((src->size / 4) + 1) * 9);
 	    memcpy (dst->data,src->data,(size_t) (dst->size = s - src->data));
 	  }
 	  for (i=0; i < rtxt.size; i++) dst->data[dst->size++] = rtxt.data[i];
