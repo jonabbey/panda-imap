@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	24 June 1999
+ * Last Edited:	2 November 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -161,6 +161,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     fs_give ((void **) &hostname);
     return NIL;
   }
+  wsa_sock_open++;		/* now have a socket open */
 				/* open connection */
   if (connect (sock,(struct sockaddr *) &sin,sizeof (sin)) == SOCKET_ERROR) {
     switch (WSAGetLastError ()) {	/* analyze error */
@@ -184,7 +185,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     return (TCPSTREAM *) tcp_abort (&sock);
   }
   if (bn) (*bn) (BLOCK_NONE,NIL);
-  wsa_sock_open++;		/* create TCP/IP stream */
+				/* create TCP/IP stream */
   stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
 				 sizeof (TCPSTREAM));
   stream->host = hostname;	/* official host name */
@@ -413,6 +414,7 @@ long tcp_abort (SOCKET *sock)
     *sock = INVALID_SOCKET;
 				/* no more open streams? */
     if (wsa_initted && !--wsa_sock_open) {
+      mm_log ("Winsock cleanup",NIL);
       wsa_initted = 0;		/* no more sockets, so... */
       WSACleanup ();		/* free up resources until needed */
     }

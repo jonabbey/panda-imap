@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	7 October 1999
+ * Last Edited:	19 October 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -296,8 +296,8 @@ void mh_list_work (MAILSTREAM *stream,char *dir,char *pat,long level)
   cp = curdir + strlen (curdir);/* end of directory name */
   np = name + strlen (name);	/* end of MH name */
   if (dp = opendir (curdir)) {	/* open directory */
-    while (d = readdir (dp))	/* scan directory, ignore all . names */
-      if (d->d_name[0] != '.') {/* build file name */
+    while (d = readdir (dp))	/* scan, ignore . and numeric names */
+      if ((d->d_name[0] != '.') && !mh_select (d)) {
 	strcpy (cp,d->d_name);	/* make directory name */
 	if (!stat (curdir,&sbuf) && ((sbuf.st_mode &= S_IFMT) == S_IFDIR)) {
 	  strcpy (np,d->d_name);/* make mh name of directory name */
@@ -344,11 +344,22 @@ long mh_unsubscribe (MAILSTREAM *stream,char *mailbox)
 
 long mh_create (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  if (!(mailbox[0] == '#' && (mailbox[1] == 'm' || mailbox[1] == 'M') &&
-	(mailbox[2] == 'h' || mailbox[2] == 'H') && mailbox[3] == '/')) {
-    sprintf (tmp,"Can't create mailbox %.80s: invalid MH-format name",mailbox);
-    mm_log (tmp,ERROR);
+  char *s,tmp[MAILTMPLEN];
+				/* assume error */
+  sprintf (tmp,"Can't create mailbox %.80s: invalid MH-format name",mailbox);
+  if (mailbox[0] == '#' && (mailbox[1] == 'm' || mailbox[1] == 'M') &&
+      (mailbox[2] == 'h' || mailbox[2] == 'H') && mailbox[3] == '/')
+				/* make sure valid name */
+    for (s = mailbox + 4; s && *s;) {
+      if (isdigit (*s)) s++;	/* digit, check this node further... */
+				/* all digit node, barf */
+      else if (*s == '/') s = NIL;
+				/* non-digit in node, skip to next node */
+      else if (s = strchr (s+1,'/')) s++;
+      else tmp[0] = NIL;	/* no more nodes, good name */
+    }
+  if (tmp[0]) {			/* was there an error in the name? */
+    mm_log (tmp,ERROR);		/* yes, log it */
     return NIL;
   }
 				/* must not already exist */
@@ -359,7 +370,7 @@ long mh_create (MAILSTREAM *stream,char *mailbox)
   }
   if (!mh_path) return NIL;	/* sorry */
 				/* try to make it */
-  if (!(mh_file (tmp,mailbox) && dummy_create_path (stream,tmp))) {
+  if (!(mh_file (tmp,mailbox) && dummy_create_path (stream,strcat (tmp,"/")))){
     sprintf (tmp,"Can't create mailbox %.80s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;

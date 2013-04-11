@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 January 2000
+ * Last Edited:	1 November 1999
  *
- * Copyright 2000 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -729,52 +729,49 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
     else switch (errno) {	/* what happened? */
       case EACCES:		/* protection fail */
 	if (stat (hitch,&sb)) {	/* file exists, fall into EEXIST case */
-	  if (fd >= 0) {	/* only if fd provided */
-	    int pi[2],po[2];
+	  int pi[2],po[2];
 				/* make command pipes */
-	    if (!stat (LOCKPGM,&sb) && pipe (pi) >= 0) {
-	      if (pipe (po) >= 0) {
+	  if (!stat (LOCKPGM,&sb) && pipe (pi) >= 0) {
+	    if (pipe (po) >= 0) {
 				/* make inferior process */
-		if (!(j = fork ())) {
-		  if (!fork ()){/* make grandchild so it's inherited by init */
-		    char *argv[4];
-				/* prepare argument vector */
-		    sprintf (tmp,"%d",fd);
-		    argv[0] = LOCKPGM; argv[1] = tmp;
-		    argv[2] = file; argv[3] = NIL;
+	      if (!(j = fork ())) {
+		if (!fork ()) {	/* make grandchild so it's inherited by init */
+		  char *argv[4];/* prepare argument vector for */
+		  sprintf (tmp,"%d",fd);
+		  argv[0] = LOCKPGM; argv[1] = tmp;
+		  argv[2] = file; argv[3] = NIL;
 				/* set parent's I/O to my O/I */
-		    dup2 (pi[1],1); dup2 (pi[1],2); dup2 (po[0],0);
+		  dup2 (pi[1],1); dup2 (pi[1],2); dup2 (po[0],0);
 				/* close all unnecessary descriptors */
-		    for (j = max (20,max (max (pi[0],pi[1]),max(po[0],po[1])));
-			 j >= 3; --j) if (j != fd) close (j);
+		  for (j = max (20,max (max (pi[0],pi[1]),max (po[0],po[1])));
+		       j >= 3; --j) if (j != fd) close (j);
 				/* be our own process group */
-		    setpgrp (0,getpid ());
+		  setpgrp (0,getpid ());
 				/* now run it */
-		    execv (argv[0],argv);
-		  }
-		  _exit (1);	/* child is done */
+		  execv (argv[0],argv);
 		}
-		else if (j > 0){/* reap child; grandchild now owned by init */
-		  grim_pid_reap (j,NIL);
-				/* read response from locking program */
-		  if ((read (pi[0],tmp,1) == 1) && (tmp[0] == '+')) {
-				/* success, record pipes */
-		    base->pipei = pi[0]; base->pipeo = po[1];
-				/* close child's side of the pipes */
-		    close (pi[1]); close (po[0]);
-		    return LONGT;
-		  }
-		}
-		close (po[0]); close (po[1]);
+		_exit (1);	/* child is done */
 	      }
-	      close (pi[0]); close (pi[1]);
+	      else if (j > 0) {	/* reap child; grandchild now owned by init */
+		grim_pid_reap (j,NIL);
+				/* read response from locking program */
+		if ((read (pi[0],tmp,1) == 1) && (tmp[0] == '+')) {
+				/* success, record pipes */
+		  base->pipei = pi[0]; base->pipeo = po[1];
+				/* close child's side of the pipes */
+		  close (pi[1]); close (po[0]);
+		  return LONGT;
+		}
+	      }
+	      close (po[0]); close (po[1]);
 	    }
-	    if (lockEaccesError){/* punt silently if paranoid site */
-	      sprintf (tmp,"Mailbox vulnerable - directory %.80s",hitch);
-	      if (s = strrchr (tmp,'/')) *s = '\0';
-	      strcat (tmp," must have 1777 protection");
-	      mm_log (tmp,WARN);
-	    }
+	    close (pi[0]); close (pi[1]);
+	  }
+	  if (lockEaccesError) {/* punt silently if paranoid site */
+	    sprintf (tmp,"Mailbox vulnerable - directory %.80s",hitch);
+	    if (s = strrchr (tmp,'/')) *s = '\0';
+	    strcat (tmp," must have 1777 protection");
+	    mm_log (tmp,WARN);
 	  }
 	  base->lock[0] = '\0';	/* give up on lock file */
 	}

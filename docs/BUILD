@@ -3,11 +3,11 @@
      A change has been made from previous versions of the IMAP toolkit.
 There are no longer separate ANSI and non-ANSI source trees.  Nor is it
 possible to build directly on the source tree.  Instead, you *must* build
-through the top-level imap-4.5/Makefile, which will run a "process" step the
-first time and create the imap-4.5/c-client, imap-4.5/ipopd, and
-imap-4.5/imapd directories in which building actually takes place.
+through the top-level imap-4.7/Makefile, which will run a "process" step the
+first time and create the imap-4.7/c-client, imap-4.7/ipopd, and
+imap-4.7/imapd directories in which building actually takes place.
 
-     Before doing a make on UNIX, you should read imap-4.5/Makefile and see if
+     Before doing a make on UNIX, you should read imap-4.7/Makefile and see if
 your system type is known.  The various system types are three-letter codes.
 If your system type is known, then use this as the make option.  After the
 first time you do a make, this option is remembered in a file called OSTYPE,
@@ -18,7 +18,7 @@ system type is either slx (shadow passwords only) or lnp (PAM), and the
 appropriate command is:
 	make slx	(or make lnp)
 
-     There are other make options, described in imap-4.5/src/osdep/Makefile.
+     There are other make options, described in imap-4.7/src/osdep/Makefile.
 
      It's probably best to see if an existing port will work on your system
 before inventing a new port.  Try:
@@ -28,7 +28,7 @@ before inventing a new port.  Try:
 	nxt, mct, gul	modern BSD, BSD with gcc
 
      If you must invent a new port, you need to create an entry in
-imap-4.5/Makefile and imap-4.5/src/osdep/Makefile for your new port, as well as
+imap-4.7/Makefile and imap-4.7/src/osdep/Makefile for your new port, as well as
 osdep/os_???.h and osdep/os_???.c files with the appropriate OS-dependent
 support for that system.  You also need to determine which setup process to
 use.  You should use the ua process unless you are sure that your compiler
@@ -54,14 +54,18 @@ tenex, and unix drivers.
 			   UNIX INSTALLATION NOTES
 
      Binaries from the build are:
-	imap-4.5/mtest/mtest		c-client testbed program
-	imap-4.5/ipopd/ipop2d		POP2 daemon
-	imap-4.5/ipopd/ipop3d		POP3 daemon
-	imap-4.5/imapd/imapd		IMAP4rev1 daemon
+	imap-4.7/mtest/mtest		c-client testbed program
+	imap-4.7/ipopd/ipop2d		POP2 daemon
+	imap-4.7/ipopd/ipop3d		POP3 daemon
+	imap-4.7/imapd/imapd		IMAP4rev1 daemon
 
-     mtest is normally not used except by c-client developers.  The ipop2d,
-ipop3d, and imapd daemons should be installed in a system daemon directory,
-and invoked by your /etc/inetd.conf file with lines such as:
+     mtest is normally not used except by c-client developers.
+
+STEP 1:	inetd setup
+
+     The ipop2d, ipop3d, and imapd daemons should be installed in a system
+daemon directory (in the following examples, /usr/local/etc is used), and
+invoked by your /etc/inetd.conf file with lines such as:
 
 pop	stream	tcp	nowait	root	/usr/local/etc/ipop2d	ipop2d
 pop3	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
@@ -71,12 +75,61 @@ imap	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
 so you should verify the precise form of these commands (for example, some
 versions of inetd do not require the "nowait").
 
+     IMPORTANT NOTE: inetd has a limit of how many new connections it will
+allow in a certain interval, and when this limit is exceeded, it shuts down
+the server.  If you have anything beyond a small-scale server, you are
+probably going to run up against this limit.  You'll know when it happens;
+your syslog will give the misleading message "imap/tcp server failing
+(looping), service terminated" and users will complain that IMAP service is
+unavailable for the next 10 minutes.  Similarly with "pop3/tcp server
+failing"...
+
+     It must be emphasized that this is *NOT* a bug in the IMAP or POP
+servers, nor is it anything that I can "fix".  It is an inetd problem, and
+the only way to fix it is to change inetd's behavior.
+
+     By default, the parameters of this limit are (from inetd.c source code):
+
+#define TOOMANY         40              /* don't start more than TOOMANY */
+#define CNT_INTVL       60              /* servers in CNT_INTVL sec. */
+#define RETRYTIME       (60*10)         /* retry after bind or server fail */
+
+That is, no more than 40 connections (TOOMANY) in 60 seconds (CNT_INTL), and
+if exceeded, shut down the server for 10 minutes (RETRYTIME).  This was a
+good setting in the 1980s ARPAnet, but is much too small today.
+
+     Some versions of inetd allow you to see a higher maximum in the
+/etc/inetd.conf file.  Read "man inetd" and see if you see something like
+this in the text:
+
+     The wait/nowait entry is applicable to datagram sockets only [...]
+     [...]  The optional ``max'' suffix (separated from
+     ``wait'' or ``nowait'' by a dot) specifies the maximum number of server
+     instances that may be spawned from inetd within an interval of 60 sec-
+     onds. When omitted, ``max'' defaults to 40.
+
+If you see this, then edit the /etc/inetd.conf entry for imapd to be
+something like:
+
+imap	stream	tcp	nowait.100	root	/usr/local/etc/imapd	imapd
+ (or, if you use TCP wrappers)
+imap	stream	tcp	nowait.100	root	/usr/local/etc/tcpd	imapd
+
+     Otherwise, you'll need to edit the inetd source code to set TOOMANY to a
+higher value, then rebuild inetd.
+
+
+STEP 2:	services setup
+
      You may also have to edit your /etc/services (or Yellow Pages,
 NetInfo, etc. equivalent) to register these services, such as:
 
 pop		109/tcp
 pop3		110/tcp
 imap		143/tcp
+
+
+STEP 3:	optional rimap setup
 
      If you want to enable the rimap capability, which allows users with a
 suitable client and .rhosts file on the server to access IMAP services
@@ -91,13 +144,25 @@ pipes to that process' standard I/O instead of a TCP socket.  You can set up
 `e-mail only accounts' by making the shell be something which accepts only
 that string and not ordinary UNIX shell commands.
 
-     User "root" and any other UID 0 account can lot log in via IMAP
-or POP.  "That's not a bug, it's a feature!"
+
+STEP 4:	notes on privileges
+
+     Neither user "root", not any other UID 0 account, can log in via IMAP or
+POP.  "That's not a bug, it's a feature!"
 
      This software is designed to run without privileges.  The mail spool
-directory should be protected 1777; that is, with world write and the sticky
+directory must be protected 1777; that is, with world write and the sticky
 bit.  Of course, mail *files* should be protected 600!
 
+     An alternative to having the mail spool directory protected 1777, at the
+cost of some performance, is to use the external "mlock" program, available
+as part of the imap-utils package.  With mlock installed as /etc/mlock and
+setgid mail, the spool directory can be protected 775 with group mail.
+Please disregard this paragraph if you don't understand it COMPLETELY, and
+know EXACTLY what to do without question.
+
+
+STEP 5:	SVR4 specific setup
 
      There is one "gotcha" on System V Release 4 based systems such as
 Solaris.  These systems do not use the standard UNIX mail format, but rather a
@@ -114,7 +179,7 @@ Mlocal, P=/usr/lib/mail.local, F=flsSDFMmnPE, S=10, R=20, A=mail.local -d $u
 
 		     NT/WIN32 BUILD AND INSTALLATION NOTES
 
-     I build using Visual C++ 5.0.  If you build with an earlier version of
+     I build using Visual C++ 6.0.  If you build with an earlier version of
 Visual C, you may need to install the Platform SDK (formerly called the Win32
 SDK) separately.  If you get errors while building os_nt.c that LogonUser() is
 undefined, it's a good bet that you don't have the Platform SDK installed
@@ -122,17 +187,17 @@ and/or in your path properly.
 
      There is also considerable debate about how new mail is to be snarfed.
 I am currently using something that seems to work with WinSMTP.  Look at
-the definition of MAILFILE in imap-4.5/src/osdep/nt/mailfile.h and at the
-sysinbox() function in imap-4.5/src/osdep/nt/env_nt.c to see what's there
+the definition of MAILFILE in imap-4.7/src/osdep/nt/mailfile.h and at the
+sysinbox() function in imap-4.7/src/osdep/nt/env_nt.c to see what's there
 now, so you have a clue about how to hack it.
 
-     To build under NT, connect to the imap-4.5 directory and do:
+     To build under NT, connect to the imap-4.7 directory and do:
 	nmake -f makefile.nt
 The resulting binaries will be:
-	imap-4.5\mtest\mtest.exe	(testbed client)
-	imap-4.5\ipopd\ipop2d.exe	POP2 server
-	imap-4.5\ipopd\ipop3d.exe	POP3 server
-	imap-4.5\imapd\imapd.exe	IMAP4rev1 server
+	imap-4.7\mtest\mtest.exe	(testbed client)
+	imap-4.7\ipopd\ipop2d.exe	POP2 server
+	imap-4.7\ipopd\ipop3d.exe	POP3 server
+	imap-4.7\imapd\imapd.exe	IMAP4rev1 server
 
      These servers are stdio servers.  I wrote a simple network listener
 for NT called inetlisn; currently it is available as:
@@ -160,10 +225,10 @@ on your DOS system along with its development environment.  The currently
 supported stacks are Beame & Whiteside, PC-NFS, Novell, PC/IP, Waterloo, and
 Winsock.  mtest and a version of Pine called PC Pine run under DOS.
 
-      You do not use imap-4.5/Makefile under DOS, nor do you build any
+      You do not use imap-4.7/Makefile under DOS, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-4.5/src/c-client, imap-4.5/src/charset, imap-4.5/src/mtest, and
-imap-4.5/src/osdep/dos onto a single directory on DOS and build from that.  The
+imap-4.7/src/c-client, imap-4.7/src/charset, imap-4.7/src/mtest, and
+imap-4.7/src/osdep/dos onto a single directory on DOS and build from that.  The
 MAKE command on DOS takes an argument identifying the TCP/IP stack in use.  For
 example, do:
 	MAKE MAKEFILE OS=WSK   (or MAKE -F MAKEFILE OS=WSK)
@@ -182,10 +247,10 @@ least install Win32s.
      If you are building a Macintosh client, you will need MacTCP installed on
 your system as well as the MacTCP C includes and libraries.
 
-     You do not use imap-4.5/Makefile on the Mac, nor do you build any
+     You do not use imap-4.7/Makefile on the Mac, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-4.5/src/c-client, imap-4.5/src/charset, imap-4.5/src/mtest, and
-imap-4.5/src/osdep/mac onto a single directory on the Mac and build from that.
+imap-4.7/src/c-client, imap-4.7/src/charset, imap-4.7/src/mtest, and
+imap-4.7/src/osdep/mac onto a single directory on the Mac and build from that.
 mtext.sit.hqx is a THINK C project file and cute icon for building mtest,
 encoded with Binhex and StuffIt.
 
@@ -232,10 +297,10 @@ person will try porting Pine to TOPS-20.  I recently built mtest on TOPS-20
 (thank you, XKL!!), so the sources are known to compile with the ANSI C
 version of KCC.
 
-     You do not use imap-4.5/Makefile under TOPS-20, nor do you build any
+     You do not use imap-4.7/Makefile under TOPS-20, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-4.5/src/c-client, imap-4.5/src/charset, imap-4.5/src/mtest, and
-imap-4.5/src/osdep/tops-20 onto a single directory on TOPS-20 and build from
+imap-4.7/src/c-client, imap-4.7/src/charset, imap-4.7/src/mtest, and
+imap-4.7/src/osdep/tops-20 onto a single directory on TOPS-20 and build from
 that.  The command:
 	DO BUILD.CTL
 will build the sources.  If you don't have MIC, then SUBMIT BUILD.CTL and let
@@ -246,10 +311,10 @@ perfectly alright; just ignore them.
 
 			       VMS BUILD NOTES
 
-      You do not use imap-4.5/Makefile under VMS, nor do you build any
+      You do not use imap-4.7/Makefile under VMS, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-4.5/src/c-client, imap-4.5/src/charset, imap-4.5/src/mtest, and
-imap-4.5/src/osdep/vms onto a single directory on VMS and build from that.  The
+imap-4.7/src/c-client, imap-4.7/src/charset, imap-4.7/src/mtest, and
+imap-4.7/src/osdep/vms onto a single directory on VMS and build from that.  The
 command to build it is:
 	@BUILD MULTINET
 or	@BUILD NETLIB
@@ -271,10 +336,10 @@ the Amiga code was contributed.
 
 			       WCE BUILD NOTES
 
-     I build using Visual C++ 5.0 with the WCE extensions.  The current code
+     I build using Visual C++ 6.0 with the WCE extensions.  The current code
 has SH3 wired in for the compiler building.
 
-     To build under NT, connect to the imap-4.5 directory and do:
+     To build under NT, connect to the imap-4.7 directory and do:
 	nmake -f makefile.wce
 
      The only binary produced is a cclient.lib file.  I haven't gotten as far

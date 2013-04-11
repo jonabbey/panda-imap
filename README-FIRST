@@ -1,0 +1,2 @@
+imap-4.7a is a patch release which corrects crashes caused by certain
+unusual tokens in message headers.  There are no new features.

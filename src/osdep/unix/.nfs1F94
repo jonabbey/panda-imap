@@ -1,5 +1,5 @@
 /*
- * Program:	Amiga environment routines
+ * Program:	UNIX environment routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 January 2000
+ * Last Edited:	21 October 1999
  *
- * Copyright 2000 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -58,7 +58,11 @@ static char *anonymousHome = NIL;
 static char *ftpHome = NIL;	/* ftp export home directory */
 static char *publicHome = NIL;	/* public home directory */
 static char *sharedHome = NIL;	/* shared home directory */
+static char *blackBoxDir = NIL;	/* black box directory name */
+				/* black box default home directory */
+static char *blackBoxDefaultHome = NIL;
 static short anonymous = NIL;	/* is anonymous */
+static short blackBox = NIL;	/* is a black box */
 static short has_no_life = NIL;	/* is a cretin with no life */
 static long list_max_level = 20;/* maximum level of list recursion */
 				/* default file protection */
@@ -74,8 +78,20 @@ static long public_protection = 0666;
 				/* default shared file protection */
 static long shared_protection = 0660;
 static long locktimeout = 5;	/* default lock timeout */
-				/* warning on EACCES errors on .lock files */
-static long lockEaccesError = T;
+static long disableFcntlLock =	/* flock() emulator is a no-op */
+#ifdef SVR4_DISABLE_FLOCK
+  T
+#else
+  NIL
+#endif
+  ;
+static long lockEaccesError =	/* warning on EACCES errors on .lock files */
+#ifdef IGNORE_LOCK_EACCES_ERRORS
+  NIL
+#else
+  T
+#endif
+  ;
 				/* default prototypes */
 static MAILSTREAM *createProto = NIL;
 static MAILSTREAM *appendProto = NIL;
@@ -86,15 +102,17 @@ static int logtry = 3;		/* number of server login tries */
 				/* block notification */
 static blocknotify_t mailblocknotify = mm_blocknotify;
 
-/* Amiga namespaces */
+/* UNIX namespaces */
 
 				/* personal mh namespace */
 static NAMESPACE nsmhf = {"#mh/",'/',NIL,NIL};
 static NAMESPACE nsmh = {"#mhinbox",NIL,NIL,&nsmhf};
 				/* home namespace */
 static NAMESPACE nshome = {"",'/',NIL,&nsmh};
-				/* Amiga other user namespace */
-static NAMESPACE nsamigaother = {"~",'/',NIL,NIL};
+				/* UNIX other user namespace */
+static NAMESPACE nsunixother = {"~",'/',NIL,NIL};
+				/* black box other user namespace */
+static NAMESPACE nsblackother = {"/",'/',NIL,NIL};
 				/* public (anonymous OK) namespace */
 static NAMESPACE nspublic = {"#public/",'/',NIL,NIL};
 				/* netnews namespace */
@@ -245,6 +263,12 @@ void *env_parameters (long function,void *value)
   case GET_LOCKTIMEOUT:
     value = (void *) locktimeout;
     break;
+  case SET_DISABLEFCNTLLOCK:
+    disableFcntlLock = (long) value;
+    break;
+  case GET_DISABLEFCNTLLOCK:
+    value = (void *) disableFcntlLock;
+    break;
   case SET_LOCKEACCESERROR:
     lockEaccesError = (long) value;
     break;
@@ -371,10 +395,10 @@ void server_init (char *server,char *service,char *altservice,char *sasl,
   }
 				/* set SASL name */
   if (sasl) mail_parameters (NIL,SET_SERVICENAME,(void *) sasl);
-  signal (SIGALRM,clkint);	/* prepare for clock interrupt */
-  signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
-  signal (SIGHUP,hupint);	/* prepare for hangup */
-  signal (SIGTERM,trmint);	/* prepare for termination */
+  arm_signal (SIGALRM,clkint);	/* prepare for clock interrupt */
+  arm_signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
+  arm_signal (SIGHUP,hupint);	/* prepare for hangup */
+  arm_signal (SIGTERM,trmint);	/* prepare for termination */
 }
 
 /* Wait for stdin input
@@ -500,19 +524,43 @@ long env_init (char *user,char *home)
   struct stat sbuf;
   char *s,tmp[MAILTMPLEN];
   if (myUserName) fatal ("env_init called twice!");
-				/* set up user name */
+				/* myUserName must be set before dorc() call */
   myUserName = cpystr (user ? user : (char *) anonymous_user);
+				/* do systemwide configuration */
+  dorc ("/etc/c-client.cf",NIL);
   if (!anonymousHome) anonymousHome = cpystr (ANONYMOUSHOME);
   if (user) {			/* remember user name and home directory */
-    nslist[0] = &nshome,nslist[1] = &nsamigaother,nslist[2] = &nsshared;
-    myHomeDir = cpystr (home);	/* use real home directory */
+    if (blackBoxDir) {		/* build black box directory name */
+      sprintf (tmp,"%s/%s",blackBoxDir,myUserName);
+				/* if black box if exists and directory */
+      if (s = (!stat (tmp,&sbuf) && (sbuf.st_mode & S_IFDIR)) ?
+	  tmp : blackBoxDefaultHome) {
+	sprintf (tmp,"%s/INBOX",myHomeDir = cpystr (s));
+	sysInbox = cpystr (tmp);/* set black box values in their place */
+	blackBox = T;
+				/* mbox meaningless if black box */
+	mail_parameters (NIL,DISABLE_DRIVER,(void *) "mbox");
+      }
+    }
+    if (blackBox)		/* black box? */
+      nslist[0] = &nshome,nslist[1] = &nsblackother,nslist[2] = &nsshared;
+    else {			/* not a black box */
+      nslist[0] = &nshome,nslist[1] = &nsunixother,nslist[2] = &nsshared;
+      myHomeDir = cpystr (home);/* use real home directory */
+				/* make sure user rc files don't try this */
+      blackBoxDir = blackBoxDefaultHome = "";
+    }
   }
   else {			/* anonymous user */
     nslist[0] = nslist[1] = NIL,nslist[2] = &nsftp;
     sprintf (tmp,"%s/INBOX",myHomeDir = cpystr (anonymousHome));
     sysInbox = cpystr (tmp);	/* make system INBOX */
     anonymous = T;		/* flag as anonymous */
+				/* make sure an error message happens */
+    if (!blackBoxDir) blackBoxDir = blackBoxDefaultHome = anonymousHome;
   }
+  dorc (strcat (strcpy (tmp,myHomeDir),"/.mminit"),T);
+  dorc (strcat (strcpy (tmp,myHomeDir),"/.imaprc"),NIL);
   if (!myLocalHost) mylocalhost ();
   if (!myNewsrc) myNewsrc = cpystr(strcat (strcpy (tmp,myHomeDir),"/.newsrc"));
   if (!newsActive) newsActive = cpystr (ACTIVEFILE);
@@ -642,11 +690,11 @@ char *mailboxfile (char *dst,char *name)
       ((name[3] == 'O') || (name[3] == 'o')) &&
       ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) {
 				/* if restricted, canonicalize name of INBOX */
-    if (anonymous) name = "INBOX";
+    if (anonymous || blackBox) name = "INBOX";
     else return dst;		/* else driver selects the INBOX name */
   }
 				/* restricted name? */
-  else if ((*name == '#') || anonymous) {
+  else if ((*name == '#') || anonymous || blackBox) {
     if (strstr (name,"..") || strstr (name,"//") || strstr (name,"/~"))
       return NIL;		/* none of these allowed when restricted */
     switch (*name) {		/* what kind of restricted name? */
@@ -672,7 +720,10 @@ char *mailboxfile (char *dst,char *name)
       else return NIL;		/* unknown namespace name */
       break;
     case '/':			/* rooted restricted name */
-      return NIL;		/* anonymous can't do this */
+      if (anonymous) return NIL;/* anonymous can't do this */
+      dir = blackBoxDir;	/* base is black box directory */
+      name++;			/* skip past delimiter */
+      break;
     }
   }
 
@@ -716,6 +767,26 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
 				/* until OK or out of tries */
   if (j = chk_notsymlink (base->lock,&sb)) do {
     t = time (0);		/* get the time now */
+#ifdef NFSKLUDGE
+  /* SUN-OS had an NFS, As kludgy as an albatross;
+   * And everywhere that it was installed, It was a total loss.
+   *  -- MRC 9/25/91
+   */
+				/* time out old locks */
+    if ((j > 0) && (t >= (sb.st_ctime + locktimeout * 60))) unlink(base->lock);
+				/* build hitching post file name */
+    sprintf (hitch,"%s.%lu.%d.",base->lock,(unsigned long) time (0),getpid ());
+    j = strlen (hitch);		/* append local host name */
+    gethostname (hitch + j,(MAILTMPLEN - j) - 1);
+				/* try to get hitching-post file */
+    if ((ld = open (hitch,O_WRONLY|O_CREAT|O_EXCL,(int)lock_protection)) >= 0){
+      close (ld);		/* close the hitching-post */
+      link (hitch,base->lock);	/* tie hitching-post to lock, ignore failure */
+				/* success if link count now 2 */
+      ld = (!stat (hitch,&sb) && (sb.st_nlink == 2)) ? 0 : -1;
+      unlink (hitch);		/* flush hitching post */
+    }
+#else
 				/* time out old locks */
     if ((j > 0) && (t >= (sb.st_ctime + locktimeout * 60))) {
       unlink (base->lock);	/* flush extant old lock */
@@ -725,6 +796,7 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
 				/* try to get the lock */
     if ((ld = open (strcpy (hitch,base->lock),j,(int) lock_protection)) >= 0)
       close (ld);		/* close the lock file */
+#endif
 
     else switch (errno) {	/* what happened? */
       case EACCES:		/* protection fail */
@@ -1030,6 +1102,208 @@ char *default_user_flag (unsigned long i)
 {
   myusername ();		/* make sure initialized */
   return userFlags[i];
+}
+
+/* Process rc file
+ * Accepts: file name
+ *	    .mminit flag
+ * Don't even think of using this feature.
+ */
+
+void dorc (char *file,long flag)
+{
+  int i;
+  char *s,*t,*k,tmp[MAILTMPLEN],tmpx[MAILTMPLEN];
+  extern MAILSTREAM CREATEPROTO;
+  extern MAILSTREAM EMPTYPROTO;
+  DRIVER *d;
+  FILE *f = fopen (file,"r");
+				/* no file or ill-advised usage */
+  if (!(f && (s = fgets (tmp,MAILTMPLEN,f)) && (t = strchr (s,'\n')) &&
+	(flag ||
+	 (!strcmp (s,"I accept the risk for IMAP toolkit 4.1.\n") &&
+	  (s = fgets (tmp,MAILTMPLEN,f)) && (t = strchr (s,'\n')))))) return;
+  do {
+    *t++ = '\0';		/* tie off line, find second space */
+    if ((k = strchr (s,' ')) && (k = strchr (++k,' '))) {
+      *k++ = '\0';		/* tie off two words*/
+      lcase (s);		/* make case-independent */
+      if (!(userFlags[0] || strcmp (s,"set keywords"))) {
+	k = strtok (k,", ");	/* yes, get first keyword */
+				/* copy keyword list */
+	for (i = 0; k && i < NUSERFLAGS; ++i) {
+	  if (userFlags[i]) fs_give ((void **) &userFlags[i]);
+	  userFlags[i] = cpystr (k);
+	  k = strtok (NIL,", ");
+	}
+      }
+      else if (!flag) {		/* none of these valid in .mminit */
+
+	if (!(createProto || strcmp (s,"set new-folder-format"))) {
+	  if (!strcmp (lcase (k),"same-as-inbox"))
+	    createProto = ((d = mail_valid (NIL,"INBOX",NIL)) &&
+			    strcmp (d->name,"dummy")) ?
+			      ((*d->open) (NIL)) : &CREATEPROTO;
+	  else if (!strcmp (k,"system-standard")) createProto = &CREATEPROTO;
+	  else {		/* see if a driver name */
+	    for (d = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL);
+		 d && strcmp (d->name,k); d = d->next);
+	    if (d) createProto = (*d->open) (NIL);
+	    else {		/* duh... */
+	      sprintf (tmpx,"Unknown new folder format in %s: %s",file,k);
+	      mm_log (tmpx,WARN);
+	    }
+	  }
+	}
+	if (!(appendProto || strcmp (s,"set empty-folder-format"))) {
+	  if (!strcmp (lcase (k),"same-as-inbox"))
+	    appendProto = ((d = mail_valid (NIL,"INBOX",NIL)) &&
+			    strcmp (d->name,"dummy")) ?
+			      ((*d->open) (NIL)) : &EMPTYPROTO;
+	  else if (!strcmp (k,"system-standard")) appendProto = &EMPTYPROTO;
+	  else {		/* see if a driver name */
+	    for (d = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL);
+		 d && strcmp (d->name,k); d = d->next);
+	    if (d) appendProto = (*d->open) (NIL);
+	    else {		/* duh... */
+	      sprintf (tmpx,"Unknown empty folder format in %s: %s",file,k);
+	      mm_log (tmpx,WARN);
+	    }
+	  }
+	}
+	else if (!strcmp (s,"set from-widget"))
+	  mail_parameters (NIL,SET_FROMWIDGET,strcmp (lcase (k),"header-only")
+			   ? (void *) T : NIL);
+	else if (!strcmp (s,"set black-box-directory")) {
+	  if (blackBoxDir)	/* users aren't allowed to do this */
+	    mm_log ("Can't set black-box-directory in user init",ERROR);
+	  else blackBoxDir = cpystr (k);
+	}
+	else if (!strcmp (s,"set black-box-default-home-directory")) {
+	  if (!blackBoxDir)
+	    mm_log ("Must set black-box-directory before default-home",ERROR);
+	  else if (blackBoxDefaultHome)
+	    mm_log ("Can't set black-box-default-home-directory in user init",
+		    ERROR);
+	  else blackBoxDefaultHome = cpystr (k);
+	}
+
+	else if (!strcmp (s,"set local-host")) {
+	  fs_give ((void **) &myLocalHost);
+	  myLocalHost = cpystr (k);
+	}
+	else if (!strcmp (s,"set news-active-file")) {
+	  fs_give ((void **) &newsActive);
+	  newsActive = cpystr (k);
+	}
+	else if (!strcmp (s,"set news-spool-directory")) {
+	  fs_give ((void **) &newsSpool);
+	  newsSpool = cpystr (k);
+	}
+	else if (!strcmp (s,"set news-state-file")) {
+	  fs_give ((void **) &myNewsrc);
+	  myNewsrc = cpystr (k);
+	}
+	else if (!strcmp (s,"set anonymous-home-directory")) {
+	  fs_give ((void **) &anonymousHome);
+	  anonymousHome = cpystr (k);
+	}
+	else if (!strcmp (s,"set ftp-export-directory")) {
+	  fs_give ((void **) &ftpHome);
+	  ftpHome = cpystr (k);
+	}
+	else if (!strcmp (s,"set public-home-directory")) {
+	  fs_give ((void **) &publicHome);
+	  publicHome = cpystr (k);
+	}
+	else if (!strcmp (s,"set shared-home-directory")) {
+	  fs_give ((void **) &sharedHome);
+	  sharedHome = cpystr (k);
+	}
+	else if (!strcmp (s,"set system-inbox")) {
+	  fs_give ((void **) &sysInbox);
+	  sysInbox = cpystr (k);
+	}
+	else if (!strcmp (s,"set rsh-command"))
+	  mail_parameters (NIL,SET_RSHCOMMAND,(void *) k);
+	else if (!strcmp (s,"set rsh-path"))
+	  mail_parameters (NIL,SET_RSHPATH,(void *) k);
+
+	else if (!strcmp (s,"set tcp-open-timeout"))
+	  mail_parameters (NIL,SET_OPENTIMEOUT,(void *) atol (k));
+	else if (!strcmp (s,"set tcp-read-timeout"))
+	  mail_parameters (NIL,SET_READTIMEOUT,(void *) atol (k));
+	else if (!strcmp (s,"set tcp-write-timeout"))
+	  mail_parameters (NIL,SET_WRITETIMEOUT,(void *) atol (k));
+	else if (!strcmp (s,"set rsh-timeout"))
+	  mail_parameters (NIL,SET_RSHTIMEOUT,(void *) atol (k));
+	else if (!strcmp (s,"set maximum-login-trials"))
+	  mail_parameters (NIL,SET_MAXLOGINTRIALS,(void *) atol (k));
+	else if (!strcmp (s,"set lookahead"))
+	  mail_parameters (NIL,SET_LOOKAHEAD,(void *) atol (k));
+	else if (!strcmp (s,"set prefetch"))
+	  mail_parameters (NIL,SET_PREFETCH,(void *) atol (k));
+	else if (!strcmp (s,"set close-on-error"))
+	  mail_parameters (NIL,SET_CLOSEONERROR,(void *) atol (k));
+	else if (!strcmp (s,"set imap-port"))
+	  mail_parameters (NIL,SET_IMAPPORT,(void *) atol (k));
+	else if (!strcmp (s,"set pop3-port"))
+	  mail_parameters (NIL,SET_POP3PORT,(void *) atol (k));
+	else if (!strcmp (s,"set uid-lookahead"))
+	  mail_parameters (NIL,SET_UIDLOOKAHEAD,(void *) atol (k));
+	else if (!strcmp (s,"set mailbox-protection"))
+	  mbx_protection = atol (k);
+	else if (!strcmp (s,"set directory-protection"))
+	  dir_protection = atol (k);
+	else if (!strcmp (s,"set lock-protection"))
+	  lock_protection = atol (k);
+	else if (!strcmp (s,"set ftp-protection"))
+	  ftp_protection = atol (k);
+	else if (!strcmp (s,"set public-protection"))
+	  public_protection = atol (k);
+	else if (!strcmp (s,"set shared-protection"))
+	  shared_protection = atol (k);
+	else if (!strcmp (s,"set dot-lock-file-timeout"))
+	  locktimeout = atol (k);
+	else if (!strcmp (s,"set disable-fcntl-locking"))
+	  disableFcntlLock = atol (k);
+	else if (!strcmp (s,"set lock-eacces-error"))
+	  lockEaccesError = atol (k);
+	else if (!strcmp (s,"set list-maximum-level"))
+	  list_max_level = atol (k);
+	else if (!strcmp (s,"set allowed-login-attempts"))
+	  logtry = atoi (k);
+	else if (!strcmp (s,"set try-alt-driver-first"))
+	  mail_parameters (NIL,SET_TRYALTFIRST,(void *) atol (k));
+	else if (!strcmp (s,"set allow-reverse-dns"))
+	  mail_parameters (NIL,SET_ALLOWREVERSEDNS,(void *) atol (k));
+      }
+    }
+  }
+  while ((s = fgets (tmp,MAILTMPLEN,f)) && (t = strchr (s,'\n')));
+  fclose (f);			/* flush the file */
+}
+
+/* INBOX create function for tmail/dmail use only
+ * Accepts: mail stream
+ *	    path name buffer, preloaded with driver-dependent path
+ * Returns: T on success, NIL on failure
+ *
+ * This routine is evil and a truly incredible kludge.  It is private for
+ * tmail/dmail and is not supported for any other application.
+ */
+
+long path_create (MAILSTREAM *stream,char *path)
+{
+  long ret;
+				/* do the easy thing if not a black box */
+  if (!blackBox) return mail_create (stream,path);
+				/* toss out driver dependent names */
+  printf (path,"%s/INBOX",myhomedir ());
+  blackBox = NIL;		/* well that's evil - evil is going on */
+  ret = mail_create (stream,path);
+  blackBox = T;			/* restore the box */
+  return ret;
 }
 
 /* Default block notify routine

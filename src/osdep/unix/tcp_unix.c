@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	6 October 1999
+ * Last Edited:	29 October 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -202,9 +202,8 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   }
 
   else {			/* lookup host name */
-    (*bn) (BLOCK_DNSLOOKUP,NIL);
+    (*bn) (BLOCK_DNSLOOKUP,NIL);/* quell alarms */
     data = (*bn) (BLOCK_SENSITIVE,NIL);
-				/* quell alarms */
     if (he = gethostbyname (lcase (strcpy (hostname,host)))) {
       (*bn) (BLOCK_NONSENSITIVE,data);
       (*bn) (BLOCK_NONE,NIL);
@@ -262,7 +261,8 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
 		     unsigned long port)
 {
-  int i,sock,flgs;
+  int i,ti,sock,flgs;
+  time_t now;
   struct protoent *pt = getprotobyname ("ip");
   fd_set fds,efds;
   struct timeval tmo;
@@ -303,15 +303,18 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
       close (sock);		/* flush socket */
       return -1;
     }
-    tmo.tv_sec = ttmo_open;	/* open timeout */
+    now = time (0);		/* open timeout */
+    ti = ttmo_open ? now + ttmo_open : 0;
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
     FD_ZERO (&efds);		/* handle errors too */
-    FD_SET (sock,&fds);		/* block for error or writeable */
+    FD_SET (sock,&fds);	/* block for error or writeable */
     FD_SET (sock,&efds);
-				/* block under timeout */
-    while (((i = select (sock+1,0,&fds,&efds,ttmo_open ? &tmo : 0)) < 0) &&
-	   (errno == EINTR));
+    do {			/* block under timeout */
+      tmo.tv_sec = ti ? ti - now : 0;
+      i = select (sock+1,0,&fds,&efds,ttmo_open ? &tmo : 0);
+      now = time (0);
+    } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
     if (i > 0) {		/* success, make sure really connected */
       fcntl (sock,F_SETFL,flgs);/* restore blocking status */
       /* This used to be a zero-byte read(), but that crashes Solaris */
@@ -344,20 +347,19 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   TCPSTREAM *stream = NIL;
   struct hostent *he;
   char host[MAILTMPLEN],tmp[MAILTMPLEN],*path,*argv[MAXARGV+1];
-  int i;
-  int pipei[2],pipeo[2];
+  int i,ti,pipei[2],pipeo[2];
+  time_t now;
   struct timeval tmo;
   fd_set fds,efds;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   void *data;
   if (*service == '*') {	/* want ssh? */
 				/* return immediately if ssh disabled */
-    if (!(sshpath && (tmo.tv_sec = sshtimeout))) return NIL;
+    if (!(sshpath && (ti = sshtimeout))) return NIL;
 				/* ssh command prototype defined yet? */
     if (!sshcommand) sshcommand = cpystr ("%s %s -l %s exec /etc/r%sd");
   }
-				/* set rsh timeout */
-  else if (tmo.tv_sec = rshtimeout) {
+  else if (ti = rshtimeout) {	/* set rsh timeout */
 				/* rsh path/command prototypes defined yet? */
     if (!rshpath) rshpath = cpystr (RSHPATH);
     if (!rshcommand) rshcommand = cpystr ("%s %s -l %s exec /etc/r%sd");
@@ -373,8 +375,7 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
       return NIL;
     }
   }
-				/* note that Unix requires lowercase! */
-  else {
+  else {			/* note that Unix requires lowercase! */
     (*bn) (BLOCK_DNSLOOKUP,NIL);
     data = (*bn) (BLOCK_SENSITIVE,NIL);
     if (he = gethostbyname (lcase (strcpy (host,mb->host))))
@@ -382,15 +383,12 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
     (*bn) (BLOCK_NONSENSITIVE,data);
     (*bn) (BLOCK_NONE,NIL);
   }
+
   if (*service == '*')		/* build ssh command */
     sprintf (tmp,sshcommand,sshpath,host,
 	     mb->user[0] ? mb->user : myusername (),service + 1);
   else sprintf (tmp,rshcommand,rshpath,host,
 		mb->user[0] ? mb->user : myusername (),service);
-
-  tmo.tv_usec = 0;		/* initialize usec timeout */
-  FD_ZERO (&fds);		/* initialize selection vector */
-  FD_ZERO (&efds);		/* handle errors too */
   for (i = 1,path = argv[0] = strtok (tmp," ");
        (i < MAXARGV) && (argv[i] = strtok (NIL," ")); i++);
   argv[i] = NIL;		/* make sure argv tied off */
@@ -400,12 +398,14 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
     close (pipei[0]); close (pipei[1]);
     return NIL;
   }
+  (*bn) (BLOCK_TCPOPEN,NIL);	/* quell alarm up here for NeXT */
   if ((i = fork ()) < 0) {	/* make inferior process */
     close (pipei[0]); close (pipei[1]);
     close (pipeo[0]); close (pipeo[1]);
     return NIL;
   }
   if (!i) {			/* if child */
+    alarm (0);			/* never have alarms in children */
     if (!fork ()) {		/* make grandchild so it's inherited by init */
       int maxfd = max (20,max (max(pipei[0],pipei[1]),max(pipeo[0],pipeo[1])));
       dup2 (pipei[1],1);	/* parent's input is my output */
@@ -421,6 +421,7 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   grim_pid_reap (i,NIL);	/* reap child; grandchild now owned by init */
   close (pipei[1]);		/* close child's side of the pipes */
   close (pipeo[0]);
+
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
 				 sizeof (TCPSTREAM));
@@ -430,11 +431,19 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   stream->tcpso = pipeo[1];
   stream->ictr = 0;		/* init input counter */
   stream->port = 0xffffffff;	/* no port number */
+  now = time (0);		/* open timeout */
+  if (ti) ti += now;
+  tmo.tv_usec = 0;		/* initialize usec timeout */
+  FD_ZERO (&fds);		/* initialize selection vector */
+  FD_ZERO (&efds);		/* handle errors too */
   FD_SET (stream->tcpsi,&fds);	/* set bit in selection vector */
   FD_SET (stream->tcpsi,&efds);	/* set bit in error selection vector */
-  (*bn) (BLOCK_TCPOPEN,NIL);
-  while (((i = select (stream->tcpsi+1,&fds,0,&efds,&tmo)) < 0) &&
-	 (errno == EINTR));
+  FD_SET (stream->tcpso,&efds);	/* set bit in error selection vector */
+  do {				/* block under timeout */
+    tmo.tv_sec = ti ? ti - now : 0;
+    i = select (max (stream->tcpsi,stream->tcpso)+1,&fds,0,&efds,&tmo);
+    now = time (0);
+  } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
   if (i <= 0) {			/* timeout or error? */
     sprintf (tmp,i ? "error in %s to IMAP server" :
 	     "%s to IMAP server timed out",(*service == '*') ? "ssh" : "rsh");
@@ -537,15 +546,19 @@ long tcp_getdata (TCPSTREAM *stream)
   (*bn) (BLOCK_TCPREAD,NIL);
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     time_t tl = time (0);	/* start of request */
-    tmo.tv_sec = ttmo_read;	/* read timeout */
+    time_t now = tl;
+    int ti = ttmo_read ? now + ttmo_read : 0;
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
     FD_ZERO (&efds);		/* handle errors too */
     FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
     FD_SET(stream->tcpsi,&efds);/* set bit in error selection vector */
     errno = NIL;		/* block and read */
-    while (((i = select (stream->tcpsi+1,&fds,0,&efds,ttmo_read ? &tmo : 0))<0)
-	   && (errno == EINTR));
+    do {			/* block under timeout */
+      tmo.tv_sec = ti ? ti - now : 0;
+      i = select (stream->tcpsi+1,&fds,0,&efds,ttmo_read ? &tmo : 0);
+      now = time (0);
+    } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
     if (!i) {			/* timeout? */
       time_t tc = time (0);
       if (tmoh && ((*tmoh) (tc - t,tc - tl))) continue;
@@ -584,7 +597,7 @@ long tcp_soutr (TCPSTREAM *stream,char *string)
 long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 {
   int i;
-  fd_set fds;
+  fd_set fds,efds;
   struct timeval tmo;
   time_t t = time (0);
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
@@ -592,13 +605,19 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   (*bn) (BLOCK_TCPWRITE,NIL);
   while (size > 0) {		/* until request satisfied */
     time_t tl = time (0);	/* start of request */
-    tmo.tv_sec = ttmo_write;	/* write timeout */
+    time_t now = tl;
+    int ti = ttmo_write ? now + ttmo_write : 0;
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
+    FD_ZERO (&efds);		/* handle errors too */
     FD_SET (stream->tcpso,&fds);/* set bit in selection vector */
+    FD_SET(stream->tcpso,&efds);/* set bit in error selection vector */
     errno = NIL;		/* block and write */
-    while (((i = select (stream->tcpso+1,0,&fds,0,ttmo_write ? &tmo : 0)) < 0)
-	   && (errno == EINTR));
+    do {			/* block under timeout */
+      tmo.tv_sec = ti ? ti - now : 0;
+      i = select (stream->tcpso+1,0,&fds,&efds,ttmo_write ? &tmo : 0);
+      now = time (0);
+    } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
     if (!i) {			/* timeout? */
       time_t tc = time (0);
       if (tmoh && ((*tmoh) (tc - t,tc - tl))) continue;
@@ -771,12 +790,12 @@ char *tcp_canonical (char *name)
   void *data;
 				/* look like domain literal? */
   if (name[0] == '[' && name[strlen (name) - 1] == ']') return name;
-  (*bn) (BLOCK_DNSLOOKUP,NIL);
+  (*bn) (BLOCK_DNSLOOKUP,NIL);	/* quell alarms */
   data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* note that Unix requires lowercase! */
   ret = (he = gethostbyname (lcase (strcpy (host,name)))) ? he->h_name : name;
   (*bn) (BLOCK_NONSENSITIVE,data);
-  (*bn) (BLOCK_NONE,NIL);
+  (*bn) (BLOCK_NONE,NIL);	/* alarms OK now */
   return ret;
 }
 
@@ -794,7 +813,7 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
     struct hostent *he;
     blocknotify_t bn = (blocknotify_t)mail_parameters(NIL,GET_BLOCKNOTIFY,NIL);
     void *data;
-    (*bn) (BLOCK_DNSLOOKUP,NIL);
+    (*bn) (BLOCK_DNSLOOKUP,NIL); /* quell alarms */
     data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* translate address to name */
     if (!(he = gethostbyaddr ((char *) &sin->sin_addr,
@@ -804,7 +823,7 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
 			    inet_ntoa (sin->sin_addr));
     else s = he->h_name;
     (*bn) (BLOCK_NONSENSITIVE,data);
-    (*bn) (BLOCK_NONE,NIL);
+    (*bn) (BLOCK_NONE,NIL);	/* alarms OK now */
   }
   else sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
   return cpystr (s);

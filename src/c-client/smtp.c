@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	1 July 1999
+ * Last Edited:	28 October 1999
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -225,13 +225,16 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
       mm_log (tmp,NIL);
       fs_give ((void **) &lsterr);
     }
-    for (trial = 1; stream->netstream && trial &&
-	 (trial <= smtp_maxlogintrials); )
+    for (trial = 1,tmp[0] = '\0';
+	 stream->netstream && trial && (trial <= smtp_maxlogintrials); ) {
+      if (tmp[0]) mm_log (tmp,WARN);
       if (smtp_send_work (stream,"AUTH",at->name)) {
 	if ((*at->client) (smtp_challenge,smtp_response,mb,stream,&trial,usr)&&
 	    (stream->replycode == SMTPAUTHED)) return LONGT;
 	lsterr = cpystr (stream->reply);
+	sprintf (tmp,"Retrying %s authentication after %s",at->name,lsterr);
       }
+    }
   }
   if (lsterr) {			/* previous authenticator failed? */
     sprintf (tmp,"Can not authenticate to SMTP server: %s",lsterr);

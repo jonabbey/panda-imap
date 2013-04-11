@@ -1,0 +1,316 @@
+Last Updated: 3 November 1999
+
+Q: Is this software Y2K compliant?
+A: Please read the files Y2K and calendar.txt.
+
+
+Q: How do I configure the IMAP and POP servers?
+Q: I built and installed the servers according to the BUILD instructions.
+    It can't be that easy.  Don't I need to write a config file?
+A: For ordinary "vanilla" UNIX systems, this software is plug and play; just
+    build it, install it, and you're done.  If you have a modified system,
+    then you may want to do additional work; most of this is to a single
+    source code file (env_unix.c on UNIX systems).  Read the file CONFIG
+    for more details.
+   Yes, it's that easy.
+
+
+Q: I have an NT system.  Why isn't it plug and play for me?
+A: There is no standard for how mail is stored on NT; no single standard
+    SMTP server.  So there's no default by which to make assumptions.  As
+    the software is set up, it assumes that the each user has an NT login
+    account and private home directory, and that mail is stored on that
+    home directory as files in one of the popular UNIX formats.  It also
+    assumes that there is some tool equivalent to inetd on UNIX that does
+    the TCP/IP listening and server startup.
+   Basically, unless you're an email software hacker, you probably want
+    to look elsewhere if you want IMAP/POP servers for NT.
+
+
+Q: Can I set up a POP or IMAP server on Windows 95 and 98?
+A: Yes.  Refer to the NT specific notes in files CONFIG and BUILD.  Also,
+    you *must* set up CRAM-MD5 authentication, as described in md5.txt.
+    There is no file access control on Windows 9x, so you probably will
+    have to do modifications to env_unix.c to prevent people from hacking
+    others' mail.
+
+
+Q: I've heard that IMAP servers are insecure.  Is this true?
+A: There are no known security problems in this version of the IMAP
+    toolkit, including the IMAP and POP servers.  The IMAP and POP
+    servers limit what can be done while not logged in, and as part of
+    the login process discard all privileges except those of the user.
+   There were buffer overflow vulnerabilities in earlier versions which
+    were used to mount widespread attacks against unlogged-in (and hence
+    root-privileged) servers.  These problems were fixed years ago;
+    unfortunately "Internet folklore" and old versions tend to persist
+    long after problems are fixed.
+   There is every reason to believe that the bad guys are engaged in an
+    ongoing effort to find vulnerabilities in the IMAP toolkit; but to
+    the best of our knowledge these efforts have been futile in recent
+    years.  Judging from CERT reports, they've had much greater success
+    in other software, so it does not appear to be an ongoing problem
+    for the IMAP toolkit.
+   We are unhappy that any vulnerabilities existed in past versions, and
+    we're doing our best to keep the IMAP toolkit free of vulnerabilities.
+
+
+Q: What does the syslog message:
+     imap/tcp server failing (looping)
+    mean?  When it happens, IMAP service shuts down.  How can I fix this?
+Q: What does the syslog message:
+     pop3/tcp server failing (looping)
+    mean?  When it happens, POP3 service shuts down.  How can I fix this?
+A: The error message "server failing (looping), service terminated" is not
+    from either the IMAP or POP servers.  Instead, it comes from inetd, the
+    daemon which listens for TCP connections to a number of servers,
+    including the IMAP and POP servers.
+   inetd has a limit of 40 new server sessions per minute for any particular
+    service.  If more than 40 sessions are initiated in a minute, inetd will
+    issue the "failing (looping), service terminated" message and shut
+    down the service for 10 minutes. 
+   For larger server systems, the limit of 40 is much too low.  The limit was
+    established many years ago when a system typically only ran a few dozen
+    servers.
+   On some versions of inetd, such as the one distributed with most versions
+    of Linux, you can modify the /etc/inetd.conf file to have a larger number
+    of servers by appending a colon followed by a number after the "nowait"
+    word for the server entry.  For example, if your existing /etc/inetd.conf
+    line reads:
+     imap    stream  tcp     nowait  root    /usr/etc/imapd imapd
+    try changing it to be:
+     imap    stream  tcp     nowait:100  root    /usr/etc/imapd imapd
+    Another example (using TCP wrappers):
+     imap    stream  tcp     nowait  root    /usr/sbin/tcpd  imapd
+    try changing it to be:
+     imap    stream  tcp     nowait:100  root    /usr/sbin/tcpd  imapd
+    to increase the limit to 100 sessions/minute.
+   Before making this change, please read the information in "man inetd" to
+    determine whether or not your inetd has this feature.  If it does not, and
+    you make this change, the likely outcome is that you will disable IMAP
+    service entirely.
+  Another way to fix this problem is to edit the inetd.c source code
+   (provided by your UNIX system vendor) to set higher limits, rebuild inetd,
+   install the new binary, and reboot your system.  This should only be done
+   by a UNIX system expert.  In the inetd.c source code, the limits TOOMANY
+   (normally 40) is the maximum number of new server sessions permitted per
+   minute, and RETRYTIME (normally 600) is the number of seconds inetd will
+   shut down the server after it exceeds TOOMANY.
+
+
+
+Q: What does the message:
+     Mailbox vulnerable - directory /var/spool/mail must have 1777 protection
+    mean?  How can I fix this?
+A: In order to update a mailbox in the default UNIX format, it is necessary
+    to create a lock file to prevent the mailer from delivering mail while
+    an update is in progress.  Some systems use a directory protection of
+    775, requiring that all mail handling programs be setgid mail; or of
+    755, requiring that all mail handling programs be setuid root.
+   The IMAP toolkit does not run with any special privileges, and we plan
+    to keep it that way.  It is antithetical to the concept of a toolkit
+    if users can't write their own programs to use it.  Also, we've had
+    enough bad experiences with security bugs while running privileged;
+    the IMAP and POP servers have to be root when not logged in, in order
+    to be able to log themselves in.  We don't want to go any deeper down
+    that slippery slope.
+   Directory protection 1777 is secure enough on most well-managed systems.
+    If you can't trust your users with a 1777 mail spool (petty harassment
+    is about the limit of the abuse exposure), then you have much worse
+    problems then that.
+   If you absolutely insist upon requiring privileges to create a lock file,
+    external file locking can be done via a setgid mail program named
+    /etc/mlock (this is defined by LOCKPGM in the c-client Makefile).  If
+    the toolkit is unable to create a <mailbox>.lock file in the directory
+    by itself, it will try to call mlock to do it.  We do not recommend
+    doing this for performance reasons.
+   A sample mlock program is part of the imap-utils package:
+     ftp://ftp.cac.washington.edu/mail/imap-utils.tar.Z
+    We have tried to make this sample program reasonably secure, but it
+    has not been thoroughly audited.
+
+
+Q: Can I use SSL?
+A: Unfortunately, due to US government export restrictions, the source code
+    to our SSL IMAP patchkit is currently not available.  There are packages
+    available from third parties to modify the IMAP toolkit to do SSL, or
+    to tunnel IMAP and POP3 sessions through SSL.
+   We are not happy about the restrictions (especially since our SSL IMAP
+    patchkit is a very clean implementation), but our hands are tied.  The
+    recent announcement about a relaxation of encryption restrictions does
+    not apply to us, because we distribute free software in source form on
+    a non-discriminatory basis.
+
+
+Q: Can I use TLS and the STARTTLS facility?
+A: Not at the present time.  Support for STARTTLS will be added in the
+    future, but it is likely to be under the same distribution restrictions
+    as SSL support.  It is also much harder to add STARTTLS capability to
+    the servers than it is to do SSL tunneling.
+
+
+Q: Can I use CRAM-MD5 authentication?
+Q: Can I use APOP authentication?
+A: CRAM-MD5 authentication is enabled in the IMAP and POP3 client code on
+    all platforms.  Read md5.txt to learn how to set up CRAM-MD5 and APOP
+    authentication on UNIX and NT servers.
+   There is no support for APOP client authentication.
+
+
+Q: Can I use RPOP authentication?
+A: There is no support for RPOP authentication.
+
+
+Q: Can I use Kerberos V5?
+A: Kerberos V5 is supported if you build the software with
+    EXTRAAUTHENTICATORS=GSS set, e.g.
+     make slx EXTRAAUTHENTICATORS=gss
+
+
+Q: Can I use Kerberos V4?
+A: Kerberos V4 is not supported.  Kerberos V4 client-only contributed code
+    is available as:
+     ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
+    This is a patchkit which must be applied to the IMAP toolkit according
+    to the instructions in the patchkit's README.  I can not promise that
+    this code works.
+
+
+Q: Can I use PAM for plaintext passwords?
+A: On Linux systems, use the lnp port, e.g.
+     make lnp
+   On Solaris systems and other systems with defective PAM implementations,
+    build with PASSWDTYPE=pmb, e.g.
+     make sol PASSWDTYPE=pmb
+   On all other systems, build with PASSWDTYPE=pam, e.g
+     make foo PASSWDTYPE=pam
+   If you build with PASSWDTYPE=pam and authentication does not work, try
+    rebuilding (after a "make clean") with PASSWDTYPE=pmb.
+
+
+Q: Can I use AFS for plaintext passwords?
+A: Build with PASSWDTYPE=afs, e.g
+     make sol PASSWDTYPE=afs
+
+
+Q: Can I use DCE for plaintext passwords?
+A: Build with PASSWDTYPE=dce, e.g
+     make sol PASSWDTYPE=dce
+
+
+Q: Can I use the CRAM-MD5 database for plaintext passwords?
+A: The CRAM-MD5 password database is automatically used for plaintext
+    password if it exists.
+   Note that this gives you the worst of both worlds -- plaintext passwords
+    over the network and plaintext passwords stored on the server!  You
+    probably don't want to do this unless all access is through SSL.  It
+    is recommended that you disable plaintext passwords (see the next
+    question).
+
+
+Q: Can I disable plaintext passwords?
+A: Server-level plaintext passwords can be disabled by setting
+    PASSWDTYPE=nul, e.g.
+     make lnx EXTRAAUTHENTICATORS=gss PASSWDTYPE=nul
+    Note that you must specify at least one EXTRAAUTHENTICATOR, otherwise
+    it will not be possible to log in to the server.
+
+
+Q: Is there support for S/Key or OTP?
+A: There is currently no support for S/Key or OTP.  There may be an OTP
+     SASL authenticator available from the OTP folks.
+
+
+Q: Is there support for NTLM or SPA?
+A: There is currently no support for NTML or SPA, nor are there any plans
+    to add such support.  In general, we avoid vendor-specific mechanisms.
+
+
+Q: Is there support for qmail and the maildir format?
+A: There is no support for qmail or the maildir format in our distribution,
+    nor are there any plans to add such support.  Some third parties offer
+    add-ons drivers that purport to support maildir format.  We can't vouch
+    for their reliablity or performance.
+
+
+Q: How can I enable anonymous IMAP logins?
+A: Create the file /etc/anonymous.newsgroups.  At the present time, this
+    file should be empty.  This will permit IMAP logins as anonymous as
+    well as the ANONYMOUS SASL authenticator.  Anonymous users have access
+    to mailboxes in the #news., #ftp/, and #public/ namespaces only.
+
+
+Q: How do I set up an alert message that each IMAP user will see?
+A: Create the file /etc/imapd.alert with the text of the message.  This
+    text should be kept to one line if possible.  Note that this will
+    cause an alert to every IMAP user every time they initiate an IMAP
+    session, so it should only be used for critical messages.
+
+
+Q: Why does mail disappear even though I set "keep mail on server"?
+Q: Why do I get the message
+     Moved ##### bytes of new mail to /home/user/mbox from /var/spool/mail/mbox
+    and why did this happen?
+A: This is probably caused by the mbox driver.  If the file "mbox" exists on
+    the user's home directory and is in UNIX mailbox format, then when INBOX
+    is opened this file will be selected as INBOX instead of the mail spool
+    file.  Messages will be automatically transferred from the mail spool file
+    into the mbox file.
+   To disable this behavior, delete "mbox" from the EXTRADRIVERS list in the
+    top-level Makefile and rebuild.  Note that if you do this, users won't
+    be able to access the messages that have already been moved to mbox
+    unless they open mbox instead of INBOX.
+
+
+Q: What is the status of internationalization?
+A: The IMAP toolkit is partially internationalized and multilingualized.
+    In particular, searching is supported in the following charsets:
+     US-ASCII, UTF-8, ISO-8859-1, ISO-8859-2, ISO-8859-3, ISO-8859-4,
+     ISO-8859-5, ISO-8859-6, ISO-8859-7, ISO-8859-8, ISO-8859-9,
+     ISO-8859-10, ISO-8859-11, ISO-8859-13, ISO-8859-14, ISO-8859-15,
+     KOI8-R, KOI8-U (alias KOI8-RU), TIS-620, VISCII,
+     ISO-2022-JP, ISO-2022-KR, ISO-2022-CN, ISO-2022-JP-1, ISO-2022-JP-2,
+     GB2312 (alias CN-GB), CN-GB-12345, BIG5 (alias CN-BIG5),
+     EUC-JP, EUC-KR, Shift_JIS
+    All ISO-2022-?? charsets are treated identically, and support ASCII,
+     JIS Roman, hankaku katakana, ISO-8859-[1 - 10], TIS, GB 2312, JIS X 0208,
+     JIS X 0212, KSC 5601, and planes 1 and 2 of CNS 11643.
+    EUC-JP includes support for JIS X 0212 and hankaku katakana.
+    There is no support for localization (e.g. non-English error messages)
+     at the present time, but such support is planned.
+
+
+Q: Why isn't it showing the local host name as a fully-qualified domain
+    name?
+Q: Why is the local host name in the From/Sender/Message-ID headers of
+    outgoing mail not coming out as a fully-qualified domain name?
+A: Your UNIX system is misconfigured.  The entry for your system in
+    /etc/hosts must have the fully-qualified domain name first, e.g.
+	105.69.1.234	bombastic.blurdybloop.com bombastic
+   A common mistake of novice system administrators is to have the
+    short name first, e.g.
+	105.69.1.234	bombastic bombastic.blurdybloop.com
+    or to omit the fully qualified domain name entirely, e.g.
+	105.69.1.234	bombastic
+   The result of this is that when the IMAP toolkit does a gethostbyname()
+    call to get the fully-qualified domain name, it would get "bombastic"
+    instead of "bombastic.blurdybloop.com".
+   On some systems, a configuration file (typically named /etc/svc.conf,
+    /etc/netsvc.conf, or /etc/nsswitch.conf) can be used to configure the
+    system to use the domain name system (DNS) instead of /etc/hosts, so
+    it doesn't matter if /etc/hosts is misconfigured.
+   Check the man pages for gethostbyname, hosts, svc, and/or netsvc for
+    more information.
+   Unfortunately, certain vendors, most notably SUN, have failed to
+    make this clear in their documentation.  Most of SUN's documentation
+    assumes a corporate network that is not connected to the Internet.
+   net.folklore once (late 1980s) held that the proper procedure was to
+    append the results of getdomainname(), and some versions of sendmail
+    configuration files were distributed that did this.  This was
+    incorrect; the string returned from getdomainname() is the Yellow
+    Pages (a.k.a NIS) domain name, which is a completely different
+    (albeit unfortunately named) entity from an Internet domain.  These
+    were often fortuitously the same string, except when they weren't.
+    Frequently, domain names would be spuriously doubled, e.g.
+    "bombastic.blurdybloop.com.blurdybloop.com".  This practice has been
+    thoroughly discredited for many years, but folklore dies hard.

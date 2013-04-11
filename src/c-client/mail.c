@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	11 October 1999
+ * Last Edited:	1 November 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -256,6 +256,7 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
 {
   void *r,*ret = NIL;
   DRIVER *d;
+  AUTHENTICATOR *a;
   switch ((int) function) {
   case SET_THREADERS:
     fatal ("SET_THREADERS not permitted");
@@ -288,6 +289,16 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
   case DISABLE_DRIVER:
     for (d = maildrivers; d && strcmp (d->name,(char *) value); d = d->next);
     if (ret = (void *) d) d->flags |= DR_DISABLE;
+    break;
+  case ENABLE_AUTHENTICATOR:	/* punt on this for the nonce */
+    fatal ("ENABLE_AUTHENTICATOR not permitted");
+  case DISABLE_AUTHENTICATOR:
+    for (a = mailauthenticators;/* scan authenticators */
+	 a && strcmp (a->name,(char *) value); a = a->next);
+    if (a) {			/* if authenticator name found */
+      a->client = NIL;		/* blow it away */
+      a->server = NIL;
+    }
     break;
 
   case SET_GETS:
@@ -479,7 +490,7 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
 	    if (c == '\\') c = *t++;
 	    arg[i++] = c;
 	  }
-	  c = *t;		/* remember delimiter for later */
+	  c = *t++;		/* remember delimiter for later */
 	  arg[i] = '\0';	/* tie off argument */
 	}
 	else {			/* non-quoted argument */
@@ -4680,7 +4691,8 @@ unsigned int mail_lookup_auth_name (char *mechanism,long secflag)
 				/* make upper case copy of mechanism name */
     ucase (strcpy (tmp,mechanism));
     for (i = 1, auth = mailauthenticators; auth; i++, auth = auth->next)
-      if ((!secflag || auth->secflag) && !strcmp (auth->name,tmp)) return i;
+      if (auth->client && (!secflag || auth->secflag) &&
+	  !strcmp (auth->name,tmp)) return i;
   }
   return 0;
 }

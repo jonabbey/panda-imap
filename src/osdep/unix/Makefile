@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	29 September 1999
+# Last Edited:	16 November 1999
 #
 # Copyright 1999 by the University of Washington
 #
@@ -465,6 +465,13 @@ sgi:	# Silicon Graphics
 	 BASECFLAGS="-g3 -O2 -Olimit 8192 -DNFSKLUDGE" \
 	 RANLIB=true
 
+sg6:	# Silicon Graphics, IRIX 6.5
+	MAKEFLAGS= $(BUILD) `cat EXTRASPECIALS` OS=sgi SIGTYPE=sv4 \
+	 MAILSPOOL=/usr/mail \
+	 RSHPATH=/usr/bsd/rsh \
+	 BASECFLAGS="-g3 -O2 -DNFSKLUDGE -woff 1048,1110,1116" \
+	 RANLIB=true
+
 # Note: Mark Kaesling says that setluid() isn't in HP-UX with SecureWare.
 
 shp:	# HP-UX with Trusted Computer Base
@@ -730,15 +737,16 @@ ckpmd5:	# MD5 database (must have md5 AUTHENTICATOR as well)
 	$(LN) ckp_md5.c osdepckp.c
 
 ckpnul:	# NUL authenticator (disables all plaintext authentication)
+	echo -DPLAINTEXT_DISABLED >> OSCFLAGS
 	$(LN) ckp_nul.c osdepckp.c
 
-ckppam:	# PAM authenticator
+ckppam:	# Pluggable Authentication Modules authenticator
 	echo $(PAMLDFLAGS) >> LDFLAGS
 	$(LN) ckp_pam.c osdepckp.c
 
-ckppmb:	# Broken (e.g. SUN) PAM authenticator
+ckppmb:	# Broken (e.g. SUN) Pluggable Authentication Modules authenticator
 	echo $(PAMLDFLAGS) >> LDFLAGS
-	$(LN) ckp_pam.c osdepckp.c
+	$(LN) ckp_pmb.c osdepckp.c
 
 ckpstd:	# Port standard
 	$(LN) ckp_$(CHECKPW).c osdepckp.c

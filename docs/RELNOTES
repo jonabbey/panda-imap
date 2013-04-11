@@ -1,7 +1,6 @@
-Updated: 23 September 1999
+Updated: 27 October 1999
 
-imap-4.6 is a maintenace update, with minor bugfixes to imap-4.5 and
-optional support for an external mailbox file locking program.
+imap-4.7 is a maintenace update, with minor bugfixes to imap-4.6.
 
 This version supports IMAP4rev1 (RFC 2060).  There are major internal and
 external changes from the IMAP2bis version (e.g. imap-3.6, distributed with
@@ -23,17 +22,8 @@ Most notable operational changes from earlier versions:
  . SASL authentication is supported in the IMAP and POP3 servers, and in
     the IMAP, POP3, and SMTP client code.  There is no support for NNTP
     SASL yet
- . CRAM-MD5 is supported on UNIX.  To enable CRAM-MD5, you must obtain a
-    copy of RSA's implementation of MD5 (global.h, md5.h, and md5.c) and
-    place these files on /usr/local/include/md5/, add "md5" to the
-    EXTRAAUTHENTICATORS list in the top-level Makefile, and rebuild.
-    For CRAM-MD5 support in the IMAP and POP3 servers, you must have an
-    /etc/cram-md5.pwd file.  This file has one line for each user name
-    that can use CRAM-MD5, in form username, TAB, password.  Yes, the
-    passwords must be plaintext, so this file should be kept very strongly
-    protected.  All CRAM-MD5 users must also have /etc/passwd entries.  It
-    is recommended that the CRAM-MD5 password not be the same as the
-    plaintext password.
+ . CRAM-MD5 is supported by default for IMAP and POP3 clients.  To enable
+    server support, read file imap-4.7/docs/md5.txt
  . Kerberos V5 is supported through the GSSAPI on UNIX and NT.  To enable
     Kerberos V5 on UNIX, add "gss" to the EXTRAAUTHENTICATORS list in the
     top-level Makefile and rebuild.  You may also need to edit the GSSAPI

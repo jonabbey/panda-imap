@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	9 October 1999
+ * Last Edited:	16 November 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -78,7 +78,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "7.63";		/* server version */
+char *version = "7.64";		/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -240,6 +240,10 @@ int main (int argc,char *argv[])
 	    AUTHENTICATOR *auth = mail_lookup_auth (1);
 	    PSOUT ("+OK Supported authentication mechanisms:\015\012");
 	    while (auth) {
+#ifdef PLAINTEXT_DISABLED
+				/* disable insecure authenticators */
+	      if (!auth_secflag) auth->server = NIL;
+#endif
 	      if (auth->server) {
 		PSOUT (auth->name);
 		CRLF;

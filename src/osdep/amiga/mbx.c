@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	21 September 1999
+ * Last Edited:	15 November 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -328,7 +328,7 @@ long mbx_rename (MAILSTREAM *stream,char *old,char *newname)
   close (fd);			/* close the file */
 				/* recreate file if renamed INBOX */
   if (ret && !strcmp (ucase (strcpy (tmp,old)),"INBOX"))
-    mbx_create (NIL,"#driver.mbx/./INBOX");
+    mbx_create (NIL,"INBOX");
   return ret;			/* return success */
 }
 
@@ -1175,7 +1175,7 @@ long mbx_parse (MAILSTREAM *stream)
     if ((m = strtoul (t+13,NIL,16)) &&
 	((m <= lastuid) || (m > stream->uid_last))) {
       sprintf (tmp,"Invalid UID %08lx in message %lu, rebuilding UIDs",
-		 elt->private.uid,elt->msgno);
+		 m,nmsgs+1);
       mm_log (tmp,WARN);
       m = 0;			/* lose this UID */
 				/* restart UID validity and last UID */

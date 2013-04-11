@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	29 September 1999
+# Last Edited:	15 November 1999
 #
 # Copyright 1999 by the University of Washington
 #
@@ -92,6 +92,7 @@
 # sco	Santa Cruz Operation (see sc5, gs5)
 # shp	HP-UX with Trusted Computer Base
 # sgi	Silicon Graphics IRIX
+# sg6	Silicon Graphics IRIX 6.5
 # sl4	Linux using -lshadow to get the crypt() function
 # sl5	Linux with shadow passwords, no extra libraries
 # slx	Linux using -lcrypt to get the crypt() function
@@ -134,7 +135,6 @@ EXTRADRIVERS=mbox
 # The following plaintext login types are defined:
 # afs	AFS authentication database
 # dce	DCE authentication database
-# md5	MD5 database (must also have md5 as an authenticator)
 # nul	no plaintext authentication (note: this will break some secure
 #	 authenticators -- don't use without checking first!!)
 # pam	PAM authentication (note: for Linux, you should use the "lnp" port
@@ -293,7 +293,7 @@ c-client:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp gs5 gso gsu gul hpp hpx lnp lyn mct mnt neb nxt nx3 osf os4 ptx qnx sc5 sco sgi shp sl4 sl5 slx snx sol sos uw2: an
+a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp gs5 gso gsu gul hpp hpx lnp lyn mct mnt neb nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
 	$(BUILD) OS=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
@@ -306,11 +306,11 @@ aos art asv aux bsd cvx dpx dyn isc pyr s40 sv4 ult vul vu2: ua
 # Linux shadow password support doesn't build on traditional systems, but most
 # Linux systems are shadow these days.
 
-lnx:	lnxmd5 an
+lnx:	lnxnul an
 	$(BUILD) OS=$@
 
-lnxmd5:
-	@sh -c '(test $(PASSWDTYPE) = md5) || make lnxok'
+lnxnul:
+	@sh -c '(test $(PASSWDTYPE) = nul) || make lnxok'
 
 lnxok:
 	@echo You are building for traditional Linux.  Most modern Linux

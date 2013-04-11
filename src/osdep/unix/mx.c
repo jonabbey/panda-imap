@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	30 September 1999
+ * Last Edited:	12 November 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -204,8 +204,8 @@ void mx_list_work (MAILSTREAM *stream,char *dir,char *pat,long level)
   if ((np = name + strlen (strcpy (name,dir ? dir : ""))) != name) *np++ = '/';
   cp = curdir + strlen (strcat ((mx_file(curdir,dir ? dir:myhomedir())),"/"));
   if (dp = opendir (curdir)) {	/* open directory */
-    while (d = readdir (dp)) {	/* scan directory, ignore all . names */
-      if (d->d_name[0] != '.') {/* build file name */
+    while (d = readdir (dp)) {	/* scan, ignore . and numeric names */
+      if ((d->d_name[0] != '.') && !mx_select (d)) {
 	if (level < (long) mail_parameters (NIL,GET_LISTMAXLEVEL,NIL)) {
 	  strcpy (cp,d->d_name);/* make directory name */
 	  strcpy (np,d->d_name);/* make mx name of directory name */
@@ -253,8 +253,21 @@ long mx_unsubscribe (MAILSTREAM *stream,char *mailbox)
 long mx_create (MAILSTREAM *stream,char *mailbox)
 {
   int fd;
-  char tmp[MAILTMPLEN],mbx[MAILTMPLEN];
-  if (mx_isvalid (mailbox,tmp))	/* must not already exist */
+  char *s,tmp[MAILTMPLEN],mbx[MAILTMPLEN];
+				/* assume error */
+  sprintf (tmp,"Can't create mailbox %.80s: invalid MX-format name",mailbox);
+				/* make sure valid name */
+  for (s = mailbox; s && *s;) {
+    if (isdigit (*s)) s++;	/* digit, check this node further... */
+				/* all digit node, barf */
+    else if (*s == '/') s = NIL;
+				/* non-digit in node, skip to next node */
+    else if (s = strchr (s+1,'/')) s++;
+    else tmp[0] = NIL;		/* no more nodes, good name */
+  }
+  if (tmp[0]);			/* was there an error in the name? */
+				/* must not already exist */
+  else if (mx_isvalid (mailbox,tmp))
     sprintf (tmp,"Can't create mailbox %.80s: mailbox already exists",mailbox);
 				/* create directory */
   else if (!dummy_create_path (stream,strcat (mx_file (mbx,mailbox),"/")))
@@ -336,7 +349,12 @@ long mx_rename (MAILSTREAM *stream,char *old,char *newname)
 	  !dummy_create (stream,tmp1)) return NIL;
       *s = c;			/* restore full name */
     }
-    if (!rename (mx_file (tmp,old),tmp1)) return T;
+    if (!rename (mx_file (tmp,old),tmp1)) {
+				/* recreate file if renamed INBOX */
+      if (!strcmp (ucase (strcpy (tmp,old)),"INBOX"))
+	mx_create (NIL,"INBOX");
+      return T;
+    }
     sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",
 	     old,newname,strerror (errno));
   }

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	21 September 1999
+ * Last Edited:	1 November 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -82,9 +82,11 @@
 
 /* Global and Driver Parameters */
 
-	/* 0xx: driver flags */
+	/* 0xx: driver and authenticator flags */
 #define ENABLE_DRIVER (long) 1
 #define DISABLE_DRIVER (long) 2
+#define ENABLE_AUTHENTICATOR (long) 3
+#define DISABLE_AUTHENTICATOR (long) 4
 	/* 1xx: c-client globals */
 #define GET_DRIVERS (long) 101
 #define SET_DRIVERS (long) 102

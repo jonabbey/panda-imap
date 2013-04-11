@@ -5,6 +5,7 @@ Documentation:
  . README		read this file first
  . docs/BUILD		build and installation instructions
  . docs/CONFIG		detailed configuration notes
+ . docs/FAQ		frequently asked questions and answers
  . docs/RELNOTES	release notes
  . docs/bugs.txt	known bugs and deficiencies in this software
  . docs/drivers.txt	how various mailbox format drivers interact, and

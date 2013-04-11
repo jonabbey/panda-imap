@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	10 October 1999
+ * Last Edited:	20 January 2000
  *
- * Copyright 1999 by the University of Washington
+ * Copyright 2000 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -417,8 +417,7 @@ long server_input_wait (long seconds)
   tmo.tv_sec = seconds; tmo.tv_usec = 0;
   return select (1,&rfd,0,&efd,&tmo) ? LONGT : NIL;
 }
-
-
+
 /* Server log in
  * Accepts: user name string
  *	    password string
@@ -437,11 +436,24 @@ long server_login (char *user,char *pwd,int argc,char *argv[])
 	    tcp_clienthost ());
 				/* validate with case-independence */
   else if ((logtry > 0) && ((pw = getpwnam (strcpy (usr,user))) ||
-			    (pw = getpwnam (lcase (usr)))) &&
-	   ((pw = checkpw (pw,pwd,argc,argv)) ||
-	    ((*pwd == ' ') && (pw = getpwnam (usr)) &&
-	     (pw = checkpw (pw,pwd + 1,argc,argv)))))
-    return pw_login (pw,pw->pw_name,pw->pw_dir,argc,argv);
+			    (pw = getpwnam (lcase (usr))))) {
+    if (auth_md5.server) {	/* if using CRAM-MD5 authentication */
+      char *p = auth_md5_pwd (pw->pw_name);
+      if (p) {			/* verify password */
+	if (strcmp (p,pwd) && strcmp (p,pwd+1)) pw = NIL;
+	memset (p,0,strlen (p));/* erase sensitive information */
+	fs_give ((void **) &p);	/* flush erased password */
+	if (pw) return pw_login (pw,pw->pw_name,pw->pw_dir,argc,argv);
+      }
+      else syslog (LOG_ERR|LOG_AUTH,
+		   "Login failed: %s has no CRAM-MD5 password, host=%.80s",
+		   pw->pw_name,tcp_clienthost ());
+    }
+				/* ordinary password authentication */
+    else if ((pw = checkpw (pw,pwd,argc,argv)) ||
+	     ((*pwd == ' ') && (pw = checkpw (getpwnam(usr),pwd+1,argc,argv))))
+      return pw_login (pw,pw->pw_name,pw->pw_dir,argc,argv);
+  }
   s = (logtry-- > 0) ? "Login failure" : "Excessive login attempts";
 				/* note the failure in the syslog */
   syslog (LOG_INFO,"%s user=%.80s host=%.80s",s,user,tcp_clienthost ());
@@ -513,7 +525,7 @@ long env_init (char *user,char *home)
   char *s,tmp[MAILTMPLEN];
   if (myUserName) fatal ("env_init called twice!");
 				/* myUserName must be set before dorc() call */
-  myUserName = cpystr ((char *) (user ? user : anonymous_user));
+  myUserName = cpystr (user ? user : (char *) anonymous_user);
 				/* do systemwide configuration */
   dorc ("/etc/c-client.cf",NIL);
   if (!anonymousHome) anonymousHome = cpystr (ANONYMOUSHOME);
@@ -526,6 +538,8 @@ long env_init (char *user,char *home)
 	sprintf (tmp,"%s/INBOX",myHomeDir = cpystr (s));
 	sysInbox = cpystr (tmp);/* set black box values in their place */
 	blackBox = T;
+				/* mbox meaningless if black box */
+	mail_parameters (NIL,DISABLE_DRIVER,(void *) "mbox");
       }
     }
     if (blackBox)		/* black box? */
@@ -576,7 +590,7 @@ char *myusername_full (unsigned long *flags)
   if (!myUserName) {		/* get user name if don't have it yet */
     struct passwd *pw;
     unsigned long euid = geteuid ();
-    char *s = (char *) getlogin ();
+    char *s = (char *) (euid ? getlogin () : NIL);
 				/* look up getlogin() user name or EUID */
     if (!((s && *s && (pw = getpwnam (s)) && (pw->pw_uid == euid)) ||
 	  (pw = getpwuid (euid)))) fatal ("Unable to look up user name");
@@ -787,49 +801,52 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
     else switch (errno) {	/* what happened? */
       case EACCES:		/* protection fail */
 	if (stat (hitch,&sb)) {	/* file exists, fall into EEXIST case */
-	  int pi[2],po[2];
+	  if (fd >= 0) {	/* only if fd provided */
+	    int pi[2],po[2];
 				/* make command pipes */
-	  if (!stat (LOCKPGM,&sb) && pipe (pi) >= 0) {
-	    if (pipe (po) >= 0) {
+	    if (!stat (LOCKPGM,&sb) && pipe (pi) >= 0) {
+	      if (pipe (po) >= 0) {
 				/* make inferior process */
-	      if (!(j = fork ())) {
-		if (!fork ()) {	/* make grandchild so it's inherited by init */
-		  char *argv[4];/* prepare argument vector for */
-		  sprintf (tmp,"%d",fd);
-		  argv[0] = LOCKPGM; argv[1] = tmp;
-		  argv[2] = file; argv[3] = NIL;
+		if (!(j = fork ())) {
+		  if (!fork ()){/* make grandchild so it's inherited by init */
+		    char *argv[4];
+				/* prepare argument vector */
+		    sprintf (tmp,"%d",fd);
+		    argv[0] = LOCKPGM; argv[1] = tmp;
+		    argv[2] = file; argv[3] = NIL;
 				/* set parent's I/O to my O/I */
-		  dup2 (pi[1],1); dup2 (pi[1],2); dup2 (po[0],0);
+		    dup2 (pi[1],1); dup2 (pi[1],2); dup2 (po[0],0);
 				/* close all unnecessary descriptors */
-		  for (j = max (20,max (max (pi[0],pi[1]),max (po[0],po[1])));
-		       j >= 3; --j) if (j != fd) close (j);
+		    for (j = max (20,max (max (pi[0],pi[1]),max(po[0],po[1])));
+			 j >= 3; --j) if (j != fd) close (j);
 				/* be our own process group */
-		  setpgrp (0,getpid ());
+		    setpgrp (0,getpid ());
 				/* now run it */
-		  execv (argv[0],argv);
+		    execv (argv[0],argv);
+		  }
+		  _exit (1);	/* child is done */
 		}
-		_exit (1);	/* child is done */
-	      }
-	      else if (j > 0) {	/* reap child; grandchild now owned by init */
-		grim_pid_reap (j,NIL);
+		else if (j > 0){/* reap child; grandchild now owned by init */
+		  grim_pid_reap (j,NIL);
 				/* read response from locking program */
-		if ((read (pi[0],tmp,1) == 1) && (tmp[0] == '+')) {
+		  if ((read (pi[0],tmp,1) == 1) && (tmp[0] == '+')) {
 				/* success, record pipes */
-		  base->pipei = pi[0]; base->pipeo = po[1];
+		    base->pipei = pi[0]; base->pipeo = po[1];
 				/* close child's side of the pipes */
-		  close (pi[1]); close (po[0]);
-		  return LONGT;
+		    close (pi[1]); close (po[0]);
+		    return LONGT;
+		  }
 		}
+		close (po[0]); close (po[1]);
 	      }
-	      close (po[0]); close (po[1]);
+	      close (pi[0]); close (pi[1]);
 	    }
-	    close (pi[0]); close (pi[1]);
-	  }
-	  if (lockEaccesError) {/* punt silently if paranoid site */
-	    sprintf (tmp,"Mailbox vulnerable - directory %.80s",hitch);
-	    if (s = strrchr (tmp,'/')) *s = '\0';
-	    strcat (tmp," must have 1777 protection");
-	    mm_log (tmp,WARN);
+	    if (lockEaccesError){/* punt silently if paranoid site */
+	      sprintf (tmp,"Mailbox vulnerable - directory %.80s",hitch);
+	      if (s = strrchr (tmp,'/')) *s = '\0';
+	      strcat (tmp," must have 1777 protection");
+	      mm_log (tmp,WARN);
+	    }
 	  }
 	  base->lock[0] = '\0';	/* give up on lock file */
 	}
@@ -967,7 +984,8 @@ int lock_work (char *lock,void *sb,int op,long *pid)
 	(lsb.st_ino == fsb.st_ino) && (fsb.st_nlink == 1)) break;
     close (fd);			/* lock not right, drop fd and try again */
   }
-  chmod (lock,lock_protection);	/* make sure mode OK (don't use fchmod()) */
+				/* make sure mode OK (don't use fchmod()) */
+  chmod (lock,(int) lock_protection);
   return fd;			/* success */
 }
 

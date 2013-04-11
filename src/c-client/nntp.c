@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	11 September 1999
+ * Last Edited:	20 September 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -657,7 +657,8 @@ long nntp_overview (MAILSTREAM *stream,char *sequence,overview_t ofn)
 				/* have cached overview yet? */
       if ((elt = mail_elt (stream,i))->sequence && !elt->private.data) {
 	for (j = i + 1;		/* no, find end of cache gap range */
-	     (j <= stream->nmsgs) && !mail_elt (stream,j)->private.data; j++);
+	     (j <= stream->nmsgs) && (elt = mail_elt (stream,j))->sequence &&
+	     !elt->private.data; j++);
 				/* make NNTP range */
 	sprintf (tmp,(i == (j - 1)) ? "%lu" : "%lu-%lu",mail_uid (stream,i),
 		 mail_uid (stream,j - 1));

@@ -1,6 +1,6 @@
-Known problems/deficiencies in the IMAP 4.6 toolkit:
-Updated: 6 August 1999
+Updated: 27 October 1999
 
+The following are known problems/deficiencies in the IMAP 4.7 toolkit:
  . Possible problems for some installations:
    . In some versions of Redhat Linux, SVR4-style timezone name lookup
       doesn't work properly due to a bug in glibc.  The workaround is to

@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		5 November 1990
-# Last Edited:	4 October 1999
+# Last Edited:	3 November 1999
 #
 # Copyright 1999 by the University of Washington
 #
@@ -57,8 +57,7 @@ C = ../c-client
 CCLIENTLIB = $C/c-client.a
 CC = `cat $C/CCTYPE`
 CFLAGS = -I$C `cat $C/CFLAGS` $(EXTRACFLAGS) -DANOFILE=\"$(ANO)\" \
-	-DALERTFILE=\"$(ALERT)\" -DUSERALERTFILE=\"$(USERALERT)\" \
-	-DWEBEXPRESS_BRAIN_DAMAGE=1
+	-DALERTFILE=\"$(ALERT)\" -DUSERALERTFILE=\"$(USERALERT)\"
 LDFLAGS = $(CCLIENTLIB) `cat $C/LDFLAGS`
 
 all:	imapd

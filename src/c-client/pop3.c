@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	21 September 1999
+ * Last Edited:	28 October 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -424,11 +424,14 @@ long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
 	mm_log (tmp,NIL);
 	fs_give ((void **) &t);
       }
-      for (i = 1; LOCAL->netstream && i && (i <= pop3_maxlogintrials);) {
+      for (i = 1,tmp[0] = '\0';	/* until run out of trials */
+	   LOCAL->netstream && i && (i <= pop3_maxlogintrials); ) {
+	if (tmp[0]) mm_log (tmp,WARN);
 	if (pop3_send (stream,"AUTH",at->name) &&
 	    (*at->client) (pop3_challenge,pop3_response,mb,stream,&i,usr) &&
 	    LOCAL->response && (*LOCAL->response == '+')) return LONGT;
 	t = cpystr (LOCAL->reply);
+	sprintf (tmp,"Retrying %s authentication after %s",at->name,t);
       }
     }
     if (t) {			/* previous authenticator failed? */

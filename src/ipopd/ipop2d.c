@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	9 October 1999
+ * Last Edited:	16 November 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -67,7 +67,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "4.54";		/* server version */
+char *version = "4.55";		/* server version */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -102,6 +102,11 @@ int main (int argc,char *argv[])
 {
   char *s,*t;
   char cmdbuf[TMPLEN];
+#ifdef PLAINTEXT_DISABLED
+  printf ("- POP2 server disabled on this system\015\012");
+  fflush (stdout);
+  _exit (1);
+#endif
 #include "linkage.c"
 				/* initialize server */
   server_init (argv[0],"pop",NIL,"pop",clkint,kodint,hupint,trmint);

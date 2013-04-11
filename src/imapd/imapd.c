@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	12 October 1999
+ * Last Edited:	16 November 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -179,7 +179,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "12.261";	/* version number of this server */
+char *version = "12.264";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
@@ -198,9 +198,6 @@ unsigned long nmsgs =0xffffffff;/* last reported # of messages and recent */
 unsigned long recent = 0xffffffff;
 char *user = NIL;		/* user name */
 char *pass = NIL;		/* password */
-#ifdef WEBEXPRESS_BRAIN_DAMAGE
-char *lastselect = NIL;		/* last selected name */
-#endif
 char cmdbuf[TMPLEN];		/* command buffer */
 char *tag;			/* tag portion of command */
 char *cmd;			/* command portion of command */
@@ -210,7 +207,7 @@ char *lsterr = NIL;		/* last error message from c-client */
 char *response = NIL;		/* command response */
 int litsp = 0;			/* literal stack pointer */
 char *litstk[LITSTKLEN];	/* stack to hold literals */
-unsigned long lastuid = -1;	/* last fetched uid */
+unsigned long lastuid = 0;	/* last fetched uid */
 char *lastid = NIL;		/* last fetched body id for this message */
 SIZEDTEXT lastst = {NIL,0};	/* last sizedtext */
 
@@ -356,13 +353,17 @@ int main (int argc,char *argv[])
 	  AUTHENTICATOR *auth = mail_lookup_auth (1);
 	  THREADER *thr = (THREADER *) mail_parameters (NIL,GET_THREADERS,NIL);
 	  PSOUT ("* CAPABILITY IMAP4 IMAP4REV1 NAMESPACE IDLE SCAN SORT MAILBOX-REFERRALS LOGIN-REFERRALS");
-#ifdef WEBEXPRESS_BRAIN_DAMAGE
-	  PSOUT (" X-NOOP-DUPLICATE-SELECT");
-#endif
 #ifdef NETSCAPE_BRAIN_DAMAGE
 	  PSOUT (" X-NETSCAPE");
 #endif
+#ifdef PLAINTEXT_DISABLED
+	  PSOUT (" LOGINDISABLED");
+#endif
 	  while (auth) {
+#ifdef PLAINTEXT_DISABLED
+				/* disable insecure authenticators */
+	    if (!auth->secflag) auth->server = NIL;
+#endif
 	    if (auth->server) {
 	      PSOUT (" AUTH=");
 	      PSOUT (auth->name);
@@ -589,7 +590,7 @@ int main (int argc,char *argv[])
 				/* no arguments */
 	  if (arg) response = badarg;
 	  else {
-	    lastuid = -1;	/* no last uid */
+	    lastuid = 0;	/* no last uid */
 	    if (lastid) fs_give ((void **) &lastid);
 	    if (lastst.data) fs_give ((void **) &lastst.data);
 	    stream = mail_close_full (stream,anonymous ? NIL : CL_EXPUNGE);
@@ -742,32 +743,12 @@ int main (int argc,char *argv[])
 				/* single argument */
 	  if (!(s = snarf (&arg))) response = misarg;
 	  else if (arg) response = badarg;
-#ifdef WEBEXPRESS_BRAIN_DAMAGE
-	  else if ((state == OPEN) && stream &&
-		   (*cmd == (stream->rdonly ? 'E' : 'S')) &&
-		   (!strcmp (s,lastselect) ||
-		    ((((s[0] == 'I') || (s[0] == 'i')) &&
-		      ((lastselect[0] == 'I') || (lastselect[0] == 'i'))) &&
-		     (((s[1] == 'N') || (s[1] == 'n')) &&
-		      ((lastselect[1] == 'N') || (lastselect[1] == 'n'))) &&
-		     (((s[2] == 'B') || (s[2] == 'b')) &&
-		      ((lastselect[2] == 'B') || (lastselect[2] == 'b'))) &&
-		     (((s[3] == 'O') || (s[3] == 'o')) &&
-		      ((lastselect[3] == 'O') || (lastselect[3] == 'o'))) &&
-		     (((s[4] == 'X') || (s[4] == 'x')) &&
-		      ((lastselect[4] == 'X') || (lastselect[4] == 'x'))) &&
-		     !s[5] && !lastselect[5])))
-	    response = "%.80s OK Ignoring duplicate SELECT\015\012";
-#endif
 	  else if (nameok (NIL,s = bboardname (cmd,s))) {
 	    DRIVER *factory = mail_valid (NIL,s,NIL);
-#ifdef WEBEXPRESS_BRAIN_DAMAGE
-	    if (lastselect) fs_give ((void **) &lastselect);
-#endif
 	    f = (anonymous ? OP_ANONYMOUS + OP_READONLY : NIL) |
 	      ((*cmd == 'S') ? NIL : OP_READONLY);
 	    curdriver = NIL;	/* no drivers known */
-	    lastuid = -1;	/* no last uid */
+	    lastuid = 0;	/* no last uid */
 	    if (lastid) fs_give ((void **) &lastid);
 	    if (lastst.data) fs_give ((void **) &lastst.data);
 				/* force update */
@@ -812,9 +793,6 @@ int main (int argc,char *argv[])
 		syslog (LOG_INFO,"Anonymous select of %.80s host=%.80s",
 			stream->mailbox,tcp_clienthost ());
 	      lastcheck = 0;	/* no last check */
-#ifdef WEBEXPRESS_BRAIN_DAMAGE
-	      lastselect = cpystr (s);
-#endif
 	    }
 	    else {		/* failed */
 	      state = SELECT;	/* no mailbox open now */
@@ -2297,7 +2275,7 @@ void fetch_body_part_mime (unsigned long i,void *args)
     char *tmp = (char *) fs_get (100 + strlen (ta->section));
     sprintf (tmp,"BODY[%s.MIME]",ta->section);
 				/* try to use remembered text */
-    if ((uid == lastuid) && !strcmp (tmp,lastid)) st = lastst;
+    if (lastuid && (uid == lastuid) && !strcmp (tmp,lastid)) st = lastst;
     else {			/* get data */
       st.data = (unsigned char *)
 	mail_fetch_mime (stream,i,ta->section,&st.size,ta->flags);
@@ -2327,7 +2305,7 @@ void fetch_body_part_contents (unsigned long i,void *args)
     unsigned long uid = mail_uid (stream,i);
     sprintf (tmp,"BODY[%s]",ta->section ? ta->section : "");
 				/* try to use remembered text */
-    if ((uid == lastuid) && !strcmp (tmp,lastid)) st = lastst;
+    if (lastuid && (uid == lastuid) && !strcmp (tmp,lastid)) st = lastst;
     else {			/* get data */
       st.data = (unsigned char *)
 	mail_fetch_body (stream,i,ta->section,&st.size,ta->flags);
@@ -2396,7 +2374,7 @@ void fetch_body_part_text (unsigned long i,void *args)
     if (ta->section && *ta->section) sprintf (tmp,"BODY[%s.TEXT]",ta->section);
     else strcpy (tmp,"BODY[TEXT]");
 				/* try to use remembered text */
-    if ((uid == lastuid) && !strcmp (tmp,lastid)) st = lastst;
+    if (lastuid && (uid == lastuid) && !strcmp (tmp,lastid)) st = lastst;
     else {			/* get data */
       st.data = (unsigned char *)
 	mail_fetch_text (stream,i,ta->section,&st.size,ta->flags);

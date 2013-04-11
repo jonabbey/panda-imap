@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	21 September 1999
+ * Last Edited:	28 October 1999
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -842,7 +842,9 @@ long imap_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
       fs_give ((void **) &lsterr);
     }
     trial = 0;			/* initial trial count */
+    tmp[0] = '\0';		/* no error */
     do {			/* gensym a new tag */
+      if (tmp[0]) mm_log (tmp,WARN);
       sprintf (tag,"%08lx",stream->gensym++);
 				/* build command */
       sprintf (tmp,"%s AUTHENTICATE %s",tag,at->name);
@@ -862,6 +864,7 @@ long imap_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
 				/* done if got success response */
 	if (ok && imap_OK (stream,reply)) return T;
 	lsterr = cpystr (reply->text);
+	sprintf (tmp,"Retrying %s authentication after %s",at->name,lsterr);
       }
     }
     while (LOCAL->netstream && !LOCAL->byeseen && trial &&
@@ -1693,10 +1696,14 @@ unsigned long *imap_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
       fs_give ((void **) &s);
     }
     if (pgm->nmsgs) {		/* pass 2: sort cache */
+      sortresults_t sr = (sortresults_t)
+	mail_parameters (NIL,GET_SORTRESULTS,NIL);
       sc = mail_sort_loadcache (stream,pgm);
 				/* pass 3: sort messages */
       if (!pgm->abort) ret = mail_sort_cache (stream,pgm,sc,flags);
-      fs_give ((void **) &sc);/* don't need sort vector any more */
+      fs_give ((void **) &sc);	/* don't need sort vector any more */
+				/* also return via callback if requested */
+      if (sr) (*sr) (stream,ret,pgm->nmsgs);
     }
   }
   return ret;

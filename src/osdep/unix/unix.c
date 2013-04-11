@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	22 September 1999
+ * Last Edited:	20 January 2000
  *
- * Copyright 1999 by the University of Washington
+ * Copyright 2000 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -175,18 +175,15 @@ long unix_isvalid_fd (int fd)
 
 void *unix_parameters (long function,void *value)
 {
+  void *ret = NIL;
   switch ((int) function) {
   case SET_FROMWIDGET:
     unix_fromwidget = (long) value;
-    break;
   case GET_FROMWIDGET:
-    value = (void *) unix_fromwidget;
-    break;
-  default:
-    value = NIL;		/* error case */
+    ret = (void *) unix_fromwidget;
     break;
   }
-  return value;
+  return ret;
 }
 
 /* UNIX mail scan mailboxes
@@ -556,8 +553,8 @@ long unix_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
   elt = mail_elt (stream,msgno);/* get cache element */
 				/* if message not seen */
   if (!(flags & FT_PEEK) && !elt->seen) {
-    elt->seen = T;		/* mark message as seen */
-    LOCAL->dirty = T;		/* note stream is now dirty */
+				/* mark message seen and dirty */
+    elt->seen = elt->private.dirty = LOCAL->dirty = T;
     mm_flags (stream,msgno);
   }
   s = unix_text_work (stream,elt,&i,flags);
@@ -815,10 +812,8 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   if (!ret) mm_log (LOCAL->buf,ERROR);
 				/* delete if requested message */
   else if (options & CP_MOVE) for (i = 1; i <= stream->nmsgs; i++)
-    if ((elt = mail_elt (stream,i))->sequence) {
-      elt->deleted = T;		/* mark message deleted */
-      LOCAL->dirty = T;		/* note stream is now dirty */
-    }
+    if ((elt = mail_elt (stream,i))->sequence)
+      elt->deleted = elt->private.dirty = LOCAL->dirty = T;
   return ret;
 }
 
@@ -995,10 +990,21 @@ int unix_lock (char *file,int flags,int mode,DOTLOCK *lock,int op)
   int fd;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   (*bn) (BLOCK_FILELOCK,NIL);
-				/* open file */
-  if ((fd = open (file,flags,mode)) >= 0) {
-    flock (fd,op);		/* lock the file */
-    dotlock_lock (file,lock,fd);/* make a dot lock file */
+				/* try locking the easy way */
+  if (dotlock_lock (file,lock,-1)) {
+				/* got dotlock file, easy open */
+    if ((fd = open (file,flags,mode)) >= 0) flock (fd,op);
+    else dotlock_unlock (lock);	/* open failed, free the dotlock */
+  }
+				/* no dot lock file, open file now */
+  else if ((fd = open (file,flags,mode)) >= 0) {
+				/* try paranoid way to make a dot lock file */
+    if (dotlock_lock (file,lock,fd)) {
+      close (fd);		/* get fresh fd in case of timing race */
+      if ((fd = open (file,flags,mode)) >= 0) flock (fd,op);
+      else dotlock_unlock (lock); /* open failed, free the dotlock */
+    }
+    else flock (fd,op);		/* paranoid way failed, just flock() it */
   }
   (*bn) (BLOCK_NONE,NIL);
   return fd;
@@ -1318,6 +1324,21 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 	    }
 				/* otherwise fall into default case */
 	  default:		/* ordinary header line */
+	    if ((*s == 'S') || (*s == 's') ||
+		(((*s == 'X') || (*s == 'x')) && (s[1] == '-'))) {
+	      char *e,*v;
+				/* must match what mail_filter() does */
+	      for (u = s,v = tmp,e = u + min (i,MAILTMPLEN - 1);
+		   (u < e) && ((c = *u) != ':') &&
+		   ((c > ' ') || ((c != ' ') && (c != '\t') &&
+				  (c != '\015') && (c != '\012')));
+		   *v++ = *u++);
+	      *v = '\0';	/* tie off */
+				/* matches internal header? */
+	      if (!strcmp (ucase (tmp),"STATUS") || !strcmp (tmp,"X-STATUS") ||
+		  !strcmp (tmp,"X-KEYWORDS") || !strcmp (tmp,"X-UID"))
+		break;		/* different case or something */
+	    }
 				/* line length in LF format newline */
 	    k =  i - (((i >= 2) && (s[i - 2] == '\r')) ? 1 : 0);
 				/* "internal" header size */
