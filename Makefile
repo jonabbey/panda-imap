@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	25 December 2004
+# Last Edited:	8 March 2005
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 1988-2004 University of Washington.
+# Copyright 1988-2005 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -230,6 +230,17 @@ IP=4
 #	years.  The Orthodox and Gregorian calendars diverge by 1 day for
 #	gradually-increasing intervals, starting at 2800-2900, and becoming
 #	permanent at 48,300.
+#
+# -DUSEJULIANCALENDAR
+#	Use the less accurate Julian calendar instead of the Gregorian
+#	calendar.  Leap years are every 4 years, including century years.
+#	My apologies to those in the English-speaking world who object to
+#	the reform of September 2, 1752 -> September 14, 1752, since this
+#	code still uses January 1 (which Julius Ceasar decreed as the start
+#	of the year, which since 153 BCE was the day that Roman consuls
+#	took office), rather than the traditional March 25 used by the
+#	British.  As of 2005, the Julian calendar and the Gregorian calendar
+#	diverge by 15 days.
 
 EXTRACFLAGS=
 
@@ -415,7 +426,7 @@ pt1:	an
 # Compatibility
 
 hxd:
-	$(MAKE) hpx PASSWDTYPE=dce
+	$(BUILD) BUILDTYPE=hpx PASSWDTYPE=dce
 
 # Amiga
 

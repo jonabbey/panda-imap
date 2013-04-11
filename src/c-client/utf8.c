@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	15 November 2004
+ * Last Edited:	7 April 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -176,6 +176,7 @@ static const CHARSET utf8_csvalid[] = {
 #ifdef KSCTOUNICODE
   {"ISO-2022-KR",CT_2022,NIL,SC_KOREAN,"EUC-KR"},
   {"EUC-KR",CT_DBYTE,(void *) &ksc_param,SC_KOREAN,NIL},
+  {"KSC5601",CT_DBYTE,(void *) &ksc_param,SC_KOREAN,"EUC-KR"},
   {"KSC_5601",CT_DBYTE,(void *) &ksc_param,SC_KOREAN,"EUC-KR"},
   {"KS_C_5601-1987",CT_DBYTE,(void *) &ksc_param,SC_KOREAN,"EUC-KR"},
   {"KS_C_5601-1989",CT_DBYTE,(void *) &ksc_param,SC_KOREAN,"EUC-KR"},
@@ -232,15 +233,60 @@ static const CHARSET text_8bit = {"UNTAGGED-8BIT",CT_UTF8,NIL,0xffffffff,NIL};
 				/* untagged ISO 2022 */
 static const CHARSET iso2022 = {"ISO-2022",CT_2022,NIL,0xffffffff,NIL};
 
-/* Look up charset name
- * Accepts: charset name
+/* Non-Unicode Script table */
+
+static const SCRIPT utf8_scvalid[] = {
+  {"Arabic",NIL,SC_ARABIC},
+  {"Chinese Simplified","China, Singapore",SC_CHINESE_SIMPLIFIED},
+  {"Chinese Traditional","Taiwan, Hong Kong, Macao",SC_CHINESE_TRADITIONAL},
+  {"Cyrillic",NIL,SC_CYRILLIC},
+  {"Cyrillic Ukranian",NIL,SC_UKRANIAN},
+  {"Greek",NIL,SC_GREEK},
+  {"Hebrew",NIL,SC_HEBREW},
+  {"Japanese",NIL,SC_JAPANESE},
+  {"Korean",NIL,SC_KOREAN},
+  {"Latin-1","Western Europe",SC_LATIN_1},
+  {"Latin-2","Eastern Europe",SC_LATIN_2},
+  {"Latin-3","Southern Europe",SC_LATIN_3},
+  {"Latin-4","Northern Europe",SC_LATIN_4},
+  {"Latin-5","Turkish",SC_LATIN_5},
+  {"Latin-6","Nordic",SC_LATIN_6},
+  {"Latin-7","Baltic",SC_LATIN_7},
+  {"Latin-8","Celtic",SC_LATIN_8},
+  {"Latin-9","Euro",SC_LATIN_9},
+  {"Latin-10","Balkan",SC_LATIN_10},
+  {"Thai",NIL,SC_THAI},
+  {"Vietnamese",NIL,SC_VIETNAMESE},
+  NIL
+};
+
+
+/* Look up script name or return entire table
+ * Accepts: script name or NIL
+ * Returns: pointer to script table entry or NIL if unknown
+ */
+
+SCRIPT *utf8_script (char *script)
+{
+  unsigned long i;
+  if (!script) return (SCRIPT *) &utf8_scvalid[0];
+  else if (*script && (strlen (script) < 128))
+    for (i = 0; utf8_scvalid[i].name; i++)
+      if (!compare_cstring (script,utf8_scvalid[i].name))
+	return (SCRIPT *) &utf8_scvalid[i];
+  return NIL;			/* failed */
+}
+
+/* Look up charset name or return entire table
+ * Accepts: charset name or NIL
  * Returns: charset table entry or NIL if unknown
  */
 
 CHARSET *utf8_charset (char *charset)
 {
   unsigned long i;
-  if (charset && *charset && (strlen (charset) < 128))
+  if (!charset) return (CHARSET *) &utf8_csvalid[0];
+  else if (*charset && (strlen (charset) < 128))
     for (i = 0; utf8_csvalid[i].name; i++)
       if (!compare_cstring (charset,utf8_csvalid[i].name))
 	return (CHARSET *) &utf8_csvalid[i];
@@ -367,8 +413,8 @@ unsigned short *utf8_rmap (char *charset)
       rmap = (unsigned short *) fs_get (65536 * sizeof (unsigned short));
 				/* initialize table for ASCII */
     for (i = 0; i < 128; i++) rmap[i] = (unsigned short) i;
-				/* populate remainder of table with 0xffff */
-    memset (rmap + 128,0xffff,(65536 - 128) * sizeof (unsigned short));
+				/* populate remainder of table with NOCHAR */
+    memset (rmap + 128,NOCHAR,(65536 - 128) * sizeof (unsigned short));
 
     switch (cs->type) {		/* additional reverse map actions */
     case CT_1BYTE0:		/* 1 byte no table */
@@ -428,7 +474,7 @@ unsigned short *utf8_rmap (char *charset)
     break;
   }
 				/* hack: map NBSP to SP if otherwise no map */
-  if (rmap[0x00a0] == 0xffff) rmap[0x00a0] = rmap[0x0020];
+  if (rmap[0x00a0] == NOCHAR) rmap[0x00a0] = rmap[0x0020];
   return rmap;			/* return map */
 }
 
@@ -455,10 +501,11 @@ long utf8_cstext (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,
   if (!(rmap = utf8_rmap (iso2022 ? "EUC-JP" : charset))) return NIL;
 				/* yes, determine size of destination string */
   for (ret->size = 0,s = text->data,i = text->size; i;) {
-				/* map, punt if not in cs and no error char */
-    if ((((u = utf8_get (&s,&i)) & 0xffff0000) || ((c = rmap[u]) == 0xffff)) &&
-	!(c = errch)) return NIL;
-    switch (iso2022) {		/* depends upon ISO 2022 mode */
+				/* map, ignore BOM */
+    if ((u = utf8_get (&s,&i)) == UCS2_BOM);
+    else if ((u & U8GM_NONBMP) || (((c = rmap[u]) == NOCHAR) && !(c = errch)))
+      return NIL;		/* not in BMP, or NOCHAR and no err char? */
+    else switch (iso2022) {	/* depends upon ISO 2022 mode */
     case 0:			/* ISO 2022 not in effect */
       ret->size += (c > 0xff) ? 2 : 1;
       break;
@@ -489,10 +536,11 @@ long utf8_cstext (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,
   ret->data = (unsigned char *) fs_get (ret->size + 1);
 				/* convert string */
   for (t = ret->data,s = text->data,i = text->size; i;) {
-				/* map to destination character set */
-    if (((u = utf8_get (&s,&i)) & 0xffff0000) || ((c = rmap[u]) == 0xffff))
-      c = errch;		/* substitute error character */
-    switch (iso2022) {		/* depends upon ISO 2022 mode */
+				/* map, ignore BOM */
+    if ((u = utf8_get (&s,&i)) == UCS2_BOM);
+				/* substitute error character for NOCHAR */
+    else if ((u & U8GM_NONBMP) || ((c = rmap[u]) == NOCHAR)) c = errch;
+    else switch (iso2022) {	/* depends upon ISO 2022 mode */
     case 0:			/* ISO 2022 not in effect */
 				/* two-byte character */
       if (c > 0xff) *t++ = (unsigned char) (c >> 8);
@@ -570,7 +618,7 @@ unsigned long utf8_get (unsigned char **s,unsigned long *i)
       more = 2;
     }
 				/* non-BMP Unicode */
-    else if (c < 0xf8) {	/* U+10000 - U+10ffff (U+1fffff) */
+    else if (c < 0xf8) {	/* U+10000 - U+10ffff (and 110000 - 1fffff) */
       ret = c & 0x07;		/* first 3 bits of 20.5 (21) */
       more = 3;
     }
@@ -871,7 +919,7 @@ void utf8_text_sjis (SIZEDTEXT *text,SIZEDTEXT *ret)
 				/* half-width katakana */
       if ((c >= MIN_KANA_8) && (c <= MAX_KANA_8)) c += KANA_8;
       else if (i >= text->size) c = UBOGON;
-      else {		/* Shift-JIS */
+      else {			/* Shift-JIS */
 	c1 = text->data[i++];
 	SJISTOJIS (c,c1);
 	c = JISTOUNICODE (c,c1,ku,ten);

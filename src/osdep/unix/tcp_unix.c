@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	26 May 2004
+ * Last Edited:	17 February 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -268,7 +268,7 @@ int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
       FD_SET (sock,&efds);
       do {			/* block under timeout */
 	tmo.tv_sec = ti ? ti - now : 0;
-	i = select (sock+1,&fds,0,&efds,ti ? &tmo : 0);
+	i = select (sock+1,&fds,NIL,&efds,ti ? &tmo : NIL);
 	now = time (0);		/* fake timeout if interrupt & time expired */
 	if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
       } while ((i < 0) && (errno == EINTR));
@@ -401,7 +401,7 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   FD_SET (stream->tcpso,&efds);	/* set bit in error selection vector */
   do {				/* block under timeout */
     tmo.tv_sec = ti - now;
-    i = select (max (stream->tcpsi,stream->tcpso)+1,&fds,0,&efds,&tmo);
+    i = select (max (stream->tcpsi,stream->tcpso)+1,&fds,NIL,&efds,&tmo);
     now = time (0);		/* fake timeout if interrupt & time expired */
     if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
   } while ((i < 0) && (errno == EINTR));
@@ -501,30 +501,41 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
       tmo.tv_usec = 0;
       FD_ZERO (&fds);		/* initialize selection vector */
       FD_ZERO (&efds);		/* handle errors too */
+				/* set bit in selection vectors */
       FD_SET (stream->tcpsi,&fds);
       FD_SET (stream->tcpsi,&efds);
-      errno = NIL;		/* block and read */
+      errno = NIL;		/* initially no error */
       do {			/* block under timeout */
 	tmo.tv_sec = ti ? ti - now : 0;
-	i = select (stream->tcpsi+1,&fds,0,&efds,ti ? &tmo : 0);
+	i = select (stream->tcpsi+1,&fds,NIL,&efds,ti ? &tmo : NIL);
 	now = time (0);		/* fake timeout if interrupt & time expired */
 	if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
       } while ((i < 0) && (errno == EINTR));
-      if (i > 0) {		/* select says there's data to read? */
-	while (((i = read (stream->tcpsi,s,(int) min (maxposint,size))) < 0) &&
-	       (errno == EINTR));
-	if (i < 1) return tcp_abort (stream);
-	s += i;			/* point at new place to write */
-	size -= i;		/* reduce byte count */
-	if (tcpdebug) mm_log ("Successfully read TCP buffer",TCPDEBUG);
-      }
-      else if (i || !tmoh || !(*tmoh) (now - t,now - tl))
+				/* select says there's data to read? */
+      if (i > 0) while (((i = read (stream->tcpsi,s,
+				    (int) min (maxposint,size))) < 0) &&
+			(errno == EINTR));
+      else if (!i && (!tmoh || !(*tmoh) (now - t,now - tl))) {
+	if (tcpdebug) mm_log ("TCP buffer read timeout",TCPDEBUG);
 	return tcp_abort (stream);
+      }
+      if (i <= 0) {		/* error seen? */
+	if (tcpdebug) {
+	  char tmp[MAILTMPLEN];
+	  if (i) sprintf (s = tmp,"TCP buffer read I/O error %d",errno);
+	  else s = "TCP buffer read end of file";
+	  mm_log (s,TCPDEBUG);
+	}
+	return tcp_abort (stream);
+      }
+      s += i;			/* point at new place to write */
+      size -= i;		/* reduce byte count */
+      if (tcpdebug) mm_log ("Successfully read TCP buffer",TCPDEBUG);
     }
     (*bn) (BLOCK_NONE,NIL);
   }
   *s = '\0';			/* tie off string */
-  return T;
+  return LONGT;
 }
 
 /* TCP/IP receive data
@@ -549,25 +560,34 @@ long tcp_getdata (TCPSTREAM *stream)
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
     FD_ZERO (&efds);		/* handle errors too */
-    FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
-    FD_SET(stream->tcpsi,&efds);/* set bit in error selection vector */
-    errno = NIL;		/* block and read */
+    FD_SET (stream->tcpsi,&fds);/* set bit in selection vectors */
+    FD_SET (stream->tcpsi,&efds);
+    errno = NIL;		/* initially no error */
     do {			/* block under timeout */
       tmo.tv_sec = ti ? ti - now : 0;
-      i = select (stream->tcpsi+1,&fds,0,&efds,ti ? &tmo : 0);
+      i = select (stream->tcpsi+1,&fds,NIL,&efds,ti ? &tmo : NIL);
       now = time (0);		/* fake timeout if interrupt & time expired */
       if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
     } while ((i < 0) && (errno == EINTR));
-    if (i > 0) {		/* got data? */
-      while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
-	     (errno == EINTR));
-      if (i < 1) return tcp_abort (stream);
-      stream->iptr = stream->ibuf;/* point at TCP buffer */
-      stream->ictr = i;		/* set new byte count */
-      if (tcpdebug) mm_log ("Successfully read TCP data",TCPDEBUG);
-    }
-    else if (i || !tmoh || !(*tmoh) (now - t,now - tl))
+				/* select says there's data to read? */
+    if (i > 0) while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
+		      (errno == EINTR));
+    else if (!i && (!tmoh || !(*tmoh) (now - t,now - tl))) {
+      if (tcpdebug) mm_log ("TCP data read timeout",TCPDEBUG);
       return tcp_abort (stream);/* error or timeout no-continue */
+    }
+    if (i <= 0) {		/* error seen? */
+      if (tcpdebug) {
+	char *s,tmp[MAILTMPLEN];
+	if (i) sprintf (s = tmp,"TCP data read I/O error %d",errno);
+	else s = "TCP data read end of file";
+	mm_log (s,TCPDEBUG);
+      }
+      return tcp_abort (stream);
+    }
+    stream->iptr = stream->ibuf;/* point at TCP buffer */
+    stream->ictr = i;		/* set new byte count */
+    if (tcpdebug) mm_log ("Successfully read TCP data",TCPDEBUG);
   }
   (*bn) (BLOCK_NONE,NIL);
   return T;
@@ -614,19 +634,30 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
     errno = NIL;		/* block and write */
     do {			/* block under timeout */
       tmo.tv_sec = ti ? ti - now : 0;
-      i = select (stream->tcpso+1,0,&fds,&efds,ti ? &tmo : 0);
+      i = select (stream->tcpso+1,NIL,&fds,&efds,ti ? &tmo : NIL);
       now = time (0);		/* fake timeout if interrupt & time expired */
       if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
     } while ((i < 0) && (errno == EINTR));
-    if (i > 0) {		/* OK to send data? */
-      while (((i = write (stream->tcpso,string,size)) < 0) &&(errno == EINTR));
-      if (i < 0) return tcp_abort (stream);
-      size -= i;		/* how much we sent */
-      string += i;
+				/* OK to send data? */
+    if (i > 0) while (((i = write (stream->tcpso,string,size)) < 0) &&
+		      (errno == EINTR));
+    else if (!i && (!tmoh || !(*tmoh) (now - t,now - tl))) {
+      if (tcpdebug) mm_log ("TCP write timeout",TCPDEBUG);
+      return tcp_abort (stream);
+    }
+    if (i < 0) {		/* error seen? */
+      if (tcpdebug) {
+	char tmp[MAILTMPLEN];
+	sprintf (tmp,"TCP write I/O error %d",errno);
+	mm_log (tmp,TCPDEBUG);
+      }
+      return tcp_abort (stream);
+    }
+    else if (i) {
+      string += i;		/* how much we sent */
+      size -= i;		/* count this size */
       if (tcpdebug) mm_log ("successfully wrote to TCP",TCPDEBUG);
     }
-    else if (i || !tmoh || !(*tmoh) (now - t,now - tl))
-      return tcp_abort (stream);/* error or timeout no-continue */
   }
   (*bn) (BLOCK_NONE,NIL);
   return T;			/* all done */

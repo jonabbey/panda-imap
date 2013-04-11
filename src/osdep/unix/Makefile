@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	4 November 2004
+# Last Edited:	20 April 2005
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 1988-2004 University of Washington.
+# Copyright 1988-2005 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -25,6 +25,18 @@ EXTRADRIVERS=mbox
 PASSWDTYPE=std
 SSLTYPE=nopwd
 IP=4
+
+
+# The optimization level here for GCC ports is set here for a reason.  It's
+# to get you to read this text.
+# The general concensus seems to be that -O2 is the one to use.
+# Over the years, I've been told to use many different settings, including -O6.
+# In recent versions of GCC [as of 2/2005], -O6 generates bad code that, among
+# other ill effects, causes infinite loops.
+# -O3 seems to be safe, but empirical observation from our local expert
+# indicates that in some (many?) cases -O3 code runs slower than -O2.
+
+GCCOPTLEVEL= -O2
 
 
 # Extended flags needed for SSL.  You may need to modify.
@@ -206,7 +218,7 @@ bs3:	# BSD/i386 3.0 or higher
 	 SPOOLDIR=/var NEWSSPOOL=/var/news/spool \
 	 ACTIVEFILE=/var/news/etc/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O2 -pipe" CC=shlicc
+	 BASECFLAGS="-g $(GCCOPTLEVEL) -pipe" CC=shlicc
 
 bsd:	# BSD UNIX
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
@@ -228,7 +240,7 @@ bsi:	# BSD/i386
 	 SPOOLDIR=/var NEWSSPOOL=/var/news/spool \
 	 ACTIVEFILE=/var/news/etc/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O2 -pipe"
+	 BASECFLAGS="-g $(GCCOPTLEVEL) -pipe"
 
 bso:	# OpenBSD
 	$(BUILD) `$(CAT) SPECIALS` OS=bsi \
@@ -236,7 +248,7 @@ bso:	# OpenBSD
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/usr/local/news/lib/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-O2 -pipe"
+	 BASECFLAGS="$(GCCOPTLEVEL) -pipe"
 
 cvx:	# Convex
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
@@ -335,7 +347,7 @@ gh9:	# GCC HP-UX 9.x
 	 SIGTYPE=psx CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g -O2" \
+	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
 	 RANLIB=true CC=gcc
 
 ghp:	# GCC HP-UX 10.x
@@ -344,7 +356,7 @@ ghp:	# GCC HP-UX 10.x
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/var/news/active \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g -O2" \
+	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
 	 RANLIB=true CC=gcc
 
 ghs:	# GCC HP-UX with Trusted Computer Base
@@ -353,7 +365,7 @@ ghs:	# GCC HP-UX with Trusted Computer Base
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/var/news/active \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g -O2" \
+	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
 	 BASELDFLAGS="-lnet -lV3 -lsec" \
 	 RANLIB=true CC=gcc
 
@@ -364,7 +376,7 @@ go5:	# GCC 2.7.1 (95q4) SCO Open Server 5.0.x
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rcmd \
-	 BASECFLAGS="-O3 -I/usr/include -L/lib" \
+	 BASECFLAGS="$(GCCOPTLEVEL) -I/usr/include -L/lib" \
 	 BASELDFLAGS="-lsocket -lprot -lx -ltinfo -lm" \
 	 RANLIB=true CC=gcc
 
@@ -373,7 +385,7 @@ gsc:	# Santa Cruz Operation
 	 SIGTYPE=sv4 CHECKPW=sec LOGINPW=sec \
 	 CREATEPROTO=mmdfproto EMPTYPROTO=mmdfproto \
 	 RSHPATH=/usr/bin/rcmd \
-	 BASECFLAGS="-O3" \
+	 BASECFLAGS="$(GCCOPTLEVEL)" \
 	 BASELDFLAGS="-lsocket -lprot -lcrypt_i -lx -los" \
 	 RANLIB=true LN=ln CC=gcc
 
@@ -382,7 +394,7 @@ gsg:	# GCC Silicon Graphics
 	 SIGTYPE=sv4 CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bsd/rsh \
-	 BASECFLAGS="-g -O2" \
+	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
 	 RANLIB=true CC=gcc
 
 gso:	os_sol.h	# GCC Solaris
@@ -391,14 +403,14 @@ gso:	os_sol.h	# GCC Solaris
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/usr/share/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O2" \
+	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
 	 BASELDFLAGS="-lsocket -lnsl -lgen" \
 	 RANLIB=true CC=gcc
 
 gsu:	# GCC SUN-OS
 	$(BUILD) `$(CAT) SPECIALS` OS=sun \
 	 CRXTYPE=nfs \
-	 BASECFLAGS="-g -O2" \
+	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
 	 BASELDFLAGS="-ldl" \
 	 CC=gcc
 
@@ -443,7 +455,7 @@ lnp:	# Linux Pluggable Authentication modules
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer -O6" \
+	 BASECFLAGS="-g -fno-omit-frame-pointer $(GCCOPTLEVEL)" \
 	 BASELDFLAGS="$(PAMLDFLAGS)"
 
 lnx:	# Linux non-shadow passwords
@@ -624,7 +636,7 @@ slx:	# Secure Linux
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer -O6" \
+	 BASECFLAGS="-g -fno-omit-frame-pointer $(GCCOPTLEVEL)" \
 	 BASELDFLAGS="-lcrypt"
 
 sl4:	# Secure Linux using libc4
@@ -636,7 +648,7 @@ sl4:	# Secure Linux using libc4
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer -O6" \
+	 BASECFLAGS="-g -fno-omit-frame-pointer $(GCCOPTLEVEL)" \
 	 BASELDFLAGS="-lshadow"
 
 sl5:	# Secure Linux using libc5
@@ -648,7 +660,7 @@ sl5:	# Secure Linux using libc5
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer -O6"
+	 BASECFLAGS="-g -fno-omit-frame-pointer $(GCCOPTLEVEL)"
 
 snx:	# Siemens Nixdorf SINIX and Reliant UNIX
 	$(BUILD) `$(CAT) SPECIALS` OS=sv4 \
@@ -841,7 +853,8 @@ utf8.o: mail.h misc.h osdep.h utf8.h
 osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	osdep.h env_unix.h tcp_unix.h \
 	osdep.c env_unix.c fs_unix.c ftl_unix.c nl_unix.c tcp_unix.c ip_unix.c\
-	auths.c crexcl.c flocksim.c nfstest.c fsync.c gethstid.c getspnam.c \
+	auths.c crexcl.c flockcyg.c flocklnx.c flocksim.c nfstest.c fsync.c \
+	gethstid.c getspnam.c \
 	gr_wait.c gr_wait4.c gr_waitp.c \
 	kerb_mit.c \
 	auth_gss.c auth_log.c auth_md5.c auth_pla.c \

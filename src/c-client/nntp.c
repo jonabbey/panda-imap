@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	6 December 2004
+ * Last Edited:	5 March 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -519,7 +519,9 @@ long nntp_status (MAILSTREAM *stream,char *mbx,long flags)
 				/* stream to reuse? */
   if (!(stream && LOCAL->nntpstream &&
 	mail_usable_network_stream (stream,mbx)) &&
-      !(tstream = stream = mail_open (NIL,mbx,OP_HALFOPEN|OP_SILENT)))
+      !(tstream = stream =
+	mail_open (NIL,mbx,OP_HALFOPEN|OP_SILENT|
+		   ((flags & SA_MULNEWSRC) ? OP_MULNEWSRC : NIL))))
     return NIL;			/* can't reuse or make a new one */
 
   if (nntp_send (LOCAL->nntpstream,"GROUP",name) == NNTPGOK) {
@@ -844,7 +846,7 @@ void nntp_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
 			  mail_sequence (stream,sequence)))
     for (i = 1; i <= stream->nmsgs; i++) {
       if ((elt = mail_elt (stream,i))->sequence && (elt->valid = T) &&
-	  !(elt->day && !elt->rfc822_size)) {
+	  !(elt->day && elt->rfc822_size)) {
 	ENVELOPE **env = NIL;
 	ENVELOPE *e = NIL;
 	if (!stream->scache) env = &elt->private.msg.env;

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	6 December 2004
+ * Last Edited:	10 March 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2003 University of Washington.
+ * Copyright 2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -28,6 +28,7 @@
 /* Constants (should be in smtp.c) */
 
 #define SMTPTCPPORT (long) 25	/* assigned TCP contact port */
+#define SUBMITTCPPORT (long) 587/* assigned TCP contact port */
 
 
 /* SMTP open options

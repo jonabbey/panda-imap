@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	18 January 2005
+ * Last Edited:	15 March 2005
  *
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2005 University of Washington.
@@ -473,7 +473,7 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
   case SET_EXPUNGEATPING:
     expungeatping = (value ? T : NIL);
   case GET_EXPUNGEATPING:
-    value = (void *) (expungeatping ? VOIDT : NIL);
+    ret = (void *) (expungeatping ? VOIDT : NIL);
     break;
   case SET_SORTRESULTS:
     mailsortresults = (sortresults_t) value;
@@ -737,7 +737,8 @@ long mail_valid_net_parse_work (char *name,NETMBX *mb,char *service)
 	else if (!compare_cstring (s,"imap") ||
 		 !compare_cstring (s,"nntp") ||
 		 !compare_cstring (s,"pop3") ||
-		 !compare_cstring (s,"smtp"))
+		 !compare_cstring (s,"smtp") ||
+		 !compare_cstring (s,"submit"))
 	  lcase (strcpy (mb->service,s));
 	else if (!compare_cstring (s,"imap2") ||
 		 !compare_cstring (s,"imap2bis") ||
@@ -2633,17 +2634,16 @@ const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 
 char *mail_date (char *string,MESSAGECACHE *elt)
 {
-  const char *s = (elt->month && elt->month < 13) ?
-    months[elt->month - 1] : (const char *) "???";
   sprintf (string,"%2d-%s-%d %02d:%02d:%02d %c%02d%02d",
-	   elt->day,s,elt->year + BASEYEAR,
-	   elt->hours,elt->minutes,elt->seconds,
+	   elt->day ? elt->day : 1,
+	   months[elt->month ? (elt->month - 1) : 0],
+	   elt->year + BASEYEAR,elt->hours,elt->minutes,elt->seconds,
 	   elt->zoccident ? '-' : '+',elt->zhours,elt->zminutes);
   return string;
 }
 
 
-/* Mail output cdate format date from elt fields
+/* Mail output extended-ctime format date from elt fields
  * Accepts: character string to write into
  *	    elt to get data data from
  * Returns: the character string
@@ -2652,26 +2652,30 @@ char *mail_date (char *string,MESSAGECACHE *elt)
 char *mail_cdate (char *string,MESSAGECACHE *elt)
 {
   char *fmt = "%s %s %2d %02d:%02d:%02d %4d %s%02d%02d\n";
-  const char *s = (elt->month && elt->month < 13) ?
-    months[elt->month - 1] : (const char *) "???";
-  int m = elt->month;
+  int d = elt->day ? elt->day : 1;
+  int m = elt->month ? (elt->month - 1) : 0;
   int y = elt->year + BASEYEAR;
-  if (elt->month <= 2) {	/* if before March, */
-    m = elt->month + 9;		/* January = month 10 of previous year */
+  const char *s = months[m];
+  if (m < 2) {			/* if before March, */
+    m += 10;			/* January = month 10 of previous year */
     y--;
   }
-  else m = elt->month - 3;	/* March is month 0 */
-  sprintf (string,fmt,days[(int)(elt->day+2+((7+31*m)/12)+y+(y/4)
+  else m -= 2;			/* March is month 0 */
+  sprintf (string,fmt,days[(int) (d + 2 + ((7 + 31 * m) / 12)
+#ifndef USEJULIANCALENDAR
 #ifndef USEORTHODOXCALENDAR	/* Gregorian calendar */
-		      +(y / 400) - (y / 100)
+				  + (y / 400)
 #ifdef Y4KBUGFIX
-		      - (y / 4000)
+				  - (y / 4000)
 #endif
 #else				/* Orthodox calendar */
-		      +(2*(y/900))+((y%900) >= 200)+((y%900) >= 600) - (y/100)
+				  + (2 * (y / 900)) + ((y % 900) >= 200)
+				  + ((y % 900) >= 600)
 #endif
-		      ) % 7],s,
-	   elt->day,elt->hours,elt->minutes,elt->seconds,elt->year + BASEYEAR,
+				  - (y / 100)
+#endif
+				  + y + (y / 4)) % 7],
+	   s,d,elt->hours,elt->minutes,elt->seconds,elt->year + BASEYEAR,
 	   elt->zoccident ? "-" : "+",elt->zhours,elt->zminutes);
   return string;
 }
@@ -4443,33 +4447,34 @@ int mail_sort_compare (const void *a1,const void *a2)
 
 unsigned long mail_longdate (MESSAGECACHE *elt)
 {
+  unsigned long m = elt->month ? elt->month : 1;
   unsigned long yr = elt->year + BASEYEAR;
 				/* number of days since time began */
+  unsigned long ret = (elt->day ? (elt->day - 1) : 0)
+    + 30 * (m - 1) + ((m + (m > 8)) / 2)
+#ifndef USEJULIANCALENDAR
 #ifndef USEORTHODOXCALENDAR	/* Gregorian calendar */
-  unsigned long ret = (elt->day - 1) + 30 * (elt->month - 1) +
-    ((unsigned long) ((elt->month + (elt->month > 8))) / 2) +
-      elt->year * 365 + (((unsigned long) (elt->year + (BASEYEAR % 4))) / 4) +
-	((yr / 400) - (BASEYEAR / 400)) - ((yr / 100) - (BASEYEAR / 100)) -
+    + ((yr / 400) - (BASEYEAR / 400)) - ((yr / 100) - (BASEYEAR / 100))
 #ifdef Y4KBUGFIX
-	  ((yr / 4000) - (BASEYEAR / 4000)) -
+    - ((yr / 4000) - (BASEYEAR / 4000))
 #endif
-	    ((elt->month < 3) ? !(yr % 4) && ((yr % 100) || (!(yr % 400)
+    - ((m < 3) ?
+       !(yr % 4) && ((yr % 100) || (!(yr % 400)
 #ifdef Y4KBUGFIX
-							     && (yr % 4000)
+				    && (yr % 4000)
 #endif
-							     )) : 2);
+				    )) : 2)
 #else				/* Orthodox calendar */
-  unsigned long ret = (elt->day - 1) + 30 * (elt->month - 1) +
-    ((unsigned long) ((elt->month + (elt->month > 8))) / 2) +
-      elt->year * 365 + (((unsigned long) (elt->year + (BASEYEAR % 4))) / 4) +
-	((2*(yr / 900)) - (2*(BASEYEAR / 900))) +
-	  (((yr % 900) >= 200) - ((BASEYEAR % 900) >= 200)) +
-	    (((yr % 900) >= 600) - ((BASEYEAR % 900) >= 600)) -
-	      ((yr / 100) - (BASEYEAR / 100)) -
-		((elt->month < 3) ? !(yr % 4) && 
-		 ((yr % 100) || ((yr % 900) == 200) || ((yr % 900) == 600)) :
-		   2);
+    + ((2*(yr / 900)) - (2*(BASEYEAR / 900)))
+    + (((yr % 900) >= 200) - ((BASEYEAR % 900) >= 200))
+    + (((yr % 900) >= 600) - ((BASEYEAR % 900) >= 600))
+    - ((yr / 100) - (BASEYEAR / 100))
+    - ((m < 3) ?
+       !(yr % 4) && ((yr % 100) || ((yr % 900) == 200) || ((yr % 900) == 600))
+       : 2)
 #endif
+#endif
+    + elt->year * 365 + (((unsigned long) (elt->year + (BASEYEAR % 4))) / 4);
   ret *= 24; ret += elt->hours;	/* date value in hours */
   ret *= 60; ret +=elt->minutes;/* date value in minutes */
   yr = (elt->zhours * 60) + elt->zminutes;
@@ -4888,6 +4893,7 @@ void mail_thread_loadcache (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov,
 	!(s->references = mail_thread_parse_references (ov->references,T)))
 				/* don't do In-Reply-To with NNTP mailboxes */
       s->references = mail_newstringlist ();
+    if (!s->size && ov->optional.octets) s->size = ov->optional.octets;
   }
 }
 

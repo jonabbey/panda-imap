@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	12 January 2005
+ * Last Edited:	20 January 2005
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2005 University of Washington.
@@ -173,7 +173,7 @@ void pcapability (long flag);
 long nameok (char *ref,char *name);
 char *bboardname (char *cmd,char *name);
 long isnewsproxy (char *name);
-long newsproxypattern (char *ref,char *pat,char *pattern);
+long newsproxypattern (char *ref,char *pat,char *pattern,long flag);
 char *imap_responder (void *challenge,unsigned long clen,unsigned long *rlen);
 long proxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long proxy_append (MAILSTREAM *stream,void *data,char **flags,char **date,
@@ -186,7 +186,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2004.356";	/* version number of this server */
+char *version = "2004.357";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
@@ -869,8 +869,7 @@ int main (int argc,char *argv[])
 	  else if (arg) response = badarg;
 				/* make sure anonymous can't do bad things */
 	  else if (nameok (s,t)) {
-	    sprintf (tmp,"{%.300s/nntp}",nntpproxy);
-	    if (newsproxypattern (s,t,tmp + strlen (tmp))) {
+	    if (newsproxypattern (s,t,tmp,LONGT)) {
 	      proxylist = T;
 	      mail_list (NIL,"",tmp);
 	      proxylist = NIL;
@@ -888,7 +887,7 @@ int main (int argc,char *argv[])
 	  else if (arg) response = badarg;
 				/* make sure anonymous can't do bad things */
 	  else if (nameok (s,t)) {
-	    if (newsproxypattern (s,t,tmp))
+	    if (newsproxypattern (s,t,tmp,NIL))
 	      mm_log ("SCAN not permitted for news",ERROR);
 	    else mail_scan (NIL,s,t,u);
 	  }
@@ -903,7 +902,7 @@ int main (int argc,char *argv[])
 	  else if (arg) response = badarg;
 				/* make sure anonymous can't do bad things */
 	  else if (nameok (s,t)) {
-	    if (newsproxypattern (s,t,tmp)) newsrc_lsub (NIL,tmp);
+	    if (newsproxypattern (s,t,tmp,NIL)) newsrc_lsub (NIL,tmp);
 	    else mail_lsub (NIL,s,t);
 	  }
 	  if (stream)		/* allow untagged EXPUNGE */
@@ -3496,8 +3495,9 @@ long isnewsproxy (char *name)
  * Returns: T on success with pattern in buffer, NIL on failure
  */
 
-long newsproxypattern (char *ref,char *pat,char *pattern)
+long newsproxypattern (char *ref,char *pat,char *pattern,long flag)
 {
+  if (!nntpproxy) return NIL;
   if (strlen (ref) > NETMAXMBX) {
     sprintf (pattern,"Invalid reference specification: %.80s",ref);
     mm_log (pattern,ERROR);
@@ -3507,6 +3507,10 @@ long newsproxypattern (char *ref,char *pat,char *pattern)
     sprintf (pattern,"Invalid pattern specification: %.80s",pat);
     mm_log (pattern,ERROR);
     return NIL;
+  }
+  if (flag) {			/* prepend proxy specifier */
+    sprintf (pattern,"{%.300s/nntp}",nntpproxy);
+    pattern += strlen (pattern);
   }
   if (*ref) {			/* have a reference */
     strcpy (pattern,ref);	/* copy reference to pattern */

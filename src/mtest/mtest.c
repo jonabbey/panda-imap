@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	1 May 2004
+ * Last Edited:	7 April 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -542,7 +542,7 @@ void status (MAILSTREAM *stream)
 	if (LEVELID (stream))
 	  puts (" Implementation identity negotiation (RFC 2971)");
 	if (LEVELCHILDREN (stream))
-	  puts (" LIST children announcement (RFC 3398)");
+	  puts (" LIST children announcement (RFC 3348)");
 	if (LEVELMULTIAPPEND (stream))
 	  puts (" Atomic multiple APPEND (RFC 3502)");
 	if (LEVELBINARY (stream))

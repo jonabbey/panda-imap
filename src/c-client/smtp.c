@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	6 July 2004
+ * Last Edited:	10 March 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -147,15 +147,19 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
   if (!(hostlist && *hostlist)) mm_log ("Missing SMTP service host",ERROR);
 				/* maximum domain name is 64 characters */
   else do if (strlen (*hostlist) < SMTPMAXDOMAIN) {
-    sprintf (tmp,"{%.1000s/%.20s}",*hostlist,service ? service : "smtp");
-    if (!mail_valid_net_parse (tmp,&mb) || mb.anoflag || mb.readonlyflag) {
+    sprintf (tmp,"{%.1000s}",*hostlist);
+    if (!mail_valid_net_parse_work (tmp,&mb,service ? service : "smtp") ||
+	mb.anoflag || mb.readonlyflag) {
       sprintf (tmp,"Invalid host specifier: %.80s",*hostlist);
       mm_log (tmp,ERROR);
     }
     else {			/* light tryssl flag if requested */
       mb.trysslflag = (options & SOP_TRYSSL) ? T : NIL;
-				/* default port */
+				/* explicit port overrides all */
       if (mb.port) port = mb.port;
+				/* else /submit overrides port argument */
+      else if (!compare_cstring (mb.service,"submit")) port = SUBMITTCPPORT;
+				/* else port argument overrides SMTP port */
       else if (!port) port = smtp_port ? smtp_port : SMTPTCPPORT;
       if (netstream =		/* try to open ordinary connection */
 	  net_open (&mb,dv,port,

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 September 1993
- * Last Edited:	13 September 2004
+ * Last Edited:	20 April 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -48,6 +48,8 @@
 #define setpgrp setpgid
 
 #define direct dirent
+
+#define flock safe_flock
 
 
 #include "env_unix.h"

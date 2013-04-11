@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	4 May 2004
+ * Last Edited:	5 March 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -780,7 +780,7 @@ void pop3_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
 			  mail_sequence (stream,sequence)))
     for (i = 1; i <= stream->nmsgs; i++)
       if ((elt = mail_elt (stream,i))->sequence &&
-	  !(elt->day && !elt->rfc822_size)) {
+	  !(elt->day && elt->rfc822_size)) {
 	ENVELOPE **env = NIL;
 	ENVELOPE *e = NIL;
 	if (!stream->scache) env = &elt->private.msg.env;

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 March 2000
- * Last Edited:	17 October 2003
+ * Last Edited:	2 February 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -276,7 +276,7 @@ OM_uint32 gss_import_name (OM_uint32 *minor_status,
  *	    buffer to return output token
  *	    pointer to return flags
  *	    pointer to return context lifetime
- * Returns: GSS_S_FAILURE, always
+ * Returns: major status, always
  */
 
 OM_uint32 gss_init_sec_context (OM_uint32 *minor_status,
@@ -391,11 +391,13 @@ OM_uint32 gss_display_status (OM_uint32 *minor_status,OM_uint32 status_value,
     case GSS_S_NO_CONTEXT:
       s = "Invalid context handle"; break;
     case GSS_S_NO_CRED:
-      s = "Invalid credentials handle"; break;
+      s = "Unable to authenticate to Kerberos service";
+      mail_parameters (NIL,DISABLE_AUTHENTICATOR,"GSSAPI");
+      break;
     case SEC_E_NO_AUTHENTICATING_AUTHORITY:
       s = "No authenticating authority"; break;
     case SEC_E_TARGET_UNKNOWN:
-      s = "target is unknown or unreachable"; break;
+      s = "Destination server unknown to Kerberos service"; break;
     default:
       sprintf (s = tmp,"SSPI code %lx",status_value);
     }
@@ -572,7 +574,7 @@ OM_uint32 gss_unwrap (OM_uint32 *minor_status,gss_ctx_id_t context_handle,
  *	    pointer to return credentials handle
  *	    pointer to return mechanisms
  *	    pointer to return lifetime
- * Returns: major status, always
+ * Returns: GSS_S_FAILURE, always
  */
 
 OM_uint32 gss_acquire_cred (OM_uint32 *minor_status,gss_name_t desired_name,

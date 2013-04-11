@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	6 December 2004
+ * Last Edited:	21 January 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -445,7 +445,8 @@
 #define SA_UIDNEXT (long) 0x8	/* next UID to be assigned */
 				/* UID validity value */
 #define SA_UIDVALIDITY (long) 0x10
-
+				/* use multiple newsrcs */
+#define SA_MULNEWSRC (long) 0x20000000
 
 /* Mailgets flags */
 

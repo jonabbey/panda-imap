@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	17 December 2004
+ * Last Edited:	8 April 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -1464,9 +1464,11 @@ ENVELOPE *imap_structure (MAILSTREAM *stream,unsigned long msgno,BODY **body,
     env = &elt->private.msg.env;/* get envelope and body pointers */
     b = &elt->private.msg.body;
 				/* prefetch if don't have envelope */
-    if (!(flags & FT_NOLOOKAHEAD) &&
-	(k = imap_lookahead) && (!*env || (*env)->incomplete)) {
+    if (!(flags & FT_NOLOOKAHEAD) && (k = imap_lookahead) && 
+	((!*env || (*env)->incomplete) ||
+	 (body && !*b && LEVELIMAP2bis (stream)))) {
       if (set) {		/* have a lookahead list? */
+	MESSAGE *msg;
 	do {
 	  i = (set->first == 0xffffffff) ? stream->nmsgs :
 	    min (set->first,stream->nmsgs);
@@ -1476,12 +1478,15 @@ ENVELOPE *imap_structure (MAILSTREAM *stream,unsigned long msgno,BODY **body,
 	      x = i; i = j; j = x;
 	    }
 				/* find first message not msgno or in cache */
-	    while (((i == msgno) || mail_elt (stream,i)->private.msg.env) &&
-		   (i++ < j));
+	    while (((i == msgno) ||
+		    ((msg = &(mail_elt (stream,i)->private.msg))->env &&
+		     (!body || msg->body))) && (i++ < j));
 				/* until range or lookahead finished */
 	    while (k && (i <= j)) {
-	      for (x = i + 1;	/* find first cached message in range */
-		   (x <= j) && !mail_elt (stream,x)->private.msg.env; x++);
+				/* find first cached message in range */
+	      for (x = i + 1; (x <= j) &&
+		     !((msg = &(mail_elt (stream,x)->private.msg))->env &&
+		       (!body || msg->body)); x++);
 	      if (i == --x) {	/* only one message? */
 		sprintf (s += strlen (s),",%lu",i++);
 		k--;		/* prefetching one message */
@@ -1493,7 +1498,9 @@ ENVELOPE *imap_structure (MAILSTREAM *stream,unsigned long msgno,BODY **body,
 		if (k = (k > i) ? k - i : 0)
 				/* yes, scan further in this range */
 		  for (i = x + 2; (i <= j) &&
-			 ((i == msgno) || mail_elt(stream,i)->private.msg.env);
+			 ((i == msgno) || 
+			  ((msg = &(mail_elt (stream,i)->private.msg))->env &&
+			   (!body || msg->body)));
 		       i++);
 	      }
 	    }
@@ -1503,7 +1510,6 @@ ENVELOPE *imap_structure (MAILSTREAM *stream,unsigned long msgno,BODY **body,
 	    k--;		/* prefetching one message */
 	  }
 	} while (k && (set = set->next) && ((s - seq) < (MAXCOMMAND - 30)));
-	LOCAL->lookahead = NIL;
       }
 				/* build message number list */
       else for (i = msgno + 1; k && (i <= stream->nmsgs); i++)

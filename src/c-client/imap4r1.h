@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	30 October 2003
+ * Last Edited:	7 April 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -58,7 +58,7 @@ typedef struct imap_cap {
 				/* server disallows LOGIN command (RFC 2595) */
   unsigned int logindisabled : 1;
   unsigned int id : 1;		/* server has ID (RFC 2971) */
-  unsigned int children : 1;	/* server has CHILDREN (RFC 3398) */
+  unsigned int children : 1;	/* server has CHILDREN (RFC 3348) */
   unsigned int multiappend : 1;	/* server has multi-APPEND (RFC 3502) ;*/
   unsigned int binary : 1;	/* server has BINARY (RFC 3516) */
   unsigned int unselect : 1;	/* server has UNSELECT */

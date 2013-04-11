@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	4 May 2004
+ * Last Edited:	8 March 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -625,6 +625,7 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
 
+  errno = 0;
   do {				/* parse flags */
     if (!SIZE (message)) {	/* guard against zero-length */
       mm_log ("Append of zero-length message",ERROR);
@@ -658,8 +659,10 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   if (!ret || (fflush (df) == EOF)) {
     chsize (fd,sbuf.st_size);	/* revert file */
     close (fd);			/* make sure fclose() doesn't corrupt us */
-    sprintf (tmp,"Message append failed: %s",strerror (errno));
-    mm_log (tmp,ERROR);
+    if (errno) {
+      sprintf (tmp,"Message append failed: %s",strerror (errno));
+      mm_log (tmp,ERROR);
+    }
     ret = NIL;
   }
   fclose (df);			/* close the file */ 

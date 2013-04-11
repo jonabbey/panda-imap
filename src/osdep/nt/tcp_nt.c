@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited: 2 September 2004
+ * Last Edited: 17 February 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -307,50 +307,62 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
   }
   if (size) {
     int i;
-    fd_set fds;
+    fd_set fds,efds;
     struct timeval tmo;
-    time_t tc,t = time (0);
+    time_t t = time (0);
     blocknotify_t bn=(blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
     (*bn) (BLOCK_TCPREAD,NIL);
     while (size > 0) {		/* until request satisfied */
-      time_t tl = time (0);
       if (tcpdebug) mm_log ("Reading TCP buffer",TCPDEBUG);
-      FD_ZERO (&fds);		/* initialize selection vector */
-      FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
-      tmo.tv_sec = ttmo_read;
-      tmo.tv_usec = 0;
-				/* block and read */
-      switch ((stream->tcpsi == stream->tcpso) ?
-	      select (stream->tcpsi+1,&fds,0,0,
-		      ttmo_read ? &tmo : (struct timeval *) 0) : 1) {
-      case SOCKET_ERROR:		/* error */
-	if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcpsi);
-	break;
-      case 0:			/* timeout */
-	tc = time (0);
-	if (tmoh && ((*tmoh) (tc - t,tc - tl))) break;
-	return tcp_abort (&stream->tcpsi);
-      default:
-	if (stream->tcpsi == stream->tcpso)
-	  while (((i = recv (stream->tcpsi,s,(int) min (maxposint,size),0)) ==
-		  SOCKET_ERROR) && (WSAGetLastError () == WSAEINTR));
-	else while (((i = read (stream->tcpsi,s,(int) min (maxposint,size))) <
-		     0) && (errno == EINTR));
-	switch (i) {
-	case SOCKET_ERROR:	/* error */
-	case 0:			/* no data read */
+      if (stream->tcpsi == stream->tcpso) {
+	time_t tl = time (0);
+	time_t now = tl;
+	int ti = ttmo_read ? now + ttmo_read : 0;
+	tmo.tv_usec = 0;
+	FD_ZERO (&fds);		/* initialize selection vector */
+	FD_ZERO (&efds);	/* handle errors too */
+				/* set bit in selection vectors */
+	FD_SET (stream->tcpsi,&fds);
+	FD_SET (stream->tcpsi,&efds);
+	errno = NIL;		/* initially no error */
+	do {			/* block under timeout */
+	  tmo.tv_sec = ti ? ti - now : 0;
+	  i = select (stream->tcpsi+1,&fds,NIL,&efds,ti ? &tmo : NIL);
+	  now = time (0);	/* fake timeout if interrupt & time expired */
+	  if ((i < 0) && ((errno = WSAGetLastError ()) == WSAEINTR) && ti &&
+	      (ti <= now)) i = 0;
+	} while ((i < 0) && (errno == WSAEINTR));
+				/* select says there's data to read? */
+	if (i > 0) while (((i = recv (stream->tcpsi,s,
+				      (int) min (maxposint,size),0)) ==
+			   SOCKET_ERROR) &&
+			  ((errno = WSAGetLastError ()) == WSAEINTR));
+	else if (!i && (!tmoh || !(*tmoh) (now - t,now - tl))) {
+	  if (tcpdebug) mm_log ("TCP buffer read timeout",TCPDEBUG);
 	  return tcp_abort (&stream->tcpsi);
-	default:
-	  s += i;		/* point at new place to write */
-	  size -= i;		/* reduce byte count */
-	  if (tcpdebug) mm_log ("Successfully read TCP buffer",TCPDEBUG);
 	}
       }
+				/* probably not a socket */
+      else while (((i = read (stream->tcpsi,s,
+			      (int) min (maxposint,size))) < 0) &&
+		  (errno == EINTR));
+      if (i <= 0) {		/* error seen? */
+	if (tcpdebug) {
+	  char tmp[MAILTMPLEN];
+	  if (i) sprintf (s = tmp,"TCP buffer read I/O error %d",errno);
+	  else s = "TCP buffer read end of file";
+	  mm_log (s,TCPDEBUG);
+	}
+	return tcp_abort (&stream->tcpsi);
+      }
+      s += i;			/* point at new place to write */
+      size -= i;		/* reduce byte count */
+      if (tcpdebug) mm_log ("Successfully read TCP buffer",TCPDEBUG);
     }
     (*bn) (BLOCK_NONE,NIL);
   }
   *s = '\0';			/* tie off string */
-  return T;
+  return LONGT;
 }
 
 /* TCP/IP receive data
@@ -360,48 +372,57 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 
 long tcp_getdata (TCPSTREAM *stream)
 {
-  struct timeval tmo;
   int i;
-  fd_set fds;
-  time_t tc,t = time (0);
+  fd_set fds,efds;
+  struct timeval tmo;
+  time_t t = time (0);
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
-  FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcpsi == INVALID_SOCKET) return NIL;
   (*bn) (BLOCK_TCPREAD,NIL);
-  tmo.tv_sec = ttmo_read;
-  tmo.tv_usec = 0;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
-    time_t tl = time (0);
     if (tcpdebug) mm_log ("Reading TCP data",TCPDEBUG);
-    FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
-				/* block and read */
-    switch ((stream->tcpsi == stream->tcpso) ?
-	    select (stream->tcpsi+1,&fds,0,0,
-		    ttmo_read ? &tmo : (struct timeval *) 0) : 1) {
-    case SOCKET_ERROR:		/* error */
-      if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcpsi);
-      break;
-    case 0:			/* timeout */
-      tc = time (0);
-      if (tmoh && ((*tmoh) (tc - t,tc - tl))) break;
-      return tcp_abort (&stream->tcpsi);
-    default:
-      if (stream->tcpsi == stream->tcpso)
-	while (((i = recv (stream->tcpsi,stream->ibuf,BUFLEN,0)) ==
-		SOCKET_ERROR) && (WSAGetLastError () == WSAEINTR));
-      else while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
-		  (errno == EINTR));
-      switch (i) {
-      case SOCKET_ERROR:	/* error */
-      case 0:			/* no data read */
+    if (stream->tcpsi == stream->tcpso) {
+      time_t tl = time (0);
+      time_t now = tl;
+      int ti = ttmo_read ? now + ttmo_read : 0;
+      tmo.tv_usec = 0;
+      FD_ZERO (&fds);		/* initialize selection vector */
+      FD_ZERO (&efds);		/* handle errors too */
+				/* set bit in selection vectors */
+      FD_SET (stream->tcpsi,&fds);
+      FD_SET (stream->tcpsi,&efds);
+      errno = NIL;		/* initially no error */
+      do {			/* block under timeout */
+	tmo.tv_sec = ti ? ti - now : 0;
+	i = select (stream->tcpsi+1,&fds,NIL,&efds,ti ? &tmo : NIL);
+	now = time (0);		/* fake timeout if interrupt & time expired */
+	if ((i < 0) && ((errno = WSAGetLastError ()) == WSAEINTR) && ti &&
+	    (ti <= now)) i = 0;
+      } while ((i < 0) && (errno == WSAEINTR));
+				/* select says there's data to read? */
+      if (i > 0) while (((i = recv (stream->tcpsi,stream->ibuf,BUFLEN,0)) ==
+			 SOCKET_ERROR) &&
+			((errno = WSAGetLastError ()) == WSAEINTR));
+      else if (!i && (!tmoh || !(*tmoh) (now - t,now - tl))) {
+	if (tcpdebug) mm_log ("TCP data read timeout",TCPDEBUG);
 	return tcp_abort (&stream->tcpsi);
-      default:
-	stream->ictr = i;	/* set new byte count */
-				/* point at TCP buffer */
-	stream->iptr = stream->ibuf;
-	if (tcpdebug) mm_log ("Successfully read TCP data",TCPDEBUG);
       }
     }
+				/* probably not a socket */
+    else while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
+		(errno == EINTR));
+    if (i <= 0) {		/* error seen? */
+      if (tcpdebug) {
+	char *s,tmp[MAILTMPLEN];
+	if (i) sprintf (s = tmp,"TCP data read I/O error %d",errno);
+	else s = "TCP data read end of file";
+	mm_log (tmp,TCPDEBUG);
+      }
+      return tcp_abort (&stream->tcpsi);
+    }
+    stream->iptr = stream->ibuf;/* point at TCP buffer */
+    stream->ictr = i;		/* set new byte count */
+    if (tcpdebug) mm_log ("Successfully read TCP data",TCPDEBUG);
   }
   (*bn) (BLOCK_NONE,NIL);
   return T;
@@ -430,8 +451,8 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 {
   int i;
   struct timeval tmo;
-  fd_set fds;
-  time_t tc,t = time (0);
+  fd_set fds,efds;
+  time_t t = time (0);
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   tmo.tv_sec = ttmo_write;
   tmo.tv_usec = 0;
@@ -439,39 +460,56 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   if (stream->tcpso == INVALID_SOCKET) return NIL;
   (*bn) (BLOCK_TCPWRITE,NIL);
   while (size > 0) {		/* until request satisfied */
-    time_t tl = time (0);
     if (tcpdebug) mm_log ("Writing to TCP",TCPDEBUG);
-    FD_SET (stream->tcpso,&fds);/* set bit in selection vector */
-				/* block and write */
-    switch ((stream->tcpsi == stream->tcpso) ?
-	    select (stream->tcpso+1,NULL,&fds,NULL,
-		    tmo.tv_sec ? &tmo : (struct timeval *) 0) : 1) {
-    case SOCKET_ERROR:		/* error */
-      if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcpsi);
-      break;
-    case 0:			/* timeout */
-      tc = time (0);
-      if (tmoh && ((*tmoh) (tc - t,tc - tl))) break;
+    if (stream->tcpsi == stream->tcpso) {
+      time_t tl = time (0);	/* start of request */
+      time_t now = tl;
+      int ti = ttmo_write ? now + ttmo_write : 0;
+      tmo.tv_usec = 0;
+      FD_ZERO (&fds);		/* initialize selection vector */
+      FD_ZERO (&efds);		/* handle errors too */
+				/* set bit in selection vectors */
+      FD_SET (stream->tcpso,&fds);
+      FD_SET(stream->tcpso,&efds);
+      errno = NIL;		/* block and write */
+      do {			/* block under timeout */
+	tmo.tv_sec = ti ? ti - now : 0;
+	i = select (stream->tcpso+1,NIL,&fds,&efds,ti ? &tmo : NIL);
+	now = time (0);		/* fake timeout if interrupt & time expired */
+	if ((i < 0) && ((errno = WSAGetLastError ()) == WSAEINTR) && ti &&
+	    (ti <= now)) i = 0;
+      } while ((i < 0) && (errno == WSAEINTR));
+				/* OK to send data? */
+      if (i > 0) while (((i = send (stream->tcpso,string,
+				    (int) min (size,TCPMAXSEND),0)) ==
+			 SOCKET_ERROR) &&
+			((errno = WSAGetLastError ()) == WSAEINTR));
+      else if (!i && (!tmoh || !(*tmoh) (now - t,now - tl))) {
+	if (tcpdebug) mm_log ("TCP write timeout",TCPDEBUG);
+	return tcp_abort (&stream->tcpsi);
+      }
+    }
+    else while (((i = write (stream->tcpso,string,
+			     min (size,TCPMAXSEND))) < 0) &&
+		(errno == EINTR));
+    if (i < 0) {		/* error seen? */
+      if (tcpdebug) {
+	char tmp[MAILTMPLEN];
+	sprintf (tmp,"TCP write I/O error %d",errno);
+	mm_log (tmp,TCPDEBUG);
+      }
       return tcp_abort (&stream->tcpsi);
-    default:
-      if (stream->tcpsi == stream->tcpso)
-	while (((i = send (stream->tcpso,string,
-			   (int) min (size,TCPMAXSEND),0)) == SOCKET_ERROR) &&
-	       (WSAGetLastError () == WSAEINTR));
-      else while (((i = write (stream->tcpso,string,
-			       min (size,TCPMAXSEND))) < 0) &&
-		  (errno == EINTR));
-      if (i == SOCKET_ERROR) return tcp_abort (&stream->tcpsi);
+    }
+    else if (i) {
+      string += i;		/* how much we sent */
       size -= i;		/* count this size */
       if (tcpdebug) mm_log ("successfully wrote to TCP",TCPDEBUG);
-      string += i;
     }
   }
   (*bn) (BLOCK_NONE,NIL);
   return T;			/* all done */
 }
-
-
+
 /* TCP/IP close
  * Accepts: TCP/IP stream
  */

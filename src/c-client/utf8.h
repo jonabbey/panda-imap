@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	15 November 2004
+ * Last Edited:	7 April 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -37,12 +37,17 @@
 }
 
 
-/* utf8_get() error returns */
+/* utf8_get() return values */
 
-#define U8G_BADCONT 0x80000001	/* continuation when not in progress */
-#define U8G_INCMPLT 0x80000002	/* incomplete UTF-8 character */
-#define U8G_NOTUTF8 0x80000003	/* not a valid UTF-8 octet */
-#define U8G_ENDSTRG 0x80000004	/* end of string */
+				/* 0x0000 - 0xffff BMP plane */
+#define U8GM_NONBMP 0xffff0000	/* mask for non-BMP values */
+				/* 0x10000 - 0x10ffff extended planes */
+				/* 0x110000 - 0x7ffffff non-Unicode */
+#define U8G_ERROR 0x80000000	/* error flag */
+#define U8G_BADCONT U8G_ERROR+1	/* continuation when not in progress */
+#define U8G_INCMPLT U8G_ERROR+2	/* incomplete UTF-8 character */
+#define U8G_NOTUTF8 U8G_ERROR+3	/* not a valid UTF-8 octet */
+#define U8G_ENDSTRG U8G_ERROR+4	/* end of string */
 
 /* ISO-2022 engine states */
 
@@ -287,7 +292,8 @@
 #define I2CS_ISO8859_14 (I2CS_96 | I2CS_96_ISO8859_14)
 #define I2CS_ISO8859_15 (I2CS_96 | I2CS_96_ISO8859_15)
 #define I2CS_ISO8859_16 (I2CS_96 | I2CS_96_ISO8859_16)
-
+
+
 /* Miscellaneous ISO 2022 definitions */
 
 #define EUC_CS2 0x8e		/* single shift CS2 */
@@ -295,27 +301,46 @@
 
 #define BITS7 0x7f		/* 7-bit value mask */
 #define BIT8 0x80		/* 8th bit mask */
-
-
-#define UBOGON 0xfffd		/* UCS-2 bogus character */
-
-
+
 /* The following saves us from having to have yet more charset tables */
 
-				/* UCS2 codepoints */
+/* Unicode codepoints */
+
+				/* ISO 646 substituted Unicode codepoints */
 #define UCS2_POUNDSTERLING 0x00a3
 #define UCS2_YEN 0x00a5
 #define UCS2_OVERLINE 0x203e
-#define UCS2_KATAKANA 0xff61
+#define UCS2_KATAKANA 0xff61	/* first katakana codepoint */
+#define UCS2_BOM 0xfeff		/* byte order mark */
+#define UCS2_BOGON 0xfffd	/* replacement character */
 
-				/* British ASCII codepoints */
+
+/*  UBOGON is used to represent a codepoint in a character set which does not
+ * map to Unicode.  It is also used for mapping failures, e.g. incomplete
+ * shift sequences.  NOCHAR is used to represent a codepoint in Unicode
+ * which does not map to the target character set.  Note that these names
+ * have the same text width as 0x????, for convenience in the mapping tables.
+ */
+
+#define UBOGON UCS2_BOGON
+#define NOCHAR 0xffff
+
+
+/* Codepoints in ISO 646 character sets */
+
+/* British ASCII codepoints */
+
 #define BRITISH_POUNDSTERLING 0x23
 
-				/* JIS Roman codepoints */
+		
+/* JIS Roman codepoints */
+
 #define JISROMAN_YEN 0x5c
 #define JISROMAN_OVERLINE 0x7e
 
-				/* hankaku katakana codepoints & parameters */
+
+/* Hankaku katakana codepoints & parameters */
+
 #define MIN_KANA_7 0x21
 #define MAX_KANA_7 0x5f
 #define KANA_7 (UCS2_KATAKANA - MIN_KANA_7)
@@ -357,6 +382,14 @@
 #define SC_CHINESE_TRADITIONAL 0x2000000
 #define SC_JAPANESE 0x4000000
 #define SC_KOREAN 0x8000000
+
+/* Script table */
+
+typedef struct utf8_scent {
+  char *name;			/* script name */
+  char *description;		/* script description */
+  unsigned long script;		/* script bitmask */
+} SCRIPT;
 
 /* Character set table support */
 
@@ -405,6 +438,7 @@ struct utf8_eucparam {
 
 /* Function prototypes */
 
+SCRIPT *utf8_script (char *script);
 CHARSET *utf8_charset (char *charset);
 long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags);
 unsigned short *utf8_rmap (char *charset);

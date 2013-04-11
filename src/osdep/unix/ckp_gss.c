@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	22 February 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -26,19 +26,25 @@
  * Returns: passwd struct if password validated, NIL otherwise
  */
 
+
+
 struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
 {
   krb5_context ctx;
   krb5_timestamp now;
   krb5_principal client,server;
   krb5_creds crd;
+  char tmp[MAILTMPLEN];
   struct passwd *ret = NIL;
   if (*pass) {			/* only if password non-empty */
+				/* build principal name */
+    sprintf (tmp,"%.80s/%.80s",pw->pw_name,
+	     (char *) mail_parameters (NIL,GET_SERVICENAME,NIL));
     krb5_init_context (&ctx);	/* get a context context */
     krb5_init_ets (ctx);
 				/* get time, client and server principals */
     if (!krb5_timeofday (ctx,&now) &&
-	!krb5_parse_name (ctx,pw->pw_name,&client) &&
+	!krb5_parse_name (ctx,tmp,&client) &&
 	!krb5_build_principal_ext (ctx,&server,
 				   krb5_princ_realm (ctx,client)->length,
 				   krb5_princ_realm (ctx,client)->data,

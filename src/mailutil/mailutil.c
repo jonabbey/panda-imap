@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 February 1994
- * Last Edited:	31 August 2004
+ * Last Edited:	27 January 2005
  *
  * The IMAP tools software provided in this Distribution is
- * Copyright 1988-2004 by the University of Washington
+ * Copyright 1988-2005 by the University of Washington
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -341,7 +341,8 @@ int main (int argc,char *argv[])
 	  printf ("Copying %s\n  => %s\n",tmp+1,mbx);
 	  fflush (stdout);
 	}
-	if (source = mail_open (source,tmp+1,rwcopyp ? NIL : OP_READONLY)) {
+	if (source = mail_open (source,tmp+1,(debugp ? OP_DEBUG : NIL) | 
+				(rwcopyp ? NIL : OP_READONLY))) {
 	  ret = mbxcopy (source,dest,mbx,T,NIL,merge);
 	  if (source->dtb->flags & DR_LOCAL) source = mail_close (source);
 	}
