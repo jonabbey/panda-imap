@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	10 December 1998
+ * Last Edited:	10 October 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -49,7 +49,10 @@ static NAMESPACE *nslist[3] = {&nshome,NIL,NIL};
 static long alarm_countdown = 0;/* alarm count down */
 static void (*alarm_rang) ();	/* alarm interrupt function */
 static unsigned int rndm = 0;	/* initial `random' number */
+static int server_nli = 0;	/* server and not logged in */
 static int logtry = 3;		/* number of login tries */
+				/* block notification */
+static blocknotify_t mailblocknotify = mm_blocknotify;
 				/* callback to get username */
 static userprompt_t mailusername = NIL;
 static long is_nt = -1;		/* T if NT, NIL if not NT, -1 unknown */
@@ -119,6 +122,11 @@ void *env_parameters (long function,void *value)
     break;
   case GET_LISTMAXLEVEL:
     value = (void *) list_max_level;
+    break;
+  case SET_BLOCKNOTIFY:
+    mailblocknotify = (blocknotify_t) value;
+  case GET_BLOCKNOTIFY:
+    value = (void *) mailblocknotify;
     break;
   default:
     value = NIL;		/* error case */
@@ -199,11 +207,14 @@ long random (void)
 
 /* Set alarm timer
  * Accepts: new value
+ * Returns: old alarm value
  */
 
-void alarm (long seconds)
+long alarm (long seconds)
 {
+  long ret = alarm_countdown;
   alarm_countdown = seconds;
+  return ret;
 }
 
 
@@ -230,6 +241,9 @@ void CALLBACK clock_ticked (UINT IDEvent,UINT uReserved,DWORD dwUser,
 void server_init (char *server,char *service,char *altservice,char *sasl,
 		  void *clkint,void *kodint,void *hupint,void *trmint)
 {
+  if (!auth_md5.server && !check_nt ())
+    fatal ("Can't run on Windows without MD5 database");
+  else server_nli = T;		/* Windows server not logged in */
   if (server) {			/* set server name in syslog */
     openlog (server,LOG_PID,LOG_MAIL);
     fclose (stderr);		/* possibly save a process ID */
@@ -239,6 +253,10 @@ void server_init (char *server,char *service,char *altservice,char *sasl,
   alarm_rang = clkint;		/* note the clock interrupt */
   timeBeginPeriod (1000);	/* set the timer interval */
   timeSetEvent (1000,1000,clock_ticked,NIL,TIME_PERIODIC);
+				/* make sure stdout does binary */
+  setmode (fileno (stdin),O_BINARY);
+  setmode (fileno (stdout),O_BINARY);
+  setmode (fileno (stderr),O_BINARY);
 }
 
 
@@ -249,12 +267,14 @@ void server_init (char *server,char *service,char *altservice,char *sasl,
 
 long server_input_wait (long seconds)
 {
-  fd_set rfd;
+  fd_set rfd,efd;
   struct timeval tmo;
   FD_ZERO (&rfd);
+  FD_ZERO (&efd);
   FD_SET (0,&rfd);
+  FD_SET (0,&efd);
   tmo.tv_sec = seconds; tmo.tv_usec = 0;
-  return select (1,&rfd,0,0,&tmo) ? LONGT : NIL;
+  return select (1,&rfd,0,&efd,&tmo) ? LONGT : NIL;
 }
 
 /* Server log in
@@ -273,7 +293,8 @@ long server_login (char *user,char *pass,int argc,char *argv[])
   LUID tcbpriv;
   TOKEN_PRIVILEGES tkp;
   char *s;
-  if (!gotprivs++) {		/* need to get privileges? */
+				/* need to get privileges? */
+  if (!gotprivs++ && check_nt ()) {
 				/* yes, note client host if specified */
     if (argc == 2) myClientHost = argv[1];
 				/* get process token and TCB priv value */
@@ -293,14 +314,30 @@ long server_login (char *user,char *pass,int argc,char *argv[])
 				/* cretins still haven't given up */
   if (strlen (user) >= MAILTMPLEN)
     syslog (LOG_ALERT,"System break-in attempt, host=%.80s",tcp_clienthost ());
-  else if ((logtry > 0) &&	/* try to login and impersonate the guy */
-	   ((LogonUser (user,".",pass,LOGON32_LOGON_INTERACTIVE,
-			LOGON32_PROVIDER_DEFAULT,&hdl) ||
-	     LogonUser (user,".",pass,LOGON32_LOGON_BATCH,
-			LOGON32_PROVIDER_DEFAULT,&hdl) ||
-	     LogonUser (user,".",pass,LOGON32_LOGON_SERVICE,
-			LOGON32_PROVIDER_DEFAULT,&hdl)) &&
-	    ImpersonateLoggedOnUser (hdl))) return env_init (user,NIL);
+  else if (logtry > 0) {	/* still have available logins? */
+    if (check_nt ()) {		/* NT: try to login and impersonate the guy */
+      /* ??? how to do it if pass==NIL (from authserver_login()) ??? */
+      if (pass && (LogonUser (user,".",pass,LOGON32_LOGON_INTERACTIVE,
+			      LOGON32_PROVIDER_DEFAULT,&hdl) ||
+		   LogonUser (user,".",pass,LOGON32_LOGON_BATCH,
+			      LOGON32_PROVIDER_DEFAULT,&hdl) ||
+		   LogonUser (user,".",pass,LOGON32_LOGON_SERVICE,
+			      LOGON32_PROVIDER_DEFAULT,&hdl)) &&
+	  ImpersonateLoggedOnUser (hdl)) return env_init (user,NIL);
+    }
+    else {			/* Windows: done if from authserver_login() */
+      if (!pass) server_nli = NIL;
+				/* otherwise check MD5 database */
+      else if (s = auth_md5_pwd (user)) {
+				/* change NLI state based on pwd match */
+	server_nli = strcmp (s,pass);
+	memset (s,0,strlen (s));	/* erase sensitive information */
+	fs_give ((void **) &s);	/* flush erased password */
+      }
+				/* success if no longer NLI */
+      if (!server_nli) return env_init (user,NIL);
+    }
+  }
   s = (logtry-- > 0) ? "Login failure" : "Excessive login attempts";
 				/* note the failure in the syslog */
   syslog (LOG_INFO,"%s user=%.80s host=%.80s",s,user,tcp_clienthost ());
@@ -333,39 +370,40 @@ long anonymous_login (int argc,char *argv[])
 }
 
 /* Initialize environment
- * Accepts: user name, or NIL to skip setting user name on (Win9x only)
- *          home directory, or NIL to use user info (NT only)
+ * Accepts: user name
+ *          home directory, or NIL to use default
  * Returns: T, always
  */
 
-typedef NET_API_STATUS (CALLBACK *NUGI)
-     (LPCWSTR servername,LPCWSTR username,DWORD level,LPBYTE *bufptr);
-
+typedef NET_API_STATUS (CALLBACK *NUGI) (LPCWSTR,LPCWSTR,DWORD,LPBYTE *);
 
 long env_init (char *user,char *home)
 {
+  char *s,tmp[MAILTMPLEN];
+  PUSER_INFO_1 ui;
+  NUGI nugi;
+  HINSTANCE nah;
   if (myUserName) fatal ("env_init called twice!");
-				/* remember user name */
-  if (user && *user) myUserName = cpystr (user);
-  else if (check_nt ()) fatal ("missing user name argument to env_init!");
+  myUserName = cpystr (user);	/* remember user name */
   if (!myHomeDir) {		/* only if home directory not set up yet */
-				/* remember home directory */
-    if (home && *home) myHomeDir = cpystr (home);
-    else if (check_nt ()) {	/* get from user info on NT */
-      char tmp[MAILTMPLEN];
-      PUSER_INFO_1 ui;
-      NUGI nugi;
-      HINSTANCE nahdl = LoadLibrary ("netapi32.dll");
-      if (!(nahdl && (nugi = (NUGI) GetProcAddress (nahdl,"NetUserGetInfo")) &&
-	    MultiByteToWideChar (CP_ACP,0,user,strlen (user) + 1,
-				 (WCHAR *) tmp,MAILTMPLEN) &&
-	    !(*nugi) (NIL,(LPWSTR) &tmp,1,(LPBYTE *) &ui) &&
-	    WideCharToMultiByte (CP_ACP,0,ui->usri1_home_dir,-1,
-				 tmp,MAILTMPLEN,NIL,NIL) && tmp[0]))
+    if (!(home && *home)) {	/* were we given a home directory? */
+				/* Win9x default */
+      if (!check_nt ()) sprintf (tmp,"%s%s",defaultDrive (),"\\My Documents");
+				/* get from user info on NT */
+      else if (!((nah = LoadLibrary ("netapi32.dll")) &&
+		 (nugi = (NUGI) GetProcAddress (nah,"NetUserGetInfo")) &&
+		 MultiByteToWideChar (CP_ACP,0,user,strlen (user) + 1,
+				      (WCHAR *) tmp,MAILTMPLEN) &&
+		 !(*nugi) (NIL,(LPWSTR) &tmp,1,(LPBYTE *) &ui) &&
+		 WideCharToMultiByte (CP_ACP,0,ui->usri1_home_dir,-1,
+				      tmp,MAILTMPLEN,NIL,NIL) && tmp[0]))
+				/* NT default */
 	sprintf (tmp,"%s%s",defaultDrive (),"\\users\\default");
-      myHomeDir = cpystr (tmp);	/* remember home directory */
+      home = tmp;		/* home directory is in tmp buffer */
     }
-    else fatal ("missing home directory argument to env_init!");
+    myHomeDir = cpystr (home);	/* remember home directory */
+    if ((*(s = myHomeDir + strlen (myHomeDir) - 1) == '\\') || (*s == '/'))
+      *s = '\0';		/* slice off trailing hierarchy delimiter */
   }
   return T;
 }
@@ -392,32 +430,11 @@ int check_nt (void)
 
 static char *defaultDrive (void)
 {
-  char *s;
-  return ((s = getenv ("SystemDrive")) && *s) ? s : "C:";
+  char *s = getenv ("SystemDrive");
+  return (s && *s) ? s : "C:";
 }
 
 
-/* Return home path from environment variables
- * Accepts: path to write into
- * Returns: home path, or NIL if it can't be determined (NT only)
- */
-
-static char *homePath (char *path)
-{
-  int i;
-  char *s;
-				/* get home drive */
-  strcpy (path,((s = getenv ("HOMEDRIVE")) && *s) ? s : defaultDrive ());
-				/* if have a home path */
-  if ((s = getenv ("HOMEPATH")) && (i = strlen (s))) {
-    if (((s[i-1] == '\\') || (s[i-1] == '/'))) s[i-1] = '\0';
-    strcat (path,s);		/* append the home path to the drive */
-  }
-				/* return NIL if NT and no home path */
-  else if (check_nt ()) return NIL;
-  return path;
-}
-
 /* Return my user name
  * Accepts: pointer to optional flags
  * Returns: my user name
@@ -425,23 +442,21 @@ static char *homePath (char *path)
 
 char *myusername_full (unsigned long *flags)
 {
-  HANDLE tok;
-  UCHAR tmp[MAILTMPLEN],user[MAILTMPLEN],domain[MAILTMPLEN];
-  DWORD len,userlen = MAILTMPLEN,domainlen = MAILTMPLEN;
-  SID_NAME_USE snu;
+  UCHAR usr[MAILTMPLEN];
+  DWORD len = MAILTMPLEN;
+  char *user,*path,*d,*p,pth[MAILTMPLEN];
   char *ret = "SYSTEM";
-  if (!myUserName) {		/* get user name if don't have it yet */
-    if (check_nt ()) {		/* NT lookup user and domain */
-      if (!(OpenProcessToken (GetCurrentProcess (),TOKEN_READ,&tok) &&
-	    GetTokenInformation (tok,TokenUser,tmp,MAILTMPLEN,&len) &&
-	    LookupAccountSid (NIL,((PTOKEN_USER) tmp)->User.Sid,user,
-			      &userlen,domain,&domainlen,&snu)))
-	fatal ("Unable to look up user name");
-				/* init environment if not SYSTEM */
-      if (_stricmp (user,"SYSTEM")) env_init (user,homePath (tmp));
-    }
-				/* Win9x external username */
-    else env_init (mailusername ? (*mailusername) () : NIL,homePath (tmp));
+				/* get user name if don't have it yet */
+  if (!myUserName && !server_nli &&
+				/* use callback, else logon name */
+      ((mailusername && (user = (char *) (*mailusername) ())) ||
+       (GetUserName (usr,&len) && _stricmp (user = (char *) usr,"SYSTEM")))) {
+				/* try HOMEPATH, then HOME */
+    if (p = getenv ("HOMEPATH"))
+      sprintf (path = pth,"%s%s",
+	       (d = getenv ("HOMEDRIVE")) ? d : defaultDrive (),p);
+    else path = getenv ("HOME");
+    env_init (user,path);	/* initialize environment */
   }
   if (myUserName) {		/* logged in? */
     if (flags)			/* Guest is an anonymous user */
@@ -451,8 +466,7 @@ char *myusername_full (unsigned long *flags)
   else if (flags) *flags = MU_NOTLOGGEDIN;
   return ret;
 }
-
-
+
 /* Return my home directory name
  * Returns: my home directory name
  */
@@ -462,7 +476,8 @@ char *myhomedir ()
   if (!myHomeDir) myusername ();/* initialize if first time */
   return myHomeDir ? myHomeDir : "";
 }
-
+
+
 /* Return system standard INBOX
  * Accepts: buffer string
  */
@@ -558,4 +573,26 @@ MAILSTREAM *default_proto (long type)
 {
   extern MAILSTREAM DEFAULTPROTO;
   return &DEFAULTPROTO;		/* return default driver's prototype */
+}
+
+/* Default block notify routine
+ * Accepts: reason for calling
+ *	    data
+ * Returns: data
+ */
+
+void *mm_blocknotify (int reason,void *data)
+{
+  void *ret = data;
+  switch (reason) {
+  case BLOCK_SENSITIVE:		/* entering sensitive code */
+    data = (void *) max (alarm (0),1);
+    break;
+  case BLOCK_NONSENSITIVE:	/* exiting sensitive code */
+    if ((unsigned int) data) alarm ((unsigned int) data);
+    break;
+  default:			/* ignore all other reasons */
+    break;
+  }
+  return ret;
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	26 July 1998
+ * Last Edited:	4 October 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -67,9 +67,6 @@
 #include "ksc_5601.c"		/* Korean */
 #include "big5.c"		/* Taiwanese (ROC) - industrial standard */
 #include "cns11643.c"		/* Taiwanese (ROC) - national standard */
-#if 0		/* no charset accesses this table */
-#include "cns-14.c"		/* plane 14 of CNS 11643 */
-#endif
 
 /* EUC parameters */
 
@@ -123,55 +120,75 @@ static const struct utf8_eucparam ksc_param = {
 
 /* List of supported charsets (note: all names must be uppercase!) */
 static const struct utf8_csent utf8_csvalid[] = {
-  {"US-ASCII",NIL,NIL},{"UTF-8",NIL,NIL},
-  {"ISO-8859-1",utf8_text_8859_1,NIL},
-  {"ISO-8859-2",utf8_text_1byte,(void *) iso8859_2tab},
-  {"ISO-8859-3",utf8_text_1byte,(void *) iso8859_3tab},
-  {"ISO-8859-4",utf8_text_1byte,(void *) iso8859_4tab},
-  {"ISO-8859-5",utf8_text_1byte,(void *) iso8859_5tab},
-  {"ISO-8859-6",utf8_text_1byte,(void *) iso8859_6tab},
-  {"ISO-8859-7",utf8_text_1byte,(void *) iso8859_7tab},
-  {"ISO-8859-8",utf8_text_1byte,(void *) iso8859_8tab},
-  {"ISO-8859-9",utf8_text_1byte,(void *) iso8859_9tab},
-  {"ISO-8859-10",utf8_text_1byte,(void *) iso8859_10tab},
-  {"ISO-8859-13",utf8_text_1byte,(void *) iso8859_13tab},
-  {"ISO-8859-15",utf8_text_1byte,(void *) iso8859_15tab},
+  {"US-ASCII",NIL,NIL,NIL,NIL},
+  {"UTF-8",NIL,NIL,SC_UNICODE,NIL},
+  {"UTF-7",utf8_text_utf7,NIL,SC_UNICODE,"UTF-8"},
+  {"ISO-8859-1",utf8_text_8859_1,NIL,SC_LATIN_1,NIL},
+  {"ISO-8859-2",utf8_text_1byte,(void *) iso8859_2tab,SC_LATIN_2,NIL},
+  {"ISO-8859-3",utf8_text_1byte,(void *) iso8859_3tab,SC_LATIN_3,NIL},
+  {"ISO-8859-4",utf8_text_1byte,(void *) iso8859_4tab,SC_LATIN_4,NIL},
+  {"ISO-8859-5",utf8_text_1byte,(void *) iso8859_5tab,SC_CYRILLIC,"KOI-8"},
+  {"ISO-8859-6",utf8_text_1byte,(void *) iso8859_6tab,SC_ARABIC,NIL},
+  {"ISO-8859-7",utf8_text_1byte,(void *) iso8859_7tab,SC_GREEK,NIL},
+  {"ISO-8859-8",utf8_text_1byte,(void *) iso8859_8tab,SC_HEBREW,NIL},
+  {"ISO-8859-9",utf8_text_1byte,(void *) iso8859_9tab,SC_LATIN_5,NIL},
+  {"ISO-8859-10",utf8_text_1byte,(void *) iso8859_10tab,SC_LATIN_6,NIL},
+  {"ISO-8859-11",utf8_text_1byte,(void *) iso8859_11tab,SC_THAI,NIL},
+#if 0				/* ISO 8859-12 reserved */
+  {"ISO-8859-12",utf8_text_1byte,(void *) iso8859_12tab,NIL,NIL},
+#endif
+  {"ISO-8859-13",utf8_text_1byte,(void *) iso8859_13tab,SC_LATIN_7,NIL},
+  {"ISO-8859-14",utf8_text_1byte,(void *) iso8859_14tab,SC_LATIN_8,NIL},
+  {"ISO-8859-15",utf8_text_1byte,(void *) iso8859_15tab,SC_LATIN_9,NIL},
+  {"KOI8-R",utf8_text_1byte,(void *) koi8rtab,SC_CYRILLIC,NIL},
+  {"KOI8-U",utf8_text_1byte,(void *) koi8utab,SC_CYRILLIC | SC_UKRANIAN,NIL},
+  {"KOI8-RU",utf8_text_1byte,(void *) koi8utab,SC_CYRILLIC | SC_UKRANIAN,
+     "KOI8-U"},
+  {"TIS-620",utf8_text_1byte,(void *) tis620tab,SC_THAI,NIL},
+  {"VISCII",utf8_text_1byte8,(void *) visciitab,SC_VIETNAMESE,NIL},
+
 #ifdef GBTOUNICODE
-  {"GB2312",utf8_text_euc,(void *) gb_param},
-  {"CN-GB",utf8_text_euc,(void *) gb_param},
+  {"GB2312",utf8_text_euc,(void *) gb_param,SC_CHINESE_SIMPLIFIED,NIL},
+  {"CN-GB",utf8_text_euc,(void *) gb_param,SC_CHINESE_SIMPLIFIED,"GB2312"},
 #ifdef CNS1TOUNICODE
-  {"ISO-2022-CN",utf8_text_2022,NIL},
+  {"ISO-2022-CN",utf8_text_2022,NIL,
+     SC_CHINESE_SIMPLIFIED | SC_CHINESE_TRADITIONAL,NIL},
 #endif
 #endif
 #ifdef GB12345TOUNICODE
-  {"CN-GB-12345",utf8_text_euc,(void *) gbt_param},
+  {"CN-GB-12345",utf8_text_euc,(void *) gbt_param,SC_CHINESE_TRADITIONAL,NIL},
 #endif
 #ifdef BIG5TOUNICODE
-  {"BIG5",utf8_text_dbyte2,(void *) big5_param},
-  {"CN-BIG5",utf8_text_dbyte2,(void *) big5_param},
+  {"BIG5",utf8_text_dbyte2,(void *) big5_param,SC_CHINESE_TRADITIONAL,NIL},
+  {"CN-BIG5",utf8_text_dbyte2,(void *) big5_param,SC_CHINESE_TRADITIONAL,
+     "BIG5"},
 #endif
 #ifdef JISTOUNICODE
-  {"ISO-2022-JP",utf8_text_2022,NIL},
-  {"EUC-JP",utf8_text_euc,(void *) jis_param},
-  {"SHIFT_JIS",utf8_text_sjis,NIL},{"SHIFT-JIS",utf8_text_sjis,NIL},
+  {"ISO-2022-JP",utf8_text_2022,NIL,SC_JAPANESE,NIL},
+  {"EUC-JP",utf8_text_euc,(void *) jis_param,SC_JAPANESE,"ISO-2022-JP"},
+  {"SHIFT_JIS",utf8_text_sjis,NIL,SC_JAPANESE,"ISO-2022-JP"},
+  {"SHIFT-JIS",utf8_text_sjis,NIL,SC_JAPANESE,"ISO-2022-JP"},
 #ifdef JIS0212TOUNICODE
-  {"ISO-2022-JP-1",utf8_text_2022,NIL},
+  {"ISO-2022-JP-1",utf8_text_2022,NIL,SC_JAPANESE,"ISO-2022-JP"},
 #ifdef GBTOUNICODE
 #ifdef KSCTOUNICODE
-  {"ISO-2022-JP-2",utf8_text_2022,NIL},
+  {"ISO-2022-JP-2",utf8_text_2022,NIL,
+     SC_LATIN_1 | SC_LATIN_2 | SC_LATIN_3 | SC_LATIN_4 | SC_LATIN_5 |
+       SC_LATIN_6 | SC_LATIN_7 | SC_LATIN_8 | SC_LATIN_9 | SC_ARABIC |
+	 SC_CYRILLIC | SC_GREEK | SC_HEBREW | SC_THAI | SC_VIETNAMESE |
+	   SC_CHINESE_TRADITIONAL | SC_JAPANESE | SC_KOREAN
+#ifdef CNS1TOUNICODE
+	     | SC_CHINESE_TRADITIONAL
+#endif
+	       ,"UTF-8"},
 #endif
 #endif
 #endif
 #endif
 #ifdef KSCTOUNICODE
-  {"ISO-2022-KR",utf8_text_2022,NIL},
-  {"EUC-KR",utf8_text_dbyte,(void *) &ksc_param},
+  {"ISO-2022-KR",utf8_text_2022,NIL,SC_KOREAN,NIL},
+  {"EUC-KR",utf8_text_dbyte,(void *) &ksc_param,SC_KOREAN,NIL},
 #endif
-  {"KOI8-R",utf8_text_1byte,(void *) koi8rtab},
-  {"KOI8-U",utf8_text_1byte,(void *) koi8utab},
-  {"KOI8-RU",utf8_text_1byte,(void *) koi8utab},
-  {"TIS-620",utf8_text_1byte,(void *) tis620tab},
-  {"VISCII",utf8_text_1byte8,(void *) visciitab},
   NIL
 };
 
@@ -306,7 +323,7 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
   unsigned short *t1 = (unsigned short *) p1->tab;
   unsigned short *t2 = (unsigned short *) p2->tab;
   unsigned short *t3 = (unsigned short *) p3->tab;
-  for (pass = 0,ret->size = 0; pass <= 1; pass++) {
+  for (pass = 0,s = NIL,ret->size = 0; pass <= 1; pass++) {
     for (i = 0; i < text->size;) {
 				/* not CS0? */
       if ((c = text->data[i++]) & BIT8) {
@@ -346,12 +363,14 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	  break;
 
 	default:
-	  c = (((ku = (c & BITS7) - p1->base_ku) < p1->max_ku) &&
-	       ((ten = (c1 & BITS7) - p1->base_ten) < p1->max_ten)) ?
-		 t1[(ku*p1->max_ten) + ten] : BOGON;
+	  if (((ku = (c & BITS7) - p1->base_ku) < p1->max_ku) &&
+	       ((ten = (c1 & BITS7) - p1->base_ten) < p1->max_ten)) {
+	    if (!(c = t1[(ku*p1->max_ten) + ten]) &&
+		ku && (ku < 10) && t3 && p3->base_ten)
 		/* special hack for JIS X 0212: merge rows less than 10 */
-	  if (!c && ku && (ku < 10) && t3 && p3->base_ten)
-	    c = t3[((ku - (p3->base_ku - p1->base_ku))*p3->max_ten) + ten];
+	      c = t3[((ku - (p3->base_ku - p1->base_ku))*p3->max_ten) + ten];
+	  }
+	  else c = BOGON;
 	}
       }
       if (pass) UTF8_PUT (s,c)
@@ -485,7 +504,7 @@ void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
   unsigned long i;
   unsigned char *s;
   unsigned int pass,state,c,co,gi,gl,gr,g[4],ku,ten;
-  for (pass = 0,ret->size = 0; pass <= 1; pass++) {
+  for (pass = 0,s = NIL,ret->size = 0; pass <= 1; pass++) {
     gi = 0;			/* quell compiler warnings */
     state = I2S_CHAR;		/* initialize engine */
     g[0]= g[2] = I2CS_ASCII;	/* G0 and G2 are ASCII */
@@ -607,6 +626,7 @@ void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	  case I2CS_JIS_KANA:	/* JIS katakana */
 	    if ((c >= MIN_KANA_7) && (c <= MAX_KANA_7)) c += KANA_7;
 	    break;
+
 	  case I2CS_ISO8859_1:	/* Latin-1 (West European) */
 	    c |= BIT8;		/* just turn on high bit */
 	    break;
@@ -640,11 +660,14 @@ void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	  case I2CS_ISO8859_10:	/* Latin-6 (Northern Europe) */
 	    c = iso8859_10tab[c];
 	    break;
-	  case I2CS_ISO8859_13:	/* Baltic */
+	  case I2CS_ISO8859_13:	/* Latin-7 (Baltic) */
 	    c = iso8859_13tab[c];
 	    break;
 	  case I2CS_VSCII:	/* Vietnamese */
 	    c = visciitab[c];
+	    break;
+	  case I2CS_ISO8859_14:	/* Latin-8 (Celtic) */
+	    c = iso8859_14tab[c];
 	    break;
 	  case I2CS_ISO8859_15:	/* Euro */
 	    c = iso8859_15tab[c];
@@ -688,6 +711,31 @@ void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 		c = CNS2TOUNICODE (co,c,ku,ten);
 		break;
 #endif
+#ifdef CNS3TOUNICODE
+	      case I2CS_CNS3:	/* CNS 11643 plane 3 */
+		c = CNS3TOUNICODE (co,c,ku,ten);
+		break;
+#endif
+#ifdef CNS4TOUNICODE
+	      case I2CS_CNS4:	/* CNS 11643 plane 4 */
+		c = CNS4TOUNICODE (co,c,ku,ten);
+		break;
+#endif
+#ifdef CNS5TOUNICODE
+	      case I2CS_CNS5:	/* CNS 11643 plane 5 */
+		c = CNS5TOUNICODE (co,c,ku,ten);
+		break;
+#endif
+#ifdef CNS6TOUNICODE
+	      case I2CS_CNS6:	/* CNS 11643 plane 6 */
+		c = CNS6TOUNICODE (co,c,ku,ten);
+		break;
+#endif
+#ifdef CNS7TOUNICODE
+	      case I2CS_CNS7:	/* CNS 11643 plane 7 */
+		c = CNS7TOUNICODE (co,c,ku,ten);
+		break;
+#endif
 	      default:		/* unknown multibyte, treat as UCS-2 */
 		c |= (co << 8);	/* wrong, but nothing else to do */
 		break;
@@ -703,6 +751,86 @@ void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
     if (!pass) s = ret->data = (unsigned char *) fs_get (ret->size + 1);
     else if (((unsigned long) (s - ret->data)) != ret->size)
       fatal ("ISO-2022 to UTF-8 botch");
+  }
+}
+
+/* Convert UTF-7 sized text to UTF-8
+ * Accepts: source sized text
+ *	    pointer to returned sized text
+ *	    conversion table
+ */
+
+void utf8_text_utf7 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
+{
+  unsigned long i;
+  unsigned char *s;
+  unsigned int c,c1,d,uc,pass,e,e1,state;
+  for (pass = 0,s = NIL,ret->size = 0; pass <= 1; pass++) {
+    c1 = d = uc = e = e1 = 0;
+    for (i = 0,state = NIL; i < text->size;) {
+      c = text->data[i++];	/* get next byte */
+      switch (state) {
+      case U7_PLUS:		/* previous character was + */
+	if (c == '-') {		/* +- means textual + */
+	  c = '+';
+	  state = U7_ASCII;	/* revert to ASCII */
+	  break;
+	}
+	state = U7_UNICODE;	/* enter Unicode state */
+	e = e1 = 0;		/* initialize Unicode quantum position */
+      case U7_UNICODE:		/* Unicode state */
+	if (c == '-') state = U7_MINUS;
+	else {			/* decode Unicode */
+	  if (isupper (c)) c -= 'A';
+	  else if (islower (c)) c -= 'a' - 26;
+	  else if (isdigit (c)) c -= '0' - 52;
+	  else if (c == '+') c = 62;
+	  else if (c == '/') c = 63;
+	  else state = U7_ASCII;/* end of modified BASE64 */
+	}
+	break;
+      case U7_MINUS:		/* previous character was absorbed - */
+	state = U7_ASCII;	/* revert to ASCII */
+      case U7_ASCII:		/* ASCII state */
+	if (c == '+') state = U7_PLUS;
+	break;
+      }
+
+      switch (state) {		/* store character if in character mode */
+      case U7_UNICODE:		/* Unicode */
+	switch (e++) {		/* install based on BASE64 state */
+	case 0:
+	  c1 = c << 2;		/* byte 1: high 6 bits */
+	  break;
+	case 1:
+	  d = c1 | (c >> 4);	/* byte 1: low 2 bits */
+	  c1 = c << 4;		/* byte 2: high 4 bits */
+	  break;
+	case 2:
+	  d = c1 | (c >> 2);	/* byte 2: low 4 bits */
+	  c1 = c << 6;		/* byte 3: high 2 bits */
+	  break;
+	case 3:
+	  d = c | c1;		/* byte 3: low 6 bits */
+	  e = 0;		/* reinitialize mechanism */
+	  break;
+	}
+	if (e == 1) break;	/* done if first BASE64 state */
+	if (!e1) {		/* first byte of UCS-2 character */
+	  uc = (d & 0xff) << 8;	/* note first byte */
+	  e1 = T;		/* enter second UCS-2 state */
+	  break;		/* done */
+	}
+	c = uc | (d & 0xff);	/* build UCS-2 character */
+	e1 = NIL;		/* back to first UCS-2 state, drop in */
+      case U7_ASCII:		/* just install if ASCII */
+	if (pass) UTF8_PUT (s,c)
+	else ret->size += UTF8_SIZE (c);
+      }
+    }
+    if (!pass) s = ret->data = (unsigned char *) fs_get (ret->size + 1);
+    else if (((unsigned long) (s - ret->data)) != ret->size)
+      fatal ("UTF-7 to UTF-8 botch");
   }
 }
 

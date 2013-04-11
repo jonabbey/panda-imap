@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	13 October 1998
+ * Last Edited:	27 July 1999
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -180,6 +180,11 @@ long imap_rename (MAILSTREAM *stream,char *old,char *newname);
 long imap_manage (MAILSTREAM *stream,char *mailbox,char *command,char *arg2);
 long imap_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *imap_open (MAILSTREAM *stream);
+IMAPPARSEDREPLY *imap_tcp (MAILSTREAM *stream,NETMBX *mb,NETDRIVER *dv,
+			   unsigned long port,
+			   NETDRIVER *altd,char *alts,unsigned long altp);
+IMAPPARSEDREPLY *imap_rimap (MAILSTREAM *stream,char *service,NETMBX *mb,
+			     char *usr,char *tmp);
 long imap_anon (MAILSTREAM *stream,char *tmp);
 long imap_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr);
 long imap_login (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr);
@@ -233,7 +238,8 @@ void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy);
 NAMESPACE *imap_parse_namespace (MAILSTREAM *stream,char **txtptr,
 				 IMAPPARSEDREPLY *reply);
 THREADNODE *imap_parse_thread (char **txtptr);
-void imap_parse_header (MAILSTREAM *stream,ENVELOPE **env,SIZEDTEXT *hdr);
+void imap_parse_header (MAILSTREAM *stream,ENVELOPE **env,SIZEDTEXT *hdr,
+			STRINGLIST *stl);
 void imap_parse_envelope (MAILSTREAM *stream,ENVELOPE **env,char **txtptr,
 			  IMAPPARSEDREPLY *reply);
 ADDRESS *imap_parse_adrlist (MAILSTREAM *stream,char **txtptr,

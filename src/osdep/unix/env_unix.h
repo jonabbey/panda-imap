@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	10 December 1998
+ * Last Edited:	14 June 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,14 +33,21 @@
  *
  */
 
-
 #define SUBSCRIPTIONFILE(t) sprintf (t,"%s/.mailboxlist",myhomedir ())
 #define SUBSCRIPTIONTEMP(t) sprintf (t,"%s/.mlbxlsttmp",myhomedir ())
+
+typedef struct dotlock_base {
+  char lock[MAILTMPLEN];
+  int pipei;
+  int pipeo;
+} DOTLOCK;
+
 
 /* Function prototypes */
 
 #include "env.h"
 
+void rfc822_fixed_date (char *date);
 long env_init (char *user,char *home);
 char *myusername_full (unsigned long *flags);
 #define MU_LOGGEDIN 0
@@ -50,10 +57,12 @@ char *myusername_full (unsigned long *flags);
   myusername_full (NIL)
 char *sysinbox ();
 char *mailboxdir (char *dst,char *dir,char *name);
-int lockname (char *lock,char *fname,int op);
+long dotlock_lock (char *file,DOTLOCK *base,int fd);
+long dotlock_unlock (DOTLOCK *base);
+int lockname (char *lock,char *fname,int op,long *pid);
 int lockfd (int fd,char *lock,int op);
-int lock_work (char *lock,void *sbuf,int op);
-long chk_notsymlink (char *name);
+int lock_work (char *lock,void *sbuf,int op,long *pid);
+long chk_notsymlink (char *name,void *sbuf);
 void unlockfd (int fd,char *lock);
 long set_mbx_protections (char *mailbox,char *path);
 MAILSTREAM *user_flags (MAILSTREAM *stream);
@@ -68,3 +77,4 @@ void *arm_signal (int sig,void *action);
 struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[]);
 long loginpw (struct passwd *pw,int argc,char *argv[]);
 long pw_login (struct passwd *pw,char *user,char *home,int argc,char *argv[]);
+void *mm_blocknotify (int reason,void *data);

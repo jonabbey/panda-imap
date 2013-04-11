@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	27 January 1998
+# Last Edited:	29 September 1999
 #
-# Copyright 1998 by the University of Washington
+# Copyright 1999 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -31,6 +31,83 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
+#  The following ports are defined.  These refer to the *standard* compiler
+# on the given system.  This means, for example, that the sol port is for SUN's
+# compiler and not for a non-standard compiler such as gcc.
+#  If you are using gcc and it is not the standard compiler on your system, try
+# using an ANSI port that is close to what you have.  For example, if your
+# system is SVR4ish, try a32 or lnx; if it's more BSDish, try nxt, mct, or bsi.
+#
+# a32	AIX 3.2 for RS/6000
+# a41	AIX 4.1 for RS/6000
+# aix	AIX/370 (not RS/6000!!)
+# ami	AmigaDOS
+# am2	AmigaDOS with a 68020+
+# ama	AmigaDOS using AS225R2
+# amn	AmigaDOS with a 680x0 using "new" socket library
+# aos	AOS for RT
+# art	AIX 2.2.1 for RT
+# asv	Altos SVR4
+# aux	A/UX
+# bs3	BSD/i386 3.0 and higher
+# bsd	generic BSD 4.3 (as in ancient 1980s version)
+# bsf	FreeBSD
+# bsi	BSD/i386
+# bso	OpenBSD (yes, yet another one...)
+# cvx	Convex
+# d-g	Data General DG/UX prior to 5.4 (d41 port no longer exists)
+# d54	Data General DG/UX 5.4
+# do4	Apollo Domain/OS sr10.4
+# dpx	Bull DPX/2 B.O.S.
+# drs	ICL DRS/NX
+# dyn	Dynix
+# epx	EP/IX
+# gas	GCC Altos SVR4
+# gh9   GCC HP-UX 9.x
+# ghp	GCC HP-UX 10.x
+# gs5	GCC 2.7.1 (95q4 from Skunkware _not_ 98q2!) SCO Open Server 5.0.x
+# gso	GCC Solaris
+# gsu	GCC SUN-OS
+# gul	GCC RISC Ultrix (DEC-5000)
+# hpp	HP-UX 9.x (see gh9)
+# hpx	HP-UX 10.x (see ghp, hxd, and shp)
+# hxd	HP-UX 10.x with DCE security (see shp)
+# isc	Interactive Systems
+# lnx	Linux with traditional passwords and crypt() in the C library
+#	 (see lnp, sl4, sl5, and slx)
+# lnp	Linux with Pluggable Authentication Modules (PAM)
+# lyn	LynxOS
+# mct	MachTen
+# mnt	Atari ST Mint (not MacMint)
+# neb	NetBSD/FreeBSD
+# nxt	NEXTSTEP
+# nx3	NEXTSTEP 3.x
+# osf	OSF/1 (see sos, os4)
+# os4	OSF/1 (Digital UNIX) 4
+# ptx	PTX
+# pyr	Pyramid
+# qnx	QNX 4
+# s40	SUN-OS 4.0 (*not* Solaris)
+# sc5	SCO Open Server 5.0.x (see gs5)
+# sco	Santa Cruz Operation (see sc5, gs5)
+# shp	HP-UX with Trusted Computer Base
+# sgi	Silicon Graphics IRIX
+# sl4	Linux using -lshadow to get the crypt() function
+# sl5	Linux with shadow passwords, no extra libraries
+# slx	Linux using -lcrypt to get the crypt() function
+# snx	Siemens Nixdorf SININX or Reliant UNIX
+# sol	Solaris (won't work unless "ucbcc" works -- use gso instead)
+# sos	OSF/1 with SecureWare
+# ssn	SUN-OS with shadow password security
+# sun	SUN-OS 4.1 or better (*not* Solaris) (see ssn)
+# sv2	SVR2 on AT&T PC-7300 (incomplete port)
+# sv4	generic SVR4
+# ult	RISC Ultrix (DEC-5000)
+# uw2	UnixWare SVR4.2
+# vul	VAX Ultrix
+# vu2	VAX Ultrix 2.3 (e.g. for VAXstation-2000 or similar old version)
+
+
 # *** TEMPORARY FOR PINE 4.10 BUILD ***
 GSSDIR=/usr/local
 # *** TEMPORARY FOR PINE 4.10 BUILD ***
@@ -44,6 +121,7 @@ GSSDIR=/usr/local
 # authenticator.  Some authenticators are only available from third parties.
 
 EXTRAAUTHENTICATORS=
+SPECIALAUTHENTICATORS=
 
 
 # The following extra drivers are defined:
@@ -59,12 +137,17 @@ EXTRADRIVERS=mbox
 # md5	MD5 database (must also have md5 as an authenticator)
 # nul	no plaintext authentication (note: this will break some secure
 #	 authenticators -- don't use without checking first!!)
+# pam	PAM authentication (note: for Linux, you should use the "lnp" port
+#	 instead of setting this...also, you may have to modify PAMLDFLAGS
+#	 in the imap-[]/src/osdep/unix/Makefile
+# pmb	PAM authentication for broken implementations such as Solaris.
+#	 you may have to modify PAMLDFLAGS
 # std	system standard (typically passwd file), determined by port
 
 PASSWDTYPE=std
 
 
-# The following special compilation flags are defined.  None of these flags are
+# The following extra compilation flags are defined.  None of these flags are
 # recommended.
 #
 # -DDISABLE_POP_PROXY=1
@@ -161,14 +244,17 @@ PASSWDTYPE=std
 #	gradually-increasing intervals, starting at 2800-2900, and becoming
 #	permanent at 48,300.
 
-EXTRASPECIALS=
-
-
-# Miscellaneous command options passed down to the c-client Makefile
-
 EXTRACFLAGS=
+
+
+# Extra linker flags (additional/alternative libraries, etc.)
+
 EXTRALDFLAGS=
 
+
+# Special make flags (e.g. to override make environment variables)
+
+EXTRASPECIALS=
 
 # Normal commands
 
@@ -186,10 +272,9 @@ TOUCH=touch
 
 # Primary build command
 
-BUILDOPTIONS= EXTRACFLAGS="$(EXTRACFLAGS)"\
- EXTRALDFLAGS="$(EXTRALDFLAGS)"\
- EXTRADRIVERS="$(EXTRADRIVERS)" EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS)"\
- PASSWDTYPE=$(PASSWDTYPE)
+BUILDOPTIONS= EXTRACFLAGS='$(EXTRACFLAGS)' EXTRALDFLAGS='$(EXTRALDFLAGS)'\
+ EXTRADRIVERS='$(EXTRADRIVERS)' EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
+ PASSWDTYPE=$(PASSWDTYPE) SPECIALAUTHENTICATORS='$(SPECIALAUTHENTICATORS)'
 #BUILD=$(MAKE) build $(BUILDOPTIONS)
 # *** TEMPORARY FOR PINE 4.10 BUILD ***
 BUILD=$(MAKE) build $(BUILDOPTIONS) GSSDIR=$(GSSDIR)
@@ -200,81 +285,6 @@ BUILD=$(MAKE) build $(BUILDOPTIONS) GSSDIR=$(GSSDIR)
 
 all:	c-client rebuild bundled
 
-
-#  The following ports are defined.  These refer to the *standard* compiler
-# on the given system.  This means, for example, that the sol port is for SUN's
-# compiler and not for a non-standard compiler such as gcc.
-#  If you are using gcc and it is not the standard compiler on your system, try
-# using an ANSI port that is close to what you have.  For example, if your
-# system is SVR4ish, try a32 or lnx; if it's more BSDish, try nxt, mct, or bsi.
-#
-# a32	AIX 3.2 for RS/6000
-# a41	AIX 4.1 for RS/6000
-# aix	AIX/370
-# ami	AmigaDOS
-# am2	AmigaDOS with a 68020+
-# ama	AmigaDOS using AS225R2
-# amn	AmigaDOS with a 680x0 using "new" socket library
-# aos	AOS for RT
-# art	AIX 2.2.1 for RT
-# asv	Altos SVR4
-# aux	A/UX
-# bs3	BSD/i386 3.0 and higher
-# bsd	generic BSD
-# bsf	FreeBSD
-# bsi	BSD/i386
-# bso	OpenBSD (yes, yet another one...)
-# cvx	Convex
-# d-g	Data General DG/UX prior to 5.4 (d41 port no longer exists)
-# d54	Data General DG/UX 5.4
-# dpx	Bull DPX/2 B.O.S.
-# drs	ICL DRS/NX
-# dyn	Dynix
-# epx	EP/IX
-# gas	GCC Altos SVR4
-# gh9   GCC HP-UX 9.x
-# ghp	GCC HP-UX 10.x
-# gs5	GCC 2.7.1 (95q4 from Skunkware _not_ 98q2!) SCO Open Server 5.0.x
-# gso	GCC Solaris
-# gsu	GCC SUN-OS
-# gul	GCC RISC Ultrix (DEC-5000)
-# hpp	HP-UX 9.x
-# hpx	HP-UX 10.x
-# hxd	HP-UX 10.x with DCE security
-# isc	Interactive Systems
-# lnx	Linux with traditional passwords and crypt() in the C library
-# lnp	Linux with Pluggable Authentication Modules (PAM)
-# lyn	LynxOS
-# mct	MachTen
-# mnt	Atari ST Mint (not MacMint)
-# neb	NetBSD/FreeBSD
-# nxt	NEXTSTEP
-# nx3	NEXTSTEP 3.x
-# osf	OSF/1
-# os4	OSF/1 (Digital UNIX) 4
-# ptx	PTX
-# pyr	Pyramid
-# qnx	QNX 4
-# s40	SUN-OS 4.0
-# sc5	SCO Open Server 5.0.x
-# sco	Santa Cruz Operation
-# shp	HP-UX with Trusted Computer Base
-# sgi	Silicon Graphics IRIX
-# sl4	Linux using -lshadow to get the crypt() function
-# sl5	Linux with shadow passwords, no extra libraries
-# slx	Linux using -lcrypt to get the crypt() function
-# snx	Siemens Nixdorf SININX or Reliant UNIX
-# sol	Solaris (won't work unless "ucbcc" works -- use gso instead)
-# sos	OSF/1 with SecureWare
-# ssn	SUN-OS with shadow password security
-# sun	SUN-OS 4.1 or better
-# sv2	SVR2 on AT&T PC-7300 (incomplete port)
-# sv4	generic SVR4
-# ult	RISC Ultrix (DEC-5000)
-# uw2	UnixWare SVR4.2
-# vul	VAX Ultrix
-# vu2	VAX Ultrix 2.3 (e.g. for VAXstation-2000 or similar old version)
-
 c-client:
 	@echo Not processed yet.  In a first-time build, you must specify
 	@echo the system type so that the sources are properly processed.
@@ -283,7 +293,7 @@ c-client:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsf bsi bso d-g d54 drs epx gas gh9 ghp gs5 gso gsu gul hpp hpx lnp lyn mct mnt neb nxt nx3 osf os4 ptx qnx sc5 sco sgi shp sl4 sl5 slx snx sol sos uw2: an
+a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp gs5 gso gsu gul hpp hpx lnp lyn mct mnt neb nxt nx3 osf os4 ptx qnx sc5 sco sgi shp sl4 sl5 slx snx sol sos uw2: an
 	$(BUILD) OS=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
@@ -308,7 +318,7 @@ lnxok:
 	@echo to continue this build?  Type y or n please:
 	@sh -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
 	@echo OK, I will remember that you really want to build for
-	@echo traditional Linux.  You will nott see this message again.
+	@echo traditional Linux.  You will not see this message again.
 	@echo If you discover that you can not log in to the POP and IMAP
 	@echo servers, then do the following commands:
 	@echo % rm lnxok
@@ -359,15 +369,15 @@ ami am2 ama amn:
 # Courtesy entry for NT
 
 nt:
-	nmake /nologo -f makefile.nt
+	nmake /nologo /f makefile.nt
 
 ntk:
-	nmake /nologo -f makefile.ntk
+	nmake /nologo /f makefile.ntk
 
 # Courtesy entry for WCE
 
 wce:
-	nmake /nologo -f makefile.wce
+	nmake /nologo /f makefile.wce
 
 
 # C compiler types
@@ -392,7 +402,7 @@ OSTYPE:
 # *** TEMPORARY FOR PINE 4.10 BUILD ***
 	echo GSSDIR=$(GSSDIR) >> c-client/EXTRASPECIALS
 # *** TEMPORARY FOR PINE 4.10 BUILD ***
-	$(CD) c-client;$(MAKE) $(OS) BUILDOPTIONS='$(BUILDOPTIONS)' $(EXTRASPECIALS)
+	$(CD) c-client;$(MAKE) $(OS) BUILDOPTIONS="$(BUILDOPTIONS)" $(EXTRASPECIALS)
 	echo $(OS) > OSTYPE
 	$(TOUCH) rebuild
 

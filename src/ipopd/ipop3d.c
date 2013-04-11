@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	27 January 1999
+ * Last Edited:	9 October 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -78,7 +78,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "7.59";		/* server version */
+char *version = "7.63";		/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -119,16 +119,17 @@ int main (int argc,char *argv[])
   unsigned long i,j,k;
   char *s,*t;
   char tmp[TMPLEN];
+  time_t autologouttime;
+#include "linkage.c"
 				/* initialize server */
   server_init (argv[0],"pop3","pop3s","pop",clkint,kodint,hupint,trmint);
-#include "linkage.c"
   challenge[0] = '\0';		/* find the CRAM-MD5 authenticator */
   if (i = mail_lookup_auth_name ("CRAM-MD5",NIL)) {
     AUTHENTICATOR *a = mail_lookup_auth (i);
     if (a->server) {		/* have an MD5 enable file? */
 				/* build challenge -- less than 128 chars */
-      sprintf (challenge,"<%lx.%lx@%.64s>",(long) getpid (),(long) time (0),
-	       tcp_serverhost ());
+      sprintf (challenge,"<%lx.%lx@%.64s>",(unsigned long) getpid (),
+	       (unsigned long) time (0),tcp_serverhost ());
     }
   }
   /* There are reports of POP3 clients which get upset if anything appears
@@ -148,14 +149,18 @@ int main (int argc,char *argv[])
   }
   CRLF;
   PFLUSH;			/* dump output buffer */
+  autologouttime = time (0) + LOGINTIMEOUT;
 				/* command processing loop */
   while ((state != UPDATE) && (state != LOGOUT)) {
     idletime = time (0);	/* get a command under timeout */
     alarm ((state == TRANSACTION) ? TIMEOUT : LOGINTIMEOUT);
-    while (!PSIN (tmp,TMPLEN)) {
-      if (errno==EINTR) errno=0;/* ignore if some interrupt */
+    clearerr (stdin);		/* clear stdin errors */
+    while (!PSIN (tmp,TMPLEN)){	/* read command line */
+				/* ignore if some interrupt */
+      if (ferror (stdin) && (errno == EINTR)) clearerr (stdin);
       else {
-	char *e = errno ? strerror (errno) : "Command stream end of file";
+	char *e = ferror (stdin) ?
+	  strerror (errno) : "Command stream end of file";
 	alarm (0);		/* disable all interrupts */
 	syslog (LOG_INFO,"%s while reading line user=%.80s host=%.80s",
 		e,user ? user : "???",tcp_clienthost ());
@@ -302,7 +307,7 @@ int main (int argc,char *argv[])
 	else if (!strcmp (s,"UIDL")) {
 	  if (t && *t) {	/* argument do single message */
 	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && (msg[i] > 0)) {
-	      sprintf (tmp,"+OK %ld %08lx%08lx\015\012",i,stream->uid_validity,
+	      sprintf (tmp,"+OK %lu %08lx%08lx\015\012",i,stream->uid_validity,
 		       mail_uid (stream,msg[i]));
 	      PSOUT (tmp);
 	    }
@@ -311,7 +316,7 @@ int main (int argc,char *argv[])
 	  else {		/* entire mailbox */
 	    PSOUT ("+OK Unique-ID listing follows\015\012");
 	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++) if (msg[i] > 0) {
-	      sprintf (tmp,"%ld %08lx%08lx\015\012",i,stream->uid_validity,
+	      sprintf (tmp,"%lu %08lx%08lx\015\012",i,stream->uid_validity,
 		       mail_uid (stream,msg[i]));
 	      PSOUT (tmp);
 	    }
@@ -379,7 +384,7 @@ int main (int argc,char *argv[])
 	  if (t && *t && (i =strtoul (t,&s,10)) && (i <= nmsgs) &&
 	      (msg[i] > 0)) {
 				/* skip whitespace */
-	    while (isspace (*s)) *s++;
+	    while (isspace (*s)) s++;
 	    if (isdigit (*s)) {	/* make sure line count argument good */
 	      MESSAGECACHE *elt = mail_elt (stream,msg[i]);
 	      j = strtoul (s,NIL,10);
@@ -417,6 +422,17 @@ int main (int argc,char *argv[])
       }
     }
     PFLUSH;			/* make sure output finished */
+    if (autologouttime) {	/* have an autologout in effect? */
+				/* cancel if no longer waiting for login */
+      if (state != AUTHORIZATION) autologouttime = 0;
+				/* took too long to login */
+      else if (autologouttime < time (0)) {
+	PSOUT ("-ERR Autologout\015\012");
+	syslog (LOG_INFO,"Autologout host=%.80s",tcp_clienthost ());
+	PFLUSH;			/* make sure output blatted */
+	state = LOGOUT;		/* sayonara */
+      }
+    }
   }
   if (stream && (state == UPDATE)) {
     mail_expunge (stream);
@@ -587,12 +603,14 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
   PFLUSH;			/* dump output buffer */
   resp[RESPBUFLEN-1] = '\0';	/* last buffer character is guaranteed NUL */
   alarm (LOGINTIMEOUT);		/* get a response under timeout */
-  errno = 0;			/* clear error */
+  clearerr (stdin);		/* clear stdin errors */
 				/* read buffer */
   while (!PSIN ((char *) resp,RESPBUFLEN)) {
-    if (errno==EINTR) errno = 0;/* ignore if some interrupt */
+				/* ignore if some interrupt */
+    if (ferror (stdin) && (errno == EINTR)) clearerr (stdin);
     else {
-      char *e = errno ? strerror (errno) : "command stream end of file";
+      char *e = ferror (stdin) ?
+	strerror (errno) : "Command stream end of file";
       alarm (0);		/* disable all interrupts */
       server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
       syslog (LOG_INFO,"%s, while reading authentication host=%.80s",
@@ -604,9 +622,11 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
   if (!(t = (unsigned char *) strchr ((char *) resp,'\012'))) {
     int c;
     while ((c = PBIN ()) != '\012') if (c == EOF) {
-      if (errno==EINTR) errno=0;/* ignore if some interrupt */
+				/* ignore if some interrupt */
+      if (ferror (stdin) && (errno == EINTR)) clearerr (stdin);
       else {
-	char *e = errno ? strerror (errno) : "command stream end of file";
+	char *e = ferror (stdin) ?
+	  strerror (errno) : "Command stream end of file";
 	alarm (0);		/* disable all interrupts */
 	server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	syslog (LOG_INFO,"%s, while reading auth char user=%.80s host=%.80s",
@@ -631,7 +651,7 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
 
 int mbxopen (char *mailbox)
 {
-  long i,j;
+  unsigned long i,j;
   char tmp[TMPLEN];
   MESSAGECACHE *elt;
   nmsgs = 0;			/* no messages yet */
@@ -825,7 +845,18 @@ void mm_notify (MAILSTREAM *stream,char *string,long errflg)
 
 void mm_log (char *string,long errflg)
 {
-  /* Not doing anything here for now */
+  switch (errflg) {
+  case NIL:			/* information message */
+  case PARSE:			/* parse glitch */
+    break;			/* too many of these to log */
+  case WARN:			/* warning */
+    syslog (LOG_DEBUG,"%s",string);
+    break;
+  case ERROR:			/* error that broke command */
+  default:			/* default should never happen */
+    syslog (LOG_NOTICE,"%s",string);
+    break;
+  }
 }
 
 

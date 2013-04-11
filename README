@@ -1,11 +1,11 @@
 		  IMAP4rev1/c-client Development Environment
-			       8 September 1998
+			         14 July 1999
 				 Mark Crispin
 
 
 			    UNIX QUICK BUILD NOTES
 
-1) Look in imap-4.4/Makefile and find your system type code, e.g. slx for
+1) Look in imap-4.6/Makefile and find your system type code, e.g. slx for
    glibc Linux and/or Linux with shadow password security.
 
 2) Type "make" followed by the system type, e.g. "make slx".
@@ -55,5 +55,5 @@ you a list of commands.
      Pine is available separately on the FTP.CAC.Washington.EDU archives.
 
      The focus of development and support is for UNIX and NT/Win32 (including
-Windows 95).  The other ports are not frequently used or tested, and may be
+Windows 95/98).  The other ports are not frequently used or tested, and may be
 incomplete.

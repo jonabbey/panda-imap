@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	29 January 1999
+ * Last Edited:	11 September 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -80,7 +80,7 @@ DRIVER nntpdriver = {
   NIL,				/* message number from UID */
   NIL,				/* modify flags */
   nntp_flagmsg,			/* per-message modify flags */
-  NIL,				/* search for message based on criteria */
+  nntp_search,			/* search for message based on criteria */
   nntp_sort,			/* sort messages */
   nntp_thread,			/* thread messages */
   nntp_ping,			/* ping mailbox to see if still alive */
@@ -391,7 +391,7 @@ long nntp_status (MAILSTREAM *stream,char *mbx,long flags)
     if (status.messages && (flags & (SA_RECENT | SA_UNSEEN))) {
       if (state = newsrc_state (stream,name)) {
 				/* in case have to do XHDR Date */
-	sprintf (tmp,"%ld-%ld",i,status.uidnext - 1);
+	sprintf (tmp,"%lu-%lu",i,status.uidnext - 1);
 				/* only bother if there appear to be holes */
 	if ((status.messages < (status.uidnext - i)) &&
 	    ((nntp_send (LOCAL->nntpstream,"LISTGROUP",name) == NNTPGOK)
@@ -467,21 +467,22 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   }
 				/* in case /debug switch given */
   if (mb.dbgflag) stream->debug = T;
+  mb.tryaltflag = stream->tryalt;
   if (!nstream) {		/* open NNTP now if not already open */
     char *hostlist[2];
     hostlist[0] = strcpy (tmp,mb.host);
     if (mb.port || nntp_port)
-      sprintf (tmp + strlen (tmp),":%ld",mb.port ? mb.port : nntp_port);
+      sprintf (tmp + strlen (tmp),":%lu",mb.port ? mb.port : nntp_port);
     if (mb.altflag) sprintf (tmp + strlen (tmp),"/%s",(char *)
 			     mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
-    if (mb.user) sprintf (tmp + strlen (tmp),"/user=%s",mb.user);
+    if (mb.user[0]) sprintf (tmp + strlen (tmp),"/user=\"%s\"",mb.user);
     hostlist[1] = NIL;
     nstream = nntp_open (hostlist,OP_READONLY+(stream->debug ? OP_DEBUG:NIL));
   }
   if (!nstream) return NIL;	/* didn't get an NNTP session */
 
 				/* always zero messages if halfopen */
-  if (stream->halfopen) nmsgs = 0;
+  if (stream->halfopen) i = j = k = nmsgs = 0;
 				/* otherwise open the newsgroup */
   else if (nntp_send (nstream,"GROUP",mbx) == NNTPGOK) {
     k = strtoul (nstream->reply + 4,&s,10);
@@ -495,13 +496,10 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     return NIL;
   }
 				/* newsgroup open, instantiate local data */
-  stream->local = fs_get (sizeof (NNTPLOCAL));
+  stream->local = memset (fs_get (sizeof (NNTPLOCAL)),0,sizeof (NNTPLOCAL));
   LOCAL->nntpstream = nstream;
-  LOCAL->dirty = NIL;		/* no update to .newsrc needed yet */
   LOCAL->name = cpystr (mbx);	/* copy newsgroup name */
-  LOCAL->user = mb.user[0] ? cpystr (mb.user) : NIL;
-  LOCAL->msgno = 0;		/* no current text */
-  LOCAL->txt = NIL;
+  if (mb.user[0]) LOCAL->user = cpystr (mb.user);
   stream->sequence++;		/* bump sequence number */
   stream->rdonly = stream->perm_deleted = T;
 				/* UIDs are always valid */
@@ -512,7 +510,7 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   if (mb.altflag) sprintf (tmp + strlen (tmp),"/%s",(char *)
 			   mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
   if (mb.secflag) strcat (tmp,"/secure");
-  if (LOCAL->user) sprintf (tmp + strlen (tmp),"/user=%s",LOCAL->user);
+  if (LOCAL->user) sprintf (tmp + strlen (tmp),"/user=\"%s\"",LOCAL->user);
   if (stream->halfopen) strcat (tmp,"}<no_mailbox>");
   else sprintf (tmp + strlen (tmp),"}#news.%s",mbx);
   fs_give ((void **) &stream->mailbox);
@@ -522,7 +520,7 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     short silent = stream->silent;
     stream->silent = T;		/* don't notify main program yet */
     mail_exists (stream,nmsgs);	/* silently set the cache to the guesstimate */
-    sprintf (tmp,"%ld-%ld",i,j);/* in case have to do XHDR Date */
+    sprintf (tmp,"%lu-%lu",i,j);/* in case have to do XHDR Date */
     if ((k < nmsgs) &&	/* only bother if there appear to be holes */
 	((nntp_send (nstream,"LISTGROUP",mbx) == NNTPGOK) ||
 	 (nntp_send (nstream,"XHDR Date",tmp) == NNTPHEAD))) {
@@ -560,6 +558,8 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
 
 void nntp_mclose (MAILSTREAM *stream,long options)
 {
+  unsigned long i;
+  MESSAGECACHE *elt;
   if (LOCAL) {			/* only if a file is open */
     nntp_check (stream);	/* dump final checkpoint */
     if (LOCAL->name) fs_give ((void **) &LOCAL->name);
@@ -568,6 +568,9 @@ void nntp_mclose (MAILSTREAM *stream,long options)
     if (LOCAL->txt) fclose (LOCAL->txt);
 				/* close NNTP connection */
     if (LOCAL->nntpstream) nntp_close (LOCAL->nntpstream);
+    for (i = 1; i <= stream->nmsgs; i++)
+      if ((elt = mail_elt (stream,i))->private.data)
+	fs_give ((void **) &elt->private.data);
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
     stream->dtb = NIL;		/* log out the DTB */
@@ -636,64 +639,133 @@ void nntp_flags (MAILSTREAM *stream,char *sequence,long flags)
 
 /* NNTP fetch overview
  * Accepts: MAIL stream
- *	    UID sequence
+ *	    UID sequence (may be NIL for nntp_search() call)
  *	    overview return function
  * Returns: T if successful, NIL otherwise
  */
 
 long nntp_overview (MAILSTREAM *stream,char *sequence,overview_t ofn)
 {
+  unsigned long i,j,k,uid;
   char c,*s,*t,*v,tmp[MAILTMPLEN];
-  unsigned long uid;
-  OVERVIEW ov,*ovr;
-  memset ((void *) &ov,0,sizeof (OVERVIEW));
-  if (ofn) while (*sequence) {
-    for (s = tmp; *sequence && ((c = *sequence++) != ',');)
-      *s++ = (c == ':') ? '-' : c;
-    *s++ = '\0';
-    if (!tmp[0] || (nntp_send (LOCAL->nntpstream,"XOVER",tmp) != NNTPOVER))
-      return NIL;
-    while ((s = net_getline (LOCAL->nntpstream->netstream)) && strcmp (s,".")){
+  MESSAGECACHE *elt;
+  OVERVIEW ov;
+				/* parse the sequence */
+  if (!sequence || mail_uid_sequence (stream,sequence)) {
+				/* scan sequence to load cache */
+    for (i = 1; i <= stream->nmsgs; i++)
+				/* have cached overview yet? */
+      if ((elt = mail_elt (stream,i))->sequence && !elt->private.data) {
+	for (j = i + 1;		/* no, find end of cache gap range */
+	     (j <= stream->nmsgs) && !mail_elt (stream,j)->private.data; j++);
+				/* make NNTP range */
+	sprintf (tmp,(i == (j - 1)) ? "%lu" : "%lu-%lu",mail_uid (stream,i),
+		 mail_uid (stream,j - 1));
+	i = j;			/* advance beyond gap */
+				/* ask server for overview data to cache */
+	if (nntp_send (LOCAL->nntpstream,"XOVER",tmp) == NNTPOVER) {
+	  while ((s = net_getline (LOCAL->nntpstream->netstream)) &&
+		 strcmp (s,".")) {
 				/* death to embedded newlines */
-      for (t = v = s; c = *v++;) if ((c != '\012') && (c != '\015')) *t++ = c;
-      *t++ = '\0';
-      ovr = NIL;		/* assume failure */
-				/* parse XOVER response */
-      if (mail_msgno (stream,uid = atol(s)) && (ov.subject = strchr(s,'\t'))) {
-	*ov.subject++ = '\0';
-	if (t = strchr (ov.subject,'\t')) {
-	  *t++ = '\0';
-	  if (ov.date = strchr (t,'\t')) {
-	    *ov.date++ = '\0';
-	    rfc822_parse_adrlist (&ov.from,t,BADHOST);
-	    if (ov.message_id = strchr (ov.date,'\t')) {
-	      *ov.message_id++ = '\0';
-	      if (ov.references = strchr (ov.message_id,'\t')) {
-		*ov.references++ = '\0';
-		if (t = strchr (ov.references,'\t')) {
-		  *t++ = '\0';
-		  ovr = &ov;	/* can return this overview */
-		  ov.optional.octets = atol (t);
-		  if (t = strchr (t,'\t')) {
-		    *t++ = '\0';
-		    ov.optional.lines = atol (t);
-		    if (ov.optional.xref = strchr (t,'\t')) {
-		      *ov.optional.xref++ = '\0';
-		    }
-		  }
-		}
-	      }
+	    for (t = v = s; c = *v++;)
+	      if ((c != '\012') && (c != '\015')) *t++ = c;
+	    *t++ = '\0';	/* tie off string in case it was shortened */
+				/* cache the overview if found its sequence */
+	    if ((uid = atol (s)) && (k = mail_msgno (stream,uid)) &&
+		(t = strchr (s,'\t'))) {
+	      if ((elt = mail_elt (stream,k))->private.data)
+		fs_give ((void **) &elt->private.data);
+	      elt->private.data = (unsigned long) cpystr (t + 1);
+	    }
+	    else {		/* shouldn't happen, snarl if it does */
+	      sprintf (tmp,"Server returned data for unknown UID %lu",uid);
+	      mm_log (tmp,WARN);
+	    }
+				/* flush the overview */
+	    fs_give ((void **) &s);
+	  }
+				/* flush the terminating dot */
+	  if (s) fs_give ((void **) &s);
+	}
+	else i = stream->nmsgs;	/* XOVER failed, punt cache load */
+      }
+
+				/* now scan sequence to return overviews */
+    if (ofn) for (i = 1; i <= stream->nmsgs; i++)
+      if ((elt = mail_elt (stream,i))->sequence) {
+				/* UID for this message */
+	uid = mail_uid (stream,i);
+				/* parse cached overview */
+	if (nntp_parse_overview (&ov,s = (char *) elt->private.data))
+	  (*ofn) (stream,uid,&ov);
+	else {			/* parse failed */
+	  (*ofn) (stream,uid,NIL);
+	  if (s && *s) {	/* unusable cached entry? */
+	    sprintf (tmp,"Unable to parse overview for UID %lu: %.500s",uid,s);
+	    mm_log (tmp,WARN);
+				/* erase it from the cache */
+	    fs_give ((void **) &s);
+	  }
+				/* insert empty cached text as necessary */
+	  if (!s) elt->private.data = (unsigned long) cpystr ("");
+	}
+				/* clean up overview data */
+	if (ov.from) mail_free_address (&ov.from);
+	if (ov.subject) fs_give ((void **) &ov.subject);
+      }
+  }
+  return T;
+}
+
+/* Parse OVERVIEW struct from cached NNTP XOVER response
+ * Accepts: struct to load
+ *	    cached XOVER response
+ * Returns: T if success, NIL if fail
+ */
+
+long nntp_parse_overview (OVERVIEW *ov,char *text)
+{
+  char *t;
+				/* nothing in overview yet */
+  memset ((void *) ov,0,sizeof (OVERVIEW));
+				/* no cached data */
+  if (!(text && *text)) return NIL;
+  ov->subject = cpystr (text);	/* make hackable copy of overview */
+				/* find end of Subject */
+  if (t = strchr (ov->subject,'\t')) {
+    *t++ = '\0';		/* tie off Subject, point to From */
+				/* find end of From */
+    if (ov->date = strchr (t,'\t')) {
+      *ov->date++ = '\0';	/* tie off From, point to Date */
+				/* parse From */
+      rfc822_parse_adrlist (&ov->from,t,BADHOST);
+				/* find end of Date */
+      if (ov->message_id = strchr (ov->date,'\t')) {
+				/* tie off Date, point to Message-ID */
+	*ov->message_id++ = '\0';
+				/* find end of Message-ID */
+	if (ov->references = strchr (ov->message_id,'\t')) {
+				/* tie off Message-ID, point to References */
+	  *ov->references++ = '\0';
+				/* fine end of References */
+	  if (t = strchr (ov->references,'\t')) {
+	    *t++ = '\0';	/* tie off References, point to octet size */
+				/* parse size of message in octets */
+	    ov->optional.octets = atol (t);
+				/* find end of size */
+	    if (t = strchr (t,'\t')) {
+				/* parse size of message in lines */
+	      ov->optional.lines = atol (++t);
+				/* find Xref */
+	      if (ov->optional.xref = strchr (t,'\t'))
+		*ov->optional.xref++ = '\0';
 	    }
 	  }
 	}
       }
-      (*ofn) (stream,uid,ovr);	/* pass the overview up to the client */
-      mail_free_address (&ov.from);
-      fs_give ((void **) &s);
     }
-    if (s) fs_give ((void **) &s);
   }
-  return T;
+  return ov->references ? T : NIL;
 }
 
 /* NNTP fetch header as text
@@ -709,24 +781,32 @@ char *nntp_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
 {
   char tmp[MAILTMPLEN];
   MESSAGECACHE *elt;
-  *size = 0;
+  FILE *f;
   if ((flags & FT_UID) && !(msgno = mail_msgno (stream,msgno))) return "";
 				/* have header text? */
   if (!(elt = mail_elt (stream,msgno))->private.msg.header.text.data) {
-    sprintf (tmp,"%ld",mail_uid (stream,msgno));
+    sprintf (tmp,"%lu",mail_uid (stream,msgno));
 				/* get header text */
-    if (nntp_send (LOCAL->nntpstream,"HEAD",tmp) == NNTPHEAD)
-      elt->private.msg.header.text.data = (unsigned char *)
-	netmsg_slurp_text (LOCAL->nntpstream->netstream,
-			   &elt->private.msg.header.text.size);
-    else {			/* failed */
-      elt->deleted = T;		/* mark as deleted */
-      elt->private.msg.header.text.size = 0;
+    if ((nntp_send (LOCAL->nntpstream,"HEAD",tmp) == NNTPHEAD) &&
+	(f = netmsg_slurp (LOCAL->nntpstream->netstream,size,NIL))) {
+      fread (elt->private.msg.header.text.data =
+	     (unsigned char *) fs_get ((size_t) *size + 3),
+	     (size_t) 1,(size_t) *size,f);
+      fclose (f);		/* flush temp file */
+				/* tie off header with extra CRLF and NUL */
+      elt->private.msg.header.text.data[*size] = '\015';
+      elt->private.msg.header.text.data[++*size] = '\012';
+      elt->private.msg.header.text.data[++*size] = '\0';
+      elt->private.msg.header.text.size = *size;
+      elt->valid = T;		/* make elt valid now */
+    }
+    else {			/* failed, mark as deleted and empty */
+      elt->valid = elt->deleted = T;
+      *size = elt->private.msg.header.text.size = 0;
     }
   }
-  elt->valid = T;		/* make elt valid now */
-				/* return size of text */
-  *size = elt->private.msg.header.text.size;
+				/* just return size of text */
+  else *size = elt->private.msg.header.text.size;
   return elt->private.msg.header.text.data ?
     (char *) elt->private.msg.header.text.data : "";
 }
@@ -753,7 +833,7 @@ long nntp_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
   }
   LOCAL->msgno = msgno;		/* note cached message */
   if (!LOCAL->txt) {		/* have file for this message? */
-    sprintf (tmp,"%ld",elt->private.uid);
+    sprintf (tmp,"%lu",elt->private.uid);
     if (nntp_send (LOCAL->nntpstream,"BODY",tmp) != NNTPBODY)
       elt->deleted = T;		/* failed mark as deleted */
     else LOCAL->txt = netmsg_slurp (LOCAL->nntpstream->netstream,
@@ -785,6 +865,220 @@ void nntp_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt)
   }
 }
 
+/* NNTP search messages
+ * Accepts: mail stream
+ *	    character set
+ *	    search program
+ *	    option flags
+ */
+
+void nntp_search (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,long flags)
+{
+  unsigned long i;
+  MESSAGECACHE *elt;
+  OVERVIEW ov;
+  if (charset && *charset &&	/* convert if charset not US-ASCII or UTF-8 */
+      !(((charset[0] == 'U') || (charset[0] == 'u')) &&
+	((((charset[1] == 'S') || (charset[1] == 's')) &&
+	  (charset[2] == '-') &&
+	  ((charset[3] == 'A') || (charset[3] == 'a')) &&
+	  ((charset[4] == 'S') || (charset[4] == 's')) &&
+	  ((charset[5] == 'C') || (charset[5] == 'c')) &&
+	  ((charset[6] == 'I') || (charset[6] == 'i')) &&
+	  ((charset[7] == 'I') || (charset[7] == 'i')) && !charset[8]) ||
+	 (((charset[1] == 'T') || (charset[1] == 't')) &&
+	  ((charset[2] == 'F') || (charset[2] == 'f')) &&
+	  (charset[3] == '-') && (charset[4] == '8') && !charset[5])))) {
+    if (utf8_text (NIL,charset,NIL,T)) utf8_searchpgm (pgm,charset);
+    else return;		/* charset unknown */
+  }
+  if (flags & SO_OVERVIEW) {	/* only if specified to use overview */
+				/* identify messages that will be searched */
+    for (i = 1; i <= stream->nmsgs; ++i)
+      mail_elt (stream,i)->sequence = nntp_search_msg (stream,i,pgm,NIL);
+				/* load the overview cache */
+    nntp_overview (stream,NIL,NIL);
+  }
+				/* init in case no overview at cleanup */
+  memset ((void *) &ov,0,sizeof (OVERVIEW));
+				/* otherwise do default search */
+  for (i = 1; i <= stream->nmsgs; ++i) {
+    if (((flags & SO_OVERVIEW) && ((elt = mail_elt (stream,i))->sequence) &&
+	 nntp_parse_overview (&ov,(char *) elt->private.data)) ?
+	nntp_search_msg (stream,i,pgm,&ov) :
+	mail_search_msg (stream,i,NIL,pgm)) {
+      if (flags & SE_UID) mm_searched (stream,mail_uid (stream,i));
+      else {			/* mark as searched, notify mail program */
+	mail_elt (stream,i)->searched = T;
+	if (!stream->silent) mm_searched (stream,i);
+      }
+    }
+				/* clean up overview data */
+    if (ov.from) mail_free_address (&ov.from);
+    if (ov.subject) fs_give ((void **) &ov.subject);
+  }
+}
+
+/* NNTP search message
+ * Accepts: MAIL stream
+ *	    message number
+ *	    search program
+ *	    overview to search (NIL means preliminary pass)
+ * Returns: T if found, NIL otherwise
+ */
+
+long nntp_search_msg (MAILSTREAM *stream,unsigned long msgno,SEARCHPGM *pgm,
+		      OVERVIEW *ov)
+{
+  unsigned short d;
+  MESSAGECACHE *elt = mail_elt (stream,msgno);
+  SEARCHHEADER *hdr;
+  SEARCHOR *or;
+  SEARCHPGMLIST *not;
+  if (pgm->msgno || pgm->uid) {	/* message set searches */
+    SEARCHSET *set;
+				/* message sequences */
+    if (set = pgm->msgno) {	/* must be inside this sequence */
+      while (set) {		/* run down until find matching range */
+	if (set->last ? ((msgno < set->first) || (msgno > set->last)) :
+	    msgno != set->first) set = set->next;
+	else break;
+      }
+      if (!set) return NIL;	/* not found within sequence */
+    }
+    if (set = pgm->uid) {	/* must be inside this sequence */
+      unsigned long uid = mail_uid (stream,msgno);
+      while (set) {		/* run down until find matching range */
+	if (set->last ? ((uid < set->first) || (uid > set->last)) :
+	    uid != set->first) set = set->next;
+	else break;
+      }
+      if (!set) return NIL;	/* not found within sequence */
+    }
+  }
+
+  /* Fast data searches */
+				/* message flags */
+  if ((pgm->answered && !elt->answered) ||
+      (pgm->unanswered && elt->answered) ||
+      (pgm->deleted && !elt->deleted) ||
+      (pgm->undeleted && elt->deleted) ||
+      (pgm->draft && !elt->draft) ||
+      (pgm->undraft && elt->draft) ||
+      (pgm->flagged && !elt->flagged) ||
+      (pgm->unflagged && elt->flagged) ||
+      (pgm->recent && !elt->recent) ||
+      (pgm->old && elt->recent) ||
+      (pgm->seen && !elt->seen) ||
+      (pgm->unseen && elt->seen)) return NIL;
+				/* keywords */
+  if ((pgm->keyword && !mail_search_keyword (stream,elt,pgm->keyword)) ||
+      (pgm->unkeyword && mail_search_keyword (stream,elt,pgm->unkeyword)))
+    return NIL;
+  if (ov) {			/* only do this if real searching */
+    MESSAGECACHE delt;
+				/* size ranges */
+    if ((pgm->larger && (ov->optional.octets <= pgm->larger)) ||
+	(pgm->smaller && (ov->optional.octets >= pgm->smaller))) return NIL;
+				/* date ranges */
+    if ((pgm->sentbefore || pgm->senton || pgm->sentsince ||
+	 (pgm->before || pgm->on || pgm->since)) &&
+	(!mail_parse_date (&delt,ov->date) ||
+	 !(d = (delt.year << 9) + (delt.month << 5) + delt.day) ||
+	 (pgm->sentbefore && (d >= pgm->sentbefore)) ||
+	 (pgm->senton && (d != pgm->senton)) ||
+	 (pgm->sentsince && (d < pgm->sentsince)) ||
+	 (pgm->before && (d >= pgm->before)) ||
+	 (pgm->on && (d != pgm->on)) ||
+	 (pgm->since && (d < pgm->since)))) return NIL;
+    if ((pgm->from && !mail_search_addr (ov->from,pgm->from)) ||
+	(pgm->subject && !mail_search_header_text (ov->subject,pgm->subject))||
+	(pgm->message_id &&
+	 !mail_search_header_text (ov->message_id,pgm->message_id)) ||
+	(pgm->references &&
+	 !mail_search_header_text (ov->references,pgm->references)))
+      return NIL;
+
+
+				/* envelope searches */
+    if (pgm->bcc || pgm->cc || pgm->to || pgm->return_path || pgm->sender ||
+	pgm->reply_to || pgm->in_reply_to || pgm->newsgroups ||
+	pgm->followup_to) {
+      ENVELOPE *env = mail_fetchenvelope (stream,msgno);
+      if (!env) return NIL;	/* no envelope obtained */
+				/* search headers */
+      if ((pgm->bcc && !mail_search_addr (env->bcc,pgm->bcc)) ||
+	  (pgm->cc && !mail_search_addr (env->cc,pgm->cc)) ||
+	  (pgm->to && !mail_search_addr (env->to,pgm->to)))
+	return NIL;
+      /* These criteria are not supported by IMAP and have to be emulated */
+      if ((pgm->return_path &&
+	   !mail_search_addr (env->return_path,pgm->return_path)) ||
+	  (pgm->sender && !mail_search_addr (env->sender,pgm->sender)) ||
+	  (pgm->reply_to && !mail_search_addr (env->reply_to,pgm->reply_to)) ||
+	  (pgm->in_reply_to &&
+	   !mail_search_header_text (env->in_reply_to,pgm->in_reply_to)) ||
+	  (pgm->newsgroups &&
+	   !mail_search_header_text (env->newsgroups,pgm->newsgroups)) ||
+	  (pgm->followup_to &&
+	   !mail_search_header_text (env->followup_to,pgm->followup_to)))
+	return NIL;
+    }
+
+				/* search header lines */
+    for (hdr = pgm->header; hdr; hdr = hdr->next) {
+      char *t,*e,*v;
+      SIZEDTEXT s;
+      STRINGLIST sth,stc;
+      sth.next = stc.next = NIL;/* only one at a time */
+      sth.text.data = hdr->line.data;
+      sth.text.size = hdr->line.size;
+				/* get the header text */
+      if ((t = mail_fetch_header (stream,msgno,NIL,&sth,&s.size,
+				  FT_INTERNAL | FT_PEEK)) && strchr (t,':')) {
+	if (hdr->text.size) {	/* anything matches empty search string */
+				/* non-empty, copy field data */
+	  s.data = (unsigned char *) fs_get (s.size + 1);
+				/* for each line */
+	  for (v = (char *) s.data, e = t + s.size; t < e;) switch (*t) {
+	  default:		/* non-continuation, skip leading field name */
+	    while ((t < e) && (*t++ != ':'));
+	    if ((t < e) && (*t == ':')) t++;
+	  case '\t': case ' ':	/* copy field data  */
+	    while ((t < e) && (*t != '\015') && (*t != '\012')) *v++ = *t++;
+	    *v++ = '\n';	/* tie off line */
+	    while (((*t == '\015') || (*t == '\012')) && (t < e)) t++;
+	  }
+				/* calculate true size */
+	  s.size = v - (char *) s.data;
+	  *v = '\0';		/* tie off results */
+	  stc.text.data = hdr->text.data;
+	  stc.text.size = hdr->text.size;
+				/* search header */
+	  if (mail_search_header (&s,&stc)) fs_give ((void **) &s.data);
+	  else {		/* search failed */
+	    fs_give ((void **) &s.data);
+	    return NIL;
+	  }
+	}
+      }
+      else return NIL;		/* no matching header text */
+    }
+				/* search strings */
+    if ((pgm->text &&
+	 !mail_search_text (stream,msgno,NIL,pgm->text,LONGT))||
+	(pgm->body && !mail_search_text (stream,msgno,NIL,pgm->body,NIL)))
+      return NIL;
+  }
+				/* logical conditions */
+  for (or = pgm->or; or; or = or->next)
+    if (!(nntp_search_msg (stream,msgno,or->first,ov) ||
+	  nntp_search_msg (stream,msgno,or->second,ov))) return NIL;
+  for (not = pgm->not; not; not = not->next)
+    if (nntp_search_msg (stream,msgno,not->pgm,ov)) return NIL;
+  return T;
+}
+
 /* NNTP sort messages
  * Accepts: mail stream
  *	    character set
@@ -801,6 +1095,7 @@ unsigned long *nntp_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
   SORTCACHE **sc;
   mailcache_t mailcache = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
   unsigned long *ret = NIL;
+  sortresults_t sr = (sortresults_t) mail_parameters (NIL,GET_SORTRESULTS,NIL);
   if (spg) {			/* only if a search needs to be done */
     int silent = stream->silent;
     stream->silent = T;		/* don't pass up mm_searched() events */
@@ -828,6 +1123,11 @@ unsigned long *nntp_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
     if (!pgm->abort) ret = mail_sort_cache (stream,pgm,sc,flags);
     fs_give ((void **) &sc);	/* don't need sort vector any more */
   }
+				/* empty sort results */
+  else ret = (unsigned long *) memset (fs_get (sizeof (unsigned long)),0,
+				       sizeof (unsigned long));
+				/* also return via callback if requested */
+  if (sr) (*sr) (stream,ret,pgm->nmsgs);
   return ret;
 }
 
@@ -840,14 +1140,14 @@ unsigned long *nntp_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
  * Returns: vector of sortcache pointers matching search
  */
 
-SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,long start,
-				 long last,long flags)
+SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,
+				 unsigned long start,unsigned long last,
+				 long flags)
 {
   unsigned long i;
   char c,*s,*t,*v,tmp[MAILTMPLEN];
   SORTPGM *pg;
   SORTCACHE **sc,*r;
-  SIZEDTEXT src,dst;
   MESSAGECACHE telt;
   ADDRESS *adr = NIL;
   mailcache_t mailcache = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
@@ -885,33 +1185,12 @@ SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,long start,
       if ((i = mail_msgno (stream,atol (s))) &&
 	  (t = strchr (s,'\t')) && (v = strchr (++t,'\t'))) {
 	*v++ = '\0';		/* tie off subject */
-	r = (SORTCACHE *) (*mailcache) (stream,i,CH_SORTCACHE);
-	while (*t) {		/* flush leading "re:" and whitespace */
-	  while ((*t == ' ') || (*t == '\t')) t++;
-	  if (((*t == 'R') || (*t == 'r')) &&
-	      ((t[1] == 'E') || (t[1] == 'e')) && (t[2] == ':')) t += 3;
-	  else break;
-	}
-				/* have a subject? */
-	if (src.size = strlen ((char *) (src.data = (unsigned char *) t))) {
-				/* make copy, convert MIME2 if needed */
-	  if (utf8_mime2text (&src,&dst) && (src.data != dst.data))
-	    t = (r->subject = (char *) dst.data) + dst.size;
-	  else t = (r->subject = cpystr ((char *) src.data)) + src.size;
-				/* flush trailing "(fwd) and whitespace */
-	  while (t > r->subject) {
-	    while ((t[-1] == ' ') || (t[-1] == '\t')) t--;
-	    if ((t >= (r->subject + 5)) && (t[-5] == '(') &&
-		((t[-4] == 'F') || (t[-4] == 'f')) &&
-		((t[-3] == 'W') || (t[-3] == 'w')) &&
-		((t[-2] == 'D') || (t[-2] == 'd')) && (t[-1] == ')')) t -= 5;
-	    else break;
-	  }
-	  *t = '\0';		/* tie off subject string */
-	}
+				/* put stripped subject in sortcache */
+	(r = (SORTCACHE *) (*mailcache) (stream,i,CH_SORTCACHE))->subject =
+	  mail_strip_subject (t);
 	if (t = strchr (v,'\t')) {
 	  *t++ = '\0';		/* tie off from */
-	  if (adr = rfc822_parse_address (&adr,adr,&v,BADHOST)) {
+	  if (adr = rfc822_parse_address (&adr,adr,&v,BADHOST,0)) {
 	    r->from = adr->mailbox;
 	    adr->mailbox = NIL;
 	    mail_free_address (&adr);
@@ -1046,7 +1325,7 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
   SENDSTREAM *stream = NIL;
   NETSTREAM *netstream;
   NETMBX mb;
-  char *s,tmp[MAILTMPLEN];
+  char tmp[MAILTMPLEN];
   long reply;
   if (!(hostlist && *hostlist)) mm_log ("Missing NNTP service host",ERROR);
   else do {			/* try to open connection */
@@ -1055,16 +1334,14 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
       sprintf (tmp,"Invalid host specifier: %.80s",*hostlist);
       mm_log (tmp,ERROR);
     }
-    else {			/* did user supply port or service? */
-      if (mb.port || nntp_port)
-	sprintf (s = tmp,"%.1000s:%ld",mb.host,mb.port ? mb.port : nntp_port);
-      else s = mb.host;		/* simple host name */
-				/* try to open ordinary connection */
-      if (netstream = mb.altflag ?
-	  net_open ((NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),s,
+    else {
+				/* light tryalt flag if requested */
+      mb.tryaltflag = (options & OP_TRYALT) ? T : NIL;
+      if (netstream =		/* try to open ordinary connection */
+	  net_open (&mb,dv,nntp_port ? nntp_port : port,
+		    (NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),
 		    (char *) mail_parameters (NIL,GET_ALTNNTPNAME,NIL),
-		    (unsigned long) mail_parameters(NIL,GET_ALTNNTPPORT,NIL)):
-	  net_open (dv,s,mb.service,port)) {
+		    (unsigned long)mail_parameters(NIL,GET_ALTNNTPPORT,NIL))) {
 	stream = (SENDSTREAM *) fs_get (sizeof (SENDSTREAM));
 				/* initialize stream */
 	memset ((void *) stream,0,sizeof (SENDSTREAM));

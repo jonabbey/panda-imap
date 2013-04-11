@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	1 December 1998
+ * Last Edited:	1 July 1999
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -139,20 +139,19 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
       sprintf (tmp,"Invalid host specifier: %.80s",*hostlist);
       mm_log (tmp,ERROR);
     }
-    else {			/* did user supply port or service? */
-      if (mb.port || smtp_port)
-	sprintf (s = tmp,"%.1000s:%ld",mb.host,mb.port ? mb.port : smtp_port);
-      else s = mb.host;		/* simple host name */
-				/* try to open ordinary connection */
-      if (netstream = mb.altflag ?
-	  net_open ((NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),s,
+    else {
+				/* light tryalt flag if requested */
+      mb.tryaltflag = (options & SOP_TRYALT) ? T : NIL;
+      if (netstream =		/* try to open ordinary connection */
+	  net_open (&mb,dv,smtp_port ? smtp_port : port,
+		    (NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),
 		    (char *) mail_parameters (NIL,GET_ALTSMTPNAME,NIL),
-		    (unsigned long) mail_parameters(NIL,GET_ALTSMTPPORT,NIL)):
-	  net_open (dv,s,mb.service,port)) {
+		    (unsigned long)mail_parameters(NIL,GET_ALTSMTPPORT,NIL))) {
 	stream = (SENDSTREAM *) memset (fs_get (sizeof (SENDSTREAM)),0,
 					sizeof (SENDSTREAM));
 	stream->netstream = netstream;
-	if (options & SOP_DEBUG) stream->debug = T;
+	stream->debug = (mb.dbgflag || (options & OP_DEBUG)) ? T : NIL;
+	if (options & SOP_SECURE) mb.secflag = T;
 	if (options &(SOP_DSN | SOP_DSN_NOTIFY_FAILURE | SOP_DSN_NOTIFY_DELAY |
 		      SOP_DSN_NOTIFY_SUCCESS | SOP_DSN_RETURN_FULL)) {
 	  ESMTP.dsn.want = T;

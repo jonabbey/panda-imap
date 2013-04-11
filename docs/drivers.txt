@@ -1,7 +1,36 @@
 		   c-client Driver Characteristics
 			     Mark Crispin
-			      6 May 1998
+			     5 June 1999
 
+
+     Drivers are code modules that support different mailbox storage
+technologies.  A mailbox storage technology may be implemented by
+ 1) files and directories on the local system
+ 2) a database
+ 3) a network protocol.
+
+     In the case of files and directories on the local system, a
+driver supports a particular mailbox format.  Mailbox formats are
+discussed in more detail in the file formats.txt.
+
+     As of the date this document was written, there was no bundled
+support for any databases in c-client.  However, it should not be
+particularly difficult to write a driver that communicates with a
+database.
+
+     Network protocols supported by c-client drivers are the Internet
+Mail Access Protocol (all versions: IMAP4rev1, IMAP4, IMAP2bis, and
+IMAP2); the Post Office Protocol (version 3); and the Network News
+Transport Protocol (NNTP).  In addition, c-client also supports NNTP
+and the Simple Mail Transport Protocol (SMTP) for mailbox transport.
+
+     By default, all drivers are enabled.  There is little benefit to
+be gained by disabling a driver, with one exception.  The mbox driver
+implements the behavior of automatically moving new mail from the
+spool directory to the "mbox" file on the user's home directory, if
+and *only* if the "mbox" exists and is in mailbox format.  The mbox
+driver is listed under EXTRADRIVERS; if you wish to disable it just
+remove it from that list and rebuild.
 
 I. Special name "INBOX"
 

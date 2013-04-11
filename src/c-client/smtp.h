@@ -66,7 +66,9 @@
 #define SOP_DSN_NOTIFY_SUCCESS (long) 16
 				/* DSN return full msg vs. header */
 #define SOP_DSN_RETURN_FULL (long) 32
-#define SOP_8BITMIME 64		/* 8-bit MIME requested */
+#define SOP_8BITMIME (long) 64	/* 8-bit MIME requested */
+#define SOP_SECURE (long) 256	/* don't do non-secure authentication */
+#define SOP_TRYALT (long) 512	/* try alternative first */
 
 
 /* Convenient access to protocol-specific data */

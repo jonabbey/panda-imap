@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 November 1998
+ * Last Edited:	10 June 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -259,7 +259,7 @@ char *dos_default_gets (readfn_t f,void *stream,unsigned long size,
   if (!dos_gets_buf)		/* one-time initialization */
     dos_gets_buf = (char *) fs_get ((size_t) dos_max + 1);
   ret = (md->flags & MG_COPY) ?
-    ((char *) fs_get ((size_t) size + 1) : dos_gets_buf;
+    ((char *) fs_get ((size_t) size + 1)) : dos_gets_buf;
   if (size > dos_max) {
     sprintf (tmp,"Mailbox %s, %s %lu[%.80s], %lu octets truncated to %ld",
 	     md->stream->mailbox,(md->flags & MG_UID) ? "UID" : "#",

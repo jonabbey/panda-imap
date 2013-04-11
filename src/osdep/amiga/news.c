@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	4 December 1998
+ * Last Edited:	30 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -102,7 +102,6 @@ DRIVER *news_valid (char *name)
 {
   int fd;
   char *s,*t,*u;
-  char tmp[MAILTMPLEN];
   struct stat sbuf;
   if ((name[0] == '#') && (name[1] == 'n') && (name[2] == 'e') &&
       (name[3] == 'w') && (name[4] == 's') && (name[5] == '.') &&
@@ -164,7 +163,7 @@ void news_list (MAILSTREAM *stream,char *ref,char *pat)
 {
   int fd;
   int i;
-  char *s,*t,*u,*lcl,pattern[MAILTMPLEN],name[MAILTMPLEN];
+  char *s,*t,*u,pattern[MAILTMPLEN],name[MAILTMPLEN];
   struct stat sbuf;
   if (!pat || !*pat) {		/* empty pattern? */
     if (news_canonicalize (ref,"*",pattern)) {
@@ -182,13 +181,12 @@ void news_list (MAILSTREAM *stream,char *ref,char *pat)
     read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
     close (fd);			/* close file */
     s[sbuf.st_size] = '\0';	/* tie off string */
-				/* point after prefix */
-    lcl = strcpy (name,"#news.") + 6;
+    strcpy (name,"#news.");	/* write initial prefix */
     i = strlen (pattern);	/* length of pattern */
     if (pattern[--i] != '%') i = 0;
     if (t = strtok (s,"\n")) do if (u = strchr (t,' ')) {
       *u = '\0';		/* tie off at end of name */
-      strcpy (lcl,t);		/* make full form of name */
+      strcpy (name + 6,t);	/* make full form of name */
       if (pmatch_full (name,pattern,'.')) mm_list (stream,'.',name,NIL);
       else if (i && (u = strchr (name + i,'.'))) {
 	*u = '\0';		/* tie off at delimiter, see if matches */
@@ -333,8 +331,8 @@ long news_status (MAILSTREAM *stream,char *mbx,long flags)
 
 MAILSTREAM *news_open (MAILSTREAM *stream)
 {
-  long i,nmsgs,j,k;
-  char c = NIL,*s,*t,tmp[MAILTMPLEN];
+  long i,nmsgs;
+  char *s,tmp[MAILTMPLEN];
   struct direct **names;
   				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &newsproto;
@@ -357,7 +355,9 @@ MAILSTREAM *news_open (MAILSTREAM *stream)
 	atoi (names[i]->d_name);
       fs_give ((void **) &names[i]);
     }
-    fs_give ((void **) &names);	/* free directory */
+    s = (void *) &names;	/* stupid language */
+    fs_give ((void **) &s);	/* free directory */
+    LOCAL->cachedtexts = 0;	/* no cached texts */
     stream->sequence++;		/* bump sequence number */
     stream->rdonly = stream->perm_deleted = T;
 				/* UIDs are always valid */
@@ -474,6 +474,11 @@ char *news_header (MAILSTREAM *stream,unsigned long msgno,
 				/* get elt */
   (elt = mail_elt (stream,msgno))->valid = T;
   if (!elt->private.msg.header.text.data) {
+				/* purge cache if too big */
+    if (LOCAL->cachedtexts > max (stream->nmsgs * 4096,2097152)) {
+      mail_gc (stream,GC_TEXTS);/* just can't keep that much */
+      LOCAL->cachedtexts = 0;
+    }
 				/* build message file name */
     sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
     if ((fd = open (LOCAL->buf,O_RDONLY,NIL)) < 0) return "";
@@ -506,6 +511,8 @@ char *news_header (MAILSTREAM *stream,unsigned long msgno,
 	 (elt->private.msg.text.text.size =
 	  strcrlfcpy ((char **) &elt->private.msg.text.text.data,&i,t,
 		      sbuf.st_size - hdrsize));
+				/* add to cached size */
+    LOCAL->cachedtexts += elt->rfc822_size;
   }
   *length = elt->private.msg.header.text.size;
   return (char *) elt->private.msg.header.text.data;

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	2 December 1997
+ * Last Edited:	19 February 1999
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -49,7 +49,6 @@ extern int errno;		/* just in case */
 #include <pwd.h>
 #include "misc.h"
 
-char *crypt (char *key,char *salt);
 
 #include "fs_unix.c"
 #include "ftl_unix.c"

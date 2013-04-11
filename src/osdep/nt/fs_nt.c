@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 June 1995
+ * Last Edited:	7 May 1999
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,7 +41,7 @@
 void *fs_get (size_t size)
 {
   void *block = malloc (size ? size : (size_t) 1);
-  if (!block) fatal ("Out of free storage");
+  if (!block) fatal ("Out of memory");
   return (block);
 }
 
@@ -54,7 +54,7 @@ void *fs_get (size_t size)
 void fs_resize (void **block,size_t size)
 {
   if (!(*block = realloc (*block,size ? size : (size_t) 1)))
-    fatal ("Can't resize free storage");
+    fatal ("Can't resize memory");
 }
 
 

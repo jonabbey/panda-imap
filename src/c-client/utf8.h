@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	26 June 1998
+ * Last Edited:	15 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -178,14 +178,16 @@
 #define I2CS_TIS620 (I2CS_96 | 0x54)
 				/* Latin-6 (Northern Europe) */
 #define I2CS_ISO8859_10 (I2CS_96 | 0x56)
-				/* Baltic */
+				/* Latin-7 (Baltic) */
 #define I2CS_ISO8859_13 (I2CS_96 | 0x59)
 				/* Vietnamese */
 #define I2CS_VSCII (I2CS_96 | 0x5a)
+				/* Latin-8 (Celtic) */
+#define I2CS_ISO8859_14 (I2CS_96 | 0x5c)
 				/* Euro (6/2 may be incorrect) */
 #define I2CS_ISO8859_15 (I2CS_96 | 0x62)
 
-/* Miscellaneous definitions */
+/* Miscellaneous ISO 2022 definitions */
 
 #define EUC_CS2 0x8e		/* single shift CS2 */
 #define EUC_CS3 0x8f		/* single shift CS3 */
@@ -207,16 +209,53 @@
 #define MIN_KANA_8 (MIN_KANA_7 | BIT8)
 #define MAX_KANA_8 (MAX_KANA_7 | BIT8)
 #define KANA_8 (UCS2_KATAKANA - MIN_KANA_8)
+
+/* Charset scripts */
 
+/*  The term "script" is used here in a very loose sense, enough to make
+ * purists cringe.  Basically, the idea is to give the main program some
+ * idea of how it should treat the characters of text in a charset with
+ * respect to font, drawing routines, etc.
+ *
+ *  In some cases, "script" is associated with a charset; in other cases,
+ * it's more closely tied to a language.
+ */
 
+#define SC_UNICODE 0x1		/* UNICODE */
+	/* ISO 8859 scripts */
+#define SC_LATIN_1 0x10		/* Western Europe */
+#define SC_LATIN_2 0x20		/* Eastern Europe */
+#define SC_LATIN_3 0x40		/* Southern Europe */
+#define SC_LATIN_4 0x80		/* Northern Europe */
+#define SC_LATIN_5 0x100	/* Turkish */
+#define SC_LATIN_6 0x200	/* Nordic */
+#define SC_LATIN_7 0x400	/* Baltic */
+#define SC_LATIN_8 0x800	/* Celtic */
+#define SC_LATIN_9 0x1000	/* Euro */
+#define SC_LATIN_0 SC_LATIN_9	/* colloquial name for Latin-9 */
+#define SC_ARABIC 0x2000
+#define SC_CYRILLIC 0x4000
+#define SC_GREEK 0x8000
+#define SC_HEBREW 0x10000
+#define SC_THAI 0x20000
+#define SC_UKRANIAN 0x40000
+	/* East Asian scripts */
+#define SC_CHINESE_SIMPLIFIED 0x100000
+#define SC_CHINESE_TRADITIONAL 0x200000
+#define SC_JAPANESE 0x400000
+#define SC_KOREAN 0x800000
+#define SC_VIETNAMESE 0x1000000
+
 /* Character set table support */
 
 typedef void (*cstext_t) (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 
 struct utf8_csent {
-  char *name;			/* character set name */
+  char *name;			/* charset name */
   cstext_t dsp;			/* text conversion dispatch */
   void *tab;			/* optional additional data */
+  unsigned long script;		/* script(s) implemented by this charset */
+  char *preferred;		/* preferred charset over this one */
 };
 
 
@@ -227,6 +266,14 @@ struct utf8_eucparam {
   unsigned int max_ten : 8;	/* maximum column */
   void *tab;			/* conversion table */
 };
+
+
+/* UTF-7 engine states */
+
+#define U7_ASCII 0		/* ASCII character */
+#define U7_PLUS 1		/* plus seen */
+#define U7_UNICODE 2		/* Unicode characters */
+#define U7_MINUS 3		/* absorbed minus seen */
 
 /* Function prototypes */
 
@@ -239,6 +286,7 @@ void utf8_text_dbyte (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_dbyte2 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_sjis (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
+void utf8_text_utf7 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_searchpgm (SEARCHPGM *pgm,char *charset);
 void utf8_stringlist (STRINGLIST *st,char *charset);
 long utf8_mime2text (SIZEDTEXT *src,SIZEDTEXT *dst);

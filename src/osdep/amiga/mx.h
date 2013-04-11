@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	4 December 1996
+ * Last Edited:	27 September 1999
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,11 +42,11 @@
 /* MX I/O stream local data */
 	
 typedef struct mx_local {
-  unsigned int inbox : 1;	/* if it's an INBOX or not */
   int fd;			/* file descriptor of open index */
   char *dir;			/* spool directory name */
   char *buf;			/* temporary buffer */
   unsigned long buflen;		/* current size of temporary buffer */
+  unsigned long cachedtexts;	/* total size of all cached texts */
   time_t scantime;		/* last time directory scanned */
 } MXLOCAL;
 

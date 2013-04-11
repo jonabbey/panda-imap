@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 June 1995
+ * Last Edited:	30 September 1999
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -61,8 +61,10 @@ int scandir (char *dirname,struct direct ***namelist,select_t select,
     p->d_ino = d->d_ino;	/* copy the poop */
     strcpy (p->d_name,d->d_name);
     if (++nitems >= nlmax) {	/* if out of space, try bigger guesstimate */
+      void *s = names;		/* stupid language */
       nlmax *= 2;		/* double it */
-      fs_resize ((void **) &names,nlmax * sizeof (struct direct *));
+      fs_resize ((void **) &s,nlmax * sizeof (struct direct *));
+      names = (struct direct **) s;
     }
     names[nitems - 1] = p;	/* store this file there */
   }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 June 1995
- * Last Edited:	15 April 1997
+ * Last Edited:	4 September 1999
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,5 +36,4 @@
 
 				/* stream must be void* for use as readfn_t */
 long netmsg_read (void *stream,unsigned long count,char *buffer);
-char *netmsg_slurp_text (NETSTREAM *stream,unsigned long *size);
 FILE *netmsg_slurp (NETSTREAM *stream,unsigned long *size,unsigned long *hsiz);

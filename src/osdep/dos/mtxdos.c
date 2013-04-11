@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	29 July 1998
+ * Last Edited:	10 June 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -34,7 +34,6 @@
  */
 
 
-#include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>

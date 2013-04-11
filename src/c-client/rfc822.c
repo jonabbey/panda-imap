@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	10 September 1998
+ * Last Edited:	13 July 1999
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -357,11 +357,13 @@ char *rfc822_default_subtype (unsigned short type)
  *	    header byte count
  *	    pointer to body stringstruct
  *	    pointer to local host name
+ *	    recursion depth
  *	    source driver flags
  */
 
-void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
-		       STRING *bs,char *host,unsigned long flags)
+void rfc822_parse_msg_full (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
+			    STRING *bs,char *host,unsigned long depth,
+			    unsigned long flags)
 {
   char c,*t,*d;
   char *tmp = (char *) fs_get ((size_t) i + 100);
@@ -369,6 +371,7 @@ void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
   BODY *body = bdy ? (*bdy = mail_newbody ()) : NIL;
   long MIMEp = -1;		/* flag that MIME semantics are in effect */
   long PathP = NIL;		/* flag that a Path: was seen */
+  parseline_t pl = (parseline_t) mail_parameters (NIL,GET_PARSELINE,NIL);
   while (i && *s != '\n') {	/* until end of header */
     t = tmp;			/* initialize buffer pointer */
     c = ' ';			/* and previous character */
@@ -395,7 +398,10 @@ void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
       *d++ = '\0';		/* tie off header item, point at its data */
       while (*d == ' ') d++;	/* flush whitespace */
       while ((tmp < t--) && (*t == ' ')) *t = '\0';
-      switch (*ucase (tmp)) {	/* dispatch based on first character */
+      ucase (tmp);		/* coerce to uppercase */
+				/* external callback */
+      if (pl) (*pl) (env,tmp,d,host);
+      switch (*tmp) {		/* dispatch based on first character */
       case '>':			/* possible >From: */
 	if (!strcmp (tmp+1,"FROM")) rfc822_parse_adrlist (&env->from,d,host);
 	break;
@@ -431,6 +437,7 @@ void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
 	if (!env->in_reply_to && !strcmp (tmp+1,"N-REPLY-TO"))
 	  env->in_reply_to = cpystr (d);
 	break;
+
       case 'M':			/* possible Message-ID: or MIME-Version: */
 	if (!env->message_id && !strcmp (tmp+1,"ESSAGE-ID"))
 	  env->message_id = cpystr (d);
@@ -444,7 +451,6 @@ void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
 	  MIMEp = T;		/* note that we are MIME */
 	}
 	break;
-
       case 'N':			/* possible Newsgroups: */
 	if (!env->newsgroups && !strcmp (tmp+1,"EWSGROUPS")) {
 	  t = env->newsgroups = (char *) fs_get (1 + strlen (d));
@@ -503,23 +509,29 @@ void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
   if (!env->sender) env->sender = rfc822_cpy_adr (env->from);
   if (!env->reply_to) env->reply_to = rfc822_cpy_adr (env->from);
 				/* now parse the body */
-  if (body) rfc822_parse_content (body,bs,host,flags);
+  if (body) rfc822_parse_content (body,bs,host,depth,flags);
 }
 
 /* Parse a message body content
  * Accepts: pointer to body structure
  *	    body string
  *	    pointer to local host name
+ *	    recursion depth
  *	    source driver flags
  */
 
-void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long flags)
+void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
+			   unsigned long flags)
 {
   char c,c1,*s,*s1;
   int f;
   unsigned long i,j,k,m;
   PARAMETER *param;
   PART *part = NIL;
+  if (depth > MAXMIMEDEPTH) {	/* excessively deep recursion? */
+    body->type = TYPETEXT;	/* yes, probably a malicious MIMEgram */
+    mm_log ("Ignoring excessively deep MIME recursion",PARSE);
+  }
   if (!body->subtype)		/* default subtype if still unknown */
     body->subtype = cpystr (rfc822_default_subtype (body->type));
 				/* note offset and sizes */
@@ -570,8 +582,8 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long flags)
       for (s1 = s,k = j; k--; *s1++ = SNX (bs));
       s[j] = '\0';		/* tie off string (not really necessary) */
 				/* now parse the body */
-      rfc822_parse_msg (&body->nested.msg->env,&body->nested.msg->body,s,j,bs,
-			h,flags);
+      rfc822_parse_msg_full (&body->nested.msg->env,&body->nested.msg->body,s,
+			     j,bs,h,depth+1,flags);
       fs_give ((void **) &s);	/* free header string */
 				/* restore position */
       SETPOS (bs,body->contents.offset);
@@ -711,7 +723,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long flags)
 	bs->size = GETPOS (bs) + i;
 	part->body.mime.text.size -= i;
 				/* now parse it */
-	rfc822_parse_content (&part->body,bs,h,flags);
+	rfc822_parse_content (&part->body,bs,h,depth+1,flags);
 	bs->size = j;		/* restore current level size */
       }
       else part->body.subtype =	/* default subtype if necessary */
@@ -894,7 +906,7 @@ void rfc822_parse_adrlist (ADDRESS **lst,char *string,char *host)
   if (last) while (last->next) last = last->next;
   while (string) {		/* loop until string exhausted */
 				/* got an address? */
-    if (adr = rfc822_parse_address (lst,last,&string,host)) {
+    if (adr = rfc822_parse_address (lst,last,&string,host,0)) {
       last = adr;		/* new tail address */
       if (string) {		/* analyze what follows */
 	rfc822_skipws (&string);
@@ -937,17 +949,18 @@ void rfc822_parse_adrlist (ADDRESS **lst,char *string,char *host)
  *	    tail of address list
  *	    pointer to input string
  *	    default host name
+ *	    group nesting depth
  * Returns: new list tail
  */
 
 ADDRESS *rfc822_parse_address (ADDRESS **lst,ADDRESS *last,char **string,
-			       char *defaulthost)
+			       char *defaulthost,unsigned long depth)
 {
   ADDRESS *adr;
   if (!*string) return NIL;	/* no string */
   rfc822_skipws (string);	/* skip leading WS */
   if (!**string) return NIL;	/* empty string */
-  if (adr = rfc822_parse_group (lst,last,string,defaulthost)) last = adr;
+  if (adr = rfc822_parse_group (lst,last,string,defaulthost,depth)) last = adr;
 				/* got an address? */
   else if (adr = rfc822_parse_mailbox (string,defaulthost)) {
     if (!*lst) *lst = adr;	/* yes, first time through? */
@@ -964,14 +977,19 @@ ADDRESS *rfc822_parse_address (ADDRESS **lst,ADDRESS *last,char **string,
  *	    pointer to tail of address list
  *	    pointer to input string
  *	    default host name
+ *	    group nesting depth
  */
 
 ADDRESS *rfc822_parse_group (ADDRESS **lst,ADDRESS *last,char **string,
-			     char *defaulthost)
+			     char *defaulthost,unsigned long depth)
 {
   char tmp[MAILTMPLEN];
   char *p,*s;
   ADDRESS *adr;
+  if (depth > MAXGROUPDEPTH) {	/* excessively deep recursion? */
+    mm_log ("Ignoring excessively deep group recursion",PARSE);
+    return NIL;			/* probably abusive */
+  }
   if (!*string) return NIL;	/* no string */
   rfc822_skipws (string);	/* skip leading WS */
   if (!**string ||		/* trailing whitespace or not group */
@@ -990,7 +1008,7 @@ ADDRESS *rfc822_parse_group (ADDRESS **lst,ADDRESS *last,char **string,
   last = adr;			/* set for subsequent linking */
   *string = p;			/* continue after this point */
   while (*string && **string && (**string != ';')) {
-    if (adr = rfc822_parse_address (lst,last,string,defaulthost)) {
+    if (adr = rfc822_parse_address (lst,last,string,defaulthost,depth+1)) {
       last = adr;		/* new tail address */
       if (*string) {		/* anything more? */
 	rfc822_skipws (string);	/* skip whitespace */
@@ -1428,8 +1446,8 @@ void rfc822_encode_body_7bit (ENVELOPE *env,BODY *body)
 	 param = &(*param)->next);
     if (!*param) {		/* cookie not set up yet? */
       char tmp[MAILTMPLEN];	/* make cookie not in BASE64 or QUOTEPRINT*/
-      sprintf (tmp,"%ld-%ld-%ld=:%ld",gethostid (),random (),time (0),
-	       getpid ());
+      sprintf (tmp,"%ld-%ld-%ld=:%ld",(long) gethostid (),random (),time (0),
+	       (long) getpid ());
       (*param) = mail_newbody_parameter ();
       (*param)->attribute = cpystr ("BOUNDARY");
       (*param)->value = cpystr (tmp);
@@ -1495,8 +1513,8 @@ void rfc822_encode_body_8bit (ENVELOPE *env,BODY *body)
 	 param = &(*param)->next);
     if (!*param) {		/* cookie not set up yet? */
       char tmp[MAILTMPLEN];	/* make cookie not in BASE64 or QUOTEPRINT*/
-      sprintf (tmp,"%ld-%ld-%ld=:%ld",gethostid (),random (),time (0),
-	       getpid ());
+      sprintf (tmp,"%ld-%ld-%ld=:%ld",(long) gethostid (),random (),time (0),
+	       (long) getpid ());
       (*param) = mail_newbody_parameter ();
       (*param)->attribute = cpystr ("BOUNDARY");
       (*param)->value = cpystr (tmp);

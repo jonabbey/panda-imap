@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 September 1993
- * Last Edited:	20 May 1997
+ * Last Edited:	19 February 1999
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,33 +42,15 @@
 #include <syslog.h>
 #include <sys/file.h>
 #include <time.h>
-
-
-/* Different names, equivalent things in BSD and MiNT */
-
-#define L_SET SEEK_SET
-#define L_INCR SEEK_CUR
-#define L_XTND SEEK_END
-
-
-/* Kludge for EAGAIN */
-
-#include <netdb.h>
-#define EAGAIN TRY_AGAIN
-#define EFBIG EERROR
-
+#include <portlib.h>
+ 
+#define EAGAIN EWOULDBLOCK
 #define FNDELAY O_NDELAY 
-
-typedef unsigned long fd_set;
-#define FD_ZERO(set) (*(set) = 0L)
-#define FD_CLR(fd,set) (*(set) &= ~(1L << (fd)))
-#define FD_SET(fd,set) (*(set) |= (1L << (fd)))
-#define FD_ISSET(fd,set) (*(set) & (1L << (fd)))
-#define FD_SETSIZE 32
-
-
-char *strerror (int n);
-
+ 
+/* MiNT gets this wrong */
+ 
+#define setpgrp setpgid
+ 
 #include "env_unix.h"
 #include "fs.h"
 #include "ftl.h"

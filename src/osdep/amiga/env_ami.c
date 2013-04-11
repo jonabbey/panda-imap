@@ -1,5 +1,5 @@
 /*
- * Program:	AMIGA environment routines
+ * Program:	Amiga environment routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	10 December 1998
+ * Last Edited:	10 October 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -43,8 +43,8 @@
 
 /* c-client environment parameters */
 
-static char *anonymous_user = "nobody";
-static char *unlogged_user = "root";
+static const char *anonymous_user = "nobody";
+static const char *unlogged_user = "root";
 
 static char *myUserName = NIL;	/* user name */
 static char *myHomeDir = NIL;	/* home directory name */
@@ -68,20 +68,23 @@ static long dir_protection = 0700;
 				/* default lock file protection */
 static long lock_protection = 0666;
 				/* default ftp file protection */
-static long ftp_protection = 0664;
+static long ftp_protection = 0644;
 				/* default public file protection */
-static long public_protection = 0664;
+static long public_protection = 0666;
 				/* default shared file protection */
-static long shared_protection = 0664;
+static long shared_protection = 0660;
+static long locktimeout = 5;	/* default lock timeout */
 				/* warning on EACCES errors on .lock files */
-static long lockEaccesError = NIL;
+static long lockEaccesError = T;
 				/* default prototypes */
 static MAILSTREAM *createProto = NIL;
 static MAILSTREAM *appendProto = NIL;
 				/* default user flags */
 static char *userFlags[NUSERFLAGS] = {NIL};
 static NAMESPACE *nslist[3];	/* namespace list */
-static int logtry = 3;		/* number of login tries */
+static int logtry = 3;		/* number of server login tries */
+				/* block notification */
+static blocknotify_t mailblocknotify = mm_blocknotify;
 
 /* Amiga namespaces */
 
@@ -90,7 +93,7 @@ static NAMESPACE nsmhf = {"#mh/",'/',NIL,NIL};
 static NAMESPACE nsmh = {"#mhinbox",NIL,NIL,&nsmhf};
 				/* home namespace */
 static NAMESPACE nshome = {"",'/',NIL,&nsmh};
-				/* AMIGA other user namespace */
+				/* Amiga other user namespace */
 static NAMESPACE nsamigaother = {"~",'/',NIL,NIL};
 				/* public (anonymous OK) namespace */
 static NAMESPACE nspublic = {"#public/",'/',NIL,NIL};
@@ -236,11 +239,11 @@ void *env_parameters (long function,void *value)
   case GET_SHAREDPROTECTION:
     value = (void *) shared_protection;
     break;
-  case SET_DISABLEFCNTLLOCK:
-    disableFcntlLock = (long) value;
+  case SET_LOCKTIMEOUT:
+    locktimeout = (long) value;
     break;
-  case GET_DISABLEFCNTLLOCK:
-    value = (void *) disableFcntlLock;
+  case GET_LOCKTIMEOUT:
+    value = (void *) locktimeout;
     break;
   case SET_LOCKEACCESERROR:
     lockEaccesError = (long) value;
@@ -254,6 +257,11 @@ void *env_parameters (long function,void *value)
     break;
   case GET_USERHASNOLIFE:
     value = (void *) (has_no_life ? T : NIL);
+    break;
+  case SET_BLOCKNOTIFY:
+    mailblocknotify = (blocknotify_t) value;
+  case GET_BLOCKNOTIFY:
+    value = (void *) mailblocknotify;
     break;
   default:
     value = NIL;		/* error case */
@@ -297,8 +305,7 @@ static void do_date (char *date,char *prefix,char *fmt,int suffix)
 				/* append timezone suffix if desired */
   if (suffix) rfc822_timezone (date,(void *) t);
 }
-
-
+
 /* Write current time in RFC 822 format
  * Accepts: destination string
  */
@@ -306,6 +313,16 @@ static void do_date (char *date,char *prefix,char *fmt,int suffix)
 void rfc822_date (char *date)
 {
   do_date (date,"%s, ","%d %s %d %02d:%02d:%02d %+03d%02d",T);
+}
+
+
+/* Write current time in fixed-width RFC 822 format
+ * Accepts: destination string
+ */
+
+void rfc822_fixed_date (char *date)
+{
+  do_date (date,NIL,"%02d %s %4d %02d:%02d:%02d %+03d%02d",NIL);
 }
 
 
@@ -332,9 +349,25 @@ void internal_date (char *date)
 void server_init (char *server,char *service,char *altservice,char *sasl,
 		  void *clkint,void *kodint,void *hupint,void *trmint)
 {
-  if (server) {			/* set server name in syslog */
-    openlog (server,LOG_PID,LOG_MAIL);
-    fclose (stderr);		/* possibly save a process ID */
+  long port;
+  struct servent *sv;
+  struct sockaddr_in sin;
+  int sinlen = sizeof (struct sockaddr_in);
+  /* Don't use tcp_clienthost() since reverse DNS problems may slow down the
+   * greeting message and cause the client to time out.
+   */
+  char *client = getpeername (0,(struct sockaddr *) &sin,(void *) &sinlen) ?
+    "UNKNOWN" : inet_ntoa (sin.sin_addr);
+				/* set server name in syslog */
+  if (server) openlog (server,LOG_PID,LOG_MAIL);
+  if (service && altservice && ((port = tcp_serverport ()) >= 0)) {
+    if ((sv = getservbyname (service,"tcp")) && (port == ntohs (sv->s_port)))
+      syslog (LOG_DEBUG,"%s service init from %s",service,client);
+    else if ((sv = getservbyname (altservice,"tcp")) &&
+	     (port == ntohs (sv->s_port)))
+      syslog (LOG_DEBUG,"%s alternative service init from %s",
+	      altservice,client);
+    else syslog (LOG_DEBUG,"port %ld service init from %s",port,client);
   }
 				/* set SASL name */
   if (sasl) mail_parameters (NIL,SET_SERVICENAME,(void *) sasl);
@@ -343,8 +376,7 @@ void server_init (char *server,char *service,char *altservice,char *sasl,
   signal (SIGHUP,hupint);	/* prepare for hangup */
   signal (SIGTERM,trmint);	/* prepare for termination */
 }
-
-
+
 /* Wait for stdin input
  * Accepts: timeout in seconds
  * Returns: T if have input on stdin, else NIL
@@ -352,14 +384,17 @@ void server_init (char *server,char *service,char *altservice,char *sasl,
 
 long server_input_wait (long seconds)
 {
-  fd_set rfd;
+  fd_set rfd,efd;
   struct timeval tmo;
   FD_ZERO (&rfd);
+  FD_ZERO (&efd);
   FD_SET (0,&rfd);
+  FD_SET (0,&efd);
   tmo.tv_sec = seconds; tmo.tv_usec = 0;
-  return select (1,&rfd,0,0,&tmo) ? LONGT : NIL;
+  return select (1,&rfd,0,&efd,&tmo) ? LONGT : NIL;
 }
-
+
+
 /* Server log in
  * Accepts: user name string
  *	    password string
@@ -412,7 +447,7 @@ long authserver_login (char *user,int argc,char *argv[])
 
 long anonymous_login (int argc,char *argv[])
 {
-  struct passwd *pw = getpwnam (anonymous_user);
+  struct passwd *pw = getpwnam ((char *) anonymous_user);
 				/* log in Mr. A. N. Onymous */
   return pw ? pw_login (pw,NIL,NIL,argc,argv) : NIL;
 }
@@ -429,12 +464,14 @@ long anonymous_login (int argc,char *argv[])
 
 long pw_login (struct passwd *pw,char *user,char *home,int argc,char *argv[])
 {
+  long ret = NIL;
+  char *u = user ? cpystr (user) : NIL;
+  char *h = home ? cpystr (home) : NIL;
   if (pw->pw_uid && ((pw->pw_uid == geteuid ()) || loginpw (pw,argc,argv)) &&
-      env_init (user,home)) {
-    chdir (myhomedir ());	/* placate those who would be upset */
-    return LONGT;
-  }
-  return NIL;
+      (ret = env_init (u,h))) chdir (myhomedir ());
+  if (h) fs_give ((void **) &h);/* flush temporary home directory */
+  if (u) fs_give ((void **) &u);/* flush temporary user name */
+  return ret;			/* return status */
 }
 
 /* Initialize environment
@@ -452,7 +489,7 @@ long env_init (char *user,char *home)
   char *s,tmp[MAILTMPLEN];
   if (myUserName) fatal ("env_init called twice!");
 				/* set up user name */
-  myUserName = cpystr (user ? user : anonymous_user);
+  myUserName = cpystr ((char *) (user ? user : anonymous_user));
   if (!anonymousHome) anonymousHome = cpystr (ANONYMOUSHOME);
   if (user) {			/* remember user name and home directory */
     nslist[0] = &nshome,nslist[1] = &nsamigaother,nslist[2] = &nsshared;
@@ -489,7 +526,7 @@ long env_init (char *user,char *home)
 
 char *myusername_full (unsigned long *flags)
 {
-  char *ret = unlogged_user;
+  char *ret = (char *) unlogged_user;
   if (!myUserName) {		/* get user name if don't have it yet */
     struct passwd *pw;
     unsigned long euid = geteuid ();
@@ -636,7 +673,7 @@ char *mailboxfile (char *dst,char *name)
       for (dir = dst; *name && (*name != '/'); *dir++ = *name++);
       *dir++ = '\0';		/* tie off user name, look up in passwd file */
       if (!((pw = getpwnam (dst)) && (dir = pw->pw_dir))) return NIL;
-      if (*name) *name++;	/* skip past the slash */
+      if (*name) name++;	/* skip past the slash */
     }
   }
 				/* build resulting name */
@@ -644,17 +681,148 @@ char *mailboxfile (char *dst,char *name)
   return dst;			/* return it */
 }
 
+/* Dot-lock file locker
+ * Accepts: file name to lock
+ *	    destination buffer for lock file name
+ *	    open file description on file name to lock
+ * Returns: T if success, NIL if failure
+ */
+
+long dotlock_lock (char *file,DOTLOCK *base,int fd)
+{
+  int ld,j;
+  int i = locktimeout * 60 - 1;
+  char *s,hitch[MAILTMPLEN],tmp[MAILTMPLEN];
+  time_t t;
+  struct stat sb;
+				/* flush absurd file name */
+  if (strlen (file) > 512) return NIL;
+				/* build lock filename */
+  sprintf (base->lock,"%s.lock",file);
+				/* assume no pipe */
+  base->pipei = base->pipeo = -1;
+				/* until OK or out of tries */
+  if (j = chk_notsymlink (base->lock,&sb)) do {
+    t = time (0);		/* get the time now */
+				/* time out old locks */
+    if ((j > 0) && (t >= (sb.st_ctime + locktimeout * 60))) {
+      unlink (base->lock);	/* flush extant old lock */
+      j = O_WRONLY | O_CREAT;	/* try to grab it for ourselves */
+    }
+    else j = O_WRONLY | O_CREAT | O_EXCL;
+				/* try to get the lock */
+    if ((ld = open (strcpy (hitch,base->lock),j,(int) lock_protection)) >= 0)
+      close (ld);		/* close the lock file */
+
+    else switch (errno) {	/* what happened? */
+      case EACCES:		/* protection fail */
+	if (stat (hitch,&sb)) {	/* file exists, fall into EEXIST case */
+	  int pi[2],po[2];
+				/* make command pipes */
+	  if (!stat (LOCKPGM,&sb) && pipe (pi) >= 0) {
+	    if (pipe (po) >= 0) {
+				/* make inferior process */
+	      if (!(j = fork ())) {
+		if (!fork ()) {	/* make grandchild so it's inherited by init */
+		  char *argv[4];/* prepare argument vector for */
+		  sprintf (tmp,"%d",fd);
+		  argv[0] = LOCKPGM; argv[1] = tmp;
+		  argv[2] = file; argv[3] = NIL;
+				/* set parent's I/O to my O/I */
+		  dup2 (pi[1],1); dup2 (pi[1],2); dup2 (po[0],0);
+				/* close all unnecessary descriptors */
+		  for (j = max (20,max (max (pi[0],pi[1]),max (po[0],po[1])));
+		       j >= 3; --j) if (j != fd) close (j);
+				/* be our own process group */
+		  setpgrp (0,getpid ());
+				/* now run it */
+		  execv (argv[0],argv);
+		}
+		_exit (1);	/* child is done */
+	      }
+	      else if (j > 0) {	/* reap child; grandchild now owned by init */
+		grim_pid_reap (j,NIL);
+				/* read response from locking program */
+		if ((read (pi[0],tmp,1) == 1) && (tmp[0] == '+')) {
+				/* success, record pipes */
+		  base->pipei = pi[0]; base->pipeo = po[1];
+				/* close child's side of the pipes */
+		  close (pi[1]); close (po[0]);
+		  return LONGT;
+		}
+	      }
+	      close (po[0]); close (po[1]);
+	    }
+	    close (pi[0]); close (pi[1]);
+	  }
+	  if (lockEaccesError) {/* punt silently if paranoid site */
+	    sprintf (tmp,"Mailbox vulnerable - directory %.80s",hitch);
+	    if (s = strrchr (tmp,'/')) *s = '\0';
+	    strcat (tmp," must have 1777 protection");
+	    mm_log (tmp,WARN);
+	  }
+	  base->lock[0] = '\0';	/* give up on lock file */
+	}
+
+      case EEXIST:		/* file already exists */
+	break;			/* try again */
+      default:			/* some other failure */
+	sprintf (tmp,"Mailbox vulnerable - error creating %.80s: %s",
+		 hitch,strerror (errno));
+	mm_log (tmp,WARN);	/* this is probably not good */
+	base->lock[0] = '\0';	/* don't use lock files */
+	break;
+      }
+				/* if failed to make lock file and retry OK */
+    if ((ld < 0) && base->lock) {
+      if (!(i%15)) {		/* time to notify? */
+	sprintf (tmp,"Mailbox %.80s is locked, will override in %d seconds...",
+		 file,i);
+	mm_log (tmp,WARN);
+      }
+      sleep (1);		/* wait 1 second before next try */
+    }
+  } while (i-- && (ld < 0) && base->lock[0]);
+				/* failed if no longer a lock name */
+  if (!base->lock[0]) return NIL;
+				/* make sure others can break the lock */
+  chmod (base->lock,(int) lock_protection);
+  return LONGT;
+}
+
+
+/* Dot-lock file unlocker
+ * Accepts: lock file name
+ * Returns: T if success, NIL if failure
+ */
+
+long dotlock_unlock (DOTLOCK *base)
+{
+  long ret = LONGT;
+  if (base && base->lock[0]) {
+    if (base->pipei >= 0) {	/* if running through a pipe unlocker */
+      ret = (write (base->pipeo,"+",1) == 1);
+				/* nuke the pipes */
+      close (base->pipei); close (base->pipeo);
+    }
+    else ret = !unlink (base->lock);
+  }
+  return ret;
+}
+
 /* Lock file name
  * Accepts: scratch buffer
  *	    file name
  *	    type of locking operation (LOCK_SH or LOCK_EX)
+ *	    pointer to return PID of locker
  * Returns: file descriptor of lock or negative if error
  */
 
-int lockname (char *lock,char *fname,int op)
+int lockname (char *lock,char *fname,int op,long *pid)
 {
   struct stat sbuf;
-  return stat (fname,&sbuf) ? -1 : lock_work (lock,&sbuf,op);
+  *pid = 0;			/* no locker PID */
+  return stat (fname,&sbuf) ? -1 : lock_work (lock,&sbuf,op,pid);
 }
 
 
@@ -668,31 +836,35 @@ int lockname (char *lock,char *fname,int op)
 int lockfd (int fd,char *lock,int op)
 {
   struct stat sbuf;
-  return fstat (fd,&sbuf) ? -1 : lock_work (lock,&sbuf,op);
+  return fstat (fd,&sbuf) ? -1 : lock_work (lock,&sbuf,op,NIL);
 }
 
 /* Lock file name worker
  * Accepts: lock file name
  *	    pointer to stat() buffer
  *	    type of locking operation (LOCK_SH or LOCK_EX)
+ *	    pointer to return PID of locker
  * Returns: file descriptor of lock or negative if error
  */
 
-int lock_work (char *lock,void *sb,int op)
+int lock_work (char *lock,void *sb,int op,long *pid)
 {
   struct stat lsb,fsb;
   struct stat *sbuf = sb;
+  char tmp[MAILTMPLEN];
+  long i;
   int fd;
-  int prot = (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL);
+  if (pid) *pid = 0;		/* initialize return PID */
 				/* make temporary lock file name */
-  sprintf (lock,"/tmp/.%lx.%lx",(long) sbuf->st_dev,(long) sbuf->st_ino);
+  sprintf (lock,"/tmp/.%lx.%lx",(unsigned long) sbuf->st_dev,
+	   (unsigned long) sbuf->st_ino);
   while (T) {			/* until get a good lock */
-    do switch ((int) chk_notsymlink (lock)) {
+    do switch ((int) chk_notsymlink (lock,&lsb)) {
     case 1:			/* exists just once */
-      if (((fd = open (lock,O_RDWR,prot)) >= 0) || (errno != ENOENT) ||
-	  (chk_notsymlink (lock) >= 0)) break;
+      if (((fd = open (lock,O_RDWR,lock_protection)) >= 0) ||
+	  (errno != ENOENT) || (chk_notsymlink (lock,&lsb) >= 0)) break;
     case -1:			/* name doesn't exist */
-      fd = open (lock,O_RDWR|O_CREAT|O_EXCL,prot);
+      fd = open (lock,O_RDWR|O_CREAT|O_EXCL,lock_protection);
       break;
     default:			/* multiple hard links */
       mm_log ("hard link to lock name",ERROR);
@@ -705,7 +877,17 @@ int lock_work (char *lock,void *sb,int op)
 	      strerror (errno));
       return -1;		/* fail: can't open lock file */
     }
-    if (flock (fd,op)) {	/* lock the file */
+				/* non-blocking form */
+    if (op & LOCK_NB) i = flock (fd,op);
+    else {			/* blocking form */
+      (*mailblocknotify) (BLOCK_FILELOCK,NIL);
+      i = flock (fd,op);
+      (*mailblocknotify) (BLOCK_NONE,NIL);
+    }
+    if (i) {			/* failed, get other process' PID */
+      if (pid && !fstat (fd,&fsb) && (i = min (fsb.st_size,MAILTMPLEN-1)) &&
+	  (read (fd,tmp,i) == i) && !(tmp[i] = 0) && ((i = atol (tmp)) > 0))
+	*pid = i;
       close (fd);		/* failed, give up on lock */
       return -1;		/* fail: can't lock */
     }
@@ -715,28 +897,29 @@ int lock_work (char *lock,void *sb,int op)
 	(lsb.st_ino == fsb.st_ino) && (fsb.st_nlink == 1)) break;
     close (fd);			/* lock not right, drop fd and try again */
   }
-  chmod (lock,prot);		/* make sure mode OK (don't use fchmod()) */
+  chmod (lock,lock_protection);	/* make sure mode OK (don't use fchmod()) */
   return fd;			/* success */
 }
 
 /* Check to make sure not a symlink
  * Accepts: file name
+ *	    stat buffer
  * Returns: -1 if doesn't exist, NIL if symlink, else number of hard links
  */
 
-long chk_notsymlink (char *name)
+long chk_notsymlink (char *name,void *sb)
 {
-  struct stat sbuf;
+  struct stat *sbuf = sb;
 				/* name exists? */
-  if (lstat (name,&sbuf)) return -1;
+  if (lstat (name,sbuf)) return -1;
 				/* forbid symbolic link */
-  if ((sbuf.st_mode & S_IFMT) == S_IFLNK) {
+  if ((sbuf->st_mode & S_IFMT) == S_IFLNK) {
     mm_log ("symbolic link on lock name",ERROR);
     syslog (LOG_CRIT,"SECURITY PROBLEM: symbolic link on lock name: %.80s",
 	    name);
     return NIL;
   }
-  return (long) sbuf.st_nlink;	/* return number of hard links */
+  return (long) sbuf->st_nlink;	/* return number of hard links */
 }
 
 
@@ -762,29 +945,26 @@ void unlockfd (int fd,char *lock)
 long set_mbx_protections (char *mailbox,char *path)
 {
   struct stat sbuf;
-  int mode = (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL);
+  int mode = (int) mbx_protection;
   if (*mailbox == '#') {	/* possible namespace? */
       if (((mailbox[1] == 'f') || (mailbox[1] == 'F')) &&
 	  ((mailbox[2] == 't') || (mailbox[2] == 'T')) &&
 	  ((mailbox[3] == 'p') || (mailbox[3] == 'P')) &&
-	  (mailbox[4] == '/'))
-	mode = (int) mail_parameters (NIL,GET_FTPPROTECTION,NIL);
+	  (mailbox[4] == '/')) mode = (int) ftp_protection;
       else if (((mailbox[1] == 'p') || (mailbox[1] == 'P')) &&
 	       ((mailbox[2] == 'u') || (mailbox[2] == 'U')) &&
 	       ((mailbox[3] == 'b') || (mailbox[3] == 'B')) &&
 	       ((mailbox[4] == 'l') || (mailbox[4] == 'L')) &&
 	       ((mailbox[5] == 'i') || (mailbox[5] == 'I')) &&
 	       ((mailbox[6] == 'c') || (mailbox[6] == 'C')) &&
-	       (mailbox[7] == '/'))
-	mode = (int) mail_parameters (NIL,GET_PUBLICPROTECTION,NIL);
+	       (mailbox[7] == '/')) mode = (int) public_protection;
       else if (((mailbox[1] == 's') || (mailbox[1] == 'S')) &&
 	       ((mailbox[2] == 'h') || (mailbox[2] == 'H')) &&
 	       ((mailbox[3] == 'a') || (mailbox[3] == 'A')) &&
 	       ((mailbox[4] == 'r') || (mailbox[4] == 'R')) &&
 	       ((mailbox[5] == 'e') || (mailbox[5] == 'E')) &&
 	       ((mailbox[6] == 'd') || (mailbox[6] == 'D')) &&
-	       (mailbox[7] == '/'))
-	mode = (int) mail_parameters (NIL,GET_SHAREDPROTECTION,NIL);
+	       (mailbox[7] == '/')) mode = (int) shared_protection;
   }
 				/* if a directory */
   if (!stat (path,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR)) {
@@ -834,4 +1014,26 @@ char *default_user_flag (unsigned long i)
 {
   myusername ();		/* make sure initialized */
   return userFlags[i];
+}
+
+/* Default block notify routine
+ * Accepts: reason for calling
+ *	    data
+ * Returns: data
+ */
+
+void *mm_blocknotify (int reason,void *data)
+{
+  void *ret = data;
+  switch (reason) {
+  case BLOCK_SENSITIVE:		/* entering sensitive code */
+    data = (void *) max (alarm (0),1);
+    break;
+  case BLOCK_NONSENSITIVE:	/* exiting sensitive code */
+    if ((unsigned int) data) alarm ((unsigned int) data);
+    break;
+  default:			/* ignore all other reasons */
+    break;
+  }
+  return ret;
 }

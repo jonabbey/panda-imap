@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	9 December 1998
+ * Last Edited:	26 August 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -102,14 +102,19 @@ void nntp_mclose (MAILSTREAM *stream,long options);
 void nntp_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
 void nntp_flags (MAILSTREAM *stream,char *sequence,long flags);
 long nntp_overview (MAILSTREAM *stream,char *sequence,overview_t ofn);
+long nntp_parse_overview (OVERVIEW *ov,char *text);
 char *nntp_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
 		   long flags);
 long nntp_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
 void nntp_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
+void nntp_search (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,long flags);
+long nntp_search_msg (MAILSTREAM *stream,unsigned long msgno,SEARCHPGM *pgm,
+		      OVERVIEW *ov);
 unsigned long *nntp_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 			  SORTPGM *pgm,long flags);
-SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,long start,
-				 long last,long flags);
+SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,
+				 unsigned long start,unsigned long last,
+				 long flags);
 THREADNODE *nntp_thread (MAILSTREAM *stream,char *type,char *charset,
 			 SEARCHPGM *spg,long flags);
 long nntp_ping (MAILSTREAM *stream);

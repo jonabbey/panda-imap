@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	21 October 1998
- * Last Edited:	9 December 1998
+ * Last Edited:	14 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -140,12 +140,12 @@ char *auth_md5_server (authresponse_t responder,int argc,char *argv[])
   char *p,*u,*user,*hash,chal[MAILTMPLEN];
   unsigned long cl,pl;
 				/* generate challenge */
-  sprintf (chal,"<%lu.%lu@%s>",(unsigned long) getpid (),time (0),
-	   mylocalhost ());
+  sprintf (chal,"<%lu.%lu@%s>",(unsigned long) getpid (),
+	   (unsigned long) time (0),mylocalhost ());
 				/* send challenge, get user and hash */
   if (user = (*responder) (chal,cl = strlen (chal),NIL)) {
 				/* got user, locate hash */
-    if (hash = strchr (user,' ')) {
+    if (hash = strrchr (user,' ')) {
       *hash++ = '\0';		/* tie off user */
       if ((p = auth_md5_pwd (user)) || (p = auth_md5_pwd (lcase (user)))) {
 				/* quickly verify password */
@@ -260,8 +260,9 @@ char *hmac_md5 (char *text,unsigned long tl,char *key,unsigned long kl)
     key = (char *) digest;
     kl = MD5DIGLEN;
   }
-				/* store key in pads */
-  memcpy (k_opad,memcpy (memset (k_ipad,0,MD5BLKLEN+1),key,kl),MD5BLKLEN+1);
+  memcpy (k_ipad,key,kl);	/* store key in pads */
+  memset (k_ipad+kl,0,(MD5BLKLEN+1)-kl);
+  memcpy (k_opad,k_ipad,MD5BLKLEN+1);
 				/* XOR key with ipad and opad values */
   for (i = 0; i < MD5BLKLEN; i++) {/* for each byte of pad */
     k_ipad[i] ^= 0x36;		/* XOR key with ipad */
@@ -290,21 +291,24 @@ char *hmac_md5 (char *text,unsigned long tl,char *key,unsigned long kl)
 
 #define RND1(a,b,c,d,x,s,ac) \
  a += ((b & c) | (d & ~b)) + x + (unsigned long) ac; \
- a = b + ((a << s) | (a >> ((8 * sizeof (unsigned long)) - s)));
+ a &= 0xffffffff; \
+ a = b + ((a << s) | (a >> (32 - s)));
 
 #define RND2(a,b,c,d,x,s,ac) \
  a += ((b & d) | (c & ~d)) + x + (unsigned long) ac; \
- a = b + ((a << s) | (a >> ((8 * sizeof (unsigned long)) - s)));
+ a &= 0xffffffff; \
+ a = b + ((a << s) | (a >> (32 - s)));
 
 #define RND3(a,b,c,d,x,s,ac) \
  a += (b ^ c ^ d) + x + (unsigned long) ac; \
- a = b + ((a << s) | (a >> ((8 * sizeof (unsigned long)) - s)));
+ a &= 0xffffffff; \
+ a = b + ((a << s) | (a >> (32 - s)));
 
 #define RND4(a,b,c,d,x,s,ac) \
  a += (c ^ (b | ~d)) + x + (unsigned long) ac; \
- a = b + ((a << s) | (a >> ((8 * sizeof (unsigned long)) - s)));
-
-
+ a &= 0xffffffff; \
+ a = b + ((a << s) | (a >> (32 - s)));
+
 /* Initialize MD5 context
  * Accepts: context to initialize
  */

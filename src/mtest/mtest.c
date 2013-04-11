@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	7 January 1998
+ * Last Edited:	28 May 1999
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -202,7 +202,7 @@ void mm (MAILSTREAM *stream,long debug)
 	  break;
 	}
 	arg = cmd;
-	sprintf (arg,"%ld",last);
+	sprintf (arg,"%lu",last);
       }
       if (last && (last <= stream->nmsgs))
 	mail_setflag (stream,arg,"\\DELETED");
@@ -334,7 +334,7 @@ void mm (MAILSTREAM *stream,long debug)
 	  break;
 	}
 	arg = cmd;
-	sprintf (arg,"%ld",last);
+	sprintf (arg,"%lu",last);
       }
       if (last > 0 && last <= stream->nmsgs)
 	mail_clearflag (stream,arg,"\\DELETED");
@@ -382,7 +382,7 @@ void overview_header (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov)
   tmp[3] = elt->answered ? 'A' : ' ';
   tmp[4] = elt->deleted ? 'D' : ' ';
   mail_parse_date (&selt,ov->date);
-  sprintf (tmp+5,"%4ld) ",elt->msgno);
+  sprintf (tmp+5,"%4lu) ",elt->msgno);
   mail_date (tmp+11,&selt);
   tmp[17] = ' ';
   tmp[18] = '\0';
@@ -404,7 +404,7 @@ void overview_header (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov)
     }
     strcat (tmp,"} ");
   }
-  sprintf (tmp + strlen (tmp),"%.25s (%ld chars)",
+  sprintf (tmp + strlen (tmp),"%.25s (%lu chars)",
 	   ov->subject ? ov->subject : " ",ov->optional.octets);
   puts (tmp);
 }
@@ -426,7 +426,7 @@ void header (MAILSTREAM *stream,long msgno)
   tmp[2] = cache->flagged ? 'F' : ' ';
   tmp[3] = cache->answered ? 'A' : ' ';
   tmp[4] = cache->deleted ? 'D' : ' ';
-  sprintf (tmp+5,"%4ld) ",cache->msgno);
+  sprintf (tmp+5,"%4lu) ",cache->msgno);
   mail_date (tmp+11,cache);
   tmp[17] = ' ';
   tmp[18] = '\0';
@@ -441,7 +441,7 @@ void header (MAILSTREAM *stream,long msgno)
     strcat (tmp,"} ");
   }
   mail_fetchsubject (t = tmp + strlen (tmp),stream,msgno,(long) 25);
-  sprintf (t += strlen (t)," (%ld chars)",cache->rfc822_size);
+  sprintf (t += strlen (t)," (%lu chars)",cache->rfc822_size);
   puts (tmp);
 }
 
@@ -476,10 +476,10 @@ void display_body (BODY *body,char *pfx,long i)
     switch (body->type) {	/* bytes or lines depending upon body type */
     case TYPEMESSAGE:		/* encapsulated message */
     case TYPETEXT:		/* plain text */
-      sprintf (s += strlen (s)," (%ld lines)",body->size.lines);
+      sprintf (s += strlen (s)," (%lu lines)",body->size.lines);
       break;
     default:
-      sprintf (s += strlen (s)," (%ld bytes)",body->size.bytes);
+      sprintf (s += strlen (s)," (%lu bytes)",body->size.bytes);
       break;
     }
     puts (tmp);			/* output this line */
@@ -507,7 +507,7 @@ void status (MAILSTREAM *stream)
   puts (date);
   if (stream) {
     if (stream->mailbox)
-      printf (" %s mailbox: %s, %ld messages, %ld recent\n",
+      printf (" %s mailbox: %s, %lu messages, %lu recent\n",
 	      stream->dtb->name,stream->mailbox,stream->nmsgs,stream->recent);
     else puts ("%No mailbox is open on this stream");
     if (stream->user_flags[0]) {
@@ -634,7 +634,7 @@ void mm_login (NETMBX *mb,char *user,char *pwd,long trial)
   strcpy (curhst,mb->host);
   if (*mb->user) {
     strcpy (user,mb->user);
-    sprintf (tmp,"{%s/%s/user=%s} password: ",mb->host,mb->service,mb->user);
+    sprintf (tmp,"{%s/%s/user=\"%s\"} password: ",mb->host,mb->service,mb->user);
   }
   else {
     sprintf (tmp,"{%s/%s} username: ",mb->host,mb->service);

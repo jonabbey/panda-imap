@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1993
- * Last Edited:	22 October 1998
+ * Last Edited:	14 May 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -253,14 +253,14 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 
 void mmdf_abort (MAILSTREAM *stream);
 char *mmdf_file (char *dst,char *name);
-int mmdf_lock (char *file,int flags,int mode,char *lock,int op);
-void mmdf_unlock (int fd,MAILSTREAM *stream,char *lock);
-int mmdf_parse (MAILSTREAM *stream,char *lock,int op);
+int mmdf_lock (char *file,int flags,int mode,DOTLOCK *lock,int op);
+void mmdf_unlock (int fd,MAILSTREAM *stream,DOTLOCK *lock);
+int mmdf_parse (MAILSTREAM *stream,DOTLOCK *lock,int op);
 char *mmdf_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size);
 unsigned long mmdf_pseudo (MAILSTREAM *stream,char *hdr);
 unsigned long mmdf_xstatus (MAILSTREAM *stream,char *status,MESSAGECACHE *elt,
 			    long flag);
-long mmdf_rewrite (MAILSTREAM *stream,unsigned long *nexp);
+long mmdf_rewrite (MAILSTREAM *stream,unsigned long *nexp,DOTLOCK *lock);
 long mmdf_write_message (FILE *f,MAILSTREAM *stream,MESSAGECACHE *elt,
 			 unsigned long *size);
 long mmdf_fwrite (FILE *f,char *s,unsigned long i,unsigned long *size);

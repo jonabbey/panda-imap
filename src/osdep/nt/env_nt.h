@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 November 1998
+ * Last Edited:	11 March 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -47,7 +47,6 @@
 long env_init (char *user,char *home);
 int check_nt (void);
 static char *defaultDrive (void);
-static char *homePath (char *path);
 char *myusername_full (unsigned long *flags);
 #define MU_LOGGEDIN 0
 #define MU_NOTLOGGEDIN 1
@@ -58,6 +57,7 @@ char *sysinbox ();
 int lockname (char *lock,char *fname,int op);
 void unlockfd (int fd,char *lock);
 long safe_write (int fd,char *buf,long nbytes);
+void *mm_blocknotify (int reason,void *data);
 long random ();
 #if _MSC_VER < 700
 #define getpid random

@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	6 April 1996
+ * Last Edited:	30 August 1999
  *
- * Copyright 1996 by Mark Crispin
+ * Copyright 1999 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,20 +42,20 @@ unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
 {
   long i,j;
   char c,*d = src;
-				/* count number of CR's in source string(s) */
-  for (i = srcl,j = 0; j < srcl; j++) if (*d++ == '\015') i++;
+  if (*dst) {			/* destination provided? */
+    if ((i = srcl * 2) > *dstl)	/* calculate worst-case situation */
+      for (i = j = srcl; j; --j) if (*d++ == '\015') i++;
 				/* flush destination buffer if too small */
-  if (*dst && (i > *dstl)) fs_give ((void **) dst);
-  if (!*dst) {			/* make a new buffer if needed */
-    *dst = (char *) fs_get ((*dstl = i) + 1);
-    if (dstl) *dstl = i;	/* return new buffer length to main program */
+    if (i > *dstl) fs_give ((void **) dst);
   }
+				/* make a new buffer if needed */
+  if (!*dst) *dst = (char *) fs_get ((*dstl = i) + 1);
   d = *dst;			/* destination string */
-  while (srcl--) {		/* copy strings */
+  if (srcl) do {		/* copy string */
     c = *d++ = *src++;		/* copy character */
 				/* append line feed to bare CR */
     if ((c == '\015') && (*src != '\012')) *d++ = '\012';
-  }
+  } while (--srcl);
   *d = '\0';			/* tie off destination */
   return d - *dst;		/* return length */
 }

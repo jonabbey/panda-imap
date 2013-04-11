@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	16 April 1998
+ * Last Edited:	13 July 1999
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -41,9 +41,14 @@
  *
  */
 
+#define MAXGROUPDEPTH 50	/* RFC 822 doesn't allow nesting at all */
+#define MAXMIMEDEPTH 50		/* more than any sane MIMEgram */
+
 #define rfc822_write_address(dest,adr) \
   rfc822_write_address_full (dest,adr,NIL)
 
+#define rfc822_parse_msg(en,bdy,s,i,bs,host,flags) \
+  rfc822_parse_msg_full (en,bdy,s,i,bs,host,0,flags)
 
 /* Function prototypes */
 
@@ -55,16 +60,18 @@ void rfc822_address (char *dest,ADDRESS *adr);
 void rfc822_cat (char *dest,char *src,const char *specials);
 void rfc822_write_body_header (char **header,BODY *body);
 char *rfc822_default_subtype (unsigned short type);
-void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
-		       STRING *bs,char *host,unsigned long flags);
-void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long flags);
+void rfc822_parse_msg_full (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
+			    STRING *bs,char *host,unsigned long depth,
+			    unsigned long flags);
+void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
+			   unsigned long flags);
 void rfc822_parse_content_header (BODY *body,char *name,char *s);
 void rfc822_parse_parameter (PARAMETER **par,char *text);
 void rfc822_parse_adrlist (ADDRESS **lst,char *string,char *host);
 ADDRESS *rfc822_parse_address (ADDRESS **lst,ADDRESS *last,char **string,
-			       char *defaulthost);
+			       char *defaulthost,unsigned long depth);
 ADDRESS *rfc822_parse_group (ADDRESS **lst,ADDRESS *last,char **string,
-			     char *defaulthost);
+			     char *defaulthost,unsigned long depth);
 ADDRESS *rfc822_parse_mailbox (char **string,char *defaulthost);
 long rfc822_phraseonly (char *end);
 ADDRESS *rfc822_parse_routeaddr (char *string,char **ret,char *defaulthost);

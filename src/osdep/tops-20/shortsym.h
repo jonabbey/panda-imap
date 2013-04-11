@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	24 May 1995
- * Last Edited:	15 December 1998
+ * Last Edited:	8 September 1999
  *
- * Copyright 1998 by Mark Crispin
+ * Copyright 1999 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -245,6 +245,7 @@
 #define mail_search_full m_srch
 #define mail_search_gets ms_gts
 #define mail_search_header ms_hdr
+#define mail_search_header_text ms_hdt
 #define mail_search_keyword ms_key
 #define mail_search_msg ms_msg
 #define mail_search_string ms_str
@@ -264,6 +265,7 @@
 #define mail_string_init mt_ini
 #define mail_string_next mt_nxt
 #define mail_string_setpos mt_sps
+#define mail_strip_subject mst_sb
 #define mail_subscribe m_sub
 #define mail_thread m_thr
 #define mail_threadlist mt_lst
@@ -356,6 +358,8 @@
 #define nntp_rename n_ren
 #define nntp_reply n_repl
 #define nntp_scan n_scan
+#define nntp_search n_srch
+#define nntp_search_msg ns_msg
 #define nntp_send n_send
 #define nntp_send_auth ns_aut
 #define nntp_send_auth_work ns_atw
@@ -425,7 +429,7 @@
 #define rfc822_parse_content_header rpc_hd
 #define rfc822_parse_group rp_grp
 #define rfc822_parse_mailbox rp_mbx
-#define rfc822_parse_msg rp_msg
+#define rfc822_parse_msg_full rp_msg
 #define rfc822_parse_parameter rp_par
 #define rfc822_parse_phrase rp_phr
 #define rfc822_parse_routeaddr rp_rte

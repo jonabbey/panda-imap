@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	6 January 1999
+ * Last Edited:	21 September 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -62,7 +62,7 @@ DRIVER mboxdriver = {
   unix_lsub,			/* find subscribed mailboxes */
   NIL,				/* subscribe to mailbox */
   NIL,				/* unsubscribe from mailbox */
-  unix_create,			/* create mailbox */
+  mbox_create,			/* create mailbox */
   mbox_delete,			/* delete mailbox */
   mbox_rename,			/* rename mailbox */
   mbox_status,			/* status of mailbox */
@@ -86,7 +86,7 @@ DRIVER mboxdriver = {
   mbox_check,			/* check for new messages */
   mbox_expunge,			/* expunge deleted messages */
   unix_copy,			/* copy messages to another mailbox */
-  unix_append,			/* append string message to mailbox */
+  mbox_append,			/* append string message to mailbox */
   NIL				/* garbage collect stream */
 };
 
@@ -100,15 +100,29 @@ MAILSTREAM mboxproto = {&mboxdriver};
 
 DRIVER *mbox_valid (char *name)
 {
-  char tmp[MAILTMPLEN];
-  char *s = mailboxfile (tmp,name);
 				/* only INBOX, mbox must exist */
-  if ((s && !*s) && (unix_isvalid ("mbox",tmp) || !errno) &&
-      (unix_isvalid (sysinbox(),tmp) || !errno || (errno == ENOENT)))
+  if (((name[1] == 'N') || (name[1] == 'n')) &&
+      ((name[2] == 'B') || (name[2] == 'b')) &&
+      ((name[3] == 'O') || (name[3] == 'o')) &&
+      ((name[4] == 'X') || (name[4] == 'x')) && !name[5] &&
+      (unix_valid ("mbox") || !errno) &&
+      (unix_valid (sysinbox()) || !errno || (errno == ENOENT)))
     return &mboxdriver;
   return NIL;			/* can't win (yet, anyway) */
 }
 
+/* MBOX mail create mailbox
+ * Accepts: MAIL stream
+ *	    mailbox name to create
+ * Returns: T on success, NIL on failure
+ */
+
+long mbox_create (MAILSTREAM *stream,char *mailbox)
+{
+  return unix_create (NIL,"mbox");
+}
+
+
 /* MBOX mail delete mailbox
  * Accepts: MAIL stream
  *	    mailbox name to delete
@@ -197,6 +211,7 @@ MAILSTREAM *mbox_open (MAILSTREAM *stream)
   stream->mailbox = cpystr (tmp);
 				/* open mailbox, snarf new mail */
   if (!(unix_open (stream) && mbox_ping (stream))) return NIL;
+  stream->inbox = T;		/* mark that this is an INBOX */
 				/* notify upper level of mailbox sizes */
   mail_exists (stream,stream->nmsgs);
   while (i <= stream->nmsgs) if (mail_elt (stream,i++)->recent) ++recent;
@@ -217,22 +232,23 @@ long mbox_ping (MAILSTREAM *stream)
   int sfd;
   unsigned long size;
   struct stat sbuf;
-  char *s,lock[MAILTMPLEN],lockx[MAILTMPLEN];
+  char *s;
+  DOTLOCK lock,lockx;
 				/* time to try snarf and sysinbox non-empty? */
   if (LOCAL && !stream->rdonly && !stream->lock &&
       (time (0) > (LOCAL->lastsnarf + 30)) &&
       !stat (sysinbox (),&sbuf) && sbuf.st_size) {
 				/* yes, open and lock sysinbox */
-    if ((sfd = unix_lock (sysinbox (),O_RDWR,NIL,lockx,LOCK_EX)) >= 0) {
+    if ((sfd = unix_lock (sysinbox (),O_RDWR,NIL,&lockx,LOCK_EX)) >= 0) {
 				/* locked sysinbox in good format? */
       if (fstat (sfd,&sbuf) || !(size = sbuf.st_size) ||
-	  !unix_isvalid_fd (sfd,lock)) {
+	  !unix_isvalid_fd (sfd)) {
 	sprintf (LOCAL->buf,"Mail drop %s is not in standard Unix format",
 		 sysinbox ());
 	mm_log (LOCAL->buf,ERROR);
       }
 				/* sysinbox good, parse and excl-lock mbox */
-      else if (unix_parse (stream,lock,LOCK_EX)) {
+      else if (unix_parse (stream,&lock,LOCK_EX)) {
 	lseek (sfd,0,L_SET);	/* read entire sysinbox into memory */
 	read (sfd,s = (char *) fs_get (size + 1),size);
 	s[size] = '\0';		/* tie it off */
@@ -249,7 +265,7 @@ long mbox_ping (MAILSTREAM *stream)
 				/* sysinbox better not have changed */
 	else if (fstat (sfd,&sbuf) || (size != sbuf.st_size)) {
 	  sprintf (LOCAL->buf,"Mail drop %s lock failure, old=%lu now=%lu",
-		   sysinbox (),size,sbuf.st_size);
+		   sysinbox (),size,(unsigned long) sbuf.st_size);
 	  mm_log (LOCAL->buf,ERROR);
 				/* revert mbox to previous size */
 	  ftruncate (LOCAL->fd,LOCAL->filesize);
@@ -277,12 +293,12 @@ long mbox_ping (MAILSTREAM *stream)
 				/* done with sysinbox text */
 	fs_give ((void **) &s);
 				/* all done with mbox */
-	unix_unlock (LOCAL->fd,stream,lock);
+	unix_unlock (LOCAL->fd,stream,&lock);
 	mail_unlock (stream);	/* unlock the stream */
 	mm_nocritical (stream);	/* done with critical */
       }
 				/* all done with sysinbox */
-      unix_unlock (sfd,NIL,lockx);
+      unix_unlock (sfd,NIL,&lockx);
     }
     LOCAL->lastsnarf = time (0);/* note time of last snarf */
   }
@@ -308,4 +324,20 @@ void mbox_expunge (MAILSTREAM *stream)
 {
   unix_expunge (stream);	/* do expunge */
   mbox_ping (stream);		/* do local ping */
+}
+
+
+/* MBOX mail append message from stringstruct
+ * Accepts: MAIL stream
+ *	    destination mailbox
+ *	    initial flags
+ *	    internal date
+ *	    stringstruct of messages to append
+ * Returns: T if append successful, else NIL
+ */
+
+long mbox_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		  STRING *message)
+{
+  return unix_append (stream,"mbox",flags,date,message);
 }

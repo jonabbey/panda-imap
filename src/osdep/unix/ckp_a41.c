@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988	
- * Last Edited:	13 November 1998
+ * Last Edited:	23 August 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -47,13 +47,14 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
 {
   int reenter = 0;
   char *msg = NIL;
-				/* work around authenticate() bogon */
   char *user = cpystr (pw->pw_name);
 				/* validate password */
-  if (!(pw && pw->pw_uid && !loginrestrictions (user,S_RLOGIN,NIL,&msg) &&
-	!authenticate (user,pass,&reenter,&msg))) pw = NIL;
+  struct passwd *ret = (pw && pw->pw_uid &&
+			!loginrestrictions (user,S_RLOGIN,NIL,&msg) &&
+			!authenticate (user,pass,&reenter,&msg)) ?
+			  getpwnam (user) : NIL;
 				/* clean up any message returned */
   if (msg) fs_give ((void **) &msg);
   if (user) fs_give ((void **) &user);
-  return pw;
+  return ret;
 }

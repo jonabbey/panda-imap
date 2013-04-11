@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 January 1998
- * Last Edited:	1 December 1998
+ * Last Edited:	26 August 1999
  *
  * Copyright 1998 by the University of Washington
  *
@@ -64,6 +64,12 @@ AUTHENTICATOR auth_gss = {
 
 extern char *krb5_defkeyname;	/* sneaky way to get this name */
 
+
+/* Placate const declarations */
+
+static gss_OID_desc *auth_gss_mech;
+static gss_OID_set_desc *auth_gss_mech_set;
+
 /* Check if GSSAPI valid on this system
  * Returns: T if valid, NIL otherwise
  */
@@ -77,12 +83,14 @@ long auth_gssapi_valid (void)
   struct stat sbuf;
   sprintf (tmp,"host@%s",mylocalhost ());
   buf.length = strlen (buf.value = tmp) + 1;
+  memcpy (&auth_gss_mech,&gss_mech_krb5,sizeof (gss_OID));
+  memcpy (&auth_gss_mech_set,&gss_mech_set_krb5,sizeof (gss_OID_set));
 				/* see if can build a name */
   if (gss_import_name (&min,&buf,gss_nt_service_name,&name) != GSS_S_COMPLETE)
     return NIL;			/* failed */
   if ((s = strchr (krb5_defkeyname,':')) && stat (++s,&sbuf))
     auth_gss.server = NIL;	/* can't do server if no keytab */
-  gss_release_name (&min,name);	/* finished with name */
+  gss_release_name (&min,&name);/* finished with name */
   return LONGT;
 }
 
@@ -119,8 +127,8 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
     if (gss_import_name(&min,&buf,gss_nt_service_name,&crname)!=GSS_S_COMPLETE)
       (*responder) (stream,NIL,0);
     else switch (maj =		/* get context */
-		 gss_init_sec_context (&min,GSS_C_NO_CREDENTIAL,&ctx,
-				       crname,GSS_C_NO_OID,
+		 gss_init_sec_context (&min,GSS_C_NO_CREDENTIAL,&ctx,crname,
+				       auth_gss_mech,
 				       GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG,
 				       0,GSS_C_NO_CHANNEL_BINDINGS,
 				       GSS_C_NO_BUFFER,NIL,&resp,NIL,NIL)) {
@@ -187,10 +195,10 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
 	mm_log (tmp,WARN);
       }
       else do switch (mmaj = gss_display_status (&mmin,min,GSS_C_MECH_CODE,
-						 GSS_C_NULL_OID,&mctx,&resp)) {
+						 GSS_C_NO_OID,&mctx,&resp)) {
       case GSS_S_COMPLETE:
       case GSS_S_CONTINUE_NEEDED:
-	sprintf (tmp,"GSSAPI failure: %s",resp.value);
+	sprintf (tmp,"GSSAPI failure: %s",(char *) resp.value);
 	mm_log (tmp,WARN);
 	gss_release_buffer (&mmin,&resp);
       }
@@ -200,20 +208,20 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
     default:			/* miscellaneous errors */
       if (chal.value) fs_give ((void **) &chal.value);
       do switch (mmaj = gss_display_status (&mmin,maj,GSS_C_GSS_CODE,
-					    GSS_C_NULL_OID,&mctx,&resp)) {
+					    GSS_C_NO_OID,&mctx,&resp)) {
       case GSS_S_COMPLETE:
 	mctx = 0;
       case GSS_S_CONTINUE_NEEDED:
-	sprintf (tmp,"Unknown GSSAPI failure: %s",resp.value);
+	sprintf (tmp,"Unknown GSSAPI failure: %s",(char *) resp.value);
 	mm_log (tmp,WARN);
 	gss_release_buffer (&mmin,&resp);
       }
       while (mmaj == GSS_S_CONTINUE_NEEDED);
       do switch (mmaj = gss_display_status (&mmin,min,GSS_C_MECH_CODE,
-					    GSS_C_NULL_OID,&mctx,&resp)) {
+					    GSS_C_NO_OID,&mctx,&resp)) {
       case GSS_S_COMPLETE:
       case GSS_S_CONTINUE_NEEDED:
-	sprintf (tmp,"GSSAPI mechanism status: %s",resp.value);
+	sprintf (tmp,"GSSAPI mechanism status: %s",(char *) resp.value);
 	mm_log (tmp,WARN);
 	gss_release_buffer (&mmin,&resp);
       }
@@ -222,7 +230,7 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
       break;
     }
 				/* finished with credentials name */
-    if (crname) gss_release_name (&min,crname);
+    if (crname) gss_release_name (&min,&crname);
   }
   return ret;			/* return status */
 }
@@ -257,7 +265,7 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 				/* acquire credentials */
   if ((gss_import_name (&min,&buf,gss_nt_service_name,&crname)) ==
       GSS_S_COMPLETE) {
-    if ((maj = gss_acquire_cred (&min,crname,0,GSS_C_NULL_OID_SET,GSS_C_ACCEPT,
+    if ((maj = gss_acquire_cred (&min,crname,0,auth_gss_mech_set,GSS_C_ACCEPT,
 				 &crd,NIL,NIL)) == GSS_S_COMPLETE) {
       if (resp.value = (*responder) ("",0,(unsigned long *) &resp.length)) {
 	do {			/* negotiate authentication */
@@ -266,6 +274,9 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 					&chal,&flags,NIL,NIL);
 				/* don't need response any more */
 	  fs_give ((void **) &resp.value);
+				/* paranoia */
+	  if (memcmp (mech->elements,gss_mech_krb5->elements,mech->length))
+	    fatal ("GSSAPI is bogus");
 	  switch (maj) {	/* how did it go? */
 	  case GSS_S_COMPLETE:	/* successful */
 	  case GSS_S_CONTINUE_NEEDED:
@@ -333,7 +344,7 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 	SERVER_LOG ("Failed to acquire credentials for %s",buf.value);
       if (maj != GSS_S_FAILURE) do
 	switch (mmaj = gss_display_status (&mmin,maj,GSS_C_GSS_CODE,
-					   GSS_C_NULL_OID,&mctx,&resp)) {
+					   GSS_C_NO_OID,&mctx,&resp)) {
 	case GSS_S_COMPLETE:
 	  mctx = 0;
 	case GSS_S_CONTINUE_NEEDED:
@@ -342,7 +353,7 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 	}
       while (mmaj == GSS_S_CONTINUE_NEEDED);
       do switch (mmaj = gss_display_status (&mmin,min,GSS_C_MECH_CODE,
-					    GSS_C_NULL_OID,&mctx,&resp)) {
+					    GSS_C_NO_OID,&mctx,&resp)) {
       case GSS_S_COMPLETE:
       case GSS_S_CONTINUE_NEEDED:
 	SERVER_LOG ("GSSAPI mechanism status: %s",resp.value);
@@ -351,7 +362,7 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
       while (mmaj == GSS_S_CONTINUE_NEEDED);
     }
 				/* finished with credentials name */
-    gss_release_name (&min,crname);
+    gss_release_name (&min,&crname);
   }
   return ret;			/* return status */
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	8 December 1998
+ * Last Edited:	4 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -93,9 +93,6 @@ DRIVER dummydriver = {
 
 				/* prototype stream */
 MAILSTREAM dummyproto = {&dummydriver};
-
-				/* driver parameters */
-static char *file_extension = NIL;
 
 /* Dummy validate mailbox
  * Accepts: mailbox name
@@ -141,7 +138,7 @@ void dummy_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
 				/* tie off name at root */
       if (s = strchr (test,'\\')) *++s = '\0';
       else test[0] = '\0';
-      dummy_listed (stream,'\\',test,LATT_NOINFERIORS,NIL);
+      dummy_listed (stream,'\\',test,LATT_NOSELECT,NIL);
     }
   }
 				/* get canonical form of name */
@@ -181,6 +178,7 @@ void dummy_list (MAILSTREAM *stream,char *ref,char *pat)
 
 /* Dummy list subscribed mailboxes
  * Accepts: mail stream
+ *	    reference
  *	    pattern to search
  */
 
@@ -238,7 +236,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
   struct _finddata_t f;
   struct stat sbuf;
   long fhandle;
-  char *s,tmp[MAILTMPLEN],tmpx[MAILTMPLEN],tmpy[MAILTMPLEN];
+  char tmp[MAILTMPLEN],tmpx[MAILTMPLEN],tmpy[MAILTMPLEN];
   char *base = (dir && ((dir[0] == '\\') || (dir[1] == ':'))) ?
     NIL : myhomedir ();
 				/* build name */
@@ -248,8 +246,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 				/* punt if bogus name */
   if (!mailboxfile (tmp,tmpx)) return;
 				/* make directory wildcard */
-  strcat (tmp,(tmp[strlen (tmp) -1] == '\\') ? "*." : "\\*.");
-  strcat (tmp,file_extension ? file_extension : "*");
+  strcat (tmp,(tmp[strlen (tmp) -1] == '\\') ? "*.*" : "\\*.*");
 
 				/* do nothing if can't open directory */
   if ((fhandle = _findfirst (tmp,&f)) >= 0) {  
@@ -272,8 +269,6 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 	if ((pmatch_full (ucase (tmp),pat,'\\') ||
 	     pmatch_full (strcat (tmp,"\\"),pat,'\\') || dmatch (tmp,pat,'\\'))
 	    && !stat (mailboxfile (tmp,tmpx),&sbuf)) {
-				/* suppress extension */
-	  if (file_extension && (s = strchr (f.name,'.'))) *s = '\0';
 				/* now make name we'd return */
 	  if (dir) sprintf (tmp,"%s%s",dir,f.name);
 	  else strcpy (tmp,f.name);
@@ -447,13 +442,17 @@ long dummy_rename (MAILSTREAM *stream,char *old,char *newname)
     mm_log (mbx,ERROR);
     return NIL;
   }
-  if (s) {			/* found superior to destination name? */
-    c = *++s;			/* remember first character of inferior */
-    *s = '\0';			/* tie off to get just superior */
+				/* found superior to destination name? */
+  if (s && (s != mbx) && ((mbx[1] != ':') || (s != mbx + 2))) {
+    c = s[1];			/* remember character after delimiter */
+    *s = s[1] = '\0';		/* tie off name at delimiter */
 				/* name doesn't exist, create it */
-    if ((stat (mbx,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	!dummy_create (stream,mbx)) return NIL;
-    *s = c;			/* restore full name */
+    if (stat (mbx,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) {
+      *s = '\\';		/* restore delimiter */
+      if (!dummy_create (stream,mbx)) return NIL;
+    }
+    else *s = '\\';		/* restore delimiter */
+    s[1] = c;			/* restore character after delimiter */
   }
 				/* rename of non-ex INBOX creates dest */
   if (!strcmp (ucase (strcpy (tmp,old)),"INBOX") &&
@@ -502,6 +501,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
     mail_recent (stream,0);	/* and certainly no recent ones! */
     stream->uid_validity = 1;
   }
+  stream->inbox = T;		/* note that it's an INBOX */
   return stream;		/* return success */
 }
 
@@ -583,6 +583,8 @@ long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 /* Dummy append message string
  * Accepts: mail stream
  *	    destination mailbox
+ *	    optional flags
+ *	    optional date
  *	    stringstruct of message to append
  * Returns: T on success, NIL on failure
  */

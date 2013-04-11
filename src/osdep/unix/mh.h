@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	27 July 1998
+ * Last Edited:	27 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -43,10 +43,10 @@
 /* MH I/O stream local data */
 	
 typedef struct mh_local {
-  unsigned int inbox : 1;	/* if it's an INBOX or not */
   char *dir;			/* spool directory name */
   char *buf;			/* temporary buffer */
   unsigned long buflen;		/* current size of temporary buffer */
+  unsigned long cachedtexts;	/* total size of all cached texts */
   time_t scantime;		/* last time directory scanned */
 } MHLOCAL;
 

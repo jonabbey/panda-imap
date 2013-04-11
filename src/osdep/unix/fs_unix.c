@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	19 January 1999
+ * Last Edited:	7 May 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -40,10 +40,11 @@
 
 void *fs_get (size_t size)
 {
-  int i = mail_parameters (NIL,GET_ALARMSAVE,NIL) ? (int) max (alarm(0),1) : 0;
+  blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
+  void *data = (*bn) (BLOCK_SENSITIVE,NIL);
   void *block = malloc (size ? size : (size_t) 1);
-  if (!block) fatal ("Out of free storage");
-  if (i) alarm (i);
+  if (!block) fatal ("Out of memory");
+  (*bn) (BLOCK_NONSENSITIVE,data);
   return (block);
 }
 
@@ -55,10 +56,11 @@ void *fs_get (size_t size)
 
 void fs_resize (void **block,size_t size)
 {
-  int i = mail_parameters (NIL,GET_ALARMSAVE,NIL) ? (int) max (alarm(0),1) : 0;
+  blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
+  void *data = (*bn) (BLOCK_SENSITIVE,NIL);
   if (!(*block = realloc (*block,size ? size : (size_t) 1)))
-    fatal ("Can't resize free storage");
-  if (i) alarm (i);
+    fatal ("Can't resize memory");
+  (*bn) (BLOCK_NONSENSITIVE,data);
 }
 
 
@@ -68,8 +70,9 @@ void fs_resize (void **block,size_t size)
 
 void fs_give (void **block)
 {
-  int i = mail_parameters (NIL,GET_ALARMSAVE,NIL) ? (int) max (alarm(0),1) : 0;
+  blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
+  void *data = (*bn) (BLOCK_SENSITIVE,NIL);
   free (*block);
   *block = NIL;
-  if (i) alarm (i);
+  (*bn) (BLOCK_NONSENSITIVE,data);
 }

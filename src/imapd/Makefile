@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		5 November 1990
-# Last Edited:	20 November 1998
+# Last Edited:	4 October 1999
 #
-# Copyright 1998 by the University of Washington
+# Copyright 1999 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -48,6 +48,8 @@ SHELL= /bin/sh
 #
 #  I personally find this definition quite amusing:
 #EXTRACFLAGS= -DNETSCAPE_BRAIN_DAMAGE=\"http://www.microsoft.com/ie/ie40/oe\"
+#
+# Note: This seems to be fixed in the current release of Netscape Messenger.
 
 # Get local definitions from c-client directory
 
@@ -55,7 +57,8 @@ C = ../c-client
 CCLIENTLIB = $C/c-client.a
 CC = `cat $C/CCTYPE`
 CFLAGS = -I$C `cat $C/CFLAGS` $(EXTRACFLAGS) -DANOFILE=\"$(ANO)\" \
-	-DALERTFILE=\"$(ALERT)\" -DUSERALERTFILE=\"$(USERALERT)\"
+	-DALERTFILE=\"$(ALERT)\" -DUSERALERTFILE=\"$(USERALERT)\" \
+	-DWEBEXPRESS_BRAIN_DAMAGE=1
 LDFLAGS = $(CCLIENTLIB) `cat $C/LDFLAGS`
 
 all:	imapd

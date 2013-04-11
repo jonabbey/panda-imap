@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	25 October 1998
+ * Last Edited:	6 October 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,14 +42,23 @@ static long ttmo_write = 0;
 static long rshtimeout = 15;	/* rsh timeout */
 static char *rshcommand = NIL;	/* rsh command */
 static char *rshpath = NIL;	/* rsh path */
-static long alarmsave = 0;	/* save alarms */
-
+static long sshtimeout = 15;	/* ssh timeout */
+static char *sshcommand = NIL;	/* ssh command */
+static char *sshpath = NIL;	/* ssh path */
+static long allowreversedns =	/* allow reverse DNS lookup */
+#ifdef DISABLE_REVERSE_DNS_LOOKUP
+  NIL	/* Not recommended, especially if using Kerberos authentication */
+#else
+  T
+#endif
+  ;
 
 /* Local function prototypes */
 
 int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
 		     unsigned long port);
 long tcp_abort (TCPSTREAM *stream);
+char *tcp_name (struct sockaddr_in *sin,long flag);
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -84,6 +93,13 @@ void *tcp_parameters (long function,void *value)
   case GET_WRITETIMEOUT:
     value = (void *) ttmo_write;
     break;
+  case SET_ALLOWREVERSEDNS:
+    allowreversedns = (long) value;
+    break;
+  case GET_ALLOWREVERSEDNS:
+    value = (void *) allowreversedns;
+    break;
+
   case SET_RSHTIMEOUT:
     rshtimeout = (long) value;
     break;
@@ -104,11 +120,25 @@ void *tcp_parameters (long function,void *value)
   case GET_RSHPATH:
     value = (void *) rshpath;
     break;
-  case SET_ALARMSAVE:
-    alarmsave = (long) value;
+  case SET_SSHTIMEOUT:
+    sshtimeout = (long) value;
     break;
-  case GET_ALARMSAVE:
-    value = (void *) alarmsave;
+  case GET_SSHTIMEOUT:
+    value = (void *) sshtimeout;
+    break;
+  case SET_SSHCOMMAND:
+    if (sshcommand) fs_give ((void **) &sshcommand);
+    sshcommand = cpystr ((char *) value);
+    break;
+  case GET_SSHCOMMAND:
+    value = (void *) sshcommand;
+    break;
+  case SET_SSHPATH:
+    if (sshpath) fs_give ((void **) &sshpath);
+    sshpath = cpystr ((char *) value);
+    break;
+  case GET_SSHPATH:
+    value = (void *) sshpath;
     break;
   default:
     value = NIL;		/* error case */
@@ -120,15 +150,16 @@ void *tcp_parameters (long function,void *value)
 /* TCP/IP open
  * Accepts: host name
  *	    contact service name
- *	    contact port number
+ *	    contact port number and optional silent flag
  * Returns: TCP/IP stream if success else NIL
  */
 
 TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 {
   TCPSTREAM *stream = NIL;
-  int i,j,sock;
+  int i,sock;
   int ctr = 0;
+  int silent = (port & 0x80000000) ? T : NIL;
   int *ctrp = &ctr;
   char *s;
   struct sockaddr_in sin;
@@ -136,6 +167,9 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   char hostname[MAILTMPLEN];
   char tmp[MAILTMPLEN];
   struct servent *sv = NIL;
+  blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
+  void *data;
+  port &= 0x7fffffff;		/* erase silent flag */
   if (service) {		/* service specified? */
     if (*service == '*') {	/* yes, special alt driver kludge? */
       ctrp = NIL;		/* yes, don't do open timeout */
@@ -168,34 +202,40 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   }
 
   else {			/* lookup host name */
+    (*bn) (BLOCK_DNSLOOKUP,NIL);
+    data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* quell alarms */
-    i = alarmsave ? (int) max (alarm (0),1) : 0;
     if (he = gethostbyname (lcase (strcpy (hostname,host)))) {
-      if (i) alarm (i);		/* restore alarms */
+      (*bn) (BLOCK_NONSENSITIVE,data);
+      (*bn) (BLOCK_NONE,NIL);
 				/* copy address type */
       sin.sin_family = he->h_addrtype;
 				/* copy host name */
       strcpy (hostname,he->h_name);
 #ifdef HOST_NOT_FOUND		/* muliple addresses only on DNS systems */
       for (sock = -1,i = 0; (sock < 0) && (s = he->h_addr_list[i]); i++) {
-	if (i) mm_log (tmp,WARN);
+	if (i && !silent) mm_log (tmp,WARN);
 	memcpy (&sin.sin_addr,s,he->h_length);
+	(*bn) (BLOCK_TCPOPEN,NIL);
 	sock = tcp_socket_open (&sin,tmp,ctrp,hostname,port);
+	(*bn) (BLOCK_NONE,NIL);
       }
 #else				/* the one true address then */
       memcpy (&sin.sin_addr,he->h_addr,he->h_length);
+      (*bn) (BLOCK_DNSLOOKUP,NIL);
       sock = tcp_socket_open (&sin,tmp,ctrp,hostname,port);
+      (*bn) (BLOCK_NONE,NIL);
 #endif
     }
     else {
-      if (i) alarm (i);		/* restore alarms */
+      (*bn) (BLOCK_NONSENSITIVE,data);
+      (*bn) (BLOCK_NONE,NIL);
       sprintf (tmp,"No such host as %.80s",host);
       mm_log (tmp,ERROR);
       return NIL;
     }
   }
-  if (sock < 0) mm_log (tmp,ERROR);
-  else {			/* won */
+  if (sock >= 0)  {		/* won */
     stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
 				   sizeof (TCPSTREAM));
     stream->port = port;	/* port number */
@@ -206,6 +246,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 				/* copy official host name */
     stream->host = cpystr (hostname);
   }
+  else if (!silent) mm_log (tmp,ERROR);
   return stream;		/* return success */
 }
 
@@ -237,7 +278,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
     while ((i = connect (sock,(struct sockaddr *) sin,
 			 sizeof (struct sockaddr_in))) < 0 && errno == EINTR);
     if (i < 0) {		/* failed? */
-      sprintf (tmp,"Can't connect to %.80s,%d: %s",hst,port,strerror (errno));
+      sprintf (tmp,"Can't connect to %.80s,%lu: %s",hst,port,strerror (errno));
       close (sock);		/* flush socket */
       return -1;
     }
@@ -258,7 +299,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
     case EADDRINUSE:		/* restart after interrupt? */
       break;			/* well, not really, it was interrupted */
     default:
-      sprintf (tmp,"Can't connect to %.80s,%d: %s",hst,port,strerror (errno));
+      sprintf (tmp,"Can't connect to %.80s,%lu: %s",hst,port,strerror (errno));
       close (sock);		/* flush socket */
       return -1;
     }
@@ -281,7 +322,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
       i = i ? errno : ETIMEDOUT;/* determine error code */
       close (sock);		/* flush socket */
       errno = i;		/* return error code */
-      sprintf (tmp,"Connection failed to %.80s,%d: %s",hst,port,
+      sprintf (tmp,"Connection failed to %.80s,%lu: %s",hst,port,
 	       strerror (errno));
       return -1;
     }
@@ -296,7 +337,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
  * Returns: TCP/IP stream if success else NIL
  */
 
-#define MAXARGV 10
+#define MAXARGV 20
 
 TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
 {
@@ -307,11 +348,21 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   int pipei[2],pipeo[2];
   struct timeval tmo;
   fd_set fds,efds;
-				/* return immediately if rsh disabled */
-  if (!(tmo.tv_sec = rshtimeout)) return NIL;
-  tmo.tv_usec = 0;
-  FD_ZERO (&fds);		/* initialize selection vector */
-  FD_ZERO (&efds);		/* handle errors too */
+  blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
+  void *data;
+  if (*service == '*') {	/* want ssh? */
+				/* return immediately if ssh disabled */
+    if (!(sshpath && (tmo.tv_sec = sshtimeout))) return NIL;
+				/* ssh command prototype defined yet? */
+    if (!sshcommand) sshcommand = cpystr ("%s %s -l %s exec /etc/r%sd");
+  }
+				/* set rsh timeout */
+  else if (tmo.tv_sec = rshtimeout) {
+				/* rsh path/command prototypes defined yet? */
+    if (!rshpath) rshpath = cpystr (RSHPATH);
+    if (!rshcommand) rshcommand = cpystr ("%s %s -l %s exec /etc/r%sd");
+  }
+  else return NIL;		/* rsh disabled */
 				/* look like domain literal? */
   if (mb->host[0] == '[' && mb->host[i = (strlen (mb->host))-1] == ']') {
     strcpy (host,mb->host+1);	/* yes, copy without brackets */
@@ -323,18 +374,26 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
     }
   }
 				/* note that Unix requires lowercase! */
-  else if (he = gethostbyname (lcase (strcpy (host,mb->host))))
-    strcpy (host,he->h_name);
-				/* rsh command prototype defined yet? */
-  if (!rshpath) rshpath = cpystr (RSHPATH);
-  if (!rshcommand) rshcommand = cpystr ("%s %s -l %s exec /etc/r%sd");
-				/* build rsh command */
-  sprintf (tmp,rshcommand,rshpath,host,mb->user[0] ? mb->user : myusername (),
-	   service);
+  else {
+    (*bn) (BLOCK_DNSLOOKUP,NIL);
+    data = (*bn) (BLOCK_SENSITIVE,NIL);
+    if (he = gethostbyname (lcase (strcpy (host,mb->host))))
+      strcpy (host,he->h_name);
+    (*bn) (BLOCK_NONSENSITIVE,data);
+    (*bn) (BLOCK_NONE,NIL);
+  }
+  if (*service == '*')		/* build ssh command */
+    sprintf (tmp,sshcommand,sshpath,host,
+	     mb->user[0] ? mb->user : myusername (),service + 1);
+  else sprintf (tmp,rshcommand,rshpath,host,
+		mb->user[0] ? mb->user : myusername (),service);
+
+  tmo.tv_usec = 0;		/* initialize usec timeout */
+  FD_ZERO (&fds);		/* initialize selection vector */
+  FD_ZERO (&efds);		/* handle errors too */
   for (i = 1,path = argv[0] = strtok (tmp," ");
        (i < MAXARGV) && (argv[i] = strtok (NIL," ")); i++);
   argv[i] = NIL;		/* make sure argv tied off */
-
 				/* make command pipes */
   if (pipe (pipei) < 0) return NIL;
   if (pipe (pipeo) < 0) {
@@ -373,14 +432,17 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   stream->port = 0xffffffff;	/* no port number */
   FD_SET (stream->tcpsi,&fds);	/* set bit in selection vector */
   FD_SET (stream->tcpsi,&efds);	/* set bit in error selection vector */
+  (*bn) (BLOCK_TCPOPEN,NIL);
   while (((i = select (stream->tcpsi+1,&fds,0,&efds,&tmo)) < 0) &&
 	 (errno == EINTR));
   if (i <= 0) {			/* timeout or error? */
-    mm_log (i ? "error in rsh to IMAP server" : "rsh to IMAP server timed out",
-	    WARN);
+    sprintf (tmp,i ? "error in %s to IMAP server" :
+	     "%s to IMAP server timed out",(*service == '*') ? "ssh" : "rsh");
+    mm_log (tmp,WARN);
     tcp_close (stream);		/* punt stream */
     stream = NIL;
   }
+  (*bn) (BLOCK_NONE,NIL);
 				/* return user name */
   strcpy (usrbuf,mb->user[0] ? mb->user : myusername ());
   return stream;		/* return success */
@@ -470,7 +532,9 @@ long tcp_getdata (TCPSTREAM *stream)
   fd_set fds,efds;
   struct timeval tmo;
   time_t t = time (0);
+  blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   if (stream->tcpsi < 0) return NIL;
+  (*bn) (BLOCK_TCPREAD,NIL);
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     time_t tl = time (0);	/* start of request */
     tmo.tv_sec = ttmo_read;	/* read timeout */
@@ -494,6 +558,7 @@ long tcp_getdata (TCPSTREAM *stream)
     stream->iptr = stream->ibuf;/* point at TCP buffer */
     stream->ictr = i;		/* set new byte count */
   }
+  (*bn) (BLOCK_NONE,NIL);
   return T;
 }
 
@@ -522,7 +587,9 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   fd_set fds;
   struct timeval tmo;
   time_t t = time (0);
+  blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   if (stream->tcpso < 0) return NIL;
+  (*bn) (BLOCK_TCPWRITE,NIL);
   while (size > 0) {		/* until request satisfied */
     time_t tl = time (0);	/* start of request */
     tmo.tv_sec = ttmo_write;	/* write timeout */
@@ -543,6 +610,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
     size -= i;			/* how much we sent */
     string += i;
   }
+  (*bn) (BLOCK_NONE,NIL);
   return T;			/* all done */
 }
 
@@ -568,12 +636,14 @@ void tcp_close (TCPSTREAM *stream)
 
 long tcp_abort (TCPSTREAM *stream)
 {
-  int i;
+  blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   if (stream->tcpsi >= 0) {	/* no-op if no socket */
+    (*bn) (BLOCK_TCPCLOSE,NIL);
     close (stream->tcpsi);	/* nuke the socket */
     if (stream->tcpsi != stream->tcpso) close (stream->tcpso);
     stream->tcpsi = stream->tcpso = -1;
   }
+  (*bn) (BLOCK_NONE,NIL);
   return NIL;
 }
 
@@ -596,34 +666,16 @@ char *tcp_host (TCPSTREAM *stream)
 char *tcp_remotehost (TCPSTREAM *stream)
 {
   if (!stream->remotehost) {
-    char *s,tmp[MAILTMPLEN];
-    struct hostent *he;
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
-    if (getpeername (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen))
-      s = stream->host;
-#ifndef DISABLE_REVERSE_DNS_LOOKUP
-    /* Guarantees that the client will have the same string as the server does
-     * from calling tcp_serverhost ().
-     */
-    else if (he = gethostbyaddr ((char *) &sin.sin_addr,
-				 sizeof (struct in_addr),sin.sin_family))
-      s = he->h_name;
-#else
-  /* Not recommended.  In any mechanism (e.g. Kerberos) in which both client
-   * and server must agree on the name of the server system, this may cause
-   * the client to have a different idea of the server's name from the server.
-   * This is particularly important in those cases where a server has multiple
-   * CNAMEs; the gethostbyaddr() will canonicalize the name to the proper IP
-   * address.
-   */
-#endif
-    else sprintf (s = tmp,"[%s]",inet_ntoa (sin.sin_addr));
-    stream->remotehost = cpystr (s);
+    stream->remotehost =	/* get socket's peer name */
+      getpeername (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen) ?
+	cpystr (stream->host) : tcp_name (&sin,NIL);
   }
   return stream->remotehost;
 }
-
+
+
 /* TCP/IP return port for this stream
  * Accepts: TCP/IP stream
  * Returns: port number for this stream
@@ -643,30 +695,12 @@ unsigned long tcp_port (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   if (!stream->localhost) {
-    char *s,tmp[MAILTMPLEN];
-    struct hostent *he;
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
-				/* get socket address */
-    if ((stream->port & 0xffff000) ||
-	getsockname (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen))
-      s = mylocalhost ();	/* not a socket or failed, use my name */
-#ifndef DISABLE_REVERSE_DNS_LOOKUP
-    /* Guarantees that the client will have the same string as the server will
-     * get in doing a reverse DNS lookup on the client's IP address.
-     */
-				/* translate socket address to name */
-    else if (he = gethostbyaddr ((char *) &sin.sin_addr,
-				 sizeof (struct in_addr),sin.sin_family)) 
-      s = he->h_name;
-#else
-    /* Not recommended.  In any mechanism (e.g. SMTP or NNTP) in which both
-     * client and server must agree on the name of the client system, this may
-     * cause the client to use the wrong name.
-     */
-#endif
-    else sprintf (s = tmp,"[%s]",inet_ntoa (sin.sin_addr));
-    stream->localhost = cpystr (s);
+    stream->localhost =		/* get socket's name */
+      ((stream->port & 0xffff000) ||
+       getsockname (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen)) ?
+	 cpystr (mylocalhost ()) : tcp_name (&sin,NIL);
   }
   return stream->localhost;	/* return local host name */
 }
@@ -680,26 +714,16 @@ static char *myClientHost = NIL;
 char *tcp_clienthost ()
 {
   if (!myClientHost) {
-    char *s,tmp[MAILTMPLEN];
-    struct hostent *he;
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
-    if (getpeername (0,(struct sockaddr *) &sin,(void *) &sinlen))
-      s = "UNKNOWN";
-#ifndef DISABLE_REVERSE_DNS_LOOKUP
-    /* Includes both client name and IP address in syslog() output. */
-    else if (he = gethostbyaddr ((char *) &sin.sin_addr,
-				 sizeof (struct in_addr),sin.sin_family)) 
-      sprintf (s = tmp,"%s [%s]",he->h_name,inet_ntoa (sin.sin_addr));
-#else
-    /* Not recommended.  Syslog output will only have the client IP address. */
-#endif
-    else sprintf (s = tmp,"[%s]",inet_ntoa (sin.sin_addr));
-    myClientHost = cpystr (s);
+				/* get stdin's peer name */
+    myClientHost = getpeername (0,(struct sockaddr *) &sin,(void *) &sinlen) ?
+      cpystr ("UNKNOWN") : tcp_name (&sin,T);
   }
   return myClientHost;
 }
-
+
+
 /* TCP/IP get server host name (server calls only)
  * Returns: server host name
  */
@@ -710,36 +734,15 @@ static long myServerPort = -1;
 char *tcp_serverhost ()
 {
   if (!myServerHost) {
-    char *s,tmp[MAILTMPLEN];
-    struct hostent *he;
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
-				/* get socket address */
+				/* get stdin's name */
     if (getsockname (0,(struct sockaddr *) &sin,(void *) &sinlen))
-      s = mylocalhost ();
+      myServerHost = cpystr (mylocalhost ());
     else {
-#ifndef DISABLE_REVERSE_DNS_LOOKUP
+      myServerHost = tcp_name (&sin,NIL);
       myServerPort = ntohs (sin.sin_port);
-      /* Guarantees that the server will have the same string as the client
-       * does from calling tcp_remotehost ().
-       */
-      if (he = gethostbyaddr ((char *) &sin.sin_addr,
-			      sizeof (struct in_addr),sin.sin_family))
-	s = he->h_name;
-      else
-#else
-      /* Not recommended.  In any mechanism (e.g. Kerberos) in which both
-       * client and server must agree on the name of the server system, this
-       * may cause a spurious mismatch.  This is particularly important when
-       * multiple server systems are co-located on the same CPU with different
-       * IP addresses; the gethostbyaddr() call will return the name of the
-       * proper server system name and avoid canonicalizing it to a default
-       * name.
-       */
-#endif
-      sprintf (s = tmp,"[%s]",inet_ntoa (sin.sin_addr));
     }
-    myServerHost = cpystr (s);
   }
   return myServerHost;
 }
@@ -762,11 +765,47 @@ long tcp_serverport ()
 
 char *tcp_canonical (char *name)
 {
-  char host[MAILTMPLEN];
+  char *ret,host[MAILTMPLEN];
   struct hostent *he;
+  blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
+  void *data;
 				/* look like domain literal? */
   if (name[0] == '[' && name[strlen (name) - 1] == ']') return name;
+  (*bn) (BLOCK_DNSLOOKUP,NIL);
+  data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* note that Unix requires lowercase! */
-  else return (he = gethostbyname (lcase (strcpy (host,name)))) ?
-    he->h_name : name;
+  ret = (he = gethostbyname (lcase (strcpy (host,name)))) ? he->h_name : name;
+  (*bn) (BLOCK_NONSENSITIVE,data);
+  (*bn) (BLOCK_NONE,NIL);
+  return ret;
+}
+
+
+/* TCP/IP return name from socket
+ * Accepts: socket
+ *	    verbose flag
+ * Returns: cpystr name
+ */
+
+char *tcp_name (struct sockaddr_in *sin,long flag)
+{
+  char *s,tmp[MAILTMPLEN];
+  if (allowreversedns) {
+    struct hostent *he;
+    blocknotify_t bn = (blocknotify_t)mail_parameters(NIL,GET_BLOCKNOTIFY,NIL);
+    void *data;
+    (*bn) (BLOCK_DNSLOOKUP,NIL);
+    data = (*bn) (BLOCK_SENSITIVE,NIL);
+				/* translate address to name */
+    if (!(he = gethostbyaddr ((char *) &sin->sin_addr,
+			      sizeof (struct in_addr),sin->sin_family)))
+      sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
+    else if (flag) sprintf (s = tmp,"%s [%s]",he->h_name,
+			    inet_ntoa (sin->sin_addr));
+    else s = he->h_name;
+    (*bn) (BLOCK_NONSENSITIVE,data);
+    (*bn) (BLOCK_NONE,NIL);
+  }
+  else sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
+  return cpystr (s);
 }

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	28 September 1998
+ * Last Edited:	10 June 1999
  *
  * Copyright 1998 by the University of Washington
  *
@@ -242,17 +242,17 @@ long tcp_getdata (TCPSTREAM *stream)
   fd_set fds,efds;
   struct timeval tmo;
   time_t t = time (0);
-  if (stream->tcpsi < 0) return NIL;
+  if (stream->tcps < 0) return NIL;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     time_t tl = time (0);	/* start of request */
     tmo.tv_sec = ttmo_read;	/* read timeout */
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
     FD_ZERO (&efds);		/* handle errors too */
-    FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
-    FD_SET(stream->tcpsi,&efds);/* set bit in error selection vector */
+    FD_SET (stream->tcps,&fds);/* set bit in selection vector */
+    FD_SET(stream->tcps,&efds);/* set bit in error selection vector */
     errno = NIL;		/* block and read */
-    while (((i = select (stream->tcpsi+1,&fds,0,&efds,ttmo_read ? &tmo : 0))<0)
+    while (((i = select (stream->tcps+1,&fds,0,&efds,ttmo_read ? &tmo : 0))<0)
 	   && (errno == EINTR));
     if (!i) {			/* timeout? */
       time_t tc = time (0);
@@ -260,7 +260,7 @@ long tcp_getdata (TCPSTREAM *stream)
       else return tcp_abort (stream);
     }
     else if (i < 0) return tcp_abort (stream);
-    while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
+    while (((i = read (stream->tcps,stream->ibuf,BUFLEN)) < 0) &&
 	   (errno == EINTR));
     if (i < 1) return tcp_abort (stream);
     stream->iptr = stream->ibuf;/* point at TCP buffer */
@@ -294,15 +294,15 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   fd_set fds;
   struct timeval tmo;
   time_t t = time (0);
-  if (stream->tcpso < 0) return NIL;
+  if (stream->tcps < 0) return NIL;
   while (size > 0) {		/* until request satisfied */
     time_t tl = time (0);	/* start of request */
     tmo.tv_sec = ttmo_write;	/* write timeout */
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
-    FD_SET (stream->tcpso,&fds);/* set bit in selection vector */
+    FD_SET (stream->tcps,&fds);/* set bit in selection vector */
     errno = NIL;		/* block and write */
-    while (((i = select (stream->tcpso+1,0,&fds,0,ttmo_write ? &tmo : 0)) < 0)
+    while (((i = select (stream->tcps+1,0,&fds,0,ttmo_write ? &tmo : 0)) < 0)
 	   && (errno == EINTR));
     if (!i) {			/* timeout? */
       time_t tc = time (0);
@@ -310,7 +310,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
       else return tcp_abort (stream);
     }
     else if (i < 0) return tcp_abort (stream);
-    while (((i = write (stream->tcpso,string,size)) < 0) && (errno == EINTR));
+    while (((i = write (stream->tcps,string,size)) < 0) && (errno == EINTR));
     if (i < 0) return tcp_abort (stream);
     size -= i;			/* how much we sent */
     string += i;

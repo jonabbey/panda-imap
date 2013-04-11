@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	29 July 1998
+ * Last Edited:	10 May 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -65,9 +65,9 @@ DRIVER philedriver = {
   phile_lsub,			/* list subscribed mailboxes */
   NIL,				/* subscribe to mailbox */
   NIL,				/* unsubscribe from mailbox */
-  phile_create,			/* create mailbox */
-  phile_delete,			/* delete mailbox */
-  phile_rename,			/* rename mailbox */
+  dummy_create,			/* create mailbox */
+  dummy_delete,			/* delete mailbox */
+  dummy_rename,			/* rename mailbox */
   NIL,				/* status of mailbox */
   phile_open,			/* open mailbox */
   phile_close,			/* close mailbox */
@@ -173,42 +173,6 @@ void phile_list (MAILSTREAM *stream,char *ref,char *pat)
 void phile_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
   if (stream) dummy_lsub (NIL,ref,pat);
-}
-
-/* File create mailbox
- * Accepts: MAIL stream
- *	    mailbox name to create
- * Returns: T on success, NIL on failure
- */
-
-long phile_create (MAILSTREAM *stream,char *mailbox)
-{
-  return dummy_create (stream,mailbox);
-}
-
-
-/* File delete mailbox
- * Accepts: MAIL stream
- *	    mailbox name to delete
- * Returns: T on success, NIL on failure
- */
-
-long phile_delete (MAILSTREAM *stream,char *mailbox)
-{
-  return dummy_delete (stream,mailbox);
-}
-
-
-/* File rename mailbox
- * Accepts: MAIL stream
- *	    old mailbox name
- *	    new mailbox name (or NIL for delete)
- * Returns: T on success, NIL on failure
- */
-
-long phile_rename (MAILSTREAM *stream,char *old,char *newname)
-{
-  return dummy_rename (stream,old,newname);
 }
 
 /* File open

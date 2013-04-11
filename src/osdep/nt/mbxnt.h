@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	1 July 1998
+ * Last Edited:	21 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,7 +41,6 @@
 /* MBX I/O stream local data */
 	
 typedef struct mbx_local {
-  unsigned int inbox : 1;	/* if this is an INBOX or not */
   unsigned int flagcheck: 1;	/* if ping should sweep for flags */
   unsigned int fullcheck: 1;	/* if ping must sweep flags and expunged */
   unsigned int expunged : 1;	/* if one or more expunged messages */

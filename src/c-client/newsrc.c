@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 September 1994
- * Last Edited:	11 September 1997
+ * Last Edited:	28 May 1999
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -196,7 +196,7 @@ long newsrc_update (MAILSTREAM *stream,char *group,char state)
   long ret = NIL;
   FILE *f = fopen (newsrc,"r+b");
   if (f) {			/* update existing file */
-    int c;
+    int c = 0;
     char *s,nl[3];
     long pos = 0;
     nl[0] = nl[1] = nl[2]='\0';	/* no newline known yet */
@@ -254,7 +254,7 @@ long newsrc_update (MAILSTREAM *stream,char *group,char state)
 
 long newsrc_read (char *group,MAILSTREAM *stream)
 {
-  int c;
+  int c = 0;
   char *s,tmp[MAILTMPLEN];
   unsigned long i,j;
   MESSAGECACHE *elt;
@@ -292,7 +292,7 @@ long newsrc_read (char *group,MAILSTREAM *stream)
 	    c = getc (f);	/* get first character of number */
 	    break;
 	  default:		/* bogus character */
-	    sprintf (tmp,"Bogus character 0x%x in news state",(int) c);
+	    sprintf (tmp,"Bogus character 0x%x in news state",(unsigned int)c);
 	    mm_log (tmp,ERROR);
 	  case EOF: case '\015': case '\012':
 	    fclose (f);		/* all done - close the file */
@@ -323,7 +323,7 @@ long newsrc_read (char *group,MAILSTREAM *stream)
     while (m <= stream->nmsgs);
   }
   if (unseen) {			/* report first unseen message */
-    sprintf (tmp,"[UNSEEN] %ld is first unseen message in %s",unseen,group);
+    sprintf (tmp,"[UNSEEN] %lu is first unseen message in %s",unseen,group);
     mm_notify (stream,tmp,(long) NIL);
   }
   return recent;
@@ -337,7 +337,7 @@ long newsrc_read (char *group,MAILSTREAM *stream)
 
 long newsrc_write (char *group,MAILSTREAM *stream)
 {
-  int c,d = EOF;
+  int c = 0,d = EOF;
   char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,NIL);
   char *s,tmp[MAILTMPLEN],backup[MAILTMPLEN],nl[3];
   FILE *f,*bf;
@@ -442,7 +442,7 @@ long newsrc_write (char *group,MAILSTREAM *stream)
 
 char *newsrc_state (MAILSTREAM *stream,char *group)
 {
-  int c;
+  int c = 0;
   char *s,tmp[MAILTMPLEN];
   long pos;
   size_t size;

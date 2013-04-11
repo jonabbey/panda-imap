@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	23 September 1998
+ * Last Edited:	30 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -199,7 +199,7 @@ void mx_list_work (MAILSTREAM *stream,char *dir,char *pat,long level)
   DIR *dp;
   struct direct *d;
   struct stat sbuf;
-  char *cp,*np,curdir[MAILTMPLEN],name[MAILTMPLEN],tmp[MAILTMPLEN];
+  char *cp,*np,curdir[MAILTMPLEN],name[MAILTMPLEN];
 				/* make mailbox and directory names */
   if ((np = name + strlen (strcpy (name,dir ? dir : ""))) != name) *np++ = '/';
   cp = curdir + strlen (strcat ((mx_file(curdir,dir ? dir:myhomedir())),"/"));
@@ -229,7 +229,6 @@ void mx_list_work (MAILSTREAM *stream,char *dir,char *pat,long level)
 
 long mx_subscribe (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
   return sm_subscribe (mailbox);
 }
 
@@ -242,7 +241,6 @@ long mx_subscribe (MAILSTREAM *stream,char *mailbox)
 
 long mx_unsubscribe (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
   return sm_unsubscribe (mailbox);
 }
 
@@ -353,20 +351,20 @@ long mx_rename (MAILSTREAM *stream,char *old,char *newname)
 
 MAILSTREAM *mx_open (MAILSTREAM *stream)
 {
-  int i;
   char tmp[MAILTMPLEN];
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return user_flags (&mxproto);
   if (stream->local) fatal ("mx recycle stream");
   stream->local = fs_get (sizeof (MXLOCAL));
 				/* note if an INBOX or not */
-  LOCAL->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX");
+  stream->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX");
   mx_file (tmp,stream->mailbox);/* get directory name */
   LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
 				/* make temporary buffer */
   LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
   LOCAL->scantime = 0;		/* not scanned yet */
   LOCAL->fd = -1;		/* no index yet */
+  LOCAL->cachedtexts = 0;	/* no cached texts */
   stream->sequence++;		/* bump sequence number */
 				/* parse mailbox */
   stream->nmsgs = stream->recent = 0;
@@ -463,6 +461,11 @@ char *mx_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
   if (flags & FT_UID) return "";/* UID call "impossible" */
   elt = mail_elt (stream,msgno);/* get elt */
   if (!elt->private.msg.header.text.data) {
+				/* purge cache if too big */
+    if (LOCAL->cachedtexts > max (stream->nmsgs * 4096,2097152)) {
+      mail_gc (stream,GC_TEXTS);/* just can't keep that much */
+      LOCAL->cachedtexts = 0;
+    }
     if ((fd = open (mx_fast_work (stream,elt),O_RDONLY,NIL)) < 0) return "";
 				/* is buffer big enough? */
     if (elt->rfc822_size > LOCAL->buflen) {
@@ -484,6 +487,8 @@ char *mx_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
 				/* copy header */
     cpytxt (&elt->private.msg.header.text,LOCAL->buf,i);
     cpytxt (&elt->private.msg.text.text,LOCAL->buf+i,elt->rfc822_size - i);
+				/* add to cached size */
+    LOCAL->cachedtexts += elt->rfc822_size;
   }
   *length = elt->private.msg.header.text.size;
   return (char *) elt->private.msg.header.text.data;
@@ -584,12 +589,12 @@ long mx_ping (MAILSTREAM *stream)
       fs_give ((void **) &names[i]);
     }
 				/* free directory */
-    if (names) fs_give ((void **) &names);
+    if (s = (void *) names) fs_give ((void **) &s);
   }
   stream->nmsgs = nmsgs;	/* don't upset mail_uid() */
 
 				/* if INBOX, snarf from system INBOX  */
-  if (mx_lockindex (stream) && LOCAL->inbox) {
+  if (mx_lockindex (stream) && stream->inbox) {
     old = stream->uid_last;
 				/* paranoia check */
     if (!strcmp (sysinbox (),stream->mailbox)) {
@@ -673,7 +678,6 @@ void mx_check (MAILSTREAM *stream)
 void mx_expunge (MAILSTREAM *stream)
 {
   MESSAGECACHE *elt;
-  unsigned long j;
   unsigned long i = 1;
   unsigned long n = 0;
   unsigned long recent = stream->recent;
@@ -684,11 +688,16 @@ void mx_expunge (MAILSTREAM *stream)
       if ((elt = mail_elt (stream,i))->deleted) {
 	sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
 	if (unlink (LOCAL->buf)) {/* try to delete the message */
-	  sprintf (LOCAL->buf,"Expunge of message %ld failed, aborted: %s",i,
+	  sprintf (LOCAL->buf,"Expunge of message %lu failed, aborted: %s",i,
 		   strerror (errno));
 	  mm_log (LOCAL->buf,(long) NIL);
 	  break;
 	}
+				/* note uncached */
+	LOCAL->cachedtexts -= ((elt->private.msg.header.text.data ?
+				elt->private.msg.header.text.size : 0) +
+			       (elt->private.msg.text.text.data ?
+				elt->private.msg.text.text.size : 0));
 	mail_gc_msg (&elt->private.msg,GC_ENV | GC_TEXTS);
 	if(elt->recent)--recent;/* if recent, note one less recent message */
 	mail_expunged(stream,i);/* notify upper levels */
@@ -697,7 +706,7 @@ void mx_expunge (MAILSTREAM *stream)
       else i++;			/* otherwise try next message */
     }
     if (n) {			/* output the news if any expunged */
-      sprintf (LOCAL->buf,"Expunged %ld messages",n);
+      sprintf (LOCAL->buf,"Expunged %lu messages",n);
       mm_log (LOCAL->buf,(long) NIL);
     }
     else mm_log ("No messages deleted, so no update needed",(long) NIL);
@@ -743,7 +752,8 @@ long mx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 	LOCAL->buf[sbuf.st_size] = '\0';
 	close (fd);		/* flush message file */
 	INIT (&st,mail_string,(void *) LOCAL->buf,sbuf.st_size);
-	flags[0] = '\0';	/* init flag string */
+				/* init flag string */
+	flags[0] = flags[1] = '\0';
 	if (j = elt->user_flags) do
 	  if (t = stream->user_flags[find_rightmost_bit (&j)])
 	    strcat (strcat (flags," "),t);
@@ -756,7 +766,7 @@ long mx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 	flags[0] = '(';		/* open list */
 	strcat (flags,")");	/* close list */
 	mail_date (date,elt);	/* generate internal date */
-	if (!mail_append_full (stream,mailbox,flags,date,&st)) return NIL;
+	if (!mail_append_full (NIL,mailbox,flags,date,&st)) return NIL;
 	if (options & CP_MOVE) elt->deleted = T;
       }
   return T;			/* return success */
@@ -774,14 +784,13 @@ long mx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 {
   MESSAGECACHE *elt,selt;
   MAILSTREAM *astream;
-  struct stat sbuf;
-  int fd,ifd;
-  char c,*s,*t,tmp[MAILTMPLEN];
+  int fd;
+  char *s,tmp[MAILTMPLEN];
   long f;
   long i = 0;
   long size = SIZE (message);
   long ret = LONGT;
-  unsigned long uf,j;
+  unsigned long uf;
   if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
     if (!mail_parse_date (&selt,date)) {
@@ -845,9 +854,10 @@ long mx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
     close (fd);			/* close the file */
 				/* set the date for this message */
     if (date) mx_setdate (tmp,&selt);
+				/* swell the cache */
+    mail_exists (astream,++astream->nmsgs);
 				/* copy flags */
-    (elt = mail_elt (astream,++astream->nmsgs))->private.uid =
-      astream->uid_last;
+    (elt = mail_elt (astream,astream->nmsgs))->private.uid = astream->uid_last;
     if (f&fSEEN) elt->seen = T;
     if (f&fDELETED) elt->deleted = T;
     if (f&fFLAGGED) elt->flagged = T;
@@ -904,7 +914,10 @@ int mx_numsort (const void *d1,const void *d2)
 
 char *mx_file (char *dst,char *name)
 {
+  char *s;
   if (!(mailboxfile (dst,name) && *dst)) sprintf (dst,"%s/INBOX",myhomedir ());
+				/* tie off unnecessary trailing / */
+  else if ((s = strrchr (dst,'/')) && !s[1]) *s = '\0';
   return dst;
 }
 
@@ -921,10 +934,13 @@ long mx_lockindex (MAILSTREAM *stream)
   struct stat sbuf;
   char *s,*t,*idx,tmp[MAILTMPLEN];
   MESSAGECACHE *elt;
+  blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   if ((LOCAL->fd < 0) &&	/* get index file, no-op if already have it */
       (LOCAL->fd = open (strcat (strcpy (tmp,LOCAL->dir),MXINDEXNAME),
 			 O_RDWR|O_CREAT,S_IREAD|S_IWRITE)) >= 0) {
+    (*bn) (BLOCK_FILELOCK,NIL);
     flock (LOCAL->fd,LOCK_EX);	/* get exclusive lock */
+    (*bn) (BLOCK_NONE,NIL);
     fstat (LOCAL->fd,&sbuf);	/* get size of index */
 				/* slurp index */
     read (LOCAL->fd,s = idx = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
@@ -988,7 +1004,7 @@ long mx_lockindex (MAILSTREAM *stream)
 
 void mx_unlockindex (MAILSTREAM *stream)
 {
-  unsigned long i;
+  unsigned long i,j;
   off_t size = 0;
   char *s,tmp[MAILTMPLEN + 64];
   MESSAGECACHE *elt;
@@ -1002,17 +1018,21 @@ void mx_unlockindex (MAILSTREAM *stream)
     for (i = 1; i <= stream->nmsgs; i++) {
 				/* filled buffer? */
       if (((s += strlen (s)) - tmp) > MAILTMPLEN) {
-	write (LOCAL->fd,tmp,size += s - tmp);
+	write (LOCAL->fd,tmp,j = s - tmp);
+	size += j;
 	*(s = tmp) = '\0';	/* dump out and restart buffer */
       }
       elt = mail_elt (stream,i);
-      sprintf (s,"M%08lx;%08lx.%04x",elt->private.uid,elt->user_flags,
-	       (fSEEN * elt->seen) + (fDELETED * elt->deleted) +
+      sprintf(s,"M%08lx;%08lx.%04x",elt->private.uid,elt->user_flags,(unsigned)
+	      ((fSEEN * elt->seen) + (fDELETED * elt->deleted) +
 	       (fFLAGGED * elt->flagged) + (fANSWERED * elt->answered) +
-	       (fDRAFT * elt->draft));
+	       (fDRAFT * elt->draft)));
     }
 				/* write tail end of buffer */
-    if ((s += strlen (s)) != tmp) write (LOCAL->fd,tmp,size += s - tmp);
+    if ((s += strlen (s)) != tmp) {
+      write (LOCAL->fd,tmp,j = s - tmp);
+      size += j;
+    }
     ftruncate (LOCAL->fd,size);
     flock (LOCAL->fd,LOCK_UN);	/* unlock the index */
     close (LOCAL->fd);		/* finished with file */

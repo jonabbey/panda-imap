@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	2 December 1997
+ * Last Edited:	13 September 1999
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,6 +33,28 @@
  *
  */
 
+/* Dummy collection routine
+ * Accepts: how long to wait for user
+ *	    how to run parameter collection
+ *	    title
+ *	    number of prompts
+ *	    prompts
+ * Returns: collection status
+ *
+ * Because Spider Boardman, who wrote SIA, says that it's needed for buggy SIA
+ * mechanisms, that's why.
+ */
+
+static int checkpw_collect (int timeout,int rendition,uchar_t *title,
+			    int nprompts,prompt_t *prompts)
+{
+  switch (rendition) {
+  case SIAONELINER: case SIAINFO: case SIAWARNING: return SIACOLSUCCESS;
+  }
+  return SIACOLABORT;		/* another else is bogus */
+}
+
+
 /* Check password
  * Accepts: login passwd struct
  *	    password string
@@ -43,7 +65,21 @@
 
 struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
 {
-  return (sia_validate_user (NIL,argc,argv,tcp_clienthost (),pw->pw_name,
-			     NIL,NIL,NIL,pass) == SIASUCCESS) ? pw : NIL;
+  int i;
+  char *s;
+  char *name = cpystr (pw->pw_name);
+  char *host = cpystr (tcp_clienthost ());
+  struct passwd *ret = NIL;
+				/* tie off address */
+  if (s = strchr (host,' ')) *s = '\0';
+  if (*host == '[') {		/* convert [a.b.c.d] to a.b.c.d */
+    memmove (host,host+1,i = strlen (host + 2));
+    host[i] = '\0';
+  }
+				/* validate password */
+  if (sia_validate_user (checkpw_collect,argc,argv,host,name,NIL,NIL,NIL,pass)
+      == SIASUCCESS) ret = getpwnam (name);
+  fs_give ((void **) &name);
+  fs_give ((void **) &host);
+  return ret;
 }
-

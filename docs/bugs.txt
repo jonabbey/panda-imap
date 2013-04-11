@@ -1,7 +1,33 @@
-Updated: 16 December 1998
+Known problems/deficiencies in the IMAP 4.6 toolkit:
+Updated: 6 August 1999
 
-The following are known problems/deficiencies in the IMAP 4.5 toolkit:
+ . Possible problems for some installations:
+   . In some versions of Redhat Linux, SVR4-style timezone name lookup
+      doesn't work properly due to a bug in glibc.  The workaround is to
+      edit os_lnx.c to include tz_bsd.c instead of tz_sv4.c.  Note that
+      other versions of Linux don't support BSD-style timezone name
+      lookup, so don't make this change unless it's needed on your system.
+   . /tmp, /usr/tmp or /var/tmp (if present), and the mail spool directory
+      must be protected 1777 (world write with sticky bit); otherwise
+      mailbox locking and updates won't work.
+   . Multiple access protection locking does not work if the mailbox or
+      /tmp are NFS mounted.
+   . Shared access mailbox formats (mbx, mtx, mx, and tenex) do not work
+      well with NFS and such usage is not supported.  mmdf and unix formats
+      are supported for use over NFS; however there won't be any multiple
+      access locking protection.
+   . Server startup delays may occur if a reverse DNS (IP address to name)
+      lookup on the client's IP address does not complete in an expeditious
+      fashion.  This is actually a DNS problem and should be fixed in the
+      DNS and/or the server's host table.  A workaround exists (see the
+      top-level Makefile for details) but is not recommended and can not
+      be used at all with Kerberos.
  . Bugs:
+   . It doesn't work to have a "}" character as a user name in /user= in a
+      mailbox name, even if the user name is quoted.  In other words,
+      {blurdybloop.com/user="foo}bar"}zap won't work; foo will be interpreted
+      as an unterminated quoted string and the remote mailbox name will be
+      bar"}zap.
    . Case-independent searching only works for the 26 Roman alphabetics and
       not for any other characters
    . The experimental mx driver has performance problems and shouldn't be used

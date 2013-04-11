@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	1 December 1998
+ * Last Edited:	21 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -51,7 +51,7 @@
 /* Driver dispatch used by MAIL */
 
 DRIVER pop3driver = {
-  "pop",			/* driver name */
+  "pop3",			/* driver name */
 				/* driver flags */
 #ifdef INADEQUATE_MEMORY
   DR_LOWMEM |
@@ -292,7 +292,7 @@ long pop3_status (MAILSTREAM *stream,char *mbx,long flags)
   long ret = NIL;
   MAILSTREAM *tstream =
     (stream && LOCAL->netstream && mail_usable_network_stream (stream,mbx)) ?
-      stream : mail_open (NIL,mbx,OP_HALFOPEN|OP_SILENT);
+      stream : mail_open (NIL,mbx,OP_SILENT);
   if (tstream) {		/* have a usable stream? */
     status.flags = flags;	/* return status values */
     status.messages = tstream->nmsgs;
@@ -318,7 +318,7 @@ long pop3_status (MAILSTREAM *stream,char *mbx,long flags)
 MAILSTREAM *pop3_open (MAILSTREAM *stream)
 {
   unsigned long i;
-  char *s,tmp[MAILTMPLEN],usr[MAILTMPLEN];
+  char tmp[MAILTMPLEN],usr[MAILTMPLEN];
   NETMBX mb;
   MESSAGECACHE *elt;
 				/* return prototype for OP_PROTOTYPE call */
@@ -333,10 +333,7 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
 				/* copy other switches */
   if (mb.dbgflag) stream->debug = T;
   if (mb.secflag) stream->secure = T;
-				/* set up host with port override */
-  if (mb.port || pop3_port) sprintf (s = tmp,"%s:%ld",mb.host,
-				     mb.port ? mb.port : pop3_port);
-  else s = mb.host;		/* simple host name */
+  mb.tryaltflag = stream->tryalt;
   stream->local = fs_get (sizeof (POP3LOCAL));
   stream->sequence++;		/* bump sequence number */
   stream->perm_deleted = T;	/* deleted is only valid flag */
@@ -345,12 +342,11 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
   LOCAL->msgno = LOCAL->hdrsize = 0;
   LOCAL->txt = NIL;		/* no file initially */
 
-				/* try to open connection */
-  if ((LOCAL->netstream = mb.altflag ?
-       net_open ((NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),s,
+  if ((LOCAL->netstream =	/* try to open connection */
+       net_open (&mb,NIL,pop3_port ? pop3_port : POP3TCPPORT,
+		 (NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),
 		 (char *) mail_parameters (NIL,GET_ALTPOPNAME,NIL),
-		 (unsigned long) mail_parameters (NIL,GET_ALTPOPPORT,NIL)) :
-       net_open (NIL,s,"pop3",POP3TCPPORT)) &&
+		 (unsigned long) mail_parameters (NIL,GET_ALTPOPPORT,NIL))) &&
       pop3_reply (stream)) {
     mm_log (LOCAL->reply,NIL);	/* give greeting */
     if (!pop3_auth (stream,&mb,tmp,usr)) pop3_close (stream,NIL);
@@ -362,7 +358,8 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
       if (mb.altflag) sprintf (tmp + strlen (tmp),"/%s",(char *)
 			       mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
       if (mb.secflag) strcat (tmp,"/secure");
-      sprintf (tmp + strlen (tmp),"/user=%s}INBOX",usr);
+      sprintf (tmp + strlen (tmp),"/user=\"%s\"}INBOX",usr);
+      stream->inbox = T;	/* always INBOX */
       fs_give ((void **) &stream->mailbox);
       stream->mailbox = cpystr (tmp);
 				/* notify upper level */
@@ -694,7 +691,7 @@ void pop3_expunge (MAILSTREAM *stream)
   }
   if (!stream->silent) {	/* only if not silent */
     if (n) {			/* did we expunge anything? */
-      sprintf (tmp,"Expunged %ld messages",n);
+      sprintf (tmp,"Expunged %lu messages",n);
       mm_log (tmp,(long) NIL);
     }
     else mm_log ("No messages deleted, so no update needed",(long) NIL);

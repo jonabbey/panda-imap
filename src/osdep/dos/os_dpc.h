@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	16 April 1997
+ * Last Edited:	10 July 1999
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,6 +36,7 @@
 #define INADEQUATE_MEMORY
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys\types.h>
 #include <io.h>

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	29 July 1998
+ * Last Edited:	24 August 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,7 +44,6 @@
  *
  */
 
-#include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -533,13 +532,12 @@ long bezerk_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   long size = 0;
   unsigned long uf;
   short f = (short) mail_parse_flags (stream,flags,&uf);
-  if (date) {			/* want to preserve date? */
-				/* yes, parse date into an elt */
-    if (!mail_parse_date (&elt,date)) {
-      sprintf (tmp,"Bad date in append: %.80ss",date);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
+				/* parse date */
+  if (!date) rfc822_date (date = tmp);
+  if (!mail_parse_date (&elt,date)) {
+    sprintf (tmp,"Bad date in append: %.80ss",date);
+    mm_log (tmp,ERROR);
+    return NIL;
   }
 				/* make sure valid mailbox */
   if (!bezerk_isvalid (mailbox,tmp) && errno) {
@@ -577,9 +575,13 @@ long bezerk_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   SETPOS (message,(long) 0);	/* back to start */
   fstat (fd,&sbuf);		/* get current file size */
   strcpy (tmp,"From someone ");	/* start header */
+				/* user wants to suppress time zones? */
+  if (mail_parameters (NIL,GET_NOTIMEZONES,NIL)) {
+    time_t when = mail_longdate (elt);
+    strcat (buf,ctime (&when));
+  }
 				/* write the date given */
-  if (date) mail_cdate (tmp + strlen (tmp),&elt);
-  else strcat (tmp,ctime (&t));	/* otherwise write the time now */
+  else mail_cdate (buf + strlen (buf),&elt);
   sprintf (tmp + strlen (tmp),"Status: %sO\nX-Status: %s%s%s\n",
 	   f&fSEEN ? "R" : "",f&fDELETED ? "D" : "",
 	   f&fFLAGGED ? "F" : "",f&fANSWERED ? "A" : "");

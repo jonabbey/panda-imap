@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	2 October 1998
+ * Last Edited:	7 October 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -321,7 +321,6 @@ void mh_list_work (MAILSTREAM *stream,char *dir,char *pat,long level)
 
 long mh_subscribe (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
   return sm_subscribe (mailbox);
 }
 
@@ -334,7 +333,6 @@ long mh_subscribe (MAILSTREAM *stream,char *mailbox)
 
 long mh_unsubscribe (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
   return sm_unsubscribe (mailbox);
 }
 
@@ -360,9 +358,8 @@ long mh_create (MAILSTREAM *stream,char *mailbox)
     return NIL;
   }
   if (!mh_path) return NIL;	/* sorry */
-  sprintf (tmp,"%s/%.900s/",mh_path,mailbox + 4);
 				/* try to make it */
-  if (!dummy_create_path (stream,tmp)) {
+  if (!(mh_file (tmp,mailbox) && dummy_create_path (stream,tmp))) {
     sprintf (tmp,"Can't create mailbox %.80s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -469,12 +466,13 @@ MAILSTREAM *mh_open (MAILSTREAM *stream)
   if (stream->local) fatal ("mh recycle stream");
   stream->local = fs_get (sizeof (MHLOCAL));
 				/* note if an INBOX or not */
-  LOCAL->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"#MHINBOX");
+  stream->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"#MHINBOX");
   mh_file (tmp,stream->mailbox);/* get directory name */
   LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
 				/* make temporary buffer */
   LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
   LOCAL->scantime = 0;		/* not scanned yet */
+  LOCAL->cachedtexts = 0;	/* no cached texts */
   stream->sequence++;		/* bump sequence number */
 				/* parse mailbox */
   stream->nmsgs = stream->recent = 0;
@@ -544,6 +542,11 @@ char *mh_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
   if (flags & FT_UID) return "";/* UID call "impossible" */
   elt = mail_elt (stream,msgno);/* get elt */
   if (!elt->private.msg.header.text.data) {
+				/* purge cache if too big */
+    if (LOCAL->cachedtexts > max (stream->nmsgs * 4096,2097152)) {
+      mail_gc (stream,GC_TEXTS);/* just can't keep that much */
+      LOCAL->cachedtexts = 0;
+    }
 				/* build message file name */
     sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
     if ((fd = open (LOCAL->buf,O_RDONLY,NIL)) < 0) return "";
@@ -576,6 +579,8 @@ char *mh_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
 	 (elt->private.msg.text.text.size =
 	  strcrlfcpy ((char **) &elt->private.msg.text.text.data,&i,t,
 		      sbuf.st_size - hdrsize));
+				/* add to cached size */
+    LOCAL->cachedtexts += elt->rfc822_size;
   }
   *length = elt->private.msg.header.text.size;
   return (char *) elt->private.msg.header.text.data;
@@ -628,7 +633,7 @@ long mh_ping (MAILSTREAM *stream)
   long recent = stream->recent;
   int silent = stream->silent;
   if (stat (LOCAL->dir,&sbuf)) { /* directory exists? */
-    if (LOCAL->inbox) return T;
+    if (stream->inbox) return T;
     sprintf (tmp,"Can't open mailbox %.80s: no such mailbox",stream->mailbox);
     mm_log (tmp,ERROR);
     return NIL;
@@ -661,11 +666,11 @@ long mh_ping (MAILSTREAM *stream)
       fs_give ((void **) &names[i]);
     }
 				/* free directory */
-    if (names) fs_give ((void **) &names);
+    if (s = (void *) names) fs_give ((void **) &s);
   }
 
 				/* if INBOX, snarf from system INBOX  */
-  if (LOCAL->inbox && strcmp (sysinbox (),stream->mailbox)) {
+  if (stream->inbox && strcmp (sysinbox (),stream->mailbox)) {
     old = stream->uid_last;
     mm_critical (stream);	/* go critical */
     stat (sysinbox (),&sbuf);	/* see if anything there */
@@ -749,7 +754,6 @@ void mh_check (MAILSTREAM *stream)
 void mh_expunge (MAILSTREAM *stream)
 {
   MESSAGECACHE *elt;
-  unsigned long j;
   unsigned long i = 1;
   unsigned long n = 0;
   unsigned long recent = stream->recent;
@@ -759,11 +763,16 @@ void mh_expunge (MAILSTREAM *stream)
     if ((elt = mail_elt (stream,i))->deleted) {
       sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
       if (unlink (LOCAL->buf)) {/* try to delete the message */
-	sprintf (LOCAL->buf,"Expunge of message %ld failed, aborted: %s",i,
+	sprintf (LOCAL->buf,"Expunge of message %lu failed, aborted: %s",i,
 		 strerror (errno));
 	mm_log (LOCAL->buf,(long) NIL);
 	break;
       }
+				/* note uncached */
+      LOCAL->cachedtexts -= ((elt->private.msg.header.text.data ?
+			      elt->private.msg.header.text.size : 0) +
+			     (elt->private.msg.text.text.data ?
+			      elt->private.msg.text.text.size : 0));
       mail_gc_msg (&elt->private.msg,GC_ENV | GC_TEXTS);
       if (elt->recent) --recent;/* if recent, note one less recent message */
       mail_expunged (stream,i);	/* notify upper levels */
@@ -772,7 +781,7 @@ void mh_expunge (MAILSTREAM *stream)
     else i++;			/* otherwise try next message */
   }
   if (n) {			/* output the news if any expunged */
-    sprintf (LOCAL->buf,"Expunged %ld messages",n);
+    sprintf (LOCAL->buf,"Expunged %lu messages",n);
     mm_log (LOCAL->buf,(long) NIL);
   }
   else mm_log ("No messages deleted, so no update needed",(long) NIL);
@@ -796,8 +805,8 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   MESSAGECACHE *elt;
   struct stat sbuf;
   int fd;
-  unsigned long i,j;
-  char *t,flags[MAILTMPLEN],date[MAILTMPLEN];
+  unsigned long i;
+  char flags[MAILTMPLEN],date[MAILTMPLEN];
 				/* copy the messages */
   if ((options & CP_UID) ? mail_uid_sequence (stream,sequence) :
       mail_sequence (stream,sequence))
@@ -825,7 +834,8 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 	LOCAL->buf[sbuf.st_size] = '\0';
 	close (fd);		/* flush message file */
 	INIT (&st,mail_string,(void *) LOCAL->buf,sbuf.st_size);
-	flags[0] = '\0';	/* init flag string */
+				/* init flag string */
+	flags[0] = flags[1] = '\0';
 	if (elt->seen) strcat (flags," \\Seen");
 	if (elt->deleted) strcat (flags," \\Deleted");
 	if (elt->flagged) strcat (flags," \\Flagged");
@@ -834,7 +844,7 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 	flags[0] = '(';		/* open list */
 	strcat (flags,")");	/* close list */
 	mail_date (date,elt);	/* generate internal date */
-	if (!mail_append_full (stream,mailbox,flags,date,&st)) return NIL;
+	if (!mail_append_full (NIL,mailbox,flags,date,&st)) return NIL;
 	if (options & CP_MOVE) elt->deleted = T;
       }
   return T;			/* return success */
@@ -850,16 +860,15 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		STRING *message)
 {
-  struct stat sbuf;
   struct direct **names;
   int fd;
-  char c,*s,*t,tmp[MAILTMPLEN];
+  char c,*s,tmp[MAILTMPLEN];
   MESSAGECACHE elt;
   long i,last,nfiles;
   long size = 0;
   long ret = LONGT;
   unsigned long uf;
-  short f = mail_parse_flags (stream ? stream : &mhproto,flags,&uf);
+  /* short f = */ mail_parse_flags (stream ? stream : &mhproto,flags,&uf);
   if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
     if (!mail_parse_date (&elt,date)) {
@@ -904,9 +913,9 @@ long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
       fs_give ((void **) &names[i]);
   }
   else last = 0;		/* no messages here yet */
-  if (names) fs_give ((void **) &names);
+  if (s = (void *) names) fs_give ((void **) &s);
 
-  sprintf (tmp + strlen (tmp),"/%lu",++last);
+  sprintf (tmp + strlen (tmp),"/%ld",++last);
   if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
     sprintf (tmp,"Can't open append message: %s",strerror (errno));
     mm_log (tmp,ERROR);
@@ -971,10 +980,12 @@ int mh_numsort (const void *d1,const void *d2)
 
 char *mh_file (char *dst,char *name)
 {
-  char tmp[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN];
 				/* build composite name */
   sprintf (dst,"%s/%.900s",mh_path,
 	   strcmp (ucase (strcpy (tmp,name)),"#MHINBOX") ? name + 4 : "inbox");
+				/* tie off unnecessary trailing / */
+  if ((s = strrchr (dst,'/')) && !s[1] && (s[-1] == '/')) *s = '\0';
   return dst;
 }
 

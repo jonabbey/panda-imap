@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	4 January 1998
+ * Last Edited:	21 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,7 +39,6 @@
 /* TENEX I/O stream local data */
 	
 typedef struct tenex_local {
-  unsigned int inbox : 1;	/* if this is an INBOX or not */
   unsigned int shouldcheck: 1;	/* if ping should do a check instead */
   unsigned int mustcheck: 1;	/* if ping must do a check instead */
   int fd;			/* file descriptor for I/O */

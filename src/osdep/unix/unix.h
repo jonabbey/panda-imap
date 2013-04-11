@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	22 October 1998
+ * Last Edited:	4 August 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -188,12 +188,24 @@ typedef struct unix_local {
 /* Convenient access to local data */
 
 #define LOCAL ((UNIXLOCAL *) stream->local)
+
+
+/* UNIX protected file structure */
+
+typedef struct unix_file {
+  MAILSTREAM *stream;		/* current stream */
+  off_t curpos;			/* current file position */
+  off_t protect;		/* protected position */
+  off_t filepos;		/* current last written file position */
+  char *buf;			/* overflow buffer */
+  size_t buflen;		/* current overflow buffer length */
+  char *bufpos;			/* current buffer position */
+} UNIXFILE;
 
 /* Function prototypes */
 
 DRIVER *unix_valid (char *name);
-long unix_isvalid (char *name,char *tmp);
-long unix_isvalid_fd (int fd,char *tmp);
+long unix_isvalid_fd (int fd);
 void *unix_parameters (long function,void *value);
 void unix_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
 void unix_list (MAILSTREAM *stream,char *ref,char *pat);
@@ -220,14 +232,27 @@ long unix_append_putc (int fd,char *s,long *i,char c);
 
 void unix_abort (MAILSTREAM *stream);
 char *unix_file (char *dst,char *name);
-int unix_lock (char *file,int flags,int mode,char *lock,int op);
-void unix_unlock (int fd,MAILSTREAM *stream,char *lock);
-int unix_parse (MAILSTREAM *stream,char *lock,int op);
+int unix_lock (char *file,int flags,int mode,DOTLOCK *lock,int op);
+void unix_unlock (int fd,MAILSTREAM *stream,DOTLOCK *lock);
+int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op);
 char *unix_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size);
 unsigned long unix_pseudo (MAILSTREAM *stream,char *hdr);
 unsigned long unix_xstatus (MAILSTREAM *stream,char *status,MESSAGECACHE *elt,
 			    long flag);
-long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp);
+long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp,DOTLOCK *lock);
+long unix_extend (MAILSTREAM *stream,unsigned long size);
+
+/* New algorithm */
+
+long unix_rewrite_new (MAILSTREAM *stream,unsigned long *nexp,
+		       unsigned long *size,unsigned long *recent);
+void unix_write (UNIXFILE *f,char *s,unsigned long i);
+void unix_phys_write (UNIXFILE *f,char *buf,size_t size);
+
+/* Old algorithm */
+
+long unix_rewrite_old (MAILSTREAM *stream,unsigned long *nexp,
+		       unsigned long *size,unsigned long *recent);
 long unix_write_message (FILE *f,MAILSTREAM *stream,MESSAGECACHE *elt,
 			 unsigned long *size);
 long unix_fwrite (FILE *f,char *s,unsigned long i,unsigned long *size);

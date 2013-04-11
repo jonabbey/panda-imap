@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	1 December 1998
+ * Last Edited:	21 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -116,6 +116,17 @@
 #define SET_ALTDRIVER (long) 128
 #define GET_ALTDRIVERNAME (long) 129
 #define SET_ALTDRIVERNAME (long) 130
+#define GET_TRYALTFIRST (long) 131
+#define SET_TRYALTFIRST (long) 132
+#define GET_BLOCKNOTIFY (long) 133
+#define SET_BLOCKNOTIFY (long) 134
+#define GET_SORTRESULTS (long) 135
+#define SET_SORTRESULTS (long) 136
+#define GET_THREADRESULTS (long) 137
+#define SET_THREADRESULTS (long) 138
+#define GET_PARSELINE (long) 139
+#define SET_PARSELINE (long) 140
+
 	/* 2xx: environment */
 #define GET_USERNAME (long) 201
 #define SET_USERNAME (long) 202
@@ -127,7 +138,6 @@
 #define SET_SYSINBOX (long) 208
 #define GET_USERPROMPT (long) 209
 #define SET_USERPROMPT (long) 210
-
 	/* 3xx: TCP/IP */
 #define GET_OPENTIMEOUT (long) 300
 #define SET_OPENTIMEOUT (long) 301
@@ -141,12 +151,19 @@
 #define SET_TIMEOUT (long) 309
 #define GET_RSHTIMEOUT (long) 310
 #define SET_RSHTIMEOUT (long) 311
-#define GET_ALARMSAVE (long) 312
-#define SET_ALARMSAVE (long) 313
+#define GET_ALLOWREVERSEDNS (long) 312
+#define SET_ALLOWREVERSEDNS (long) 313
 #define GET_RSHCOMMAND (long) 314
 #define SET_RSHCOMMAND (long) 315
 #define GET_RSHPATH (long) 316
 #define SET_RSHPATH (long) 317
+#define GET_SSHTIMEOUT (long) 318
+#define SET_SSHTIMEOUT (long) 319
+#define GET_SSHCOMMAND (long) 320
+#define SET_SSHCOMMAND (long) 321
+#define GET_SSHPATH (long) 322
+#define SET_SSHPATH (long) 323
+
 	/* 4xx: network drivers */
 #define GET_MAXLOGINTRIALS (long) 400
 #define SET_MAXLOGINTRIALS (long) 401
@@ -186,6 +203,8 @@
 #define SET_ALTSMTPPORT (long) 435
 #define GET_SMTPPORT (long) 436
 #define SET_SMTPPORT (long) 437
+#define GET_IMAPEXTRAHEADERS (long) 438
+#define SET_IMAPEXTRAHEADERS (long) 439
 
 	/* 5xx: local file drivers */
 #define GET_MBXPROTECTION (long) 500
@@ -232,6 +251,10 @@
 #define SET_PUBLICPROTECTION (long) 541
 #define GET_SHAREDPROTECTION (long) 542
 #define SET_SHAREDPROTECTION (long) 543
+#define GET_LOCKTIMEOUT (long) 544
+#define SET_LOCKTIMEOUT (long) 545
+#define GET_NOTIMEZONES (long) 546
+#define SET_NOTIMEZONES (long) 547
 
 /* Driver flags */
 
@@ -273,6 +296,7 @@
 #define OP_HALFOPEN (long) 64	/* half-open (IMAP connect but no select) */
 #define OP_EXPUNGE (long) 128	/* silently expunge recycle stream */
 #define OP_SECURE (long) 256	/* don't do non-secure authentication */
+#define OP_TRYALT (long) 512	/* try alternate first */
 
 
 /* Close options */
@@ -309,6 +333,7 @@
 #define SO_FREE (long) 8	/* free sort program after finished */
 #define SO_NOSERVER (long) 16	/* don't do server-based sort */
 #define SE_RETAIN (long) 32	/* retain previous search results */
+#define SO_OVERVIEW (long) 64	/* use overviews in searching (NNTP only) */
 
 
 /* Status options */
@@ -365,6 +390,19 @@
 #define REFSTATUS (long) 8
 #define REFCOPY (long) 9
 #define REFAPPEND (long) 10
+
+
+/* Block notification codes */
+
+#define BLOCK_NONE 0		/* not blocked */
+#define BLOCK_SENSITIVE 1	/* sensitive code, disallow alarms */
+#define BLOCK_NONSENSITIVE 2	/* non-sensitive code, allow alarms */
+#define BLOCK_DNSLOOKUP 10	/* blocked on DNS lookup */
+#define BLOCK_TCPOPEN 11	/* blocked on TCP open */
+#define BLOCK_TCPREAD 12	/* blocked on TCP read */
+#define BLOCK_TCPWRITE 13	/* blocked on TCP write */
+#define BLOCK_TCPCLOSE 14	/* blocked on TCP close */
+#define BLOCK_FILELOCK 20	/* blocked on file locking */
 
 /* In-memory sized-text */
 
@@ -403,6 +441,7 @@ typedef struct net_mailbox {
   unsigned int dbgflag : 1;	/* debug flag */
   unsigned int secflag : 1;	/* secure flag */
   unsigned int altflag : 1;	/* alt driver flag */
+  unsigned int tryaltflag : 1;	/* (internal) try alt driver first flag */
 } NETMBX;
 
 /* Item in an address list */
@@ -423,6 +462,7 @@ ADDRESS {
 
 typedef struct mail_envelope {
   unsigned int ngbogus : 1;	/* newsgroups may be bogus */
+  unsigned int incomplete : 1;	/* envelope may be incomplete */
   char *remail;			/* remail header if any */
   ADDRESS *return_path;		/* error return address */
   char *date;			/* message composition date string */
@@ -438,6 +478,7 @@ typedef struct mail_envelope {
   char *newsgroups;		/* USENET newsgroups */
   char *followup_to;		/* USENET reply newsgroups */
   char *references;		/* USENET references */
+  void *sparep;			/* spare pointer reserved for main program */
 } ENVELOPE;
 
 /* Primary body types */
@@ -550,7 +591,9 @@ typedef struct message_cache {
     unsigned long uid;		/* message unique ID */
     PARTTEXT special;		/* special text pointers */
     MESSAGE msg;		/* internal message pointers */
-    unsigned int sequence : 1;	/* saved sequence bit; */
+    unsigned int sequence : 1;	/* saved sequence bit */
+    unsigned int dirty : 1;	/* driver internal use */
+    unsigned long data;		/* driver internal use */
   } private;
 			/* internal date */
   unsigned int day : 5;		/* day of month (1-31) */
@@ -689,6 +732,15 @@ SEARCHPGM {			/* search program */
   unsigned int old : 1;		/* old messages */
   unsigned int seen : 1;	/* seen messages */
   unsigned int unseen : 1;	/* unseen messages */
+  /* These must be simulated in IMAP */
+  STRINGLIST *return_path;	/* error return address */
+  STRINGLIST *sender;		/* sender address list */
+  STRINGLIST *reply_to;		/* reply address list */
+  STRINGLIST *in_reply_to;	/* replied message ID */
+  STRINGLIST *message_id;	/* message ID */
+  STRINGLIST *newsgroups;	/* USENET newsgroups */
+  STRINGLIST *followup_to;	/* USENET reply newsgroups */
+  STRINGLIST *references;	/* USENET references */
 };
 
 
@@ -758,14 +810,16 @@ typedef struct mail_stream {
   char *mailbox;		/* mailbox name */
   unsigned short use;		/* stream use count */
   unsigned short sequence;	/* stream sequence */
+  unsigned int inbox : 1;	/* stream open on an INBOX */
   unsigned int lock : 1;	/* stream lock flag */
   unsigned int debug : 1;	/* stream debug flag */
-  unsigned int silent : 1;	/* silent stream from Tenex */
+  unsigned int silent : 1;	/* don't pass events to main program */
   unsigned int rdonly : 1;	/* stream read-only flag */
   unsigned int anonymous : 1;	/* stream anonymous access flag */
   unsigned int scache : 1;	/* stream short cache flag */
   unsigned int halfopen : 1;	/* stream half-open flag */
   unsigned int secure : 1;	/* stream secure flag */
+  unsigned int tryalt : 1;	/* stream tryalt flag */
   unsigned int perm_seen : 1;	/* permanent Seen flag */
   unsigned int perm_deleted : 1;/* permanent Deleted flag */
   unsigned int perm_flagged : 1;/* permanent Flagged flag */
@@ -946,7 +1000,11 @@ typedef char *(*imapreferral_t) (MAILSTREAM *stream,char *url,long code);
 typedef void (*overview_t) (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov);
 typedef unsigned long *(*sorter_t) (MAILSTREAM *stream,char *charset,
 				    SEARCHPGM *spg,SORTPGM *pgm,long flags);
+typedef void (*parseline_t) (ENVELOPE *env,char *hdr,char *data,char *host);
 typedef ADDRESS *(*parsephrase_t) (char *phrase,char *end,char *host);
+typedef void *(*blocknotify_t) (int reason,void *data);
+typedef void (*sortresults_t) (MAILSTREAM *stream,unsigned long *list,
+			       unsigned long size);
 typedef char *(*userprompt_t) (void);
 
 /* Globals */
@@ -968,6 +1026,8 @@ THREADNODE {
   THREADNODE *branch;		/* branch at this point in tree */
   THREADNODE *next;		/* next node */
 };
+
+typedef void (*threadresults_t) (MAILSTREAM *stream,THREADNODE *tree);
 
 
 /* Thread dispatch */
@@ -1244,18 +1304,19 @@ void mail_nodebug (MAILSTREAM *stream);
 long mail_match_lines (STRINGLIST *lines,STRINGLIST *msglines,long flags);
 unsigned long mail_filter (char *text,unsigned long len,STRINGLIST *lines,
 			   long flags);
-long mail_search_msg (MAILSTREAM *stream,unsigned long msgno,SEARCHPGM *pgm);
+long mail_search_msg (MAILSTREAM *stream,unsigned long msgno,char *section,
+		      SEARCHPGM *pgm);
+long mail_search_header_text (char *s,STRINGLIST *st);
 long mail_search_header (SIZEDTEXT *hdr,STRINGLIST *st);
-long mail_search_text (MAILSTREAM *stream,unsigned long msgno,STRINGLIST *st,
-		       long flags);
+long mail_search_text (MAILSTREAM *stream,unsigned long msgno,char *section,
+		       STRINGLIST *st,long flags);
 long mail_search_body (MAILSTREAM *stream,unsigned long msgno,BODY *body,
 		       char *prefix,unsigned long section,long flags);
 long mail_search_string (SIZEDTEXT *s,char *charset,STRINGLIST **st);
 long mail_search_keyword (MAILSTREAM *stream,MESSAGECACHE *elt,STRINGLIST *st);
 long mail_search_addr (ADDRESS *adr,STRINGLIST *st);
 char *mail_search_gets (readfn_t f,void *stream,unsigned long size,
-			MAILSTREAM *ms,unsigned long msgno,char *what,
-			long flags);
+			GETS_DATA *md);
 SEARCHPGM *mail_criteria (char *criteria);
 int mail_criteria_date (unsigned short *date);
 int mail_criteria_string (STRINGLIST **s);
@@ -1266,6 +1327,7 @@ unsigned long *mail_sort_cache (MAILSTREAM *stream,SORTPGM *pgm,SORTCACHE **sc,
 unsigned long *mail_sort_msgs (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 			       SORTPGM *pgm,long flags);
 SORTCACHE **mail_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm);
+char *mail_strip_subject (char *t);
 int mail_sort_compare (const void *a1,const void *a2);
 int mail_compare_ulong (unsigned long l1,unsigned long l2);
 int mail_compare_cstring (char *s1,char *s2);
@@ -1321,7 +1383,11 @@ char *mail_auth (char *mechanism,authresponse_t resp,int argc,char *argv[]);
 AUTHENTICATOR *mail_lookup_auth (unsigned long i);
 unsigned int mail_lookup_auth_name (char *mechanism,long secflag);
 
-NETSTREAM *net_open (NETDRIVER *dv,char *host,char *service,unsigned long prt);
+NETSTREAM *net_open (NETMBX *mb,NETDRIVER *dv,unsigned long port,
+		     NETDRIVER *altd,char *alts,unsigned long altp);
+NETSTREAM *net_open_work (NETDRIVER *dv,char *host,char *service,
+			  unsigned long port,unsigned long portoverride,
+			  long flags);
 NETSTREAM *net_aopen (NETDRIVER *dv,NETMBX *mb,char *service,char *usrbuf);
 char *net_getline (NETSTREAM *stream);
 				/* stream must be void* for use as readfn_t */

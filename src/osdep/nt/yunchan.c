@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 September 1996
- * Last Edited:	4 June 1998
+ * Last Edited:	14 July 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -64,30 +64,32 @@ int flock (int fd,int op)
   HANDLE hdl = (HANDLE) _get_osfhandle (fd);
   DWORD flags = (op & LOCK_NB) ? LOCKFILE_FAIL_IMMEDIATELY : 0;
   OVERLAPPED offset = {NIL,NIL,0,0,NIL};
-  if (hdl < 0) {		/* error in file descriptor */
-    errno = EBADF;
-    return -1;
-  }
-  switch (op & ~LOCK_NB) {	/* translate to LockFileEx() op */
+  int ret = -1;
+  blocknotify_t bn = (blocknotify_t) 
+    ((op & LOCK_NB) ? NIL : mail_parameters (NIL,GET_BLOCKNOTIFY,NIL));
+  if (hdl < 0) errno = EBADF;	/* error in file descriptor */
+  else switch (op & ~LOCK_NB) {	/* translate to LockFileEx() op */
   case LOCK_EX:			/* exclusive */
     flags |= LOCKFILE_EXCLUSIVE_LOCK;
   case LOCK_SH:			/* shared */
     if (!check_nt ()) return 0;	/* always succeeds if not NT */
+    if (bn) (*bn) (BLOCK_FILELOCK,NIL);
 				/* bug for bug compatible with Unix */
     UnlockFileEx (hdl,NIL,1,0,&offset);
 				/* lock the file as requested */
-    if (LockFileEx (hdl,flags,NIL,1,0,&offset)) return 0;
-				/* failed */
-    errno = (op & LOCK_NB) ? EAGAIN : EBADF;
+    if (LockFileEx (hdl,flags,NIL,1,0,&offset)) ret = 0;
+    if (bn) (*bn) (BLOCK_NONE,NIL);
+				/* if failed */
+    if (ret) errno = (op & LOCK_NB) ? EAGAIN : EBADF;
     break;
   case LOCK_UN:			/* unlock */
     if (check_nt ()) UnlockFileEx (hdl,NIL,1,0,&offset);
-    return 0;			/* always succeeds */
+    ret = 0;			/* always succeeds */
   default:			/* default */
     errno = EINVAL;		/* bad call */
     break;
   }
-  return -1;
+  return ret;
 }
 
 /* Local storage */
@@ -144,9 +146,6 @@ void openlog (const char *ident,int logopt,int facility)
   loghdl = RegisterEventSource (NIL,ident);
   sprintf (tmp,(logopt & LOG_PID) ? "%s[%d]" : "%s",ident,getpid ());
   loghdr = cpystr (tmp);	/* save header for later */
-  setmode (0,O_BINARY);		/* make the stdio mode be binary */
-  setmode (1,O_BINARY);		/* make the stdio mode be binary */
-  setmode (2,O_BINARY);		/* make the stdio mode be binary */
 }
 
 /* Copy Unix string with CRLF newlines

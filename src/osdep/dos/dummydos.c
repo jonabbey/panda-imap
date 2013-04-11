@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	13 November 1998
+ * Last Edited:	4 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -35,7 +35,6 @@
 
 
 #include <ctype.h>
-#include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
 #include "mail.h"
@@ -176,7 +175,7 @@ void dummy_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
     else if (file[0] == '#') s = file;
 				/* do the work */
     dummy_list_work (stream,s,test,contents,0);
-    if (pmatch ("INBOX",test)	/* always an INBOX */
+    if (pmatch ("INBOX",test))	/* always an INBOX */
       dummy_listed (stream,NIL,"INBOX",LATT_NOINFERIORS,contents);
   }
 }
@@ -251,7 +250,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 {
   struct find_t f;
   struct stat sbuf;
-  char *s,tmp[LISTTMPLEN],tmpx[LISTTMPLEN],tmpy[LSTTMPLEN];
+  char *s,tmp[LISTTMPLEN],tmpx[LISTTMPLEN],tmpy[LISTTMPLEN];
   char *base = (dir && (dir[0] == '\\')) ? NIL : myhomedir ();
 				/* build name */
   if (base) sprintf (tmpx,"%s\\",base);
@@ -486,6 +485,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
 	mail_recent (stream,(long) 0);
 	stream->uid_validity = 1;
       }
+      stream->inbox = T;	/* note that it's an INBOX */
       return stream;		/* return success */
     }
   }

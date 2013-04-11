@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	4 December 1998
+ * Last Edited:	27 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,6 +41,7 @@ typedef struct news_local {
   char *name;			/* local mailbox name */
   char *buf;			/* scratch buffer */
   unsigned long buflen;		/* current size of scratch buffer */
+  unsigned long cachedtexts;	/* total size of all cached texts */
 } NEWSLOCAL;
 
 

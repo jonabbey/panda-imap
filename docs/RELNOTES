@@ -1,7 +1,7 @@
-Updated: 1 December 1998
+Updated: 23 September 1999
 
-imap-4.5 is a maintenace update, with minor bugfixes to imap-4.4 and
-optional support for CRAM-MD5.
+imap-4.6 is a maintenace update, with minor bugfixes to imap-4.5 and
+optional support for an external mailbox file locking program.
 
 This version supports IMAP4rev1 (RFC 2060).  There are major internal and
 external changes from the IMAP2bis version (e.g. imap-3.6, distributed with
@@ -9,7 +9,17 @@ Pine 3.9x).  It is extremely unlikely that a program written for the IMAP2bis
 verion will build with this version without modifications.  Drivers written
 for the IMAP2bis version will definitely need to be rewritten.
 
-Most notable operational changes from imap-3.x:
+Most notable operational changes from earlier versions:
+ . New, faster mailbox update logic is now available for the unix driver
+    on UNIX and Amiga.  The old way is still being done for MMDF and the
+    unixnt driver on NT.
+ . External file locking is now available via a setgid mail program named
+    /etc/mlock (this is defined by LOCKPGM in the c-client Makefile).  If
+    c-client is unable to create a <mailbox>.lock file in the directory
+    by itself, it will try to call mlock to do it.  A sample mlock program
+    is part of the imap-utils.  This is primarily for the benefit of those
+    paranoid souls who have their mail spool directories protected 775
+    instead of the recommended 1777.
  . SASL authentication is supported in the IMAP and POP3 servers, and in
     the IMAP, POP3, and SMTP client code.  There is no support for NNTP
     SASL yet
@@ -52,11 +62,11 @@ Most notable operational changes from imap-3.x:
  . Multilingual searching of the following charsets are supported:
 	US-ASCII, UTF-8, ISO-8859-1, ISO-8859-2, ISO-8859-3, ISO-8859-4,
 	ISO-8859-5, ISO-8859-6, ISO-8859-7, ISO-8859-8, ISO-8859-9,
-	ISO-8859-10, ISO-8859-13, ISO-8859-15,
+	ISO-8859-10, ISO-8859-11, ISO-8859-13, ISO-8859-14, ISO-8859-15,
+	KOI8-R, KOI8-U (alias KOI8-RU), TIS-620, VISCII,
 	ISO-2022-JP, ISO-2022-KR, ISO-2022-CN, ISO-2022-JP-1, ISO-2022-JP-2,
 	GB2312 (alias CN-GB), CN-GB-12345, BIG5 (alias CN-BIG5),
-	EUC-JP, EUC-KR, Shift_JIS,
-	KOI8-R, KOI8-U (alias KOI8-RU), TIS-620, VISCII.
+	EUC-JP, EUC-KR, Shift_JIS
    All ISO-2022-?? charsets are treated identically, and support ASCII,
     JIS Roman, hankaku katakana, ISO-8859-[1 - 10], TIS, GB 2312, JIS X 0208,
     JIS X 0212, KSC 5601, and planes 1 and 2 of CNS 11643.
@@ -65,7 +75,7 @@ Most notable operational changes from imap-3.x:
  . Fast ordered-subject threading including IMAP server-based threading
 
 
-Most notable programmer/external changes from imap-3.x:
+Most notable programmer/external changes from earlier versions:
  . Additional ports
  . New directory orientation, no separate non-ANSI sources
  . New local file formats mbx and mx

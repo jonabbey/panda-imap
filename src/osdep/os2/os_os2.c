@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 March 1996
- * Last Edited:	14 March 1996
+ * Last Edited:	10 June 1999
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -45,15 +45,15 @@
 #include <ctype.h>
 #include <errno.h>
 extern int errno;		/* just in case */
-#include "tcp_dos.h"		/* must be before osdep includes tcp.h */
+#include "tcp_os2.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
 #include "osdep.h"
 #include "misc.h"
 #include "fs_os2.c"
 #include "ftl_os2.c"
-#include "nl_dos.c"
+#include "nl_os2.c"
 #include "env_os2.c"
-#include "tcp_dos.c"
+#include "tcp_os2.c"
 
 /* Return my local host name
  * Returns: my local host name
@@ -95,4 +95,13 @@ long lookuphost (char **host,struct sockaddr_in *sin)
 				/* copy host addresses */
   memcpy (&sin->sin_addr,hn->h_addr,hn->h_length);
   return T;
+}
+
+
+/*
+ * Emulator for BSD syslog() routine.
+ */
+
+void syslog (int priority,const char *message,...)
+{
 }

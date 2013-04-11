@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	9 October 1994
+ * Last Edited:	30 August 1999
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,32 +44,30 @@
 unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
 			  unsigned long srcl)
 {
-  long i,j;
-  char *d = src;
-				/* count number of LF's in source string(s) */
-  for (i = srcl,j = 0; j < srcl; j++) if (*d++ == '\012') i++;
-				/* flush destination buffer if too small */
-  if (*dst && (i > *dstl)) fs_give ((void **) dst);
-  if (!*dst) {			/* make a new buffer if needed */
-    *dst = (char *) fs_get ((*dstl = i) + 1);
-    if (dstl) *dstl = i;	/* return new buffer length to main program */
+  long i = srcl * 2,j;
+  char c,*d = src;
+  if (*dst) {			/* candidate destination provided? */
+				/* count NLs if doesn't fit worst-case */
+    if (i > *dstl) for (i = j = srcl; j; --j) if (*d++ == '\012') i++;
+				/* still too small, must reset destination */
+    if (i > *dstl) fs_give ((void **) dst);
   }
+				/* make a new buffer if needed */
+  if (!*dst) *dst = (char *) fs_get ((*dstl = i) + 1);
   d = *dst;			/* destination string */
-				/* copy strings, inserting CR's before LF's */
-  while (srcl--) switch (*src) {
-  case '\015':			/* unlikely carriage return */
-    *d++ = *src++;		/* copy it and any succeeding linefeed */
-    if (srcl && *src == '\012') {
-      *d++ = *src++;
-      srcl--;
+  if (srcl) do {		/* main copy loop */
+    if ((c = *src++) < '\016') {
+				/* prepend CR to LF */
+      if (c == '\012') *d++ = '\015';
+				/* unlikely CR */
+      else if ((c == '\015') && (srcl > 1) && (*src == '\012')) {
+	*d++ = c;		/* copy the CR */
+	c = *src++;		/* grab the LF */
+	--srcl;			/* adjust the count */
+      }
     }
-    break;
-  case '\012':			/* line feed? */
-    *d++ ='\015';		/* yes, prepend a CR, drop into default case */
-  default:			/* ordinary chararacter */
-    *d++ = *src++;		/* just copy character */
-    break;
-  }
+    *d++ = c;			/* copy character */
+  } while (--srcl);
   *d = '\0';			/* tie off destination */
   return d - *dst;		/* return length */
 }

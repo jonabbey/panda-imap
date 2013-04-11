@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	13 November 1998
+ * Last Edited:	7 October 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -265,7 +265,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
     if (!dir || dir[strlen (dir) - 1] == '/') while (d = readdir (dp))
       if ((d->d_name[0] != '.') ||
 	  (d->d_name[1] && (((d->d_name[1] != '.') || d->d_name[2]) &&
-			    strcmp (d->d_name+1,MXINDEXNAME+3)))) {
+			    strcmp (d->d_name+1,MXINDEXNAME+2)))) {
 				/* see if name is useful */
 	if (dir) sprintf (tmp,"%s%s",dir,d->d_name);
 	else strcpy (tmp,d->d_name);
@@ -364,15 +364,21 @@ long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,
 
 long dummy_create (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  if (strcmp (ucase (strcpy (tmp,mailbox)),"INBOX") && dummy_file(tmp,mailbox))
-    return dummy_create_path (stream,tmp) && set_mbx_protections (mailbox,tmp);
-  sprintf (tmp,"Can't create %s: invalid name",mailbox);
-  mm_log (tmp,ERROR);
-  return NIL;
+  char *s,tmp[MAILTMPLEN];
+  long ret = NIL;
+				/* validate name */
+  if (!(strcmp (ucase (strcpy (tmp,mailbox)),"INBOX") &&
+	(s = dummy_file (tmp,mailbox)))) {
+    sprintf (tmp,"Can't create %s: invalid name",mailbox);
+    mm_log (tmp,ERROR);
+  }
+				/* create the name */
+  else if ((ret = dummy_create_path (stream,tmp)) &&
+				/* done if made directory */
+	   (s = strrchr (s,'/')) && !s[1]) return T;
+  return ret ? set_mbx_protections (mailbox,tmp) : NIL;
 }
-
-
+
 /* Dummy create path
  * Accepts: mail stream
  *	    path name name to create
@@ -443,7 +449,6 @@ long dummy_rename (MAILSTREAM *stream,char *old,char *newname)
 {
   struct stat sbuf;
   char c,*s,tmp[MAILTMPLEN],mbx[MAILTMPLEN];
-  long ret = NIL;
 				/* no trailing / allowed */
   if (!(s = dummy_file (mbx,newname)) || ((s = strrchr (s,'/')) && !s[1])) {
     sprintf (mbx,"Can't rename %s to %s: invalid name",old,newname);
@@ -507,6 +512,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
     mail_recent (stream,0);	/* and certainly no recent ones! */
     stream->uid_validity = 1;
   }
+  stream->inbox = T;		/* note that it's an INBOX */
   return stream;		/* return success */
 }
 
@@ -644,7 +650,6 @@ char *dummy_file (char *dst,char *name)
 
 long dummy_canonicalize (char *tmp,char *ref,char *pat)
 {
-  char *s;
   if (ref) {			/* preliminary reference check */
     if (*ref == '{') return NIL;/* remote reference not allowed */
     else if (!*ref) ref = NIL;	/* treat empty reference as no reference */

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	28 September 1998
+ * Last Edited:	10 June 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -188,6 +188,7 @@ char *mailboxfile (char *dst,char *name)
 
 MAILSTREAM *default_proto (long type)
 {
+  extern MAILSTREAM DEFAULTPROTO;
   return &DEFAULTPROTO;		/* return default driver's prototype */
 }
 

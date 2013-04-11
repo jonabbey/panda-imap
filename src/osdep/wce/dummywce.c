@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	18 May 1998
+ * Last Edited:	4 September 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -214,6 +214,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
     mail_recent (stream,0);
     stream->uid_validity = 1;
   }
+  stream->inbox = T;		/* note that it's an INBOX */
   return stream;		/* return success */
 }
 

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	25 June 1995
+ * Last Edited:	10 June 1999
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,6 +40,8 @@
 #include "osdep.h"
 #include <time.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <sys\stat.h>
 #include <sys\timeb.h>
 #include <sys\socket.h>
 #include <netinet\in.h>

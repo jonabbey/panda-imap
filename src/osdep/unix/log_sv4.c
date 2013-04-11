@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	19 December 1997
+ * Last Edited:	5 March 1999
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,6 +42,9 @@
 
 long loginpw (struct passwd *pw,int argc,char *argv[])
 {
-  return !(setgid (pw->pw_gid) || initgroups (pw->pw_name) ||
-	   setuid (pw->pw_uid));
+  uid_t uid = pw->pw_uid;
+  char *name = cpystr (pw->pw_name);
+  long ret = !(setgid (pw->pw_gid) || initgroups (name) || setuid (uid));
+  fs_give ((void **) &name);
+  return ret;
 }

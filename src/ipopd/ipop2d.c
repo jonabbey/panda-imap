@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	27 January 1999
+ * Last Edited:	9 October 1999
  *
  * Copyright 1999 by the University of Washington
  *
@@ -67,7 +67,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "4.51";		/* server version */
+char *version = "4.54";		/* server version */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -102,9 +102,9 @@ int main (int argc,char *argv[])
 {
   char *s,*t;
   char cmdbuf[TMPLEN];
-				/* initialize server */
-  server_init (argv[0],"pop",NIL,NIL,clkint,kodint,hupint,trmint);
 #include "linkage.c"
+				/* initialize server */
+  server_init (argv[0],"pop",NIL,"pop",clkint,kodint,hupint,trmint);
   /* There are reports of POP2 clients which get upset if anything appears
    * between the "+" and the "POP2" in the greeting.
    */
@@ -114,10 +114,12 @@ int main (int argc,char *argv[])
   while (state != DONE) {	/* command processing loop */
     idletime = time (0);	/* get a command under timeout */
     alarm ((state != AUTH) ? TIMEOUT : LOGINTIMEOUT);
+    clearerr (stdin);		/* clear stdin errors */
     while (!fgets (cmdbuf,TMPLEN-1,stdin)) {
-      if (errno==EINTR) errno=0;/* ignore if some interrupt */
+      if (ferror (stdin) && (errno == EINTR)) clearerr (stdin);
       else {
-	char *e = errno ? strerror (errno) : "Command stream end of file";
+	char *e = ferror (stdin) ?
+	  strerror (errno) : "Command stream end of file";
 	alarm (0);		/* disable all interrupts */
 	server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	syslog (LOG_INFO,"%s while reading line user=%.80s host=%.80s",
@@ -312,7 +314,7 @@ short c_helo (char *t,int argc,char *argv[])
 short c_fold (char *t)
 {
   unsigned long i,j,flags;
-  char *s,tmp[2*TMPLEN];
+  char *s = NIL,tmp[2*TMPLEN];
   NETMBX mb;
   if (!(t && *t)) {		/* make sure there's an argument */
     fputs ("- Missing mailbox name\015\012",stdout);

@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	26 January 1999
+# Last Edited:	29 September 1999
 #
 # Copyright 1999 by the University of Washington
 #
@@ -34,6 +34,7 @@
 # Command line build parameters
 
 EXTRAAUTHENTICATORS=
+SPECIALAUTHENTICATORS=
 EXTRADRIVERS=mbox
 PASSWDTYPE=std
 
@@ -43,11 +44,13 @@ PASSWDTYPE=std
 AFSDIR=/usr/afsws
 AFSCFLAGS=-Dexit=afs_exit -D_exit=_afs_exit -I$(AFSDIR)/include
 AFSLIB=$(AFSDIR)/lib
-AFSLDFLAGS=-L$(AFSLIB)/afs -L$(AFSLIB)\
+AFSLDFLAGS=-L$(AFSLIB)/afs -L$(AFSLIB) -L$(AFSDIR)/domestic/lib\
  -lkauth -lprot -lubik -lauth -lrxkad -lrx -llwp -ldes -lcom_err\
  $(AFSLIB)/afs/util.a -laudit -lsys
+# AFSLDFLAGS may also need -L/usr/ucblib -lucb
 DCECFLAGS= -DDCE_MINIMAL -DPASSWD_OVERRIDE=\"/opt/pop3/passwd/passwd\"
 DCELDFLAGS= -ldce
+PAMLDFLAGS= -lpam -ldl
 
 
 # Build parameters normally set by the individual port
@@ -60,6 +63,7 @@ SPOOLDIR=/usr/spool
 MAILSPOOL=$(SPOOLDIR)/mail
 NEWSSPOOL=$(SPOOLDIR)/news
 RSHPATH=/usr/ucb/rsh
+LOCKPGM=/etc/mlock
 
 
 # Default formats for creating new mailboxes and for empty mailboxes in the
@@ -89,7 +93,7 @@ RANLIB=ranlib
 
 # Standard distribution build parameters
 
-DEFAULTAUTHENTICATORS=md5 log
+DEFAULTAUTHENTICATORS=md5 $(SPECIALAUTHENTICATORS) log
 DEFAULTDRIVERS=imap nntp pop3 mh mx mbx tenex mtx mmdf unix news phile
 
 
@@ -112,7 +116,7 @@ SH=sh
 BUILDOPTIONS= EXTRACFLAGS="$(EXTRACFLAGS)"\
  EXTRALDFLAGS="$(EXTRALDFLAGS)"\
  EXTRADRIVERS="$(EXTRADRIVERS)" EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS)"\
- PASSWDTYPE=$(PASSWDTYPE)
+ PASSWDTYPE=$(PASSWDTYPE) SPECIALAUTHENTICATORS="$(SPECIALAUTHENTICATORS)"
 BUILD=$(MAKE) build $(BUILDOPTIONS)
 
 # Here if no make argument established
@@ -226,6 +230,7 @@ d54:	# Data General DG/UX 5.4
 	 ACTIVEFILE=/local/news/active \
 	 RSHPATH=/usr/bin/remsh \
 	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE" \
+	 BASELDFLAGS="-lnsl -lsocket" \
 	 RANLIB=true
 
 dpx:	# Bull DPX/2
@@ -242,6 +247,11 @@ drs:	# ICL DRS/NX
 	 RSHPATH=/usr/bin/rsh \
 	 BASECFLAGS="-O -DNFSKLUDGE" \
 	 BASELDFLAGS="-lsocket -lgen" \
+	 RANLIB=true
+
+do4:	# Apollo Domain/OS sr10.4
+	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
+	 BASECFLAGS="-DNFSKLUDGE -A systype,bsd4.3 -D_APOLLO_SOURCE" \
 	 RANLIB=true
 
 dyn:	# Dynix
@@ -336,6 +346,14 @@ isc:	# Interactive
 	 BASELDFLAGS="-linet -lnsl_s -lgen -lx -lsec -liberty" \
 	 RANLIB=true
 
+lnp:	# Linux Pluggable Authentication modules
+	$(BUILD) `cat EXTRASPECIALS` OS=lnx SIGTYPE=psx CHECKPW=pam \
+	 SPOOLDIR=/var/spool \
+	 ACTIVEFILE=/var/lib/news/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE" \
+	 BASELDFLAGS="-lpam -ldl"
+
 lnx:	# Linux non-shadow passwords
 	@echo You are building for traditional Linux *without* shadow
 	@echo passwords and with the crypt function in the C library.
@@ -346,14 +364,6 @@ lnx:	# Linux non-shadow passwords
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
 	 BASECFLAGS="-g -O -DNFSKLUDGE"
-
-lnp:	# Linux Pluggable Authentication modules
-	$(BUILD) `cat EXTRASPECIALS` OS=lnx SIGTYPE=psx CHECKPW=pam \
-	 SPOOLDIR=/var/spool \
-	 ACTIVEFILE=/var/lib/news/active \
-	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE" \
-	 BASELDFLAGS="-lpam -ldl"
 
 lyn:	# LynxOS
 	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
@@ -368,10 +378,11 @@ mct:	# MachTen - NFSKLUDGE doesn't work (at least not on 2.2)
 	 BASECFLAGS="-g -O -pipe"
 
 mnt:	# Mint
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-g -O -Dunix=1 -D__atarist__ -D_POSIX_SOURCE -pipe" \
+	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx \
+	 SPOOLDIR=/var/spool \
+	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 RANLIB=true CC=gcc ARRC="gcc-ar rc"
+	 BASECFLAGS="-g -O -DNFSKLUDGE"
 
 neb:	# NetBSD
 	$(BUILD) `cat EXTRASPECIALS` OS=bsi \
@@ -387,7 +398,8 @@ nxt:	# NEXTSTEP
 
 nx3:	# NEXTSTEP 3.0 single threaded
 	$(BUILD) `cat EXTRASPECIALS` OS=nxt \
-	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE"
+	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE -Wall"
+	echo "void malloc_singlethreaded (void);" >> linkage.h
 	echo "  malloc_singlethreaded ();" >> linkage.c
 
 osf:	# OSF/1
@@ -398,9 +410,8 @@ osf:	# OSF/1
 # user doesn't get proper file access, and the process can't be killed.
 
 os4:	# OSF/1 (Digital UNIX) 4
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=os4 LOGINPW=sec \
-	 BASECFLAGS="-g3 -O2 -Olimit 1500 -DNFSKLUDGE" \
-	 BASELDFLAGS="-lsecurity -ldb -laud -lm"
+	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=os4 LOGINPW=os4 \
+	 BASECFLAGS="-g3 -O2 -Olimit 1500 -DNFSKLUDGE"
 
 ptx:	# PTX
 	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=svo LOGINPW=sv4 \
@@ -442,10 +453,13 @@ sco:	# Santa Cruz Operation
 	 BASELDFLAGS="-lsocket -lprot -lcrypt_i -lx -los" \
 	 RANLIB=true LN=ln
 
-# Note: setting _POSIX_SOURCE doesn't seem to build it as of SGI IRIX 5.3
+# Notes:
+# 1) setting _POSIX_SOURCE doesn't seem to build it as of SGI IRIX 5.3
+# 2) SGI make wouldn't build for Steve unless that bizarre "MAKEFLAGS="
+#    was inserted in the beginning.
 
 sgi:	# Silicon Graphics
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 \
+	MAKEFLAGS= $(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bsd/rsh \
 	 BASECFLAGS="-g3 -O2 -Olimit 8192 -DNFSKLUDGE" \
@@ -641,7 +655,7 @@ newsrc.o: mail.h misc.h osdep.h newsrc.h
 nntp.o: mail.h misc.h osdep.h netmsg.h smtp.h nntp.h rfc822.h
 phile.o: mail.h misc.h osdep.h phile.h rfc822.h dummy.h
 pseudo.o: pseudo.h
-pop3.o: mail.h misc.h osdep.h pop3.h
+pop3.o: mail.h misc.h osdep.h pop3.h rfc822.h
 smanager.o: mail.h misc.h osdep.h
 smtp.o: mail.h misc.h osdep.h smtp.h rfc822.h
 rfc822.o: mail.h misc.h osdep.h rfc822.h
@@ -686,7 +700,7 @@ onceenv:
 	 -DMAILSPOOL=\"$(MAILSPOOL)\" \
 	 -DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" \
 	 -DACTIVEFILE=\"$(ACTIVEFILE)\" -DNEWSSPOOL=\"$(NEWSSPOOL)\" \
-	 -DRSHPATH=\"$(RSHPATH)\" > OSCFLAGS
+	 -DRSHPATH=\"$(RSHPATH)\" -DLOCKPGM=\"$(LOCKPGM)\" > OSCFLAGS
 	echo $(BASELDFLAGS) $(EXTRALDFLAGS) > LDFLAGS
 	echo "$(ARRC) $(ARCHIVE) $(BINARIES);$(RANLIB) $(ARCHIVE)" > ARCHIVE
 	./drivers $(EXTRADRIVERS) $(DEFAULTDRIVERS) dummy
@@ -716,7 +730,15 @@ ckpmd5:	# MD5 database (must have md5 AUTHENTICATOR as well)
 	$(LN) ckp_md5.c osdepckp.c
 
 ckpnul:	# NUL authenticator (disables all plaintext authentication)
-	$(LN) ckp_nul.c osdepnul.c
+	$(LN) ckp_nul.c osdepckp.c
+
+ckppam:	# PAM authenticator
+	echo $(PAMLDFLAGS) >> LDFLAGS
+	$(LN) ckp_pam.c osdepckp.c
+
+ckppmb:	# Broken (e.g. SUN) PAM authenticator
+	echo $(PAMLDFLAGS) >> LDFLAGS
+	$(LN) ckp_pam.c osdepckp.c
 
 ckpstd:	# Port standard
 	$(LN) ckp_$(CHECKPW).c osdepckp.c

@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	29 November 1998
+# Last Edited:	17 March 1999
 #
-# Copyright 1998 by the University of Washington
+# Copyright 1999 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -174,7 +174,7 @@ newsrc.o: mail.h misc.h osdep.h newsrc.h
 nntp.o: mail.h misc.h osdep.h netmsg.h smtp.h nntp.h rfc822.h
 phile.o: mail.h misc.h osdep.h phile.h rfc822.h dummy.h
 pseudo.o: pseudo.h
-pop3.o: mail.h misc.h osdep.h pop3.h
+pop3.o: mail.h misc.h osdep.h pop3.h rfc822.h
 smanager.o: mail.h misc.h osdep.h
 smtp.o: mail.h misc.h osdep.h smtp.h rfc822.h
 rfc822.o: mail.h misc.h osdep.h rfc822.h

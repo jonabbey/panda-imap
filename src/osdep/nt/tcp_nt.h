@@ -9,9 +9,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	18 November 1998
+ * Last Edited:	7 July 1999
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -34,7 +34,7 @@
 
 /* TCP input buffer -- must be large enough to prevent overflow */
 
-#define BUFLEN 8192
+#define BUFLEN 32768
 
 #include <windows.h>
 #define _INC_WINDOWS

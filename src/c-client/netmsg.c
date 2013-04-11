@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 June 1995
- * Last Edited:	9 May 1997
+ * Last Edited:	4 September 1999
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -35,6 +35,8 @@
 
 
 #include <stdio.h>
+#include <errno.h>
+extern int errno;		/* just in case */
 #include "mail.h"
 #include "osdep.h"
 #include "misc.h"
@@ -53,27 +55,6 @@ long netmsg_read (void *stream,unsigned long count,char *buffer)
   return (fread (buffer,(size_t) 1,(size_t) count,(FILE *) stream) == count) ?
     T : NIL;
 }
-
-
-/* Slurp dot-terminated text from NET
- * Accepts: NET stream
- *	    place to return size
- * Returns: text
- */
-
-char *netmsg_slurp_text (NETSTREAM *stream,unsigned long *size)
-{
-  FILE *f = netmsg_slurp (stream,size,NIL);
-  if (f) {			/* read from temp file */
-    char *s = (char *) fs_get ((size_t) *size + 1);
-    fread (s,(size_t) 1,(size_t) *size,f);
-    fclose (f);			/* flush temp file */
-    s[*size] = '\0';		/* tie off string */
-    return s;
-  }
-  *size = 0;			/* failure */
-  return "";
-}
 
 /* Slurp dot-terminated text from NET
  * Accepts: NET stream
@@ -87,7 +68,10 @@ FILE *netmsg_slurp (NETSTREAM *stream,unsigned long *size,unsigned long *hsiz)
   unsigned long i;
   char *s,*t,tmp[MAILTMPLEN];
   FILE *f = tmpfile ();
-  if (!f) mm_log ("Unable to create scratch file to write message data",ERROR);
+  if (!f) {
+    sprintf (tmp,"Unable to create scratch file: %.80s",strerror (errno));
+    mm_log (tmp,ERROR);
+  }
   *size = 0;			/* initially emtpy */
   if (hsiz) *hsiz = 0;
   while (s = net_getline (stream)) {
@@ -116,12 +100,8 @@ FILE *netmsg_slurp (NETSTREAM *stream,unsigned long *size,unsigned long *hsiz)
     }
     fs_give ((void **) &s);	/* free the line */
   }
-  if (f) {			/* making a file? */
-    fwrite ("\015\012",1,2,f);
-    *size += 2;			/* write final newline */
-				/* rewind to start of file */
-    fseek (f,(unsigned long) 0,L_SET);
-  }
+				/* if making a file, rewind to start of file */
+  if (f) fseek (f,(unsigned long) 0,L_SET);
 				/* header consumes entire message */
   if (hsiz && !*hsiz) *hsiz = *size;
   return f;			/* return the file descriptor */
