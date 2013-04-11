@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2011 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	MH mail routines
+ *
+ * Author(s):	Mark Crispin
+ *
+ * Date:	23 February 1992
+ * Last Edited:	8 April 2011
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	MH mail routines
- *
- * Author(s):	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	23 February 1992
- * Last Edited:	11 October 2007
  */
 
 
@@ -400,11 +397,11 @@ void mh_list (MAILSTREAM *stream,char *ref,char *pat)
 void mh_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
   void *sdb = NIL;
-  char *s,test[MAILTMPLEN];
+  char *s,test[MAILTMPLEN],tmp[MAILTMPLEN];
 				/* get canonical form of name */
-  if (mh_canonicalize (test,ref,pat) && (s = sm_read (&sdb))) {
+  if (mh_canonicalize (test,ref,pat) && (s = sm_read (tmp,&sdb))) {
     do if (pmatch_full (s,test,'/')) mm_lsub (stream,'/',s,NIL);
-    while (s = sm_read (&sdb)); /* until no more subscriptions */
+    while (s = sm_read (tmp,&sdb)); /* until no more subscriptions */
   }
 }
 

@@ -1,11 +1,27 @@
-UW IMAP toolkit notices:
+PANDA IMAP tookit notices:
 
-This software was developed by the University of Washington
-(http://www.washington.edu/).
+The Panda IMAP Toolkit (c-client API, dmail, imapd, ipop2d, ipop3d,
+mailutil, mlock, mtest, and tmail software; and its included text) was
+developed by Mark Crispin, and is
 
-The Univerity of Washington IMAP Toolkit (c-client API, dmail, imapd,
-ipop2d, ipop3d, mailutil, mlock, mtest, and tmail software; and its
-included text) is Copyright 1988-2007 by the University of Washington.
+ * Copyright 2008-2010 Mark Crispin
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+
+Components of the Panda IMAP toolkit are based in part upon code
+developed by Mark Crispin at the University of Washington, and is
+
+ * Copyright 1988-2008 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
 
 The c-client library and mtest software are in part based upon code
 developed by Mark Crispin at Stanford University, and is

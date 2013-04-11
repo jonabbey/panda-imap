@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2011 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	CRAM-MD5 authenticator
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	21 October 1998
+ * Last Edited:	8 April 2011
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	CRAM-MD5 authenticator
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	21 October 1998
- * Last Edited:	30 January 2007
  */
 
 /* MD5 context */
@@ -49,7 +46,8 @@ long auth_md5_client (authchallenge_t challenger,authrespond_t responder,
 char *auth_md5_server (authresponse_t responder,int argc,char *argv[]);
 char *auth_md5_pwd (char *user);
 char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[]);
-char *hmac_md5 (char *text,unsigned long tl,char *key,unsigned long kl);
+char *hmac_md5 (char *hshbuf, char *text,unsigned long tl,char *key,
+		unsigned long kl);
 void md5_init (MD5CONTEXT *ctx);
 void md5_update (MD5CONTEXT *ctx,unsigned char *data,unsigned long len);
 void md5_final (unsigned char *digest,MD5CONTEXT *ctx);
@@ -97,7 +95,7 @@ long auth_md5_client (authchallenge_t challenger,authrespond_t responder,
 		      char *service,NETMBX *mb,void *stream,
 		      unsigned long *trial,char *user)
 {
-  char pwd[MAILTMPLEN];
+  char pwd[MAILTMPLEN],hshbuf[2*MD5DIGLEN + 1];
   void *challenge;
   unsigned long clen;
   long ret = NIL;
@@ -112,7 +110,7 @@ long auth_md5_client (authchallenge_t challenger,authrespond_t responder,
       ret = LONGT;		/* will get a BAD response back */
     }
     else {			/* got password, build response */
-      sprintf (pwd,"%.65s %.33s",user,hmac_md5 (challenge,clen,
+      sprintf (pwd,"%.65s %.33s",user,hmac_md5 (hshbuf,challenge,clen,
 						pwd,strlen (pwd)));
       fs_give ((void **) &challenge);
 				/* send credentials, allow retry if OK */
@@ -146,7 +144,7 @@ static int md5try = MAXLOGINTRIALS;
 char *auth_md5_server (authresponse_t responder,int argc,char *argv[])
 {
   char *ret = NIL;
-  char *p,*u,*user,*authuser,*hash,chal[MAILTMPLEN];
+  char *p,*u,*user,*authuser,*hash,chal[MAILTMPLEN],hshbuf[2*MD5DIGLEN + 1];
   unsigned long cl,pl;
 				/* generate challenge */
   sprintf (chal,"<%lu.%lu@%s>",(unsigned long) getpid (),
@@ -161,7 +159,8 @@ char *auth_md5_server (authresponse_t responder,int argc,char *argv[])
 				/* get password */
       if (p = auth_md5_pwd ((authuser && *authuser) ? authuser : user)) {
 	pl = strlen (p);
-	u = (md5try && !strcmp (hash,hmac_md5 (chal,cl,p,pl))) ? user : NIL;
+	u = (md5try && !strcmp (hash,hmac_md5 (hshbuf,chal,cl,p,pl))) ?
+	  user : NIL;
 	memset (p,0,pl);	/* erase sensitive information */
 	fs_give ((void **) &p);	/* flush erased password */
 				/* now log in for real */
@@ -265,17 +264,18 @@ char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[])
 
 /*
  * RFC 2104 HMAC hashing
- * Accepts: text to hash
+ * Accepts: destination buffer of size 2*MD5DIGLEN + 1
+ *	    text to hash
  *	    text length
  *	    key
  *	    key length
  * Returns: hash as text, always
  */
 
-char *hmac_md5 (char *text,unsigned long tl,char *key,unsigned long kl)
+char *hmac_md5 (char *hshbuf, char *text,unsigned long tl,char *key,
+		unsigned long kl)
 {
   int i,j;
-  static char hshbuf[2*MD5DIGLEN + 1];
   char *s;
   MD5CONTEXT ctx;
   char *hex = "0123456789abcdef";

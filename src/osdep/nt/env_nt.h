@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008-2010 Mark Crispin
  * ========================================================================
  */
 
@@ -23,7 +15,18 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	15 November 2010
+ *
+ * Previous versions of this file were:
+ *
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
  */
 
 
@@ -55,14 +58,14 @@ char *myusername_full (unsigned long *flags);
 #define MU_ANONYMOUS 2
 #define myusername() \
   myusername_full (NIL)
-char *sysinbox ();
+char *sysinbox (void);
 char *mailboxdir (char *dst,char *dir,char *name);
 int lockname (char *lock,char *fname,int op);
 char *lockdir (char *lock,char *first,char *last);
 void unlockfd (int fd,char *lock);
 long safe_write (int fd,char *buf,long nbytes);
 void *mm_blocknotify (int reason,void *data);
-long random ();
+long random (void);
 #if _MSC_VER < 700
 #define getpid random
 #endif

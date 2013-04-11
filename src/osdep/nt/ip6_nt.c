@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008-2011 Mark Crispin
  * ========================================================================
  */
 
@@ -15,15 +7,19 @@
  * Program:	UNIX IPv6 routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	18 December 2003
- * Last Edited:	30 August 2006
+ * Last Edited:	30 July 2011
+ *
+ * Previous versions of this file were
+ *
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 
@@ -61,32 +57,32 @@
 
 /* IP abstraction layer */
 
-char *ip_sockaddrtostring (struct sockaddr *sadr);
+char *ip_sockaddrtostring (struct sockaddr *sadr,char buf[NI_MAXHOST]);
 long ip_sockaddrtoport (struct sockaddr *sadr);
 void *ip_stringtoaddr (char *text,size_t *len,int *family);
 struct sockaddr *ip_newsockaddr (size_t *len);
 struct sockaddr *ip_sockaddr (int family,void *adr,size_t adrlen,
 			      unsigned short port,size_t *len);
-char *ip_sockaddrtoname (struct sockaddr *sadr);
+char *ip_sockaddrtoname (struct sockaddr *sadr,char buf[NI_MAXHOST]);
 void *ip_nametoaddr (char *name,size_t *len,int *family,char **canonical,
-		     void **next);
+		     void **next,void **cleanup);
 
 /* Return IP address string from socket address
  * Accepts: socket address
+ *	    buffer
  * Returns: IP address as name string
  */
 
-char *ip_sockaddrtostring (struct sockaddr *sadr)
+char *ip_sockaddrtostring (struct sockaddr *sadr,char buf[NI_MAXHOST])
 {
-  static char tmp[NI_MAXHOST];
   switch (sadr->sa_family) {
   case PF_INET:			/* IPv4 */
-    if (!getnameinfo (sadr,SADR4LEN,tmp,NI_MAXHOST,NIL,NIL,NI_NUMERICHOST))
-      return tmp;
+    if (!getnameinfo (sadr,SADR4LEN,buf,NI_MAXHOST,NIL,NIL,NI_NUMERICHOST))
+      return buf;
     break;
   case PF_INET6:		/* IPv6 */
-    if (!getnameinfo (sadr,SADR6LEN,tmp,NI_MAXHOST,NIL,NIL,NI_NUMERICHOST))
-      return tmp;
+    if (!getnameinfo (sadr,SADR6LEN,buf,NI_MAXHOST,NIL,NIL,NI_NUMERICHOST))
+      return buf;
     break;
   }
   return "NON-IP";
@@ -120,20 +116,18 @@ void *ip_stringtoaddr (char *text,size_t *len,int *family)
 
 {
   char tmp[MAILTMPLEN];
-  static struct addrinfo *hints;
+  struct addrinfo hints;
   struct addrinfo *ai;
   void *adr = NIL;
-  if (!hints) {			/* hints set up yet? */
-    hints = (struct addrinfo *) /* one-time setup */
-      memset (fs_get (sizeof (struct addrinfo)),0,sizeof (struct addrinfo));
-    hints->ai_family = AF_UNSPEC;/* allow any address family */
-    hints->ai_socktype = SOCK_STREAM;
+				/* initialize hints */
+  memset (&hints,NIL,sizeof (hints));
+  hints.ai_family = AF_UNSPEC;/* allow any address family */
+  hints.ai_socktype = SOCK_STREAM;
 				/* numeric name only */
-    hints->ai_flags = AI_NUMERICHOST;
-  }
+  hints.ai_flags = AI_NUMERICHOST;
 				/* case-independent lookup */
   if (text && (strlen (text) < MAILTMPLEN) &&
-      (!getaddrinfo (lcase (strcpy (tmp,text)),NIL,hints,&ai))) {
+      (!getaddrinfo (lcase (strcpy (tmp,text)),NIL,&hints,&ai))) {
     switch (*family = ai->ai_family) {
     case AF_INET:		/* IPv4 */
       adr = fs_get (*len = ADR4LEN);
@@ -199,20 +193,20 @@ struct sockaddr *ip_sockaddr (int family,void *adr,size_t adrlen,
 
 /* Return name from socket address
  * Accepts: socket address
+ *	    buffer
  * Returns: canonical name for that address or NIL if none
  */
 
-char *ip_sockaddrtoname (struct sockaddr *sadr)
+char *ip_sockaddrtoname (struct sockaddr *sadr,char buf[NI_MAXHOST])
 {
-  static char tmp[NI_MAXHOST];
   switch (sadr->sa_family) {
   case PF_INET:			/* IPv4 */
-    if (!getnameinfo (sadr,SADR4LEN,tmp,NI_MAXHOST,NIL,NIL,NI_NAMEREQD))
-      return tmp;
+    if (!getnameinfo (sadr,SADR4LEN,buf,NI_MAXHOST,NIL,NIL,NI_NAMEREQD))
+      return buf;
     break;
   case PF_INET6:		/* IPv6 */
-    if (!getnameinfo (sadr,SADR6LEN,tmp,NI_MAXHOST,NIL,NIL,NI_NAMEREQD))
-      return tmp;
+    if (!getnameinfo (sadr,SADR6LEN,buf,NI_MAXHOST,NIL,NIL,NI_NAMEREQD))
+      return buf;
     break;
   }
   return NIL;
@@ -224,38 +218,40 @@ char *ip_sockaddrtoname (struct sockaddr *sadr)
  *	    pointer to previous/returned address family
  *	    pointer to previous/returned canonical name
  *	    pointer to previous/return state for next-address calls
+ *	    pointer to cleanup (or NIL to get canonical name only)
  * Returns: address with length/family/canonical updated if needed, or NIL
  */
 
 void *ip_nametoaddr (char *name,size_t *len,int *family,char **canonical,
-		     void **next)
+		     void **next,void **cleanup)
 {
+  char tmp[MAILTMPLEN];
   struct addrinfo *cur = NIL;
-  static struct addrinfo *hints;
-  static struct addrinfo *ai = NIL;
-  static char lcname[MAILTMPLEN];
-  if (!hints) {			/* hints set up yet? */
-    hints = (struct addrinfo *) /* one-time setup */
-      memset (fs_get (sizeof (struct addrinfo)),0,sizeof (struct addrinfo));
+  struct addrinfo hints;
+  void *ret = NIL;
+				/* initialize hints */
+  memset (&hints,NIL,sizeof (hints));
 				/* allow any address family */
-    hints->ai_family = AF_UNSPEC;
-    hints->ai_socktype = SOCK_STREAM;
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
 				/* need canonical name */
-    hints->ai_flags = AI_CANONNAME;
-  }
+  hints.ai_flags = AI_CANONNAME;
   if (name) {			/* name supplied? */
-    if (ai) {
-      freeaddrinfo (ai);	/* free old addrinfo */
-      ai = NIL;
+    struct addrinfo *aitmp = NIL;
+    if (!cleanup) cleanup = (void **) &aitmp;
+    else if (*cleanup) {
+      freeaddrinfo (*cleanup);	/* free old addrinfo */
+      *cleanup = NIL;
     }
 				/* case-independent lookup */
     if ((strlen (name) < MAILTMPLEN) &&
-	(!getaddrinfo (lcase (strcpy (lcname,name)),NIL,hints,&ai))) {
-      cur = ai;			/* current block */
+	(!getaddrinfo (lcase (strcpy (tmp,name)),NIL,&hints,
+		       (struct addrinfo **) cleanup))) {
+      cur = *cleanup;		/* current block */
       if (canonical)		/* set canonical name */
-	*canonical = cur->ai_canonname ? cur->ai_canonname : lcname;
+	*canonical = cpystr (cur->ai_canonname ? cur->ai_canonname : tmp);
 				/* remember as next block */
-      if (next) *next = (void *) ai;
+      if (next) *next = (void *) cur;
     }
     else {			/* error */
       cur = NIL;
@@ -264,25 +260,42 @@ void *ip_nametoaddr (char *name,size_t *len,int *family,char **canonical,
       if (canonical) *canonical = NIL;
       if (next) *next = NIL;
     }
+    if (aitmp) {		/* special call to get canonical name */
+      freeaddrinfo (aitmp);
+      if (len) *len = 0;
+      if (family) *family = 0;
+      if (next) *next = NIL;
+      return VOIDT;		/* return only needs to be non-NIL */
+    }
   }
+
 				/* return next in series */
   else if (next && (cur = ((struct addrinfo *) *next)->ai_next)) {
     *next = cur;		/* set as last address */
 				/* set canonical in case changed */
-    if (canonical && cur->ai_canonname) *canonical = cur->ai_canonname;
+    if (canonical && cur->ai_canonname) {
+      if (*canonical) fs_give ((void **) canonical);
+      *canonical = cpystr (cur->ai_canonname);
+    }
   }
-
+  else if (*cleanup) {
+    freeaddrinfo (*cleanup);	/* free old addrinfo */
+    *cleanup = NIL;
+  }
   if (cur) {			/* got data? */
     if (family) *family = cur->ai_family;
     switch (cur->ai_family) {
     case AF_INET:
       if (len) *len = ADR4LEN;
-      return (void *) &SADR4ADR (cur->ai_addr);
+      ret = (void *) &SADR4ADR (cur->ai_addr);
+      break;
     case AF_INET6:
       if (len) *len = ADR6LEN;
-      return (void *) &SADR6ADR (cur->ai_addr);
+      ret = (void *) &SADR6ADR (cur->ai_addr);
+      break;
+    default:
+      if (len) *len = 0;	/* error return */
     }
   }
-  if (len) *len = 0;		/* error return */
-  return NIL;
+  return ret;
 }

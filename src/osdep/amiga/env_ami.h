@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2010 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	UNIX environment routines
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	1 August 1988
+ * Last Edited:	15 November 2010
+ *
+ * Previous versions of this file were:
+ *
  * Copyright 1988-2006 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	UNIX environment routines
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	1 August 1988
- * Last Edited:	30 August 2006
  */
 
 
@@ -68,7 +65,7 @@ char *myusername_full (unsigned long *flags);
 #define MU_ANONYMOUS 2
 #define myusername() \
   myusername_full (NIL)
-char *sysinbox ();
+char *sysinbox (void);
 char *mailboxdir (char *dst,char *dir,char *name);
 long dotlock_lock (char *file,DOTLOCK *base,int fd);
 long dotlock_unlock (DOTLOCK *base);

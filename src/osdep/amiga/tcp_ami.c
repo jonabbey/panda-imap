@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2008 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008-2010 Mark Crispin
  * ========================================================================
  */
 
@@ -15,15 +7,19 @@
  * Program:	Amiga TCP/IP routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	13 January 2008
+ * Last Edited:	3 April 2010
+ * 
+ * Previous versions of this file were:
+ *
+ * Copyright 1988-2008 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 #undef write			/* don't use redefined write() */
@@ -735,7 +731,7 @@ char *tcp_canonical (char *name)
   (*bn) (BLOCK_NONSENSITIVE,data);
   (*bn) (BLOCK_NONE,NIL);	/* alarms OK now */
   if (tcpdebug) mm_log ("DNS canonicalization done",TCPDEBUG);
-  return ret;
+  return cpystr (ret);
 }
 
 

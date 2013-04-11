@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2008 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008-2010 Mark Crispin
  * ========================================================================
  */
 
@@ -15,15 +7,19 @@
  * Program:	Macintosh TCP/IP routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	26 January 1992
- * Last Edited:	13 January 2008
+ * Last Edited:	3 April 2010
+ *
+ * Previous versions of this file were:
+ *
+ * Copyright 1988-2008 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 
@@ -529,7 +525,8 @@ char *tcp_canonical (char *name)
   int i;
   struct hostInfo hst;
 				/* look like domain literal? */
-  if (name[0] == '[' && name[i = (strlen (name))-1] == ']') return name;
+  if (name[0] == '[' && name[i = (strlen (name))-1] == ']')
+    return cpystr (name);
   if (StrToAddr (name,&hst,tcp_dns_upp,NIL)) {
     while (hst.rtnCode == cacheFault && wait ());
 				/* kludge around MacTCP bug */
@@ -541,9 +538,9 @@ char *tcp_canonical (char *name)
       while (hst.rtnCode == cacheFault && wait ());
     }
 				/* still have error status? */
-    if (hst.rtnCode) return name;
+    if (hst.rtnCode) return cpystr (name);
   }
-  return hst.cname;		/* success */
+  return cpystr (hst.cname);
 }
 
 

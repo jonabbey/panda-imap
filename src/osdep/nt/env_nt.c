@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2008 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008-2010 Mark Crispin
  * ========================================================================
  */
 
@@ -15,13 +7,19 @@
  * Program:	NT environment routines
  *
  * Author:	Mark Crispin
- *		UW Technology
- *		University of Washington
- *		Seattle, WA  98195
- *		Internet: MRC@Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 February 2008
+ * Last Edited:	3 April 2010
+ *
+ * Previous versions of this file were:
+ *
+ * Copyright 1988-2008 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 static char *myUserName = NIL;	/* user name */
@@ -538,15 +536,13 @@ char *mylocalhost (void)
     char tmp[MAILTMPLEN];
     if (!wsa_initted++) {	/* init Windows Sockets */
       WSADATA wsock;
-      if (WSAStartup (WINSOCK_VERSION,&wsock)) {
+      if (WSAStartup (WINSOCK_VERSION,&wsock))
 	wsa_initted = 0;
-	return "random-pc";	/* try again later? */
-      }
     }
-    myLocalHost = cpystr ((gethostname (tmp,MAILTMPLEN-1) == SOCKET_ERROR) ?
-			  "random-pc" : tcp_canonical (tmp));
+    if (wsa_initted && gethostname (tmp,MAILTMPLEN-1) != SOCKET_ERROR)
+      myLocalHost = tcp_canonical (tmp);
   }
-  return myLocalHost;
+  return myLocalHost ? myLocalHost : "random-pc";
 }
 
 /* Return my home directory name

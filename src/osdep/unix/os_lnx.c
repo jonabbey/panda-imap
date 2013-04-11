@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2009 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Operating-system dependent routines -- old Linux version
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	1 August 1993
+ * Last Edited:	18 May 2009
+ *
+ * Previous versions of this file were:
+ *
  * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	Operating-system dependent routines -- old Linux version
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	1 August 1993
- * Last Edited:	16 August 2007
  */
  
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
@@ -52,3 +49,4 @@ extern int errno;		/* just in case */
 #include "gr_waitp.c"
 #include "tz_sv4.c"
 #include "flocklnx.c"
+#include "utime.c"

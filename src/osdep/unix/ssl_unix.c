@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2009 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	SSL authentication/encryption module
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	22 September 1998
+ * Last Edited:	8 November 2009
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,26 +21,10 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	SSL authentication/encryption module
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	22 September 1998
- * Last Edited:	13 January 2007
  */
 
 #define crypt ssl_private_crypt
+#define STRING OPENSSL_STRING
 #include <x509v3.h>
 #include <ssl.h>
 #include <err.h>
@@ -35,11 +33,27 @@
 #include <bio.h>
 #include <crypto.h>
 #include <rand.h>
+#undef STRING
 #undef crypt
 
 #define SSLBUFLEN 8192
-#define SSLCIPHERLIST "ALL:!LOW"
 
+/*
+ * PCI auditing compliance, disable:
+ *  SSLv2
+ *  anonymous D-H (no certificate
+ *  export encryption ciphers (40 and 56 bits)
+ *  low encryption cipher suites (40 and 56 bits, excluding export)
+ *  null encryption (disabling implied by "ALL")
+ *
+ * UW imapd just disables low-grade and null ("ALL:!LOW").  This setting
+ * will break clients that attempt to use the newly-prohibited mechanisms.
+ *
+ * I question the value of disabling SSLv2, as opposed to disabling the SSL
+ * ports (e.g., 993 for IMAP, 995 for POP3) and using TLS exclusively.
+ */
+
+#define SSLCIPHERLIST "ALL:!SSLv2:!ADH:!EXP:!LOW"
 
 /* SSL I/O stream */
 
@@ -619,7 +633,7 @@ static long ssl_abort (SSLSTREAM *stream)
 
 char *ssl_host (SSLSTREAM *stream)
 {
-  return tcp_host (stream->tcpstream);
+  return stream ? tcp_host (stream->tcpstream) : "UNKNOWN";
 }
 
 

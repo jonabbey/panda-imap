@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2010 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	UTF-8 routines
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	11 June 1997
+ * Last Edited:	28 May 2010
+ * 
+ * Previous versions of this file were
+ *
  * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	UTF-8 routines
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	11 June 1997
- * Last Edited:	17 January 2008
  */
 
 
@@ -1023,20 +1020,52 @@ unsigned long utf8_get_raw (unsigned char **s,unsigned long *i)
       if (c < 0x80) ret = c;	/* U+0000 - U+007f */
       else if (c < 0xc2);	/* c0 and c1 never valid */
       else if (c < 0xe0) {	/* U+0080 - U+07ff */
-	if (c &= 0x1f) more = 1;
+	c &= 0x1f;
+	if (c1 >= 0x80) more = 1;
       }
-      else if (c < 0xf0) {	/* U+0800 - U+ffff */
-	if ((c &= 0x0f) || (c1 >= 0xa0)) more = 2;
+      else if (c == 0xe0) {	/* U+0800 - U+0fff */
+	c &= 0x0f;
+	if (c1 >= 0xa0) more = 2;
       }
-      else if (c < 0xf8) {	/* U+10000 - U+10ffff (and 110000 - 1fffff) */
-	if ((c &= 0x07) || (c1 >= 0x90)) more = 3;
+      else if (c < 0xed) {	/* U+1000 - U+cfff */
+	c &= 0x0f;
+	if (c1 >= 0x80) more = 2;
+      }
+      else if (c == 0xed) {	/* U+d000 - U+d7ff */
+	c &= 0x0f;
+	if ((c1 >= 0x80) && (c1 <= 0x9f)) more = 2;
+      }
+      else if (c < 0xf0) {	/* U+e000 - U+ffff */
+	c &= 0x0f;
+	if (c1 >= 0x80) more = 2;
+      }
+      else if (c == 0xf0) {	/* U+10000 - U+3ffff */
+	c &= 0x07;
+	if (c1 >= 0x90) more = 3;
+      }
+      else if (c < 0xf3) {	/* U+40000 - U+fffff */
+	c &= 0x07;
+	if (c1 >= 0x80) more = 3;
+      }
+#if 0
+      else if (c == 0xf4) {	/* U+100000 - U+10ffff */
+	c &= 0x07;
+	if (((c1 >= 0x80) && (c1 <= 0x8f))) more = 3;
+      }
+#else
+      else if (c < 0xf8) {	/* U+100000 - U+10ffff (and 110000 - 1fffff) */
+	c &= 0x07;
+	if ((c1 >= 0x80)) more = 3;
       }
       else if (c < 0xfc) {	/* ISO 10646 200000 - 3ffffff */
-	if ((c &= 0x03) || (c1 >= 0x88)) more = 4;
+	c &= 0x03;
+	if ((c1 >= 0x80)) more = 4;
       }
       else if (c < 0xfe) {	/* ISO 10646 4000000 - 7fffffff */
-	if ((c &= 0x01) || (c1 >= 0x84)) more = 5;
+	c &= 0x01;
+	if ((c1 >= 0x80)) more = 5;
       }
+#endif
 				/* fe and ff never valid */
       if (more) {		/* multi-octet, make sure more to come */
 	if (!j) return U8G_ENDSTRI;
@@ -1186,7 +1215,7 @@ unsigned long ucs4_cs_get (CHARSET *cs,unsigned char **s,unsigned long *i)
       if (j--) c1 = *t++;	/* get second octet */
       else return U8G_ENDSTRI;
       SJISTOJIS (c,c1);
-      c = JISTOUNICODE (c,c1,ku,ten);
+      ret = JISTOUNICODE (c,c1,ku,ten);
     }
     break;
 

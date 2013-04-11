@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2011 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Dummy routines
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	9 May 1991
+ * Last Edited:	8 April 2011
+ *
+ * Previous versions of this file were:
+ *
  * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	Dummy routines
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	9 May 1991
- * Last Edited:	1 June 2007
  */
 
 
@@ -216,10 +213,10 @@ void dummy_list (MAILSTREAM *stream,char *ref,char *pat)
 void dummy_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
   void *sdb = NIL;
-  char *s,*t,test[MAILTMPLEN],tmp[MAILTMPLEN];
+  char *s,*t,test[MAILTMPLEN],tmp[MAILTMPLEN],tmpx[MAILTMPLEN];
   int showuppers = pat[strlen (pat) - 1] == '%';
 				/* get canonical form of name */
-  if (dummy_canonicalize (test,ref,pat) && (s = sm_read (&sdb))) do
+  if (dummy_canonicalize (test,ref,pat) && (s = sm_read (tmpx,&sdb))) do
     if (*s != '{') {
       if (!compare_cstring (s,"INBOX") &&
 	  pmatch ("INBOX",ucase (strcpy (tmp,test))))
@@ -230,7 +227,8 @@ void dummy_lsub (MAILSTREAM *stream,char *ref,char *pat)
 	if (pmatch_full (s,test,'/')) mm_lsub (stream,'/',s,LATT_NOSELECT);
       }
     }
-  while (s = sm_read (&sdb));	/* until no more subscriptions */
+				/* until no more subscriptions */
+  while (s = sm_read (tmpx,&sdb));
 }
 
 

@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008-2010 Mark Crispin
  * ========================================================================
  */
 
@@ -15,15 +7,19 @@
  * Program:	Mail library test program
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	5 November 2007
+ * Last Edited:	8 April 2011
+ *
+ * Previous versions of this file were
+ *
+ * Copyright 1988-2007 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -90,7 +86,7 @@ int main ()
 {
   MAILSTREAM *stream = NIL;
   void *sdb = NIL;
-  char *s,tmp[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN],tmpx[MAILTMPLEN];
   long debug;
 #include "linkage.c"
 #if MACOS
@@ -129,10 +125,10 @@ int main ()
       puts ("Enter INBOX, mailbox name, or IMAP mailbox as {host}mailbox");
       puts ("Known local mailboxes:");
       mail_list (NIL,NIL,"%");
-      if (s = sm_read (&sdb)) {
+      if (s = sm_read (tmpx,&sdb)) {
 	puts ("Local subscribed mailboxes:");
 	do (mm_lsub (NIL,NIL,s,NIL));
-	while (s = sm_read (&sdb));
+	while (s = sm_read (tmpx,&sdb));
       }
       puts ("or just hit return to quit");
     }
@@ -153,7 +149,7 @@ int main ()
 void mm (MAILSTREAM *stream,long debug)
 {
   void *sdb = NIL;
-  char cmd[MAILTMPLEN];
+  char cmd[MAILTMPLEN],tmp[MAILTMPLEN];
   char *s,*arg;
   unsigned long i;
   unsigned long last = 0;
@@ -202,10 +198,10 @@ void mm (MAILSTREAM *stream,long debug)
     case 'F':			/* Find command */
       if (!arg) {
 	arg = "%";
-	if (s = sm_read (&sdb)) {
+	if (s = sm_read (tmp,&sdb)) {
 	  puts ("Local network subscribed mailboxes:");
 	  do if (*s == '{') (mm_lsub (NIL,NIL,s,NIL));
-	  while (s = sm_read (&sdb));
+	  while (s = sm_read (tmp,&sdb));
 	}
       }
       puts ("Subscribed mailboxes:");
@@ -344,10 +340,22 @@ void mm (MAILSTREAM *stream,long debug)
     case '-':
       mail_nodebug (stream); debug = NIL;
       break;
+    case '#':
+      {
+	NAMESPACE *ns;
+	NAMESPACE **nslist = (NAMESPACE **) mail_parameters (stream,GET_NAMESPACE,NIL);
+	static char *nstypes[] = {"Personal", "Other User", "Shared"};
+	for(i = 0; i < 3; ++i) {
+	  puts(nstypes[i]);
+	  for(ns = nslist[i]; ns; ns = ns->next)
+	    printf(" namespace = %s, delimeter = %c\n", ns->name, ns->delimiter);
+	}
+      }
+      break;
     case '?':			/* ? command */
       puts ("Body, Check, Delete, Expunge, Find, GC, Headers, Literal,");
       puts (" MailboxStatus, New Mailbox, Overview, Ping, Quit, Send, Type,");
-      puts ("Undelete, Xit, +, -, or <RETURN> for next message");
+      puts ("Undelete, Xit, #Namespace, +, -, or <RETURN> for next message");
       break;
     default:			/* bogus command */
       printf ("?Unrecognized command: %s\n",cmd);

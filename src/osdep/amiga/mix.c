@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2008 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008-2010 Mark Crispin
  * ========================================================================
  */
 
@@ -15,13 +7,19 @@
  * Program:	MIX mail routines
  *
  * Author(s):	Mark Crispin
- *		UW Technology
- *		University of Washington
- *		Seattle, WA  98195
- *		Internet: MRC@Washington.EDU
  *
  * Date:	1 March 2006
- * Last Edited:	7 May 2008
+ * Last Edited:	14 June 2010
+ *
+ * Previous versions of this file were
+ *
+ * Copyright 1988-2008 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 
@@ -417,7 +415,7 @@ long mix_create (MAILSTREAM *stream,char *mailbox)
 	     strerror (errno));
   else {			/* success, write initial metadata */
     fprintf (f,SEQFMT,now);
-    fprintf (f,MTAFMT,now,0,now);
+    fprintf (f,MTAFMT,now,(unsigned long) 0,now);
     for (i = 0, c = 'K'; (i < NUSERFLAGS) &&
 	   (t = (stream && stream->user_flags[i]) ? stream->user_flags[i] :
 	    default_user_flag (i)) && *t; ++i) {
@@ -1040,7 +1038,7 @@ long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
 				/* expunge unless just burping */
     if (!burponly) for (i = 1; i <= stream->nmsgs;) {
       elt = mail_elt (stream,i);/* need to expunge this message? */
-      if (sequence ? elt->sequence : elt->deleted) {
+      if (elt->deleted && (sequence ? elt->sequence : T)) {
 	++nexp;			/* yes, make it so */
 	mail_expunged (stream,i);
       }
@@ -1061,7 +1059,7 @@ long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
 				/* another file found */
 	  if (cur) cur = cur->next = nxt;
 	  else cur = burp = nxt;
-	  cur->name = names[i]->d_name;
+	  cur->name = cpystr (names[i]->d_name);
 	  cur->fileno = strtoul (cur->name + sizeof (MIXNAME) - 1,NIL,16);
 	  cur->tail = &cur->set;
 	  fs_give ((void **) &names[i]);
@@ -1104,6 +1102,12 @@ long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
 	      MM_LOG (LOCAL->buf,WARN);
 	    }
 	  }
+	while (burp) {		/* flush the burp list */
+	  cur = burp->next;
+	  if (burp->name) fs_give ((void **) &burp->name);
+	  fs_give ((void **) &burp);
+	  burp = cur;
+	}
       }
       else MM_LOG ("No mix message files found during expunge",WARN);
 				/* free directory list */
@@ -1116,7 +1120,7 @@ long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
     /* Do this step even if ret is NIL (meaning some burp problem)! */
     if (nexp || reclaimed) {	/* rewrite index and status if changed */
       LOCAL->indexseq = mix_modseq (LOCAL->indexseq);
-      if (mix_index_update (stream,idxf,NIL)) {
+      if (ret = mix_index_update (stream,idxf,NIL)) {
 	LOCAL->statusseq = mix_modseq (LOCAL->statusseq);
 				/* set failure if update fails */
 	ret = mix_status_update (stream,statf,NIL);
@@ -1269,7 +1273,7 @@ long mix_burp (MAILSTREAM *stream,MIXBURP *burp,unsigned long *reclaimed)
 	return NIL;		/* burp fails for this file */
       }
 				/* burp out each old message */
-    for (set = &burp->set, wpos = 0; set; set = set->next) {
+    for (set = &burp->set, rpos = wpos = 0; set; set = set->next) {
 				/* move down this range */
       for (rpos = set->first, size = set->last - set->first;
 	   size; size -= wsize) {
@@ -1288,8 +1292,8 @@ long mix_burp (MAILSTREAM *stream,MIXBURP *burp,unsigned long *reclaimed)
 	    MM_DISKERROR (stream,errno,T);
 	  }
 				/* and especially not here */
-	  for (s = LOCAL->buf, wpending = wsize; wpending; wpending -= written)
-	    if (!(written = fwrite (LOCAL->buf,1,wpending,f))) {
+	  for (s = LOCAL->buf, wpending = wsize; wpending; s += written, wpending -= written)
+	    if (!(written = fwrite (s,1,wpending,f))) {
 	      MM_NOTIFY (stream,strerror (errno),WARN);
 	      MM_DISKERROR (stream,errno,T);
 	    }
@@ -1390,7 +1394,8 @@ long mix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     if (local->indexseq > seq) seq = local->indexseq + 1;
     if (local->statusseq > seq) seq = local->statusseq + 1;
 				/* calculate size of per-message header */
-    sprintf (local->buf,MSRFMT,MSGTOK,0,0,0,0,0,0,0,'+',0,0,0);
+    sprintf (local->buf,MSRFMT,MSGTOK,(unsigned long) 0,0,0,0,0,0,0,'+',0,0,
+	     (unsigned long) 0);
     hdrsize = strlen (local->buf);
 
     MM_CRITICAL (stream);	/* go critical */
@@ -1547,7 +1552,8 @@ long mix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
       if (local->indexseq > seq) seq = local->indexseq + 1;
       if (local->statusseq > seq) seq = local->statusseq + 1;
 				/* calculate size of per-message header */
-      sprintf (local->buf,MSRFMT,MSGTOK,0,0,0,0,0,0,0,'+',0,0,0);
+      sprintf (local->buf,MSRFMT,MSGTOK,(unsigned long) 0,0,0,0,0,0,0,'+',0,0,
+	       (unsigned long) 0);
       hdrsize = strlen (local->buf);
       MM_CRITICAL (astream);	/* go critical */
       astream->silent = T;	/* no events here */
@@ -1631,6 +1637,7 @@ long mix_append_msg (MAILSTREAM *stream,FILE *f,char *flags,MESSAGECACHE *delt,
   int c,cs;
   unsigned long i,j,k,uf,hoff;
   long sf;
+  void *s;
   stream->kwd_create = NIL;	/* don't copy unknown keywords */
   sf = mail_parse_flags (stream,flags,&uf);
 				/* swell the cache */
@@ -1669,8 +1676,8 @@ long mix_append_msg (MAILSTREAM *stream,FILE *f,char *flags,MESSAGECACHE *delt,
   for (cs = 0; SIZE (msg); ) {	/* copy message */
     if (elt->private.msg.header.text.size) {
       if (msg->cursize)		/* blat entire chunk if have it */
-	for (j = msg->cursize; j; j -= k)
-	  if (!(k = fwrite (msg->curpos,1,j,f))) return NIL;
+	for (s = msg->curpos,j = msg->cursize; j; s += k, j -= k)
+	  if (!(k = fwrite (s,1,j,f))) return NIL;
       SETPOS (msg,GETPOS (msg) + msg->cursize);
     }
     else {			/* still searching for delimiter */
@@ -1813,6 +1820,7 @@ FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long sflags)
     }
 				/* sequence changed from last time? */
     else if (j || (i > LOCAL->indexseq)) {
+      unsigned long prevuid = 0;
       unsigned long uid,nmsgs,curfile,curfilesize,curpos;
       char *t,*msg,tmp[MAILTMPLEN];
 				/* start with no messages */
@@ -1870,6 +1878,12 @@ FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long sflags)
 				/* ignore expansion values */
 		    if (*s++ == ':') {
 		      MESSAGECACHE *elt;
+		      if(prevuid > uid) {
+			sprintf (tmp,"mix index backwards UID: %lx",uid);
+			MM_LOG (tmp,ERROR);
+			return NIL;
+		      }
+		      prevuid = uid;
 		      ++nmsgs;	/* this is another mesage */
 				/* within current known range of messages? */
 		      while (nmsgs <= stream->nmsgs) {
@@ -2234,7 +2248,9 @@ long mix_index_update (MAILSTREAM *stream,FILE *idxf,long flag)
       for (i = 1, size = 0; i <= stream->nmsgs; ++i)
 	if (!mail_elt (stream,i)->private.ghost) ++size;
       if (size) {		/* Winston Smith's first dairy entry */
-	sprintf (tmp,IXRFMT,0,14,4,4,13,0,0,'+',0,0,0,0,0,0,0);
+	sprintf (tmp,IXRFMT,(unsigned long) 0,14,4,4,13,0,0,'+',0,0,
+		 (unsigned long) 0,(unsigned long) 0,(unsigned long) 0,
+		 (unsigned long) 0,(unsigned long) 0);
 	size *= strlen (tmp);
       }
 				/* calculate file size we need */
@@ -2315,7 +2331,8 @@ long mix_status_update (MAILSTREAM *stream,FILE *statf,long flag)
       for (i = 1, size = 0; i <= stream->nmsgs; ++i)
 	if (!mail_elt (stream,i)->private.ghost) ++size;
       if (size) {		/* number of living messages */
-	sprintf (tmp,STRFMT,0,0,0,0);
+	sprintf (tmp,STRFMT,(unsigned long) 0,(unsigned long) 0,0,
+		 (unsigned long) 0);
 	size *= strlen (tmp);
       }
       sprintf (tmp,SEQFMT,LOCAL->statusseq);
@@ -2408,7 +2425,7 @@ FILE *mix_data_open (MAILSTREAM *stream,int *fd,long *size,
       if (curend > sbuf.st_size) {
 	char tmp[MAILTMPLEN];
 	sprintf (tmp,"short mix message file %.08lx (%ld > %ld), rolling",
-		 LOCAL->newmsg,curend,sbuf.st_size);
+		 LOCAL->newmsg,curend,(unsigned long) sbuf.st_size);
 	MM_LOG (tmp,WARN);	/* shouldn't happen */
       }
       close (*fd);		/* roll to a new file */

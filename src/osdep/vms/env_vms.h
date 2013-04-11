@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2010 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	VMS environment routines
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	2 August 1994
+ * Last Edited:	15 November 2010
+ * 
+ * Previous versions of this file were:
+ * 
  * Copyright 1988-2006 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	VMS environment routines
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	2 August 1994
- * Last Edited:	30 August 2006
  */
 
 
@@ -34,7 +31,7 @@
 
 #include "env.h"
 
-char *myusername ();
+char *myusername (void);
 
 
 /* syslog() emulation */

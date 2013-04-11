@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2011 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	UNIX IPv4 routines
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	18 December 2003
+ * Last Edited:	23 May 2011
+ *
+ * Previous versions of this file were:
+ *
  * Copyright 1988-2006 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,20 +25,6 @@
  * ========================================================================
  */
 
-/*
- * Program:	UNIX IPv4 routines
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	18 December 2003
- * Last Edited:	30 August 2006
- */
 
 #define SADRLEN sizeof (struct sockaddr)
 
@@ -37,22 +37,23 @@
 
 /* IP abstraction layer */
 
-char *ip_sockaddrtostring (struct sockaddr *sadr);
+char *ip_sockaddrtostring (struct sockaddr *sadr,char *buf);
 long ip_sockaddrtoport (struct sockaddr *sadr);
 void *ip_stringtoaddr (char *text,size_t *len,int *family);
 struct sockaddr *ip_newsockaddr (size_t *len);
 struct sockaddr *ip_sockaddr (int family,void *adr,size_t adrlen,
 			      unsigned short port,size_t *len);
-char *ip_sockaddrtoname (struct sockaddr *sadr);
+char *ip_sockaddrtoname (struct sockaddr *sadr,char *buf);
 void *ip_nametoaddr (char *name,size_t *len,int *family,char **canonical,
-		     void **next);
+		     void **next,void **cleanup);
 
 /* Return IP address string from socket address
  * Accepts: socket address
+ *	    buffer
  * Returns: IP address as name string
  */
 
-char *ip_sockaddrtostring (struct sockaddr *sadr)
+char *ip_sockaddrtostring (struct sockaddr *sadr,char *buf)
 {
   return (sadr->sa_family == PF_INET) ?
     inet_ntoa (SADR4ADR (sadr)) : "NON-IPv4";
@@ -133,10 +134,11 @@ struct sockaddr *ip_sockaddr (int family,void *adr,size_t adrlen,
 
 /* Return name from socket address
  * Accepts: socket address
+ *	    buffer
  * Returns: canonical name for that address or NIL if none
  */
 
-char *ip_sockaddrtoname (struct sockaddr *sadr)
+char *ip_sockaddrtoname (struct sockaddr *sadr,char *buf)
 {
   struct hostent *he;
   return ((sadr->sa_family == PF_INET) &&
@@ -151,14 +153,17 @@ char *ip_sockaddrtoname (struct sockaddr *sadr)
  *	    pointer to previous/returned address family
  *	    pointer to previous/returned canonical name
  *	    pointer to previous/return state for next-address calls
+ *	    pointer to cleanup
  * Returns: address with length/family/canonical updated if needed, or NIL
  */
 
 void *ip_nametoaddr (char *name,size_t *len,int *family,char **canonical,
-		     void **next)
+		     void **next,void **cleanup)
 {
   char **adl,tmp[MAILTMPLEN];
   struct hostent *he;
+				/* cleanup data never permitted */
+  if (cleanup && *cleanup) abort ();
   if (name) {			/* first lookup? */
 				/* yes, do case-independent lookup */
     if ((strlen (name) < MAILTMPLEN) &&
@@ -166,7 +171,7 @@ void *ip_nametoaddr (char *name,size_t *len,int *family,char **canonical,
       adl = he->h_addr_list;
       if (len) *len = he->h_length;
       if (family) *family = he->h_addrtype;
-      if (canonical) *canonical = (char *) he->h_name;
+      if (canonical) *canonical = cpystr ((char *) he->h_name);
       if (next) *next = (void *) adl;
     }
     else {			/* error */

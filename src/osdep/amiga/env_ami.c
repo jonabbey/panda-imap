@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2008 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008-2010 Mark Crispin
  * ========================================================================
  */
 
@@ -15,12 +7,19 @@
  * Program:	Amiga environment routines
  *
  * Author:	Mark Crispin
- *		UW Technology
- *		Seattle, WA  98195
- *		Internet: MRC@Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 May 2008
+ * Last Edited:	3 April 2010
+ *
+ * Previous versions of this file were:
+ *
+ * Copyright 1988-2008 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 #include <grp.h>
@@ -684,6 +683,8 @@ char *myusername_full (unsigned long *flags)
   else if (flags) *flags = MU_NOTLOGGEDIN;
   return ret;
 }
+
+
 /* Return my local host name
  * Returns: my local host name
  */
@@ -692,9 +693,10 @@ char *mylocalhost ()
 {
   char tmp[MAILTMPLEN];
   struct hostent *host_name;
-  if (!myLocalHost) myLocalHost = cpystr (gethostname (tmp,MAILTMPLEN-1) ?
-					  "random-pc" : tcp_canonical (tmp));
-  return myLocalHost;
+  if (!myLocalHost && !gethostname (tmp,MAILTMPLEN-1)) 
+    myLocalHost = tcp_canonical (tmp);
+  }
+  return myLocalHost ? myLocalHost : "random-amiga";
 }
 
 /* Return my home directory name

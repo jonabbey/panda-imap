@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2009 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Safe File Lock for Linux
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	20 April 2005
+ * Last Edited:	18 May 2009
+ *
+ * Previous versions of this file were:
+ *
  * Copyright 1988-2006 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	Safe File Lock for Linux
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	20 April 2005
- * Last Edited:	30 August 2006
  */
  
 #undef flock
@@ -57,7 +54,7 @@ int safe_flock (int fd,int op)
     case ENOLCK:		/* lock table is full */
       sprintf (tmp,"File locking failure: %s",strerror (errno));
       mm_log (tmp,WARN);	/* give the user a warning of what happened */
-      if (!logged++) syslog (LOG_ERR,tmp);
+      if (!logged++) syslog (LOG_ERR,"%s",tmp);
 				/* return failure if non-blocking lock */
       if (op & LOCK_NB) return -1;
       sleep (5);		/* slow down in case it loops */

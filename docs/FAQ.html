@@ -1,5 +1,11 @@
+<html>
 <!--
  * ========================================================================
+ * Copyright 2008-2010 Mark Crispin
+ * ========================================================================
+ *
+ * Previous versions of this file were:
+ *
  * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,13 +18,24 @@
  * ========================================================================
  *
 -->
-
-<!--chtml set title="IMAP Toolkit Frequently Asked Questions"-->
-<!--chtml include "//imap/incs/top.inc"-->
+<head>
+<meta name="description" content="Panda IMAP Frequently Asked Questions">
+<meta name="keywords" content="IMAP, Panda IMAP, Panda imapd, imap-2010, imap-2009, imap-2008, imap-2007b, imap-2007e, UW imapd, UW IMAP">
+<title>Panda Programming IMAP Home Page</TITLE>
+<meta HTTP-EQUIV="Content-Type" CONTENT="text/html"; charset="ISO-8859-1">
+</head>
+<body>
+<h1 ALIGN="center">
+<img SRC="http://panda.com/blue.gif">
+<i>Panda IMAP Frequently Asked Questions</I>
+</H1>
 
   <h2>Table of Contents</h2>
 
   <ul>
+    <li>
+      <a href="#panda">What is Panda IMAP?</a>
+    </li>
     <li>
       <a href="#general">1. General/Software Feature Questions</a>
 
@@ -567,7 +584,7 @@
         connected to the IMAP or POP server, no matter what client I
         use?</a></li>
 
-        <li><a href="#7.25">7.25 Why is there a long delay in Pine or any
+        <li><a href="#7.25">7.25 Why is there a long delay in Alpine or any
         other c-client based application call before I get connected to the
         IMAP server? The hang seems to be in the c-client mail_open() call. I
         don't have this problem with any other IMAP client. There is no delay
@@ -639,7 +656,7 @@
         </li>
 
         <li><a href="#7.34">7.34 Why does reading certain messages hang when
-        using Netscape? It works fine with Pine!</a></li>
+        using Netscape? It works fine with Alpine!</a></li>
 
         <li><a href="#7.35">7.35 Why does Netscape say that there's a problem
         with the IMAP server and that I should "Contact your mail server
@@ -667,7 +684,7 @@
         clients out there?</a></li>
 
         <li>
-          <a href="#7.43">7.43 But wait! PC Pine (or other PC program build
+          <a href="#7.43">7.43 But wait! PC Alpine (or other PC program build
           with c-client) crashes with the message
 
           <ul>
@@ -676,7 +693,7 @@
         </li>
 
         <li><a href="#7.44">7.44 My qpopper users keep on getting the DON'T
-        DELETE THIS MESSAGE -- FOLDER INTERNAL DATA if they also use Pine or
+        DELETE THIS MESSAGE -- FOLDER INTERNAL DATA if they also use Alpine or
         IMAP. How can I fix this?</a></li>
 
         <li><a href="#7.45">7.45 Help! I installed the servers but I can't
@@ -736,6 +753,21 @@
   </ul><!--=======START BODY-->
   <hr>
 
+  <h2><a name="panda">What is Panda IMAP?</a></h2>
+  <dl>
+    <dd>
+      Panda IMAP is a fork of the final University of Washington version
+      (imap-2007b).  The current UW version is imap-2007e which has only
+      minor changes from imap-2007b.  All of these changes (or something
+      better) are in Panda IMAP.
+
+      <p>Panda IMAP is available by donation.
+
+</dd>
+  </dl>
+
+  <p><a href="#top">Back to top</a></p>
+  <hr>
   <h2><a name="general">1. General/Software Feature Questions</a></h2>
   <hr>
 
@@ -773,7 +805,7 @@
       to do this, you'll know. There also seems to be a way to make qpopper
       work better with imapd; see the answer to the <a href="#7.44">My
       qpopper users keep on getting the DON'T DELETE THIS MESSAGE -- FOLDER
-      INTERNAL DATA if they also use Pine or IMAP. How can I fix this?</a>
+      INTERNAL DATA if they also use Alpine or IMAP. How can I fix this?</a>
       question.</p>
     </dd>
   </dl>
@@ -825,7 +857,7 @@
 
       <p>If IMAP2 (RFC 1176) is good enough for you, you can use MAPSER which
       is about the ultimate gonzo pure TOPS-20 extended addressing assembly
-      language program. Unfortunately, IMAP2 is barely good enough for Pine
+      language program. Unfortunately, IMAP2 is barely good enough for Alpine
       these days, and most other IMAP clients won't work with IMAP2 at all.
       Maybe someone will hack MAPSER to do IMAP4rev1 some day.</p>
 
@@ -863,7 +895,7 @@
       directory and each message is a file within that directory; these
       formats support sub-mailboxes within such mailboxes. However, for
       technical reasons, the "flat file" formats are generally preferred
-      since they perform better. Read imap-2007/docs/formats.txt for more
+      since they perform better. Read imap-2010/docs/formats.txt for more
       information on this topic.</p>
 
       <p>It is always permissible to create a directory that is not a
@@ -1101,15 +1133,7 @@
 
   <dl>
     <dd>
-      Kerberos V4 is not supported. Kerberos V4 client-only contributed code
-      is available in
-      <pre>
-<a href=
-"ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z">ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
-</a>
-</pre>This is a patchkit which must be applied to the IMAP toolkit according
-to the instructions in the patchkit's README. We can not promise that this
-code works.
+      Kerberos V4 is not supported.
     </dd>
   </dl>
 
@@ -1377,12 +1401,12 @@ code works.
 
   <dl>
     <dd>
-      imap-2007 supports SSL and TLS client functionality on UNIX and 32-bit
+      imap-2010 supports SSL and TLS client functionality on UNIX and 32-bit
       Windows for IMAP, POP3, SMTP, and NNTP; and SSL and TLS server
       functionality on UNIX for IMAP and POP3.
 
       <p>UNIX SSL build requires that a third-party software package,
-      OpenSSL, be installed on the system first. Read imap-2007/docs/SSLBUILD
+      OpenSSL, be installed on the system first. Read imap-2010/docs/SSLBUILD
       for more information.</p>
 
       <p>SSL is supported via undocumented Microsoft interfaces in Windows 9x
@@ -1427,7 +1451,7 @@ code works.
 
   <dl>
     <dd>
-      imap-2007 supports client and server functionality on UNIX and 32-bit
+      imap-2010 supports client and server functionality on UNIX and 32-bit
       Windows.
 
       <p>Kerberos V5 is supported by default in Windows 2000 builds:</p>
@@ -1749,7 +1773,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
       <p>By the way, if you need a more advanced example of c-client
       programming than mtest (and you probably will), I recommend that you
-      look at the source code for imapd and Pine.</p>
+      look at the source code for imapd and Alpine.</p>
     </dd>
   </dl>
 
@@ -1875,13 +1899,13 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
   <hr>
 
   <p><a name="4.5"><strong>4.5 How do I use one of the alternative formats
-     described in the formats.txt document? In particular, I hear that mbx
+     described in the formats.txt document? In particular, I hear that mix
      format will give me better performance and allow shared
      access.</strong></a></p>
 
   <dl>
     <dd>
-      The rumors about mbx format being preferred are true. It is faster than
+      The rumors about mix format being preferred are true. It is faster than
       the traditional UNIX mailbox format and permits shared access.
 
       <p>However, and this is <em>very important</em>, note that using an
@@ -1891,12 +1915,12 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
       off not going this route until you are more comfortable with your
       understanding.</p>
 
-      <p>Some of the formats, including mbx, are only supported by the
+      <p>Some of the formats, including mix, are only supported by the
       software based on the c-client library, and are not recognized by other
-      mailbox programs. The "vi" editor will corrupt any mbx format mailbox
-      that it encounters.</p>
+      mailbox programs. The "vi" editor may corrupt mailboxes written in these
+      formats.</p>
 
-      <p>Another problem is that the certain formats, including mbx, use
+      <p>Another problem is that the certain formats, including mix and mbx, use
       advanced file access and locking techniques that do <em>not</em> work
       reliably with NFS. NFS is not a real filesystem. Use IMAP instead of
       NFS for distributed access.</p>
@@ -1906,36 +1930,36 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
       become:</p>
 
       <ul>
-        <li>The simplest way to create a mbx-format mailbox is to prefix the
-        name with "#driver.mbx/" when creating a mailbox through c-client.
-        For example, if you create "#driver.mbx/foo", the mailbox "foo" will
-        be created in mbx format. Only use "#driver.mbx/" when creating the
+        <li>The simplest way to create a mix-format mailbox is to prefix the
+        name with "#driver.mix/" when creating a mailbox through c-client.
+        For example, if you create "#driver.mix/foo", the mailbox "foo" will
+        be created in mix format. Only use "#driver.mix/" when creating the
         mailbox. At all other times, just use the name ("foo" in this
-        example); the software will automatically select the driver for mbx
+        example); the software will automatically select the driver for mix
         whenever that mailbox is accessed without you doing anything
         else.</li>
 
         <li>You can use the "mailutil copy" command to copy an existing
-        mailbox to a new mailbox in mbx format. Read the man page provided
+        mailbox to a new mailbox in mix format. Read the man page provided
         with the mailutil program for details.</li>
 
-        <li>If you create an mbx-format INBOX, by creating
-        "#driver.mbx/INBOX" (note that "INBOX" must be all uppercase), then
+        <li>If you create an mix-format INBOX, by creating
+        "#driver.mix/INBOX" (note that "INBOX" must be all uppercase), then
         subsequent access to INBOX by any c-client based application will use
-        the mbx-format INBOX. Any mail delivered to the traditional format
+        the mix-format INBOX. Any mail delivered to the traditional format
         mailbox in the spool directory (e.g. /var/spool/mail/$USER) will
-        automatically be copied into the mbx-format INBOX and the spool
+        automatically be copied into the mix-format INBOX and the spool
         directory copy removed.</li>
 
-        <li>You can cause any newly-created mailboxes to be in mbx-format by
+        <li>You can cause any newly-created mailboxes to be in mix-format by
         default by changing the definition of CREATEPROTO=unixproto to be
-        CREATEPROTO=mbxproto in src/osdep/unix/Makefile, then rebuilding the
+        CREATEPROTO=mixproto in src/osdep/unix/Makefile, then rebuilding the
         IMAP toolkit (do a "make clean" first). Do not change EMPTYPROTO,
-        since mbx format mailboxes are never a zero-byte file. If you use
-        Pine or the imap-utils, you should probably also rebuild them with
-        the new IMAP toolkit too.</li>
+        since mix format mailboxes are directories and thus are never a
+        zero-byte file. If you use Alpine or the imap-utils, you should
+        probably also rebuild them with the new IMAP toolkit too.</li>
 
-        <li>You can deliver directly to the mbx-format INBOX by use of the
+        <li>You can deliver directly to the mix-format INBOX by use of the
         tmail or dmail programs. tmail is for direct invocation from sendmail
         (or whatever MTA program you use); dmail is for calls from procmail.
         Both of these programs have man pages which must be read carefully
@@ -1957,8 +1981,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
       <p>A number of sites have done full-fledged format conversions, and are
       reportedly quite happy with the results. Feel free to ask in the
-      comp.mail.imap newsgroup or the imap-uw mailing list for advice or
-      help.</p>
+      comp.mail.imap newsgroup for help.</p>
     </dd>
   </dl>
 
@@ -1978,7 +2001,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 </pre>
 
       <p>You may want to consider the use of a mailbox format which permits
-      multiple simultaneous read/write sessions, such as the mbx format. The
+      multiple simultaneous read/write sessions, such as the mix format. The
       traditional UNIX format only allows one read/write session to a
       mailbox at a time.</p>
 
@@ -2122,9 +2145,12 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
       your software hasn't been updated in a while, it would "rot" -- tend to
       acquire problems that it didn't have when it was new.</p>
 
-      <p>The latest release version of the IMAP toolkit is always available
-      at <a href=
-      "ftp://ftp.cac.washington.edu/mail/imap.tar.Z">ftp://ftp.cac.washington.edu/mail/imap.tar.Z</a></p>
+      <p>Unfortunately, UW IMAP is rapidly succumbing to "software rot", as
+      it is no longer being developed or maintained. If you have not yet
+      switched to Panda IMAP, you should seriously consider doing so.
+
+      <p>Panda IMAP is available by donation. Donors are given a URL which
+      they can use to download Panda IMAP, including future versions.
     </dd>
   </dl>
 
@@ -2412,7 +2438,7 @@ for better performance.
 
       <p>Microsoft has developed a hotfix for this bug. Look up MSKB article
       number 300562. Contrary to the article text which implies that this is
-      a Pine issue, this bug also affects Microsoft Exchange server with
+      a Alpine issue, this bug also affects Microsoft Exchange server with
       <em>any</em> client that transmits full-sized SSL payloads.</p>
     </dd>
   </dl>
@@ -2993,7 +3019,7 @@ most traditional format and nobody will flame you for using it.
       the directory by itself, it will try to call mlock to do it. I do not
       recommend doing this for performance reasons.</p>
 
-      <p>A sample mlock program is included as part of imap-2007. We have
+      <p>A sample mlock program is included as part of imap-2010. We have
       tried to make this sample program secure, but it has not been
       thoroughly audited.</p>
     </dd>
@@ -3193,7 +3219,7 @@ header, and delete everything from the error point to that internal header.
       <p>Now, remove the erroneous data:</p>
 
       <ul>
-        <li>Verify that you can open INBOX.new in IMAP or Pine.</li>
+        <li>Verify that you can open INBOX.new in IMAP or Alpine.</li>
 
         <li>The last message of INBOX.new is probably corrupted. Copy it to
         another file, such as badmsg.1, then delete and expunge that last
@@ -3215,7 +3241,7 @@ header, and delete everything from the error point to that internal header.
 
         <li>You no longer need INBOX.tail. Delete it.</li>
 
-        <li>Verify that you can open INBOX.new in IMAP or Pine.</li>
+        <li>Verify that you can open INBOX.new in IMAP or Alpine.</li>
       </ul>
 
       <p>Reinstall INBOX.new as INBOX:</p>
@@ -3402,7 +3428,7 @@ header, and delete everything from the error point to that internal header.
       mail.</p>
 
       <p>The solution to both situations is to replace the client with a good
-      online IMAP client such as Pine. Life is too short to waste on POP
+      online IMAP client such as Alpine. Life is too short to waste on POP
       clients and poorly-designed IMAP clients.</p>
     </dd>
   </dl>
@@ -3425,9 +3451,9 @@ header, and delete everything from the error point to that internal header.
 
       <p>This behavior has also been observed in some third-party c-client
       drivers, including maildir drivers. Consequently, this problem has even
-      been observed in Pine. It is important to understand that this is not a
-      problem in Pine or c-client; it is a problem in the third-party driver.
-      A Pine built without that third-party driver will not have this
+      been observed in Alpine. It is important to understand that this is not a
+      problem in Alpine or c-client; it is a problem in the third-party driver.
+      A Alpine built without that third-party driver will not have this
       problem.</p>
 
       <p>See also the answer to <a href="#7.73">Why does my IMAP client show
@@ -3468,7 +3494,7 @@ header, and delete everything from the error point to that internal header.
       to "some other file"; in fact, you can use IMAP to access any file.
 
       <p>Most clients have an option to configure your connected directory on
-      the IMAP server. For example, in Pine you can specify this as the
+      the IMAP server. For example, in Alpine you can specify this as the
       "Path" in your folder-collection, e.g.</p>
       <pre>
  Nickname  : Secondary Folders
@@ -3549,7 +3575,7 @@ which they occur. Don't be shy about it.
   <p><a href="#top">Back to top</a></p>
   <hr>
 
-  <p><a name="7.25"><strong>7.25 Why is there a long delay in Pine or any other
+  <p><a name="7.25"><strong>7.25 Why is there a long delay in Alpine or any other
      c-client based application call before I get connected to the IMAP
      server? The hang seems to be in the c-client mail_open() call. I don't
      have this problem with any other IMAP client. There is no delay
@@ -3765,7 +3791,7 @@ interpreted by mail reading software as an internal header line.
   <hr>
 
   <p><a name="7.34"><strong>7.34 Why does reading certain messages hang when using
-     Netscape? It works fine with Pine!</strong></a></p>
+     Netscape? It works fine with Alpine!</strong></a></p>
 
   <dl>
     <dd>
@@ -3805,7 +3831,7 @@ interpreted by mail reading software as an internal header line.
       <p>You can work around this by rebuilding imapd with the
       <strong>NETSCAPE_BRAIN_DAMAGE</strong> option set (see
       src/imapd/Makefile) to a URL that points either to an alternative IMAP
-      client (e.g. Pine) or perhaps to a homebrew mail account management
+      client (e.g. Alpine) or perhaps to a homebrew mail account management
       page.</p>
     </dd>
   </dl>
@@ -3952,9 +3978,9 @@ interpreted by mail reading software as an internal header line.
     <dd>
       Yes!
 
-      <p>Pine is a <em>wonderful</em> client. It's fast, it uses IMAP well,
+      <p>Alpine is a <em>wonderful</em> client. It's fast, it uses IMAP well,
       and it generates text mail (life is too short to waste on HTML mail).
-      Also, there are some really wonderful things in progress in the Pine
+      Also, there are some really wonderful things in progress in the Alpine
       world.</p>
 
       <p>There are some good GUI clients out there, mostly from smaller
@@ -3971,7 +3997,7 @@ interpreted by mail reading software as an internal header line.
   <p><a href="#top">Back to top</a></p>
   <hr>
 
-  <p><a name="7.43"><strong>7.43 But wait! PC Pine (or other PC program build with
+  <p><a name="7.43"><strong>7.43 But wait! PC Alpine (or other PC program build with
      c-client) crashes with the message</strong> <tt>incomplete SecBuffer
      exceeds maximum buffer size</tt> <strong>when I use SSL connections.
      This is a bug in c-client, right?</strong></a></p>
@@ -3983,7 +4009,7 @@ interpreted by mail reading software as an internal header line.
       compliant"). The problem is that SChannel indicates that the maximum
       SSL packet data size is 5 bytes smaller than the actual maximum. Thus,
       any IMAP server which transmits a maximum sized SSL packet will not
-      work with PC Pine or any other program which uses SChannel.
+      work with PC Alpine or any other program which uses SChannel.
 
       <p>It can take a while for the problem to show up. The client has to do
       something that causes at least 16K of contiguous data. Many clients do
@@ -3999,14 +4025,14 @@ interpreted by mail reading software as an internal header line.
       data to less than 16K, in order to work around the problem.</p>
 
       <p>This problem has also shown up with the Exchange IMAP server with
-      UNIX clients (including Pine built with an older version of c-client)
+      UNIX clients (including Alpine built with an older version of c-client)
       which sends full-sized 16K SSL packets. Modern c-client works around
       the problem by trimming down its maximum outgoing SSL packet size to
       8K.</p>
 
       <p>Microsoft has developed a hotfix for this bug. Look up MSKB article
       number 300562. Contrary to the article text which implies that this is
-      a Pine issue, this bug also affect Microsoft Exchange server with *any*
+      a Alpine issue, this bug also affect Microsoft Exchange server with *any*
       UNIX based client that transmits full-sized SSL payloads.</p>
     </dd>
   </dl>
@@ -4015,13 +4041,13 @@ interpreted by mail reading software as an internal header line.
   <hr>
 
   <p><a name="7.44"><strong>7.44 My qpopper users keep on getting the DON'T DELETE
-     THIS MESSAGE -- FOLDER INTERNAL DATA if they also use Pine or IMAP. How
+     THIS MESSAGE -- FOLDER INTERNAL DATA if they also use Alpine or IMAP. How
      can I fix this?</strong></a></p>
 
   <dl>
     <dd>
       This is an incompatibility between qpopper and the c-client library
-      used by Pine, imapd, and ipop[23]d.
+      used by Alpine, imapd, and ipop[23]d.
 
       <p>Assuming that you want to continue using qpopper, look into
       qpopper's <strong>--enable-uw-kludge-flag</strong> configuration flag,
@@ -4174,18 +4200,7 @@ words, it is a protocol syntax error.
       subscribe to this list via <a href=
       "mailto:imap-protocol-request@u.washington.edu"><tt>imap-protocol-request@u.washington.edu</tt></a>
 
-      <p>If you have questions about this software, you can send me email
-      directly or use the imap-uw@u.washington.edu mailing list. You can
-      subscribe to this list via <a href=
-      "mailto:imap-uw-request@u.washington.edu"><tt>imap-uw-request@u.washington.edu</tt></a></p>
-
-      <p>If you have general questions about the use of IMAP software
-      (not specific to the UW IMAP toolkit) use the
-      imap-use@u.washington.edu mailing list. You can subscribe to
-      this list via <a href=
-      "mailto:imap-use-request@u.washington.edu"><tt>imap-use-request@u.washington.edu</tt></a></p>
-
-      <p>You must be a subscriber to post to these lists.  As an
+      <p>You must be a subscriber to post to this list.  As an
       alternative, you can use the
       <strong>comp.mail.imap</strong> newsgroup.</p>
     </dd>
@@ -4212,15 +4227,12 @@ words, it is a protocol syntax error.
     <dd>
       We recommend <em>Managing IMAP</em>, by Dianna Mullet &amp; Kevin
       Mullet, published by O'Reilly, ISBN 0-596-00012-X.
-
-      <p>This book also has an excellent comparison of the UW and Cyrus IMAP
-      servers.<br></p>
     </dd>
   </dl>
 
   <p><a href="#top">Back to top</a></p>
 
-  <p>Last Updated: 15 November 2007</p>
+  <p>Last Updated: 5 May 2010</p>
 
 <!--chtml include "//imap/incs/bottom.inc"-->
 

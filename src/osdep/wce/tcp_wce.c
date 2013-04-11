@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2008 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008-2010 Mark Crispin
  * ========================================================================
  */
 
@@ -15,15 +7,19 @@
  * Program:	Winsock TCP/IP routines
  *
  * Author:	Mark Crispin from Mike Seibel's Winsock code
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	13 January 2008
+ * Last Edited:	3 April 2010
+ *
+ * Previous versions of this file were:
+ *
+ * Copyright 1988-2008 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 
@@ -735,7 +731,7 @@ char *tcp_canonical (char *name)
   ret = (he = gethostbyname (lcase (strcpy (host,name)))) ? he->h_name : name;
   (*bn) (BLOCK_NONE,NIL);
   if (tcpdebug) mm_log ("DNS canonicalization done",TCPDEBUG);
-  return ret;
+  return cpystr(ret);
 }
 
 
@@ -785,15 +781,13 @@ char *mylocalhost (void)
     char tmp[MAILTMPLEN];
     if (!wsa_initted++) {	/* init Windows Sockets */
       WSADATA wsock;
-      if (WSAStartup (WSA_VERSION,&wsock)) {
+      if (WSAStartup (WSA_VERSION,&wsock))
 	wsa_initted = 0;
-	return "random-pc";	/* try again later? */
-      }
     }
-    myLocalHost = cpystr ((gethostname (tmp,MAILTMPLEN-1) == SOCKET_ERROR) ?
-			  "random-pc" : tcp_canonical (tmp));
+    if (wsa_initted && gethostname (tmp,MAILTMPLEN-1) != SOCKET_ERROR)
+      myLocalHost = tcp_canonical (tmp));
   }
-  return myLocalHost;
+  return myLocalHost ? myLocalHost : "random-pc";
 }
 
 

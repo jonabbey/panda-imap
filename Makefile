@@ -1,4 +1,17 @@
 # ========================================================================
+# Copyright 2008-2011 Mark Crispin
+# ========================================================================
+#
+
+# Program:	IMAP Toolkit Makefile
+#
+# Author:	Mark Crispin
+#
+# Date:		7 December 1989
+# Last Edited:	29 August 2011
+#
+# Previous versions of this file were
+#
 # Copyright 1988-2008 University of Washington
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -6,19 +19,6 @@
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
-# 
-# ========================================================================
-
-# Program:	IMAP Toolkit Makefile
-#
-# Author:	Mark Crispin
-#		UW Technology
-#		Seattle, WA  98195
-#		Internet: MRC@Washington.EDU
-#
-# Date:		7 December 1989
-# Last Edited:	12 May 2008
 
 
 # Normal command to build IMAP toolkit:
@@ -37,7 +37,7 @@
 # The following ports are bundled:
 # a32	AIX 3.2 for RS/6000
 # a41	AIX 4.1 for RS/6000
-# a52	Attempt at AIX 5.2
+# a52	AIX 5.2
 # aix	AIX/370 (not RS/6000!!)
 # ami	AmigaDOS
 # am2	AmigaDOS with a 68020+
@@ -93,7 +93,7 @@
 # mnt	Atari ST Mint (not MacMint)
 # neb	NetBSD
 # nec	NEC UX
-# nto	QNX Neutrine RTP
+# nto	QNX Neutrino RTP
 # nxt	NEXTSTEP
 # nx3	NEXTSTEP 3.x
 # osf	OSF/1 (see sos, os4)
@@ -101,9 +101,11 @@
 # osi	Apple iPhone and iPod Touch
 # osx	Mac OS X
 # oxp	Mac OS X with Pluggable Authentication Modules (PAM)
+# oxs	Mac OS X Snow Leopard
 # ptx	PTX
 # pyr	Pyramid
 # qnx	QNX 4
+# qn6	QNX 6
 # s40	SUN-OS 4.0 (*not* Solaris)
 # sc5	SCO Open Server 5.0.x (see go5)
 # sco	Santa Cruz Operation (see sc5, go5)
@@ -186,7 +188,6 @@ SSLTYPE=nopwd
 # IP protocol version
 #
 # The following IP protocol versions are defined:
-# o	IPv4 support, no DNS (truly ancient systems)
 # 4	(default) IPv4 support only
 # 6	IPv6 and IPv4 support
 
@@ -307,7 +308,7 @@ SPECIALS:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 a52 aix bs3 bsi d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul h11 hpp hpx lnp lyn mct mnt nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx soc sol sos uw2: an
+a32 a41 a52 aix bs3 bsi d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul h11 hpp hpx lnp lyn mct mnt nec nto nxt nx3 osf os4 ptx qnx qn6 sc5 sco sgi sg6 shp sl4 sl5 slx snx soc sol sos uw2: an
 	$(BUILD) BUILDTYPE=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
@@ -413,6 +414,7 @@ lsu:	an
 osi:	an
 	$(TOUCH) ip6
 	$(BUILD) BUILDTYPE=osx IP=$(IP6) CC=arm-apple-darwin-gcc \
+	EXTRACFLAGS="$(EXTRACFLAGS) -DMAC_OSX_KLUDGE=1 -Dhash_create=Hash_create -Dhash_destroy=Hash_destroy -Dlogout=Logout" \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/System/Library/OpenSSL/certs SSLKEYS=/System/Library/OpenSSL/private"
 
 oxp:	an
@@ -420,6 +422,13 @@ oxp:	an
 	$(BUILD) BUILDTYPE=osx IP=$(IP6) EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS) gss" \
 	PASSWDTYPE=pam \
 	EXTRACFLAGS="$(EXTRACFLAGS) -DMAC_OSX_KLUDGE=1" \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/System/Library/OpenSSL/certs SSLKEYS=/System/Library/OpenSSL/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib PAMDLFLAGS=-lpam"
+
+oxs:	an
+	$(TOUCH) ip6
+	$(BUILD) BUILDTYPE=osx IP=$(IP6) EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS) gss" \
+	PASSWDTYPE=pam \
+	EXTRACFLAGS="$(EXTRACFLAGS)" \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/System/Library/OpenSSL/certs SSLKEYS=/System/Library/OpenSSL/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib PAMDLFLAGS=-lpam"
 
 osx:	osxok an

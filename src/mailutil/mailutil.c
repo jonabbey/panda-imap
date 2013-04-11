@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2009 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Mail utility
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	2 February 1994
+ * Last Edited:	14 May 2009
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,21 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	Mail utility
- *
- * Author:	Mark Crispin
- *		UW Technology
- *		University of Washington
- *		Seattle, WA  98195
- *		Internet: MRC@Washington.EDU
- *
- * Date:	2 February 1994
- * Last Edited:	19 February 2008
  */
 
 
@@ -35,7 +34,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "13";		/* edit number */
+char *version = "16";		/* edit number */
 int debugp = NIL;		/* flag saying debug */
 int verbosep = NIL;		/* flag saying verbose */
 int rwcopyp = NIL;		/* flag saying readwrite copy (for POP) */
@@ -79,7 +78,7 @@ char ms_next (STRING *s);
 void ms_setpos (STRING *s,unsigned long i);
 int main (int argc,char *argv[]);
 SEARCHPGM *prune_criteria (char *criteria);
-int prune_criteria_number (unsigned long *number,char **r);
+int criteria_number (unsigned long *number,char **r);
 int mbxcopy (MAILSTREAM *source,MAILSTREAM *dest,char *dst,int create,int del,
 	     int mode);
 long mm_append (MAILSTREAM *stream,void *data,char **flags,char **date,
@@ -220,6 +219,10 @@ int main (int argc,char *argv[])
 	  perror ("unable to change user id");
 	  exit (retcode);
 	}
+				/* become victim in environment */
+	env_init (argv[1], pw->pw_dir);
+				/* cancel restrictions since root call */
+	mail_parameters (NIL,SET_RESTRICTIONS,NIL);
       }
 #endif
 				/* -- means no more switches, so mailbox
@@ -481,7 +484,7 @@ SEARCHPGM *prune_criteria (char *criteria)
 	break;
       case 'L':			/* possible LARGER */
 	if (!strcmp (criterion+1,"ARGER"))
-	  f = prune_criteria_number (&pgm->larger,&r);
+	  f = criteria_number (&pgm->larger,&r);
 
       case 'N':			/* possible NEW */
 	if (!strcmp (criterion+1,"EW")) f = pgm->recent = pgm->unseen = T;
@@ -508,7 +511,7 @@ SEARCHPGM *prune_criteria (char *criteria)
 	else if (!strcmp (criterion+1,"INCE"))
 	  f = mail_criteria_date (&pgm->since,&r);
 	else if (!strcmp (criterion+1,"MALLER"))
-	  f = prune_criteria_number (&pgm->smaller,&r);
+	  f = criteria_number (&pgm->smaller,&r);
 	else if (!strcmp (criterion+1,"UBJECT"))
 	  f = mail_criteria_string (&pgm->subject,&r);
 	break;
@@ -553,7 +556,7 @@ SEARCHPGM *prune_criteria (char *criteria)
  * Returns: T if successful, else NIL
  */
 
-int prune_criteria_number (unsigned long *number,char **r)
+int criteria_number (unsigned long *number,char **r)
 {
   char *t;
   STRINGLIST *s = NIL;
@@ -895,7 +898,7 @@ void mm_login (NETMBX *mb,char *username,char *password,long trial)
     if (s = strchr (username,'\n')) *s = '\0';
     s = "password: ";
   }
-  strcpy (password,getpass (s));
+  if(strlen (s = getpass (s)) < MAILTMPLEN) strcpy (password,s);
 }
 
 

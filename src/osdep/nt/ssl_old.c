@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2009 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	SSL authentication/encryption module for Windows 9x and NT
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	22 September 1998
+ * Last Edited:	9 November 2009
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	SSL authentication/encryption module for Windows 9x and NT
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	22 September 1998
- * Last Edited:	13 January 2008
  */
 
 #define SECURITY_WIN32
@@ -442,6 +439,7 @@ long ssl_getdata (SSLSTREAM *stream)
     SecBufferDesc msg;
     size_t i;
     size_t n = 0;		/* initially no bytes to decrypt */
+    if (!stream->tcpstream) return NIL;
     do {			/* yes, make sure have data from TCP */
       if (stream->iextractr) {	/* have previous unread data? */
 	memcpy (stream->ibuf + n,stream->iextraptr,stream->iextractr);
@@ -586,7 +584,7 @@ static long ssl_abort (SSLSTREAM *stream)
 
 char *ssl_host (SSLSTREAM *stream)
 {
-  return tcp_host (stream->tcpstream);
+  return stream ? tcp_host (stream->tcpstream) : "UNKNOWN";
 }
 
 

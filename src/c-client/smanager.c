@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008-2011 Mark Crispin
  * ========================================================================
  */
 
@@ -15,16 +7,22 @@
  * Program:	Subscription Manager
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 December 1992
- * Last Edited:	6 December 2006
+ * Last Edited:	8 April 2011
+ *
+ * Previous versions of this file were
+ *
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
  */
+
 
 
 #include <stdio.h>
@@ -103,13 +101,12 @@ long sm_unsubscribe (char *mailbox)
 }
 
 /* Read subscription database
- * Accepts: pointer to subscription database handle (handle NIL if first time)
+ * Accepts: pointer to destination buffer of size MAILTMPLEN
+ *	    pointer to subscription database handle (handle NIL if first time)
  * Returns: character string for subscription database or NIL if done
  */
 
-static char sbname[MAILTMPLEN];
-
-char *sm_read (void **sdb)
+char *sm_read (char *sbname,void **sdb)
 {
   FILE *f = (FILE *) *sdb;
   char *s;

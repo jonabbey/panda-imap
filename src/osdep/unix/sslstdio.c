@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	SSL standard I/O routines for server use
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	22 September 1998
+ * Last Edited:	19 November 2008
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2006 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	SSL standard I/O routines for server use
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	22 September 1998
- * Last Edited:	30 August 2006
  */
 
 /* Get character
@@ -32,7 +29,15 @@
 
 int PBIN (void)
 {
-  if (!sslstdio) return getchar ();
+  if (!sslstdio) {
+    int ret;
+    do {
+      clearerr (stdin);
+      ret = getchar ();
+    } while ((ret == EOF) && !feof (stdin) && ferror (stdin) &&
+	     (errno == EINTR));
+    return ret;
+  }
   if (!ssl_getdata (sslstdio->sslstream)) return EOF;
 				/* one last byte available */
   sslstdio->sslstream->ictr--;
@@ -53,7 +58,14 @@ char *PSIN (char *s,int n)
     ssl_server_init (start_tls);/* enter the mode */
     start_tls = NIL;		/* don't do this again */
   }
-  if (!sslstdio) return fgets (s,n,stdin);
+  if (!sslstdio) {
+    char *ret;
+    do {
+      clearerr (stdin);
+      ret = fgets (s,n,stdin);
+    } while (!ret && !feof (stdin) && ferror (stdin) && (errno == EINTR));
+    return ret;
+  }
   for (i = c = 0, n-- ; (c != '\n') && (i < n); sslstdio->sslstream->ictr--) {
     if ((sslstdio->sslstream->ictr <= 0) && !ssl_getdata (sslstdio->sslstream))
       return NIL;		/* read error */

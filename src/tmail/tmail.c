@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Mail Delivery Module
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	5 April 1993
+ * Last Edited:	27 November 2008
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	Mail Delivery Module
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	5 April 1993
- * Last Edited:	30 October 2008
  */
 
 #include <stdio.h>
@@ -39,7 +36,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "22";		/* tmail edit version */
+char *version = "25";		/* tmail edit version */
 int debug = NIL;		/* debugging (don't fork) */
 int trycreate = NIL;		/* flag saying gotta create before appending */
 int critical = NIL;		/* flag saying in critical code */
@@ -283,7 +280,7 @@ int deliver (FILE *f,unsigned long msglen,char *user)
   uid_t duid;
   uid_t euid = geteuid ();
 				/* get user record */
-  if (!(pwd = getpwnam (getusername (user,&mailbox)))) {
+  if (!((s = getusername (user,&mailbox)) && (pwd = getpwnam (s)))) {
     sprintf (tmp,"no such user as %.80s",user);
     return fail (tmp,EX_NOUSER);
   }
@@ -597,13 +594,16 @@ int fail (char *string,int code)
 /* Get user name from username+mailbox specifier
  * Accepts: username/mailbox specifier
  *	    pointer to return location for mailbox specifier
- * Returns: user name, mailbox specifier value NIL if INBOX, patches out +
+ * Returns: user name, mailbox specifier value NIL if INBOX, patches out +,
+ *	    or NIL if error
  */
 
 char *getusername (char *s,char **t)
 {
   if (*t = strchr (s,'+')) {	/* have a mailbox specifier? */
     *(*t)++ = '\0';		/* yes, tie off user name */
+				/* forbid overlong name */
+    if (strlen (*t) > NETMAXMBX) return NIL;
 				/* user+ and user+INBOX same as user */
     if (!**t || !compare_cstring ((unsigned char *) *t,"INBOX")) *t = NIL;
   }

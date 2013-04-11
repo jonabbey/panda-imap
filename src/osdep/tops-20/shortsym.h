@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Mailbox Access routines
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	24 May 1995
+ * Last Edited:	19 November 2008
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	Definitions for compilers with 6-letter symbol limits
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	24 May 1995
- * Last Edited:	1 January 2008
  */
 
 #define auth_link a_link
@@ -45,7 +42,8 @@
 #define body_encodings bencds
 #define body_types btypes
 #define compare_csizedtext cm_szt
-#define compare_cstring cm_str
+#define compare_cstring cm_cst
+#define compare_string cm_str
 #define compare_uchar cm_uch
 #define compare_ulong cm_uln
 #define default_proto d_prot

@@ -15,31 +15,47 @@ in understanding the IMAP protocol:
    rfc2180.txt	IMAP4 Multi-Accessed Mailbox Practice
    rfc2683.txt	IMAP4 Implementation Recommendations
    rfc4549.txt	Synchronization Operations for Disconnected IMAP4 Clients
-
+   rfc5530.txt	IMAP Response Codes
+   rfc5788.txt	IMAP4 Keyword Registry
 
 The following documents describe extensions to the IMAP protocol.
 Items marked with "*" are supported in this distribution:
    rfc4314.txt	ACL
+   rfc5257.txt	ANNOTATE-EXPERIMENT-1
  * rfc3516.txt	BINARY
    rfc4469.txt	CATENATE
  * rfc3348.txt	CHILDREN
    rfc4978.txt	COMPRESS
    rfc4551.txt	CONDSTORE
+   rfc5259.txt	CONVERT
+   rfc5267.txt	CONTEXT
    rfc5161.txt	ENABLE
  * rfc4731.txt	ESEARCH
+   rfc5267.txt	ESORT
+   rfc5466.txt	FILTERS
+ * rfc5255.txt	I18NLEVEL=1
    rfc2971.txt	ID
  * rfc2177.txt	IDLE
+   rfc5255.txt	LANGUAGE
+   rfc5258.txt	LIST-EXTENDED
+   rfc5819.txt	LIST-STATUS
  * rfc2088.txt	LITERAL+
  * rfc2221.txt	LOGIN-REFERRALS
  * rfc2193.txt	MAILBOX-REFERRALS
+   rfc5464.txt	METADATA
  * rfc3502.txt	MULTIAPPEND
  * rfc2342.txt	NAMESPACE
+   rfc5465.txt	NOTIFY
    rfc5162.txt	QRESYNC
    rfc2087.txt	QUOTA
  * rfc4959.txt	SASL-IR
+ * rfc5256.txt	SORT
+ * rfc5256.txt	THREAD
  * rfc4315.txt	UIDPLUS
  * rfc3691.txt	UNSELECT
    rfc4467.txt	URLAUTH
+   rfc5524.txt	URLAUTH=BINARY
+   rfc5738.txt	UTF8 (EXPERIMENTAL)
  * rfc5032.txt	WITHIN
 
 
@@ -55,7 +71,7 @@ and the SASL mechanisms supported in this distribution:
 The following documents relate to internationalization issues:
    rfc4790.txt	Internet Application Protocol Collation Registry
    rfc5051.txt	i;unicode-casemap - Simple Unicode Collation Algorithm
-
+   rfc5738.txt	IMAP Support for UTF-8 (EXPERIMENTAL)
 
 The following documents are primarily of historic interest:
    rfc1732.txt	IMAP4 Compatibility with IMAP2 and IMAP2bis
@@ -68,3 +84,4 @@ The following documents discuss matters which are related to IMAP:
    rfc3656.txt	MUPDATE Distributed Mailbox Database Protocol
    rfc4468.txt	Message Submission BURL Extension
    rfc5092.txt	IMAP URL Scheme
+   rfc5593.txt	IMAP URL Access Identifier Extension

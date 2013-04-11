@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008 Mark Crispin
  * ========================================================================
  */
 
@@ -15,15 +7,19 @@
  * Program:	Miscellaneous utility routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	19 November 2008
+ *
+ * Previous versions of this file were
+ *
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -106,5 +102,6 @@ void **hash_lookup_and_add (HASHTAB *hashtab,char *key,void *data,long extra);
 unsigned char hex2byte (unsigned char c1,unsigned char c2);
 int compare_ulong (unsigned long l1,unsigned long l2);
 int compare_uchar (unsigned char c1,unsigned char c2);
+int compare_string (unsigned char *s1,unsigned char *s2);
 int compare_cstring (unsigned char *s1,unsigned char *s2);
 int compare_csizedtext (unsigned char *s1,SIZEDTEXT *s2);

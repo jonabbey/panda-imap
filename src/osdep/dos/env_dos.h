@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2010 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	DOS environment routines
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	1 August 1988
+ * Last Edited:	15 November 2010
+ *
+ * Previous versions of this file were:
+ *
  * Copyright 1988-2006 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -8,22 +22,6 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * 
- * ========================================================================
- */
-
-/*
- * Program:	DOS environment routines
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	1 August 1988
- * Last Edited:	30 August 2006
  */
 
 
@@ -39,7 +37,7 @@
 char *dos_default_gets (readfn_t f,void *stream,unsigned long size,
 			GETS_DATA *md);
 long safe_write (int fd,char *buf,long nbytes);
-long random ();
+long random (void);
 #if _MSC_VER < 700
 #define getpid random
 #endif

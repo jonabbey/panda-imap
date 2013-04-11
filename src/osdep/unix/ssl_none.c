@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Dummy (no SSL) authentication/encryption module
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	7 February 2001
+ * Last Edited:	19 November 2008
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2006 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	Dummy (no SSL) authentication/encryption module
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	7 February 2001
- * Last Edited:	30 August 2006
  */
 
 /* Init server for SSL
@@ -53,7 +50,12 @@ char *ssl_start_tls (char *server)
 
 int PBIN (void)
 {
-  return getchar ();
+  int ret;
+  do {
+    clearerr (stdin);
+    ret = getchar ();
+  } while ((ret == EOF) && !feof (stdin) && ferror (stdin) &&(errno == EINTR));
+  return ret;
 }
 
 
@@ -65,7 +67,12 @@ int PBIN (void)
 
 char *PSIN (char *s,int n)
 {
-  return fgets (s,n,stdin);
+  char *ret;
+  do {
+    clearerr (stdin);
+    ret = fgets (s,n,stdin);
+  } while (!ret && !feof (stdin) && ferror (stdin) && (errno == EINTR));
+  return ret;
 }
 
 

@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2009 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Operating-system dependent routines -- BSDI BSD/386 version
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	5 March 1993
+ * Last Edited:	2 September 2009
+ *
+ * Previous versions of this file were:
+ *
  * Copyright 1988-2006 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,23 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	Operating-system dependent routines -- BSDI BSD/386 version
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	5 March 1993
- * Last Edited:	30 August 2006
  */
 
 #include <stdlib.h>
@@ -32,8 +29,13 @@
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <fcntl.h>
+#include <time.h>
+#include <utime.h>
 #include <syslog.h>
 #include <sys/file.h>
+
+#define utime portable_utime
+int portable_utime (char *file,time_t timep[2]);
 
 
 #include "env_unix.h"

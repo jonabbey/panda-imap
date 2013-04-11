@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2011 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Network News Transfer Protocol (NNTP) routines
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	10 February 1992
+ * Last Edited:	8 April 2011
+ *
+ * Previous versions of this file were:
+ *
  * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,24 +21,8 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
  */
 
-/*
- * Program:	Network News Transfer Protocol (NNTP) routines
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	10 February 1992
- * Last Edited:	6 September 2007
- */
 
 
 #include <ctype.h>
@@ -381,7 +379,7 @@ void nntp_list (MAILSTREAM *stream,char *ref,char *pat)
 void nntp_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
   void *sdb = NIL;
-  char *s,mbx[MAILTMPLEN];
+  char *s,mbx[MAILTMPLEN],tmp[MAILTMPLEN];
 				/* return data from newsrc */
   if (nntp_canonicalize (ref,pat,mbx,NIL)) newsrc_lsub (stream,mbx);
   if (*pat == '{') {		/* if remote pattern, must be NNTP */
@@ -394,9 +392,10 @@ void nntp_lsub (MAILSTREAM *stream,char *ref,char *pat)
   if (ref && *ref) sprintf (mbx,"%s%s",ref,pat);
   else strcpy (mbx,pat);
 
-  if (s = sm_read (&sdb)) do if (nntp_valid (s) && pmatch (s,mbx))
+  if (s = sm_read (tmp,&sdb)) do if (nntp_valid (s) && pmatch (s,mbx))
     mm_lsub (stream,NIL,s,NIL);
-  while (s = sm_read (&sdb));	/* until no more subscriptions */
+				/* until no more subscriptions */
+  while (s = sm_read (tmp,&sdb));
 }
 
 /* NNTP canonicalize newsgroup name

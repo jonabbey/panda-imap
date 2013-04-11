@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2010 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	UNIX environment routines
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	1 August 1988
+ * Last Edited:	15 November 2010
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,21 +21,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * 
- * ========================================================================
- */
-
-/*
- * Program:	UNIX environment routines
- *
- * Author:	Mark Crispin
- *		UW Technology
- *		University of Washington
- *		Seattle, WA  98195
- *		Internet: MRC@Washington.EDU
- *
- * Date:	1 August 1988
- * Last Edited:	23 February 2009
  */
 
 #include <grp.h>
@@ -77,7 +76,7 @@ static char *sslCApath = NIL;	/* non-standard CA path */
 static short anonymous = NIL;	/* is anonymous */
 static short blackBox = NIL;	/* is a black box */
 static short closedBox = NIL;	/* is a closed box (uses chroot() jail) */
-static short restrictBox = NIL;	/* is a restricted box */
+static long restrictBox = NIL;	/* is a restricted box */
 static short has_no_life = NIL;	/* is a cretin with no life */
 				/* block environment init */
 static short block_env_init = NIL;
@@ -398,6 +397,10 @@ void *env_parameters (long function,void *value)
   case GET_SHAREDDIRPROTECTION:
     ret = (void *) shared_dir_protection;
     break;
+  case SET_RESTRICTIONS:
+    restrictBox = (long) value;
+  case GET_RESTRICTIONS:
+    ret = (void *) restrictBox;
 
   case SET_LOCKTIMEOUT:
     locktimeout = (long) value;
@@ -618,14 +621,17 @@ void server_init (char *server,char *service,char *sslservice,
 
 long server_input_wait (long seconds)
 {
+  int err;
   fd_set rfd,efd;
   struct timeval tmo;
-  FD_ZERO (&rfd);
-  FD_ZERO (&efd);
-  FD_SET (0,&rfd);
-  FD_SET (0,&efd);
-  tmo.tv_sec = seconds; tmo.tv_usec = 0;
-  return select (1,&rfd,0,&efd,&tmo) ? LONGT : NIL;
+  do {
+    FD_ZERO (&rfd);
+    FD_ZERO (&efd);
+    FD_SET (0,&rfd);
+    FD_SET (0,&efd);
+    tmo.tv_sec = seconds; tmo.tv_usec = 0;
+  } while (((err = select (1,&rfd,0,&efd,&tmo)) < 0) && (errno = EINTR));
+  return err ? LONGT : NIL;
 }
 
 /* Return UNIX password entry for user name
@@ -933,16 +939,14 @@ char *mylocalhost ()
 {
   if (!myLocalHost) {
     char *s,tmp[MAILTMPLEN];
-    char *t = "unknown";
     tmp[0] = tmp[MAILTMPLEN-1] = '\0';
     if (!gethostname (tmp,MAILTMPLEN-1) && tmp[0]) {
 				/* sanity check of name */
       for (s = tmp; (*s > 0x20) && (*s < 0x7f); ++s);
-      if (!*s) t = tcp_canonical (tmp);
+      if (!*s) myLocalHost = tcp_canonical (tmp);
     }
-    myLocalHost = cpystr (t);
   }
-  return myLocalHost;
+  return myLocalHost ? myLocalHost : "unknown";
 }
 
 /* Return my home directory name
@@ -1071,9 +1075,13 @@ char *mailboxfile (char *dst,char *name)
       }
       else sprintf (dst,"%s/%s",blackBoxDir,name+1);
     }
-    else if ((restrictBox & RESTRICTROOT) && strcmp (name,sysinbox ()))
-      dst = NIL;		/* restricted and not access to sysinbox */
-    else strcpy (dst,name);	/* unrestricted, copy root name */
+    else {
+      size_t i = strlen (mymailboxdir ());
+      if ((restrictBox & RESTRICTROOT) && strcmp (name,sysinbox ()) &&
+	  (!i || strncmp (name,mymailboxdir (),i) || (name[i] !='/')))
+	dst = NIL;		/* restricted and not sysinbox or home */
+      else strcpy (dst,name);	/* unrestricted, copy root name */
+    }
     break;
   case '~':			/* other user access */
 				/* bad syntax or anonymous can't win */

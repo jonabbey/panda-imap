@@ -1,13 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
+ * Copyright 2008 Mark Crispin
  * ========================================================================
  */
 
@@ -15,15 +7,19 @@
  * Program:	Miscellaneous utility routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	6 December 2006
+ * Last Edited:	19 November 2008
+ *
+ * Previous versions of this file were
+ *
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -434,14 +430,35 @@ int compare_ulong (unsigned long l1,unsigned long l2)
 
 int compare_uchar (unsigned char c1,unsigned char c2)
 {
-  return compare_ulong (((c1 >= 'A') && (c1 <= 'Z')) ? c1 + ('a' - 'A') : c1,
-			((c2 >= 'A') && (c2 <= 'Z')) ? c2 + ('a' - 'A') : c2);
+  return compare_ulong (((c1 >= 'a') && (c1 <= 'z')) ? c1 - ('a' - 'A') : c1,
+			((c2 >= 'a') && (c2 <= 'z')) ? c2 - ('a' - 'A') : c2);
 }
 
+/* Compare two strings by octet
+ * Accepts: first string
+ *	    second string
+ * Returns: -1 if s1 < s2, 0 if s1 == s2, 1 if s1 > s2
+ *
+ * Effectively strcmp() but without locales
+ */
+
+int compare_string (unsigned char *s1,unsigned char *s2)
+{
+  int i;
+  if (!s1) return s2 ? -1 : 0;	/* empty string cases */
+  else if (!s2) return 1;
+  for (; *s1 && *s2; s1++,s2++) if (i = (compare_ulong (*s1,*s2))) return i;
+  if (*s1) return 1;		/* first string is longer */
+  return *s2 ? -1 : 0;		/* second string longer : strings identical */
+}
+
+
 /* Compare two case-independent ASCII strings
  * Accepts: first string
  *	    second string
  * Returns: -1 if s1 < s2, 0 if s1 == s2, 1 if s1 > s2
+ *
+ * Effectively strcasecmp() but without locales
  */
 
 int compare_cstring (unsigned char *s1,unsigned char *s2)

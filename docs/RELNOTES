@@ -1,4 +1,144 @@
 /* ========================================================================
+ * Copyright 2011 Mark Crispin
+ * ========================================================================
+ */
+
+
+Updated: 3 October 2011
+
+imap-2010 is Panda IMAP, forked from the University of Washington's
+final imap-2007b.
+
+Update version and copyright information.
+
+New compare_string() routine which implements i;octet collation.
+
+compare_cstring() now collates "[", "\", "]", and "_" after alphabetics to
+be consistent with how i;unicode-casemap is defined.
+
+i;unicode-casemap collation now uses compare_string() instead of
+compare_cstring().  The case-mapping of compare_cstring() is unnecessary
+because the strings have already been titlecased and decomposed via
+U8T_CANONICAL conversion.  The previous version of compare_cstring()
+casemapped via conversion to lowercase, which violates of RFC 5051 for
+characters "[", "\", "]", and "_".
+
+Fix tag parsing to avoid HTML/IMAP cross script vulnerability problem.  Tags
+are now syntax checked and the connection is closed after a bad command when
+not logged in.
+
+Fix address sorting when the address list started with a group and the
+message had not yet been parsed.  Also, cc sorting did not handle
+additional cc lines (as opposed to continuation lines) correctly.
+
+Fix server terminations when a status request signal is received while in
+command input wait.
+
+Fix crash if SMTP server closes the session right before a QUIT is sent.
+
+Fix crash on some systems if IMAP server sends negative value for literal
+size count.
+
+Mailbox compression ("burping") can now occur during IMAP IDLE.
+
+Fix root-compromise security bug in tmail, and user-compromise security bug
+in dmail.
+
+Extend mailutil's -u flag to parse arguments in the context of the -u user
+and disregard any restrictBox settings.
+
+Restrict SSL/TLS encryption algorithms to be PCI auditing compliant.
+
+Fix possible memory corruption problem in imapd.
+
+Fix longstanding problem in parsing lowercase FETCH attributes in IMAP after
+a literal.
+
+Fix memory leak problem burping mix format mailboxes.
+
+Fix crash with -I switch in tmail caused by reference to uninitialized
+variable.
+
+Fix reference to freed memory space in mix burping that led to attempts to
+delete arbitrary file names.
+
+Fix crash when string output in RFC822 routines exactly matches the buffer
+size.
+
+Fix crash in IMAP client on Windows in certain circumstances when IMAP
+server disconnects while reading a response.
+
+Fix incorrect legacy INBOX file name creation on black box systems.
+
+Fix exploitable buffer overrun problem.
+
+Support QNX 6
+
+Fix a problem that could cause mix mailbox corruption.
+
+Rewrite imapd's signal handling (again) to fix corrupt in traditional UNIX
+mailbox files.
+
+Recognize when the client is BlackBerry Internet Service, and allow mailbox
+burping even when readonly.
+
+Fix a crash in the IMAP client code caused by non-compliant servers.
+
+Fix problem in scandir code triggered by ZFS on Solaris.
+
+Fix quoted-printable handling in error case.
+
+OpenSSL 1.0.0 compatibility (OpenSSL has a STRING type)
+
+Fix Shift-JIS decoding.
+
+New oxs port for building under Mac OS X Snow Leopard.
+
+Fixes to build cleanly in new 64-bit gcc.
+
+Prevent crash if session closed unexpectedly during SSL I/O.
+
+Fix IMAP namespace handling.
+
+Detect corruption when message added with out of order UID.
+
+The c-client library is now thread-safe in the IPv6 version of the UNIX and
+Windows builds.  IPv4 and legacy (e.g., DOS, VMS) builds are NOT thread-safe.
+
+Fixed a memory leak that occurs each time a TCP connection is open.
+
+Fixed UTF-8 input validation; some valid UTF-8 sequences were rejected and
+some invalid ones where accepted.
+
+Fix incorrect message message deletion in UID EXPUNGE.
+
+Fix crash in internal rfc822 parsing routines if external consumer calls
+with a null defaulthost.
+
+Workaround to support iPhone/iPod Touch running iOS4.
+
+Fix buffer overflow in IMAP client code.
+
+Fix thread safety issues in MD5 authentication and subscription manager.
+
+Fix additional buffer overflows in IMAP client code.
+
+Fix memory name in IPv6 DNS lookup.
+
+Up to three bad commands permitted when not logged in to avoid problems with
+clients that don't check capabilities.
+
+Fix off-by-one error in SASL-IR authentication.
+
+Fix memory leak when server sends invalid BODYSTRUCTURE data.
+
+Fix threading problem creating TCP socket.
+
+Fix loop caused by syntax errors from GMail IMAP server.
+
+/*
+ * Previous versions of this file were
+ *
  * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -6,35 +146,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * 
- * ========================================================================
  */
-
-Updated: 22 July 2011
-
-imap-2007f fixes a couple bugs.
-Fix for RFC 4959 Initial Client Response auth failures noted first by
-  MacOSX Lion Mail users.
-Adjust tcp_open.c:tcp_socket_open to make it a little more useful by adding
-  a write file descriptor test to the select in the case that the open
-  timeout is set.
-In osdep/unix/env_unix.c:create_path there was a printf that should have
-  been an sprintf. Doesn't matter on modern systems.
-
-Updated: 16 December 2008
-
-imap-2007e is a maintenance release, consisting primarily of bugfixes to
-problems discovered in the release that affected a small number of users
-plus a security fix for users of the RFC822BUFFER routines.
-
-
-Updated: 29 October 2008
-
-imap-2007d is a maintenance release, consisting primarily of bugfixes to
-problems discovered in the release that affected a small number of users
-plus a security fix for users of tmail or dmail.
-
 
 Updated: 25 March 2008
 

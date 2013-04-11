@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Procmail-Callable Mail Delivery Module
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	5 April 1993
+ * Last Edited:	19 November 2008
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -8,22 +22,6 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * 
- * ========================================================================
- */
-
-/*
- * Program:	Procmail-Callable Mail Delivery Module
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	5 April 1993
- * Last Edited:	30 October 2008
  */
 
 #include <stdio.h>
@@ -39,7 +37,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "18";		/* dmail edit version */
+char *version = "19";		/* dmail edit version */
 int debug = NIL;		/* debugging (don't fork) */
 int flagseen = NIL;		/* flag message as seen */
 int trycreate = NIL;		/* flag saying gotta create before appending */
@@ -241,7 +239,8 @@ int deliver (FILE *f,unsigned long msglen,char *user)
   if (mailbox) {		/* non-INBOX name */
     switch (mailbox[0]) {	/* make sure a valid name */
     default:			/* other names, try to deliver if not INBOX */
-      if (!strstr (mailbox,"..") && !strstr (mailbox,"//") &&
+      if ((strlen (mailbox) <= NETMAXMBX) &&
+	  !strstr (mailbox,"..") && !strstr (mailbox,"//") &&
 	  !strstr (mailbox,"/~") && mailboxfile (path,mailbox) && path[0] &&
 	  !deliver_safely (NIL,&st,mailbox,path,tmp)) return NIL;
     case '%': case '*':		/* wildcards not valid */

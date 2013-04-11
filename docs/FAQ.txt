@@ -1,26 +1,15 @@
-/* ========================================================================
- * Copyright 1988-2007 University of Washington
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- *
- * ========================================================================
- */
 
-                    IMAP Toolkit Frequently Asked Questions
+              Panda IMAP Frequently Asked Questions
 
 Table of Contents
 
+     * What is Panda IMAP?
      * 1. General/Software Feature Questions
           + 1.1 Can I set up a POP or IMAP server on UNIX/Linux/OSF/etc.?
-          + 1.2 I am currently using qpopper as my POP3 server on UNIX.
-            Do I need to replace it with ipop3d in order to run imapd?
-          + 1.3 Can I set up a POP or IMAP server on Windows XP, 2000,
-            NT, Me, 98, or 95?
+          + 1.2 I am currently using qpopper as my POP3 server on UNIX. Do
+            I need to replace it with ipop3d in order to run imapd?
+          + 1.3 Can I set up a POP or IMAP server on Windows XP, 2000, NT,
+            Me, 98, or 95?
           + 1.4 Can I set up a POP or IMAP server on Windows 3.1 or DOS?
           + 1.5 Can I set up a POP or IMAP server on Macintosh?
           + 1.6 Can I set up a POP or IMAP server on VAX/VMS?
@@ -57,8 +46,8 @@ Table of Contents
           + 2.1 What do I need to build this software with SSL on UNIX?
           + 2.2 What do I need to build this software with Kerberos V on
             UNIX?
-          + 2.3 What do I need to use a C++ compiler with this software
-            to build my own application?
+          + 2.3 What do I need to use a C++ compiler with this software to
+            build my own application?
           + 2.4 What do I need to build this software on Windows?
           + 2.5 What do I need to build this software on DOS?
           + 2.6 Can't I use Borland C to build this software on the PC?
@@ -97,14 +86,13 @@ Table of Contents
             sessions, but allow them in SSL or TLS sessions?
           + 3.19 How do I configure virtual hosts?
           + 3.20 Why do I get compiler warning messages such as:
-               o passing arg 3 of `scandir' from incompatible pointer
-                 type
+               o passing arg 3 of `scandir' from incompatible pointer type
                o Pointers are not assignment-compatible.
                o Argument #4 is not the correct type.
             during the build?
           + 3.21 Why do I get compiler warning messages such as
-               o Operation between types "void(*)(int)" and "void*" is
-                 not allowed.
+               o Operation between types "void(*)(int)" and "void*" is not
+                 allowed.
                o Function argument assignment between types "void*" and
                  "void(*)(int)" is not allowed.
                o Pointers are not assignment-compatible.
@@ -130,9 +118,9 @@ Table of Contents
             server? I noticed that it can connect on port 143, port 993,
             via rsh, and via ssh.
           + 4.4 I am using a TLS-capable IMAP server, so I don't need to
-            use /ssl to get encryption. However, I want to be certain
-            that my session is TLS encrypted before I send my password.
-            How to I do this?
+            use /ssl to get encryption. However, I want to be certain that
+            my session is TLS encrypted before I send my password. How to
+            I do this?
           + 4.5 How do I use one of the alternative formats described in
             the formats.txt document? In particular, I hear that mbx
             format will give me better performance and allow shared
@@ -141,9 +129,8 @@ Table of Contents
           + 4.7 How can I make the server syslogs go to someplace other
             than the mail syslog?
      * 5. Security Questions
-          + 5.1 I see that the IMAP server allows access to arbitary
-            files on the system, including /etc/passwd! How do I disable
-            this?
+          + 5.1 I see that the IMAP server allows access to arbitary files
+            on the system, including /etc/passwd! How do I disable this?
           + 5.2 I've heard that IMAP servers are insecure. Is this true?
           + 5.3 How do I know that I have the most secure version of the
             server?
@@ -177,8 +164,8 @@ Table of Contents
             "From " to be the start of the message.
           + 6.13 Why is traditional UNIX format the default format?
           + 6.14 Why do you write this "DON'T DELETE THIS MESSAGE --
-            FOLDER INTERNAL DATA" message at the start of traditional
-            UNIX and MMDF format mailboxes?
+            FOLDER INTERNAL DATA" message at the start of traditional UNIX
+            and MMDF format mailboxes?
           + 6.15 Why don't you stash the mailbox metadata in the first
             real message of the mailbox instead of writing this fake
             FOLDER INTERNAL DATA message?
@@ -201,8 +188,8 @@ Table of Contents
             and how do I fix it?
           + 7.4 Why can't I log in to the server? The user name and
             password are right!
-          + 7.5 Help! My load average is soaring and I see hundreds of
-            POP and IMAP servers, many logged in as the same user!
+          + 7.5 Help! My load average is soaring and I see hundreds of POP
+            and IMAP servers, many logged in as the same user!
           + 7.6 Why does mail disappear even though I set "keep mail on
             server"?
           + 7.7 Why do I get the message
@@ -224,8 +211,8 @@ Table of Contents
           + 7.12 What does the message:
                o Can't get write access to mailbox, access is readonly
             mean?
-          + 7.13 I set my POP3 client to "delete messages from server"
-            but they never get deleted. What is wrong?
+          + 7.13 I set my POP3 client to "delete messages from server" but
+            they never get deleted. What is wrong?
           + 7.14 What do messages such as:
                o Message ... UID ... already has UID ...
                o Message ... UID ... less than ...
@@ -248,8 +235,8 @@ Table of Contents
             mean? When it happens, the listed service shuts down. How can
             I fix this?
           + 7.17 What does the syslog message:
-               o Mailbox lock file /tmp/.600.1df3 open failure:
-                 Permission denied
+               o Mailbox lock file /tmp/.600.1df3 open failure: Permission
+                 denied
             mean?
           + 7.18 What do the syslog messages:
                o Command stream end of file, while reading line user=...
@@ -262,22 +249,21 @@ Table of Contents
           + 7.19 Why did my POP or IMAP session suddenly disconnect? The
             syslog has the message:
                o Killed (lost mailbox lock) user=... host=...
-          + 7.20 Why does my IMAP client show all the files on the
-            system, recursively from the UNIX root directory?
-          + 7.21 Why does my IMAP client show all of my files,
-            recursively from my UNIX home directory?
+          + 7.20 Why does my IMAP client show all the files on the system,
+            recursively from the UNIX root directory?
+          + 7.21 Why does my IMAP client show all of my files, recursively
+            from my UNIX home directory?
           + 7.22 Why does my IMAP client show that I have mailboxes named
             "#mhinbox", "#mh", "#shared", "#ftp", "#news", and "#public"?
           + 7.23 Why does my IMAP client show all my files in my home
             directory?
           + 7.24 Why is there a long delay before I get connected to the
             IMAP or POP server, no matter what client I use?
-          + 7.25 Why is there a long delay in Pine or any other c-client
+          + 7.25 Why is there a long delay in Alpine or any other c-client
             based application call before I get connected to the IMAP
-            server? The hang seems to be in the c-client mail_open()
-            call. I don't have this problem with any other IMAP client.
-            There is no delay connecting to a POP3 or NNTP server with
-            mail_open().
+            server? The hang seems to be in the c-client mail_open() call.
+            I don't have this problem with any other IMAP client. There is
+            no delay connecting to a POP3 or NNTP server with mail_open().
           + 7.26 Why does a message sometimes get split into two or more
             messages on my SUN system?
           + 7.27 Why did my POP or IMAP session suddenly disconnect? The
@@ -307,7 +293,7 @@ Table of Contents
                  certificate
             mean?
           + 7.34 Why does reading certain messages hang when using
-            Netscape? It works fine with Pine!
+            Netscape? It works fine with Alpine!
           + 7.35 Why does Netscape say that there's a problem with the
             IMAP server and that I should "Contact your mail server
             administrator."?
@@ -323,15 +309,15 @@ Table of Contents
             connection has been broken, and in the server syslogs I see
             "Command stream end of file".
           + 7.42 Sheesh. Aren't there any good IMAP clients out there?
-          + 7.43 But wait! PC Pine (or other PC program build with
+          + 7.43 But wait! PC Alpine (or other PC program build with
             c-client) crashes with the message
                o incomplete SecBuffer exceeds maximum buffer size
             when I use SSL connections. This is a bug in c-client, right?
           + 7.44 My qpopper users keep on getting the DON'T DELETE THIS
-            MESSAGE -- FOLDER INTERNAL DATA if they also use Pine or
+            MESSAGE -- FOLDER INTERNAL DATA if they also use Alpine or
             IMAP. How can I fix this?
-          + 7.45 Help! I installed the servers but I can't connect to
-            them from my client!
+          + 7.45 Help! I installed the servers but I can't connect to them
+            from my client!
           + 7.46 Why do I get the message
                o Can not authenticate to SMTP server: 421 SMTP connection
                  went away!
@@ -346,22 +332,35 @@ Table of Contents
             when I try to authenticate to a Cyrus server?
      * 8. Where to Go For Additional Information
           + 8.1 Where can I go to ask questions?
-          + 8.2 I have some ideas for enhancements to IMAP. Where should
-            I go?
+          + 8.2 I have some ideas for enhancements to IMAP. Where should I
+            go?
           + 8.3 Where can I read more about IMAP and other email
             protocols?
           + 8.4 Where can I find out more about setting up and
             administering an IMAP server?
-     _________________________________________________________________
+     __________________________________________________________________
+
+What is Panda IMAP?
+
+          Panda IMAP is a fork of the final University of Washington
+          version (imap-2007b). The current UW version is imap-2007e which
+          has only minor changes from imap-2007b. All of these changes (or
+          something better) are in Panda IMAP.
+
+          Panda IMAP is available by donation.
+
+   Back to top
+     __________________________________________________________________
 
 1. General/Software Feature Questions
-     _________________________________________________________________
+     __________________________________________________________________
 
    1.1 Can I set up a POP or IMAP server on UNIX/Linux/OSF/etc.?
 
-          Yes. Refer to the UNIX specific notes in files CONFIG and
-          BUILD.
-     _________________________________________________________________
+          Yes. Refer to the UNIX specific notes in files CONFIG and BUILD.
+
+   Back to top
+     __________________________________________________________________
 
    1.2 I am currently using qpopper as my POP3 server on UNIX. Do I need
    to replace it with ipop3d in order to run imapd?
@@ -371,8 +370,8 @@ Table of Contents
           Although ipop3d interoperates with imapd better than qpopper,
           imapd and qpopper will work together. The few qpopper/imapd
           interoperability issues mostly affect users who use both IMAP
-          and POP3 clients; those users would probably be better served
-          if their POP3 server is ipop3d.
+          and POP3 clients; those users would probably be better served if
+          their POP3 server is ipop3d.
 
           If you are happy with qpopper and just want to add imapd, you
           should do that, and defer a decision on changing qpopper to
@@ -380,20 +379,22 @@ Table of Contents
           performance, without changing anything for your qpopper users.
 
           Many sites have subsequently decided to change from qpopper to
-          ipop3d in order to get better POP3/IMAP interoperability. If
-          you need to do this, you'll know. There also seems to be a way
-          to make qpopper work better with imapd; see the answer to the
-          My qpopper users keep on getting the DON'T DELETE THIS MESSAGE
-          -- FOLDER INTERNAL DATA if they also use Pine or IMAP. How can
-          I fix this? question.
-     _________________________________________________________________
+          ipop3d in order to get better POP3/IMAP interoperability. If you
+          need to do this, you'll know. There also seems to be a way to
+          make qpopper work better with imapd; see the answer to the My
+          qpopper users keep on getting the DON'T DELETE THIS MESSAGE --
+          FOLDER INTERNAL DATA if they also use Alpine or IMAP. How can I
+          fix this? question.
+
+   Back to top
+     __________________________________________________________________
 
    1.3 Can I set up a POP or IMAP server on Windows XP, 2000, NT, Me, 98,
    or 95?
 
           Yes. Refer to the NT specific notes in files CONFIG and BUILD.
-          Also, for DOS-based versions of Windows (Windows Me, 98, and
-          95) you *must* set up CRAM-MD5 authentication, as described in
+          Also, for DOS-based versions of Windows (Windows Me, 98, and 95)
+          you *must* set up CRAM-MD5 authentication, as described in
           md5.txt.
 
           There is no file access control on Windows 9x or Me, so you
@@ -402,14 +403,18 @@ Table of Contents
 
           Note, however, that the server is not plug and play the way it
           is for UNIX.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.4 Can I set up a POP or IMAP server on Windows 3.1 or DOS?
    1.5 Can I set up a POP or IMAP server on Macintosh?
    1.6 Can I set up a POP or IMAP server on VAX/VMS?
 
           Yes, it's just a small matter of programming.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.7 Can I set up a POP or IMAP server on TOPS-20?
 
@@ -418,7 +423,7 @@ Table of Contents
           If IMAP2 (RFC 1176) is good enough for you, you can use MAPSER
           which is about the ultimate gonzo pure TOPS-20 extended
           addressing assembly language program. Unfortunately, IMAP2 is
-          barely good enough for Pine these days, and most other IMAP
+          barely good enough for Alpine these days, and most other IMAP
           clients won't work with IMAP2 at all. Maybe someone will hack
           MAPSER to do IMAP4rev1 some day.
 
@@ -428,7 +433,9 @@ Table of Contents
           Or you can port the POP and IMAP server from this IMAP toolkit
           to it. All that you need for a first stab is to port the MTX
           driver. That'll probably be just a couple of hours of hacking.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.8 Are hierarchical mailboxes supported?
    1.9 Are "dual-use" mailboxes supported?
@@ -449,22 +456,24 @@ Table of Contents
           directory; these formats support sub-mailboxes within such
           mailboxes. However, for technical reasons, the "flat file"
           formats are generally preferred since they perform better. Read
-          imap-2007/docs/formats.txt for more information on this topic.
+          imap-2010/docs/formats.txt for more information on this topic.
 
           It is always permissible to create a directory that is not a
           mailbox, and have sub-mailboxes under it. The easiest way to
-          create a directory is to create a new mailbox inside a
-          directory that doesn't already exist. For example, if you
-          create "Mail/testbox" on UNIX, the directory "Mail/" will
-          automatically be created and then the mailbox "testbox" will be
-          created as a sub-mailbox of "Mail/".
+          create a directory is to create a new mailbox inside a directory
+          that doesn't already exist. For example, if you create
+          "Mail/testbox" on UNIX, the directory "Mail/" will automatically
+          be created and then the mailbox "testbox" will be created as a
+          sub-mailbox of "Mail/".
 
           It is also possible to create the name "Mail/" directly. Check
-          the documentation for your client software to see how to do
-          this with that software.
+          the documentation for your client software to see how to do this
+          with that software.
 
           Of course, on Windows systems you would use "\" instead of "/".
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.11 What is the difference between "mailbox" and "folder"?
 
@@ -479,10 +488,12 @@ Table of Contents
           although some mailbox formats will permit this.
 
           In IMAP-speak, a mailbox which can not contain other mailboxes
-          is called a "no-inferiors mailbox". Similarly, a directory
-          which can not contain messages is not a mailbox and is called a
+          is called a "no-inferiors mailbox". Similarly, a directory which
+          can not contain messages is not a mailbox and is called a
           "no-select name".
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.12 What is the status of internationalization?
 
@@ -492,15 +503,14 @@ Table of Contents
           Searching is supported in the following charsets: US-ASCII,
           UTF-8, ISO-8859-1, ISO-8859-2, ISO-8859-3, ISO-8859-4,
           ISO-8859-5, ISO-8859-6, ISO-8859-7, ISO-8859-8, ISO-8859-9,
-          ISO-8859-10, ISO-8859-11, ISO-8859-13, ISO-8859-14,
-          ISO-8859-15, ISO-8859-16, KOI8-R, KOI8-U (alias KOI8-RU),
-          TIS-620, VISCII, ISO-2022-JP, ISO-2022-KR, ISO-2022-CN,
-          ISO-2022-JP-1, ISO-2022-JP-2, GB2312 (alias CN-GB),
-          CN-GB-12345, BIG5 (alias CN-BIG5), EUC-JP, EUC-KR, Shift_JIS,
-          Shift-JIS, KS_C_5601-1987, KS_C_5601-1992, WINDOWS_874,
-          WINDOWS-1250, WINDOWS-1251, WINDOWS-1252, WINDOWS-1253,
-          WINDOWS-1254, WINDOWS-1255, WINDOWS-1256, WINDOWS-1257,
-          WINDOWS-1258.
+          ISO-8859-10, ISO-8859-11, ISO-8859-13, ISO-8859-14, ISO-8859-15,
+          ISO-8859-16, KOI8-R, KOI8-U (alias KOI8-RU), TIS-620, VISCII,
+          ISO-2022-JP, ISO-2022-KR, ISO-2022-CN, ISO-2022-JP-1,
+          ISO-2022-JP-2, GB2312 (alias CN-GB), CN-GB-12345, BIG5 (alias
+          CN-BIG5), EUC-JP, EUC-KR, Shift_JIS, Shift-JIS, KS_C_5601-1987,
+          KS_C_5601-1992, WINDOWS_874, WINDOWS-1250, WINDOWS-1251,
+          WINDOWS-1252, WINDOWS-1253, WINDOWS-1254, WINDOWS-1255,
+          WINDOWS-1256, WINDOWS-1257, WINDOWS-1258.
 
           All ISO-2022-?? charsets are treated identically, and support
           ASCII, JIS Roman, hankaku katakana, ISO-8859-[1 - 10], TIS, GB
@@ -515,73 +525,97 @@ Table of Contents
 
           There is no support for localization (e.g. non-English error
           messages) at the present time, but such support is planned.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.13 Can I use SSL?
 
           Yes. See the answer to the How do I configure SSL? question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.14 Can I use TLS and the STARTTLS facility?
 
           Yes. See the answer to the How do I configure TLS and the
           STARTTLS facility? question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.15 Can I use CRAM-MD5 authentication?
 
           Yes. See the answer to the How do I configure CRAM-MD5
           authentication? question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.16 Can I use APOP authentication?
 
           Yes. See the How do I configure APOP authentication? question.
 
           Note that there is no client support for APOP authentication.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.17 Can I use Kerberos V5?
 
           Yes. See the answer to the How do I configure Kerberos V5?
           question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.18 Can I use PAM for plaintext passwords?
 
           Yes. See the answer to the How do I configure PAM for plaintext
           passwords? question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.19 Can I use Kerberos 5 for plaintext passwords?
 
           Yes. See the answer to the How do I configure Kerberos 5 for
           plaintext passwords? question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.20 Can I use AFS for plaintext passwords?
 
           Yes. See the answer to the How do I configure AFS for plaintext
           passwords? question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.21 Can I use DCE for plaintext passwords?
 
           Yes. See the answer to the How do I configure DCE for plaintext
           passwords? question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.22 Can I use the CRAM-MD5 database for plaintext passwords?
 
           Yes. See the answer to the How do I configure the CRAM-MD5
           database for plaintext passwords? question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.23 Can I disable plaintext passwords?
 
-          Yes. See the answer to the How do I disable plaintext
-          passwords? question.
-     _________________________________________________________________
+          Yes. See the answer to the How do I disable plaintext passwords?
+          question.
+
+   Back to top
+     __________________________________________________________________
 
    1.24 Can I disable plaintext passwords on unencrypted sessions, but
    allow them on encrypted sessions?
@@ -589,47 +623,52 @@ Table of Contents
           Yes. See the answer to the How do I disable plaintext passwords
           on unencrypted sessions, but allow them in SSL or TLS sessions?
           question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.25 Can I use virtual hosts?
 
           Yes. See the answer to the How do I configure virtual hosts?
           question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.26 Can I use RPOP authentication?
 
           There is no support for RPOP authentication.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.27 Can I use Kerberos V4?
 
-          Kerberos V4 is not supported. Kerberos V4 client-only
-          contributed code is available in
+          Kerberos V4 is not supported.
 
-ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
-
-          This is a patchkit which must be applied to the IMAP toolkit
-          according to the instructions in the patchkit's README. We can
-          not promise that this code works.
-     _________________________________________________________________
+   Back to top
+     __________________________________________________________________
 
    1.28 Is there support for S/Key or OTP?
 
           There is currently no support for S/Key or OTP. There may be an
           OTP SASL authenticator available from third parties.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.29 Is there support for NTLM or SPA?
 
-          There is currently no support for NTLM or SPA, nor are there
-          any plans to add such support. In general, I avoid
-          vendor-specific mechanisms. I also believe that these
-          mechanisms are being deprecated by their vendor.
+          There is currently no support for NTLM or SPA, nor are there any
+          plans to add such support. In general, I avoid vendor-specific
+          mechanisms. I also believe that these mechanisms are being
+          deprecated by their vendor.
 
           There may be an NTLM SASL authenticator available from third
           parties.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.30 Is there support for mh?
 
@@ -643,102 +682,131 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
           Non-legacy use of mh format is not encouraged. There is no
           support for permanent flags or unique identifiers; furthermore
           there are known severe performance problems with the mh format.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.31 Is there support for qmail and the maildir format?
 
           There is no support for qmail or the maildir format in our
           distribution, nor are there any plans to add such support.
           Maildir support may be available from third parties.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.32 Is there support for the Cyrus mailbox format?
 
           No.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    1.33 Is this software Y2K compliant?
 
           Please read the files Y2K and calendar.txt.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
 2. What Do I Need to Build This Software?
-     _________________________________________________________________
+     __________________________________________________________________
 
    2.1 What do I need to build this software with SSL on UNIX?
 
           You need to build and install OpenSSL first.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    2.2 What do I need to build this software with Kerberos V on UNIX?
 
           You need to build and install MIT Kerberos first.
-     _________________________________________________________________
 
-   2.3 What do I need to use a C++ compiler with this software to build
-   my own application?
+   Back to top
+     __________________________________________________________________
+
+   2.3 What do I need to use a C++ compiler with this software to build my
+   own application?
 
           If you are building an application using the c-client library,
           use the new c-client.h file instead of including the other
           include files. It seems that c-client.h should define away all
           the troublesome names that conflict with C++.
 
-          If you use gcc, you may need to use -fno-operator-names as
-          well.
-     _________________________________________________________________
+          If you use gcc, you may need to use -fno-operator-names as well.
+
+   Back to top
+     __________________________________________________________________
 
    2.4 What do I need to build this software on Windows?
 
-          You need Microsoft Visual C++ 6.0, Visual C++ .NET, or Visual
-          C# .NET (which you can buy from any computer store), along with
-          the Microsoft Platform SDK (which you can download from
-          Microsoft's web site).
+          You need Microsoft Visual C++ 6.0, Visual C++ .NET, or Visual C#
+          .NET (which you can buy from any computer store), along with the
+          Microsoft Platform SDK (which you can download from Microsoft's
+          web site).
 
           You do not need to install the entire Platform SDK; it suffices
           to install just the Core SDK and the Internet Development SDK.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    2.5 What do I need to build this software on DOS?
 
           It's been several years since we last attempted to do this. At
           the time, we used Microsoft C.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    2.6 Can't I use Borland C to build this software on the PC?
 
           Probably not. If you know otherwise, please let us know.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    2.7 What do I need to build this software on the Mac?
 
-          It has been several years since we last attempted to do this.
-          At the time, we used Symantec THINK C; but today you'll need a
-          C compiler which allows segments to be more than 32K.
-     _________________________________________________________________
+          It has been several years since we last attempted to do this. At
+          the time, we used Symantec THINK C; but today you'll need a C
+          compiler which allows segments to be more than 32K.
+
+   Back to top
+     __________________________________________________________________
 
    2.8 What do I need to build this software on VMS?
 
           You need the VMS C compiler, and either the Multinet or Netlib
           TCP.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    2.9 What do I need to build this software on TOPS-20?
 
           You need the TOPS-20 KCC compiler.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    2.10 What do I need to build this software on Amiga or OS/2?
 
           We don't know.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    2.11 What do I need to build this software on Windows CE?
 
           This port is incomplete. Someone needs to finish it.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
 3. Build and Configuration Questions
-     _________________________________________________________________
+     __________________________________________________________________
 
    3.1 How do I configure the IMAP and POP servers on UNIX?
    3.2 I built and installed the servers according to the BUILD
@@ -754,32 +822,38 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
           Yes, it's that easy. There are some additional options, such as
           SSL or Kerberos, which require additional steps to build. See
           the relevant questions below.
-     _________________________________________________________________
 
-   3.3 How do I make the IMAP and POP servers look for INBOX at some
-   place other than the mail spool directory?
+   Back to top
+     __________________________________________________________________
+
+   3.3 How do I make the IMAP and POP servers look for INBOX at some place
+   other than the mail spool directory?
    3.4 How do I make the IMAP server look for secondary folders at some
    place other than the user's home directory?
 
           Please read the file CONFIG for discussion of this and other
           issues.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.5 How do I configure SSL?
    3.6 How do I configure TLS and the STARTTLS facility?
 
-          imap-2007 supports SSL and TLS client functionality on UNIX and
+          imap-2010 supports SSL and TLS client functionality on UNIX and
           32-bit Windows for IMAP, POP3, SMTP, and NNTP; and SSL and TLS
           server functionality on UNIX for IMAP and POP3.
 
           UNIX SSL build requires that a third-party software package,
           OpenSSL, be installed on the system first. Read
-          imap-2007/docs/SSLBUILD for more information.
+          imap-2010/docs/SSLBUILD for more information.
 
           SSL is supported via undocumented Microsoft interfaces in
-          Windows 9x and NT4; and via standard interfaces in Windows
-          2000, Windows Millenium, and Windows XP.
-     _________________________________________________________________
+          Windows 9x and NT4; and via standard interfaces in Windows 2000,
+          Windows Millenium, and Windows XP.
+
+   Back to top
+     __________________________________________________________________
 
    3.7 How do I build/install OpenSSL and obtain/create certificates for
    use with SSL?
@@ -787,7 +861,9 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
           If you need help in doing this, try the contacts mentioned in
           the OpenSSL README. We do not offer support for OpenSSL or
           certificates.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.8 How do I configure CRAM-MD5 authentication?
    3.9 How do I configure APOP authentication?
@@ -797,11 +873,13 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
           CRAM-MD5 and APOP authentication on UNIX and NT servers.
 
           There is no support for APOP client authentication.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.10 How do I configure Kerberos V5?
 
-          imap-2007 supports client and server functionality on UNIX and
+          imap-2010 supports client and server functionality on UNIX and
           32-bit Windows.
 
           Kerberos V5 is supported by default in Windows 2000 builds:
@@ -821,7 +899,9 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
 
 
  nmake -f makefile.ntk
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.11 How do I configure PAM for plaintext passwords?
 
@@ -839,13 +919,14 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
  make foo PASSWDTYPE=pam
 
           If you build with PASSWDTYPE=pam and authentication does not
-          work, try rebuilding (after a "make clean") with
-          PASSWDTYPE=pmb.
-     _________________________________________________________________
+          work, try rebuilding (after a "make clean") with PASSWDTYPE=pmb.
+
+   Back to top
+     __________________________________________________________________
 
    3.12 It looks like all I have to do to make the server use Kerberos is
-   to build with PAM on my Linux system, and set it up in PAM for
-   Kerberos passwords. Right?
+   to build with PAM on my Linux system, and set it up in PAM for Kerberos
+   passwords. Right?
 
           Yes and no.
 
@@ -855,7 +936,9 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
           However, this will NOT give you Kerberos-secure authentication.
           See the answer to the How do I configure Kerberos V5? question
           for how to build with Kerberos-secure authentication.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.13 How do I configure Kerberos 5 for plaintext passwords?
 
@@ -866,21 +949,27 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
           However, this will NOT give you Kerberos-secure authentication.
           See the answer to the How do I configure Kerberos V5? question
           for how to build with Kerberos-secure authentication.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.14 How do I configure AFS for plaintext passwords?
 
           Build with PASSWDTYPE=afs, e.g
 
  make sol PASSWDTYPE=afs
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.15 How do I configure DCE for plaintext passwords?
 
           Build with PASSWDTYPE=dce, e.g
 
  make sol PASSWDTYPE=dce
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.16 How do I configure the CRAM-MD5 database for plaintext passwords?
 
@@ -890,7 +979,9 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
           Note that this is NOT CRAM-MD5-secure authentication. You
           probably want to consider disabling plaintext passwords for
           non-SSL/TLS sessions. See the next two questions.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.17 How do I disable plaintext passwords?
 
@@ -899,13 +990,15 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
 
  make lnx EXTRAAUTHENTICATORS=gss PASSWDTYPE=nul
 
-          Note that you must have a CRAM-MD5 database installed or
-          specify at least one EXTRAAUTHENTICATOR, otherwise it will not
-          be possible to log in to the server.
+          Note that you must have a CRAM-MD5 database installed or specify
+          at least one EXTRAAUTHENTICATOR, otherwise it will not be
+          possible to log in to the server.
 
           When plaintext passwords are disabled, the IMAP server will
           advertise the LOGINDISABLED capability and the POP3 server will
           not advertise the USER capability.
+
+   Back to top
 
    3.18 How do I disable plaintext passwords on unencrypted sessions, but
    allow them in SSL or TLS sessions?
@@ -927,15 +1020,17 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
           plaintext passwords will be enabled, and a new CAPABILITY or
           CAPA command (which is required after start-TLS) will show the
           effect as in SSL sessions.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.19 How do I configure virtual hosts?
 
           This is automatic, but with certain restrictions.
 
           The most important one is that each virtual host must have its
-          own IP address; otherwise the server has no way of knowing
-          which virtual host is desired.
+          own IP address; otherwise the server has no way of knowing which
+          virtual host is desired.
 
           As distributed, the software uses a global password file; hence
           user "fred" on one virtual host is "fred" on all virtual hosts.
@@ -949,7 +1044,9 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
 
           More advanced virtual host support may be available as patches
           from third parties.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.20 Why do I get compiler warning messages such as:
  passing arg 3 of `scandir' from incompatible pointer type
@@ -962,21 +1059,23 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
 
           Over the years, the prototype for scandir() has changed, and
           thus is variant across different UNIX platforms. In particular,
-          the definitions of the third argument (type select_t) and
-          fourth argument (type compar_t) have changed over the years,
-          the issue being whether or not the arguments to the functions
-          pointed to by these function pointers are of type const or not.
+          the definitions of the third argument (type select_t) and fourth
+          argument (type compar_t) have changed over the years, the issue
+          being whether or not the arguments to the functions pointed to
+          by these function pointers are of type const or not.
 
           The way that c-client calls scandir() will tend to generate
-          these compiler warnings on newer systems such as Linux;
-          however, it will still build. The problem with fixing the call
-          is that then it won't build on older systems.
-     _________________________________________________________________
+          these compiler warnings on newer systems such as Linux; however,
+          it will still build. The problem with fixing the call is that
+          then it won't build on older systems.
+
+   Back to top
+     __________________________________________________________________
 
    3.21 Why do I get compiler warning messages such as
  Operation between types "void(*)(int)" and "void*" is not allowed.
- Function argument assignment between types "void*" and "void(*)(int)" is not a
-llowed.
+ Function argument assignment between types "void*" and "void(*)(int)" is not al
+lowed.
  Pointers are not assignment-compatible.
  Argument #5 is not the correct type.
 
@@ -986,8 +1085,8 @@ llowed.
 
           All known systems have no problem with casting a function
           pointer to/from a void* pointer, certain C compilers issue a
-          compiler diagnostic because this facility is listed as a
-          "Common extension" by the C standard:
+          compiler diagnostic because this facility is listed as a "Common
+          extension" by the C standard:
 
  K.5.7  Function pointer casts
   [#1] A pointer to an object or to void may be cast to a pointer
@@ -996,9 +1095,11 @@ llowed.
        object or to void, allowing a function to be inspected or
        modified (for example, by a debugger) (6.3.4).
 
-          It may be just a "common extension", but this facility is
-          relied upon heavily by c-client.
-     _________________________________________________________________
+          It may be just a "common extension", but this facility is relied
+          upon heavily by c-client.
+
+   Back to top
+     __________________________________________________________________
 
    3.22 Why do I get linker warning messages such as:
 mtest.c:515: the `gets' function is dangerous and should not be used.
@@ -1025,15 +1126,17 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           script to automate some email task using c-client, you'd be
           better off using imapd instead of mtest.
 
-          mtest only has two legitimate uses. It's a useful testbed for
-          me when debugging new versions of c-client, and it's useful as
-          a model for someone writing a simple c-client application to
-          see how the various calls work.
+          mtest only has two legitimate uses. It's a useful testbed for me
+          when debugging new versions of c-client, and it's useful as a
+          model for someone writing a simple c-client application to see
+          how the various calls work.
 
           By the way, if you need a more advanced example of c-client
-          programming than mtest (and you probably will), I recommend
-          that you look at the source code for imapd and Pine.
-     _________________________________________________________________
+          programming than mtest (and you probably will), I recommend that
+          you look at the source code for imapd and Alpine.
+
+   Back to top
+     __________________________________________________________________
 
    3.23 Why do I get linker warning messages such as:
  auth_ssl.c:92: the `tmpnam' function is dangerous and should not be used.
@@ -1053,35 +1156,43 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           Neither of these issues applies in the particular use that is
           made of tmpnam(). More importantly, the tmpnam() call is never
           executed on Linux systems.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    3.24 OK, suppose I see a warning message about a function being
-   "dangerous and should not be used" for something other than this
-   gets() or tmpnam() call?
+   "dangerous and should not be used" for something other than this gets()
+   or tmpnam() call?
 
           Please forward the details for investigation.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
 4. Operational Questions
-     _________________________________________________________________
+     __________________________________________________________________
 
    4.1 How can I enable anonymous IMAP logins?
 
           Create the file /etc/anonymous.newsgroups. At the present time,
           this file should be empty. This will permit IMAP logins as
-          anonymous as well as the ANONYMOUS SASL authenticator.
-          Anonymous users have access to mailboxes in the #news., #ftp/,
-          and #public/ namespaces only.
-     _________________________________________________________________
+          anonymous as well as the ANONYMOUS SASL authenticator. Anonymous
+          users have access to mailboxes in the #news., #ftp/, and
+          #public/ namespaces only.
+
+   Back to top
+     __________________________________________________________________
 
    4.2 How do I set up an alert message that each IMAP user will see?
 
           Create the file /etc/imapd.alert with the text of the message.
-          This text should be kept to one line if possible. Note that
-          this will cause an alert to every IMAP user every time they
-          initiate an IMAP session, so it should only be used for
-          critical messages.
-     _________________________________________________________________
+          This text should be kept to one line if possible. Note that this
+          will cause an alert to every IMAP user every time they initiate
+          an IMAP session, so it should only be used for critical
+          messages.
+
+   Back to top
+     __________________________________________________________________
 
    4.3 How does the c-client library choose which of its several
    mechanisms to use to establish an IMAP connection to the server? I
@@ -1099,78 +1210,81 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           + Else if client is a UNIX system and "rsh server exec
             /etc/rimapd" works, use that.
           + Else use a non-SSL connection.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    4.4 I am using a TLS-capable IMAP server, so I don't need to use /ssl
-   to get encryption. However, I want to be certain that my session is
-   TLS encrypted before I send my password. How to I do this?
+   to get encryption. However, I want to be certain that my session is TLS
+   encrypted before I send my password. How to I do this?
 
           Use the /tls option in the mailbox name. This will cause an
           error message and the connection to fail if the server does not
           negotiate STARTTLS.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    4.5 How do I use one of the alternative formats described in the
-   formats.txt document? In particular, I hear that mbx format will give
+   formats.txt document? In particular, I hear that mix format will give
    me better performance and allow shared access.
 
-          The rumors about mbx format being preferred are true. It is
+          The rumors about mix format being preferred are true. It is
           faster than the traditional UNIX mailbox format and permits
           shared access.
 
           However, and this is very important, note that using an
           alternative mailbox format is an advanced facility, and only
-          expert users should undertake it. If you don't understand any
-          of the following notes, you may not be enough of an expert yet,
-          and are probably better off not going this route until you are
-          more comfortable with your understanding.
+          expert users should undertake it. If you don't understand any of
+          the following notes, you may not be enough of an expert yet, and
+          are probably better off not going this route until you are more
+          comfortable with your understanding.
 
-          Some of the formats, including mbx, are only supported by the
+          Some of the formats, including mix, are only supported by the
           software based on the c-client library, and are not recognized
-          by other mailbox programs. The "vi" editor will corrupt any mbx
-          format mailbox that it encounters.
+          by other mailbox programs. The "vi" editor may corrupt mailboxes
+          written in these formats.
 
-          Another problem is that the certain formats, including mbx, use
-          advanced file access and locking techniques that do not work
-          reliably with NFS. NFS is not a real filesystem. Use IMAP
+          Another problem is that the certain formats, including mix and
+          mbx, use advanced file access and locking techniques that do not
+          work reliably with NFS. NFS is not a real filesystem. Use IMAP
           instead of NFS for distributed access.
 
           Each of the following steps are in escalating order of
           involvement. The further you go down this list, the more deeply
           committed you become:
 
-          + The simplest way to create a mbx-format mailbox is to prefix
-            the name with "#driver.mbx/" when creating a mailbox through
-            c-client. For example, if you create "#driver.mbx/foo", the
-            mailbox "foo" will be created in mbx format. Only use
-            "#driver.mbx/" when creating the mailbox. At all other times,
+          + The simplest way to create a mix-format mailbox is to prefix
+            the name with "#driver.mix/" when creating a mailbox through
+            c-client. For example, if you create "#driver.mix/foo", the
+            mailbox "foo" will be created in mix format. Only use
+            "#driver.mix/" when creating the mailbox. At all other times,
             just use the name ("foo" in this example); the software will
-            automatically select the driver for mbx whenever that mailbox
+            automatically select the driver for mix whenever that mailbox
             is accessed without you doing anything else.
           + You can use the "mailutil copy" command to copy an existing
-            mailbox to a new mailbox in mbx format. Read the man page
+            mailbox to a new mailbox in mix format. Read the man page
             provided with the mailutil program for details.
-          + If you create an mbx-format INBOX, by creating
-            "#driver.mbx/INBOX" (note that "INBOX" must be all
-            uppercase), then subsequent access to INBOX by any c-client
-            based application will use the mbx-format INBOX. Any mail
-            delivered to the traditional format mailbox in the spool
-            directory (e.g. /var/spool/mail/$USER) will automatically be
-            copied into the mbx-format INBOX and the spool directory copy
-            removed.
-          + You can cause any newly-created mailboxes to be in mbx-format
-            by default by changing the definition of
-            CREATEPROTO=unixproto to be CREATEPROTO=mbxproto in
-            src/osdep/unix/Makefile, then rebuilding the IMAP toolkit (do
-            a "make clean" first). Do not change EMPTYPROTO, since mbx
-            format mailboxes are never a zero-byte file. If you use Pine
-            or the imap-utils, you should probably also rebuild them with
-            the new IMAP toolkit too.
-          + You can deliver directly to the mbx-format INBOX by use of
-            the tmail or dmail programs. tmail is for direct invocation
-            from sendmail (or whatever MTA program you use); dmail is for
-            calls from procmail. Both of these programs have man pages
-            which must be read carefully before making this change.
+          + If you create an mix-format INBOX, by creating
+            "#driver.mix/INBOX" (note that "INBOX" must be all uppercase),
+            then subsequent access to INBOX by any c-client based
+            application will use the mix-format INBOX. Any mail delivered
+            to the traditional format mailbox in the spool directory (e.g.
+            /var/spool/mail/$USER) will automatically be copied into the
+            mix-format INBOX and the spool directory copy removed.
+          + You can cause any newly-created mailboxes to be in mix-format
+            by default by changing the definition of CREATEPROTO=unixproto
+            to be CREATEPROTO=mixproto in src/osdep/unix/Makefile, then
+            rebuilding the IMAP toolkit (do a "make clean" first). Do not
+            change EMPTYPROTO, since mix format mailboxes are directories
+            and thus are never a zero-byte file. If you use Alpine or the
+            imap-utils, you should probably also rebuild them with the new
+            IMAP toolkit too.
+          + You can deliver directly to the mix-format INBOX by use of the
+            tmail or dmail programs. tmail is for direct invocation from
+            sendmail (or whatever MTA program you use); dmail is for calls
+            from procmail. Both of these programs have man pages which
+            must be read carefully before making this change.
 
           Most other servers (e.g. Cyrus) require use of a non-standard
           format. A full-fledged format conversion is not significantly
@@ -1186,11 +1300,12 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           result. On the other hand, there's no "One True Way" which can
           be boiled down to a simple set of pedagogical instructions.
 
-          A number of sites have done full-fledged format conversions,
-          and are reportedly quite happy with the results. Feel free to
-          ask in the comp.mail.imap newsgroup or the imap-uw mailing
-          list for advice or help.
-     _________________________________________________________________
+          A number of sites have done full-fledged format conversions, and
+          are reportedly quite happy with the results. Feel free to ask in
+          the comp.mail.imap newsgroup for help.
+
+   Back to top
+     __________________________________________________________________
 
    4.6 How do I set up shared mailboxes?
 
@@ -1204,21 +1319,20 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           You may want to consider the use of a mailbox format which
           permits multiple simultaneous read/write sessions, such as the
-          mbx format. The traditional UNIX format only allows one
+          mix format. The traditional UNIX format only allows one
           read/write session to a mailbox at a time.
 
           An additional convenience item are three system directories,
           which can be set up for shared namespaces. These are: #ftp,
-          #shared, and #public, and are defined by creating the
-          associated UNIX users and home directories as described below.
+          #shared, and #public, and are defined by creating the associated
+          UNIX users and home directories as described below.
 
-          #ftp/ refers to the anonymous ftp filesystem exported by the
-          ftp server, and is equivalent to the home directory for UNIX
-          user "ftp". For example, #ftp/foo/bar refers to the file
-          /foo/bar in the anonymous FTP filesystem, or ~ftp/foo/bar for
-          normal users. Anonymous FTP files are available to anonymous
-          IMAP logins. By default, newly-created files in #ftp/ are
-          protected 644.
+          #ftp/ refers to the anonymous ftp filesystem exported by the ftp
+          server, and is equivalent to the home directory for UNIX user
+          "ftp". For example, #ftp/foo/bar refers to the file /foo/bar in
+          the anonymous FTP filesystem, or ~ftp/foo/bar for normal users.
+          Anonymous FTP files are available to anonymous IMAP logins. By
+          default, newly-created files in #ftp/ are protected 644.
 
           #public/ refers to an IMAP toolkit convention called "public"
           files, and is equivalent to the home directory for UNIX user
@@ -1230,10 +1344,12 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           #shared/ refers to an IMAP toolkit convention called "shared"
           files, and is equivalent to the home directory for UNIX user
           "imapshared". For example, #shared/foo/bar refers to the file
-          ~imapshared/foo/bar. Shared files are not available to
-          anonymous IMAP logins. By default, newly-created files in
-          #shared are created with protection 0660.
-     _________________________________________________________________
+          ~imapshared/foo/bar. Shared files are not available to anonymous
+          IMAP logins. By default, newly-created files in #shared are
+          created with protection 0660.
+
+   Back to top
+     __________________________________________________________________
 
    4.7 How can I make the server syslogs go to someplace other than the
    mail syslog?
@@ -1248,10 +1364,12 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           information on what the available syslog facilities are and how
           to configure syslogs. If you still don't understand what to do,
           find a UNIX system expert.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
 5. Security Questions
-     _________________________________________________________________
+     __________________________________________________________________
 
    5.1 I see that the IMAP server allows access to arbitary files on the
    system, including /etc/passwd! How do I disable this?
@@ -1268,40 +1386,42 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           The first (and recommended) choice is to set restrictBox as
           described in file CONFIG. This will disable access to the
-          filesystem root, to other users' home directory, and to
-          superior directory.
+          filesystem root, to other users' home directory, and to superior
+          directory.
 
           The second (and strongly NOT recommended) choice is to set
           closedBox as described in file CONFIG. This puts each IMAP
           session into a so-called "chroot jail", and thus setting this
-          option is extremely dangerous; it can make your system much
-          less secure and open to root compromise attacks. So do not use
-          this option unless you are absolutely certain that you
-          understand all the issues of a "chroot jail."
+          option is extremely dangerous; it can make your system much less
+          secure and open to root compromise attacks. So do not use this
+          option unless you are absolutely certain that you understand all
+          the issues of a "chroot jail."
 
           The third choice is to rewrite routine mailboxfile() to
           implement whatever mapping from mailbox name to filesystem name
           (and restrictions) that you wish. This is the most general
           choice. As a guide, you can see at the start of routine
           mailboxfile() what the restrictBox choice does.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    5.2 I've heard that IMAP servers are insecure. Is this true?
 
-          There are no known security problems in this version of the
-          IMAP toolkit, including the IMAP and POP servers. The IMAP and
-          POP servers limit what can be done while not logged in, and as
-          part of the login process discard all privileges except those
-          of the user.
+          There are no known security problems in this version of the IMAP
+          toolkit, including the IMAP and POP servers. The IMAP and POP
+          servers limit what can be done while not logged in, and as part
+          of the login process discard all privileges except those of the
+          user.
 
-          As with other software packages, there have been buffer
-          overflow vulnerabilities in past versions. All known problems
-          of this nature are fixed in this version.
+          As with other software packages, there have been buffer overflow
+          vulnerabilities in past versions. All known problems of this
+          nature are fixed in this version.
 
           There is every reason to believe that the bad guys are engaged
           in an ongoing effort to find vulnerabilities in the IMAP
-          toolkit. We look for such problems, and when one is found we
-          fix it.
+          toolkit. We look for such problems, and when one is found we fix
+          it.
 
           It's unfortunate that any vulnerabilities existed in past
           versions, and we're doing my best to keep the IMAP toolkit free
@@ -1310,21 +1430,31 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           Beware of vendors who claim that their implementations can not
           have vulnerabilities.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    5.3 How do I know that I have the most secure version of the server?
 
-          The best way is to keep your server software up to date. The
-          bad guys are always looking for ways to crack software, and
-          when they find one, let all their friends know.
+          The best way is to keep your server software up to date. The bad
+          guys are always looking for ways to crack software, and when
+          they find one, let all their friends know.
 
           Oldtimers used to refer to a concept of software rot: if your
           software hasn't been updated in a while, it would "rot" -- tend
           to acquire problems that it didn't have when it was new.
 
-          The latest release version of the IMAP toolkit is always
-          available at ftp://ftp.cac.washington.edu/mail/imap.tar.Z
-     _________________________________________________________________
+          Unfortunately, UW IMAP is rapidly succumbing to "software rot",
+          as it is no longer being developed or maintained. If you have
+          not yet switched to Panda IMAP, you should seriously consider
+          doing so.
+
+          Panda IMAP is available by donation. Donors are given a URL
+          which they can use to download Panda IMAP, including future
+          versions.
+
+   Back to top
+     __________________________________________________________________
 
    5.4 I see all these strcpy() and sprintf() calls, those are unsafe,
    aren't they?
@@ -1335,8 +1465,8 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           string being written will fit in the buffer. However, they are
           perfectly safe if you do know that.
 
-          Beware of programmers who advocate doing a brute-force change
-          of all instances of
+          Beware of programmers who advocate doing a brute-force change of
+          all instances of
 
  strcpy (s,t);
 
@@ -1350,13 +1480,13 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           There are examples in which a security bug was introduced
           because of this type of "fix", due to the programmer using the
           wrong value for n. In one case, the programmer thought that n
-          was larger than it actually was, causing a NUL to be written
-          out of the buffer; in another, n was too small, and a security
+          was larger than it actually was, causing a NUL to be written out
+          of the buffer; in another, n was too small, and a security
           credential was truncated.
 
-          What is particularly ironic was that in both cases, the
-          original strcpy() was safe, because the size of the source
-          string was known to be safe.
+          What is particularly ironic was that in both cases, the original
+          strcpy() was safe, because the size of the source string was
+          known to be safe.
 
           With all this in mind, the software has been inspected, and it
           is believed that all places where buffer overflows can happen
@@ -1367,16 +1497,17 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
  *s++ = c;
 
-          is just as vulnerable to buffer overflows. You can't cure
-          buffer overflows by outlawing certain functions, nor is it
-          desirable to do so; sometimes operations like strcpy()
-          translate into fast machine instructions for better
-          performance.
+          is just as vulnerable to buffer overflows. You can't cure buffer
+          overflows by outlawing certain functions, nor is it desirable to
+          do so; sometimes operations like strcpy() translate into fast
+          machine instructions for better performance.
 
           Nothing replaces careful study of code. That's how the bad guys
           find bugs. Security is not accomplished by means of brute-force
           shortcuts.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    5.5 Those /tmp lock files are protected 666, is that really right?
 
@@ -1392,16 +1523,18 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           Before worrying about deliberate mischief, worry first about
           things happening by accident!
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
 6. Why Did You Do This Strange Thing? Questions
-     _________________________________________________________________
+     __________________________________________________________________
 
    6.1 Why don't you use GNU autoconfig / automake / autoblurdybloop?
 
           Autoconfig et al are not available on all the platforms where
-          the IMAP toolkit is supported; and do not work correctly on
-          some of the platforms where they do exist. Furthermore, these
+          the IMAP toolkit is supported; and do not work correctly on some
+          of the platforms where they do exist. Furthermore, these
           programs add another layer of complexity to an already complex
           process.
 
@@ -1409,26 +1542,27 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           platforms which were not specifically considered by that
           software wastes an inordinate amount of time. When (not if)
           autoconfig fails to do the right thing, the result is an
-          inpenetrable morass to untangle in order to find the problem
-          and fix it.
+          inpenetrable morass to untangle in order to find the problem and
+          fix it.
 
           The concept behind autoconfig is good, but the execution is
-          flawed. It rarely does the right thing on a platform that
-          wasn't specifically considered. Human life is too short to
-          debug autoconfig problems, especially since the current
-          mechanism is so much easier.
-     _________________________________________________________________
+          flawed. It rarely does the right thing on a platform that wasn't
+          specifically considered. Human life is too short to debug
+          autoconfig problems, especially since the current mechanism is
+          so much easier.
+
+   Back to top
+     __________________________________________________________________
 
    6.2 Why do you insist upon a build with -g? Doesn't it waste disk and
    memory space?
 
-          From time to time a submitted port has snuck in without -g.
-          This has always ended up causing problems. There are only two
-          valid excuses for not using -g in a port:
+          From time to time a submitted port has snuck in without -g. This
+          has always ended up causing problems. There are only two valid
+          excuses for not using -g in a port:
 
           + The compiler does not support -g
-          + An alternate form of -g is needed with optimization, e.g.
-            -g3.
+          + An alternate form of -g is needed with optimization, e.g. -g3.
 
           There will be no new ports added without -g (or a suitable
           alternative) being set.
@@ -1439,70 +1573,74 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           will lead to the correct -g setting being determined and
           permanently added.
 
-          Processors are fast enough (and disk space is cheap enough)
-          that -g should be automatic in all compilers with no way of
-          turning it off, and /bin/strip should be a symlink to
-          /bin/true. Human life is too short to deal with binaries built
-          without -g. Such binaries should be a bad memory of the days of
-          KIPS processors and disks that costs several dollars per
-          kilobyte.
-     _________________________________________________________________
+          Processors are fast enough (and disk space is cheap enough) that
+          -g should be automatic in all compilers with no way of turning
+          it off, and /bin/strip should be a symlink to /bin/true. Human
+          life is too short to deal with binaries built without -g. Such
+          binaries should be a bad memory of the days of KIPS processors
+          and disks that costs several dollars per kilobyte.
+
+   Back to top
+     __________________________________________________________________
 
    6.3 Why don't you make c-client a shared library?
 
           All too often, shared libraries create far more problems than
           they solve.
 
-          Remember that you only gain the benefit of a shared library
-          when there are multiple applications which use that shared
-          library. Even without shared libraries, on most modern
-          operating systems (and many ancient ones too!) applications
-          will share their text segments between across multiple
-          processes running the same application. This means that if your
-          system only runs one application (e.g. imapd) that uses the
-          c-client library, then you gain no benefit from making c-client
-          a shared library even if it has 100 imapd processes. You will,
-          however suffer added complexity.
+          Remember that you only gain the benefit of a shared library when
+          there are multiple applications which use that shared library.
+          Even without shared libraries, on most modern operating systems
+          (and many ancient ones too!) applications will share their text
+          segments between across multiple processes running the same
+          application. This means that if your system only runs one
+          application (e.g. imapd) that uses the c-client library, then
+          you gain no benefit from making c-client a shared library even
+          if it has 100 imapd processes. You will, however suffer added
+          complexity.
 
           If you have a server system that just runs imapd and ipop3d,
-          then making c-client a shared library will save just one copy
-          of c-client no matter how many IMAP/POP3 processes are running.
+          then making c-client a shared library will save just one copy of
+          c-client no matter how many IMAP/POP3 processes are running.
 
           The problem with shared libraries is that you have to keep
-          around a copy of the library every time something changes in
-          the library that would affect the interface the library
-          presents to the application. So, you end up having many copies
-          of the same shared library.
+          around a copy of the library every time something changes in the
+          library that would affect the interface the library presents to
+          the application. So, you end up having many copies of the same
+          shared library.
 
           If you don't keep multiple copies of the shared library, then
           one of two things happens. If there was proper versioning, then
-          you'll get a message such as "cannot open shared object file"
-          or "minor versions don't match" and the application won't run.
-          Otherwise, the application will run, but will fail in
-          mysterious ways.
+          you'll get a message such as "cannot open shared object file" or
+          "minor versions don't match" and the application won't run.
+          Otherwise, the application will run, but will fail in mysterious
+          ways.
 
           Several sites and third-party distributors have modified the
-          c-client makefile in order to make c-client be a shared
-          library. When (not if) a c-client based application fails in
-          mysterious ways because of a library compatibility problem, the
-          result is a bug report. A lot of time and effort ends up
-          getting wasted investigating such bug reports.
+          c-client makefile in order to make c-client be a shared library.
+          When (not if) a c-client based application fails in mysterious
+          ways because of a library compatibility problem, the result is a
+          bug report. A lot of time and effort ends up getting wasted
+          investigating such bug reports.
 
-          Memory is so cheap these days that it's not worth it. Human
-          life is too short to deal with shared library compatibility
-          problems.
-     _________________________________________________________________
+          Memory is so cheap these days that it's not worth it. Human life
+          is too short to deal with shared library compatibility problems.
+
+   Back to top
+     __________________________________________________________________
 
    6.4 Why don't you use iconv() for internationalization support?
 
           iconv() is not ubiquitous enough.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    6.5 Why is the IMAP server connected to the home directory by default?
 
-          The IMAP server has no way of knowing what you might call
-          "mail" as opposed to "some other file"; in fact, you can use
-          IMAP to access any file.
+          The IMAP server has no way of knowing what you might call "mail"
+          as opposed to "some other file"; in fact, you can use IMAP to
+          access any file.
 
           The IMAP server also doesn't know whether your preferred
           subdirectory for mailbox files is "mail/", ".mail/", "Mail/",
@@ -1513,27 +1651,29 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           It is possible to modify the software so that the default
           connected directory is someplace else. Please read the file
           CONFIG for discussion of this and other issues.
-     _________________________________________________________________
 
-   6.6 I have a Windows system. Why isn't the server plug and play for
-   me?
+   Back to top
+     __________________________________________________________________
+
+   6.6 I have a Windows system. Why isn't the server plug and play for me?
 
           There is no standard for how mail is stored on Windows; nor a
           single standard SMTP server. The closest to either would be the
           SMTP server in Microsoft's IIS.
 
           So there's no default by which to make assumptions. As the
-          software is set up, it assumes that the each user has an
-          Windows login account and private home directory, and that mail
-          is stored on that home directory as files in one of the popular
-          UNIX formats. It also assumes that there is some tool
-          equivalent to inetd on UNIX that does the TCP/IP listening and
-          server startup.
+          software is set up, it assumes that the each user has an Windows
+          login account and private home directory, and that mail is
+          stored on that home directory as files in one of the popular
+          UNIX formats. It also assumes that there is some tool equivalent
+          to inetd on UNIX that does the TCP/IP listening and server
+          startup.
 
           Basically, unless you're an email software hacker, you probably
-          want to look elsewhere if you want IMAP/POP servers for
-          Windows.
-     _________________________________________________________________
+          want to look elsewhere if you want IMAP/POP servers for Windows.
+
+   Back to top
+     __________________________________________________________________
 
    6.7 I looked at the UNIX SSL code and saw that you have the SSL data
    payload size set to 8192 bytes. SSL allows 16K; why aren't you using
@@ -1545,14 +1685,13 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
             SSL support
           + Microsoft Exchange server (which also uses SChannel).
 
-          SChannel has a bug that makes it think that the maximum SSL
-          data payload size is 16379 bytes -- 5 bytes too small. Thus,
-          c-client has to make sure that it never transmits full sized
-          SSL packets.
+          SChannel has a bug that makes it think that the maximum SSL data
+          payload size is 16379 bytes -- 5 bytes too small. Thus, c-client
+          has to make sure that it never transmits full sized SSL packets.
 
           The reason for using 8K (as opposed to, say, 16379 bytes, or
-          15K, or...) is that it corresponds with the TCP buffer size
-          that the software uses elsewhere for input; there's a slight
+          15K, or...) is that it corresponds with the TCP buffer size that
+          the software uses elsewhere for input; there's a slight
           performance benefit to having the two sizes correspond or at
           least be a multiple of each other. Also, it keeps the size as a
           power of two, which might be significant on some platforms.
@@ -1562,10 +1701,12 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           Microsoft has developed a hotfix for this bug. Look up MSKB
           article number 300562. Contrary to the article text which
-          implies that this is a Pine issue, this bug also affects
+          implies that this is a Alpine issue, this bug also affects
           Microsoft Exchange server with any client that transmits
           full-sized SSL payloads.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    6.8 Why is an mh format INBOX called #mhinbox instead of just INBOX?
 
@@ -1578,7 +1719,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           When the mh driver used INBOX, it would see the mh profile, and
           proceed to move the user's INBOX into the mh format INBOX. This
           caused considerable confusion as some things stopped working.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    6.9 Why don't you support the maildir format?
 
@@ -1589,38 +1732,42 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           No one has succeeded in accomplishing all four together. The
           various maildir drivers offered as patches all have these
-          problems. The problem is exacerbated because this
-          implementation supports multiple formats; consequently this
-          implementation can't make any performance shortcuts by assuming
-          that all the world is maildir.
+          problems. The problem is exacerbated because this implementation
+          supports multiple formats; consequently this implementation
+          can't make any performance shortcuts by assuming that all the
+          world is maildir.
 
-          We can't do a better job than the maildir fan community has
-          done with their maildir drivers. Similarly, if the maildir fan
+          We can't do a better job than the maildir fan community has done
+          with their maildir drivers. Similarly, if the maildir fan
           community provides the maildir driver, they take on the
-          responsibility for answering maildir-specific support
-          questions. This is as it should be, and that is why maildir
-          support is left to the maildir fan community.
-     _________________________________________________________________
+          responsibility for answering maildir-specific support questions.
+          This is as it should be, and that is why maildir support is left
+          to the maildir fan community.
+
+   Back to top
+     __________________________________________________________________
 
    6.10 Why don't you support the Cyrus format?
 
           There's no point to doing so. An implementation which supports
-          multiple formats will never do as well as one which is
-          optimized to support one single format.
+          multiple formats will never do as well as one which is optimized
+          to support one single format.
 
           If you want to use Cyrus mailbox format, you should use the
           Cyrus server, which is the native implementation of that format
           and is specifically optimized for that format. That's also why
           Cyrus doesn't implement any other format.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    6.11 Why is it creating extra forks on my SVR4 system?
 
           This is because your system only has fcntl() style locking and
           not flock() style locking. fcntl() locking has a design flaw
           that causes a close() to release any locks made by that process
-          on the file opened on that file descriptor, even if the lock
-          was made on a different file descriptor.
+          on the file opened on that file descriptor, even if the lock was
+          made on a different file descriptor.
 
           This design flaw causes unexpected loss of lock, and consequent
           mailbox corruption. The workaround is to do certain "dangerous
@@ -1634,10 +1781,12 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           SVR4, but also have flock() locking.
 
           Beware of certain SVR4 systems, such as AIX, which have an
-          "flock()" function in their C library that is just a jacket
-          that does an fcntl() lock. This is not a true flock(), and has
-          the same design flaw as fcntl().
-     _________________________________________________________________
+          "flock()" function in their C library that is just a jacket that
+          does an fcntl() lock. This is not a true flock(), and has the
+          same design flaw as fcntl().
+
+   Back to top
+     __________________________________________________________________
 
    6.12 Why are you so fussy about the date/time format in the internal
    "From " line in traditional UNIX mailbox files? My other mail program
@@ -1654,20 +1803,20 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           "From " line if it follows the actual specification for a
           "From " line. This means, among other things, that the day of
           week is fixed-format: "May 14", but "May  7" (note the extra
-          space) as opposed to "May 7". ctime() format for the date is
-          the most common, although POSIX also allows a numeric timezone
-          after the year. For compatibility with ancient software, the
-          seconds are optional, the timezone may appear before the year,
-          the old 3-letter timezones are also permitted, and "remote from
-          xxx" may appear after the whole thing.
+          space) as opposed to "May 7". ctime() format for the date is the
+          most common, although POSIX also allows a numeric timezone after
+          the year. For compatibility with ancient software, the seconds
+          are optional, the timezone may appear before the year, the old
+          3-letter timezones are also permitted, and "remote from xxx" may
+          appear after the whole thing.
 
           Unfortunately, some software written by novices use other
           formats. The most common error is to have a variable-width day
           of month, perhaps in the erroneous belief that RFC 2822 (or RFC
-          822) defines the format of the date/time in the "From " line
-          (it doesn't; no RFC describes internal formats). I've seen a
-          few other goofs, such as a single-digit second, but these are
-          less common.
+          822) defines the format of the date/time in the "From " line (it
+          doesn't; no RFC describes internal formats). I've seen a few
+          other goofs, such as a single-digit second, but these are less
+          common.
 
           If you are writing your own software that writes mailbox files,
           and you really aren't all that savvy with all the ins and outs
@@ -1678,21 +1827,25 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
  fprintf (mbx,"From %s@%h %s",user,host,ctime (time (0)));
 
-          rather than try to figure out a good format yourself. ctime()
-          is the most traditional format and nobody will flame you for
-          using it.
-     _________________________________________________________________
+          rather than try to figure out a good format yourself. ctime() is
+          the most traditional format and nobody will flame you for using
+          it.
+
+   Back to top
+     __________________________________________________________________
 
    6.13 Why is traditional UNIX format the default format?
 
-          Compatibility with the past 30 or so years of UNIX history.
-          This server is the only one that completely interoperates with
-          legacy UNIX mail tools.
-     _________________________________________________________________
+          Compatibility with the past 30 or so years of UNIX history. This
+          server is the only one that completely interoperates with legacy
+          UNIX mail tools.
+
+   Back to top
+     __________________________________________________________________
 
    6.14 Why do you write this "DON'T DELETE THIS MESSAGE -- FOLDER
-   INTERNAL DATA" message at the start of traditional UNIX and MMDF
-   format mailboxes?
+   INTERNAL DATA" message at the start of traditional UNIX and MMDF format
+   mailboxes?
 
           This pseudo-message serves two purposes.
 
@@ -1702,34 +1855,40 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           Second, it holds mailbox metadata used by IMAP: the UID
           validity, the last assigned UID, and mailbox keywords. Without
-          this metadata, which must be preserved even when the mailbox
-          has no messages, the traditional UNIX format wouldn't be able
-          to support the full capabilities of IMAP.
-     _________________________________________________________________
+          this metadata, which must be preserved even when the mailbox has
+          no messages, the traditional UNIX format wouldn't be able to
+          support the full capabilities of IMAP.
 
-   6.15 Why don't you stash the mailbox metadata in the first real
-   message of the mailbox instead of writing this fake FOLDER INTERNAL
-   DATA message?
+   Back to top
+     __________________________________________________________________
+
+   6.15 Why don't you stash the mailbox metadata in the first real message
+   of the mailbox instead of writing this fake FOLDER INTERNAL DATA
+   message?
 
           In fact, that is what is done if the mailbox is non-empty and
           does not already have a FOLDER INTERNAL DATA message.
 
           One problem with doing that is that if some external program
           removes the first message, the metadata is lost and must be
-          recreated, thus losing any prior UID or keyword list status
-          that IMAP clients may depend upon.
+          recreated, thus losing any prior UID or keyword list status that
+          IMAP clients may depend upon.
 
-          Another problem is that this doesn't help if the last message
-          is deleted. This will result in an empty mailbox, and the
-          necessity to create a FOLDER INTERNAL DATA message.
-     _________________________________________________________________
+          Another problem is that this doesn't help if the last message is
+          deleted. This will result in an empty mailbox, and the necessity
+          to create a FOLDER INTERNAL DATA message.
+
+   Back to top
+     __________________________________________________________________
 
    6.16 Why aren't "dual-use" mailboxes the default?
 
           Compatibility with the past 30 or so years of UNIX history, not
-          to mention compatibility with user expectations when using
-          shell tools.
-     _________________________________________________________________
+          to mention compatibility with user expectations when using shell
+          tools.
+
+   Back to top
+     __________________________________________________________________
 
    6.17 Why do you use ucbcc to build on Solaris?
 
@@ -1738,23 +1897,23 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           libraries and not the BSD libraries, otherwise readdir() will
           return the wrong information.
 
-          Of all the names in the most common path, ucbcc is the only
-          name to be found (on /usr/ccs/bin) that points to a suitable
-          compiler. cc is likely to be /usr/ucb/cc which is absolutely
-          not the compiler that you want. The real SVR4 cc is probably
+          Of all the names in the most common path, ucbcc is the only name
+          to be found (on /usr/ccs/bin) that points to a suitable
+          compiler. cc is likely to be /usr/ucb/cc which is absolutely not
+          the compiler that you want. The real SVR4 cc is probably
           something like /opt/SUNWspro/bin/cc which is rarely in anyone's
           path by default.
 
           ucbcc is probably a link to acc, e.g.
-          /opt/SUNWspro/SC4.0/bin/acc, and is the UCB C compiler using
-          the SVR4 libraries.
+          /opt/SUNWspro/SC4.0/bin/acc, and is the UCB C compiler using the
+          SVR4 libraries.
 
           If ucbcc isn't on your system, then punt on the SUN C compiler
           and use gcc instead (the gso port instead of the sol port).
 
           If, in spite of all the above warnings, you choose to change
-          "ucbcc" to "cc", you will probably find that the -O2 needs to
-          be changed to -O. If you don't get any error messages with -O2,
+          "ucbcc" to "cc", you will probably find that the -O2 needs to be
+          changed to -O. If you don't get any error messages with -O2,
           that's a pretty good indicator that you goofed and are running
           the compiler that will link with the BSD libraries.
 
@@ -1764,37 +1923,42 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
             using the SVR4 libraries. This compiler is "ucbcc", which is
             lunk to acc. You use -O2 as one of the CFLAGS.
           + If you build the sol port with the UCB compiler using the BSD
-            libraries, you will get no error messages but you will get
-            bad binaries (the most obvious symptom is dropping the first
-            two characters return filenames from the imapd LIST command.
-            This compiler also uses -O2, and is very often what the user
-            gets from "cc". BEWARE
+            libraries, you will get no error messages but you will get bad
+            binaries (the most obvious symptom is dropping the first two
+            characters return filenames from the imapd LIST command. This
+            compiler also uses -O2, and is very often what the user gets
+            from "cc". BEWARE
           + If you build the sol port with the real SVR4 compiler, which
             is often hidden away or unavailable on many systems, then you
             will get errors from -O2 and you need to change that to -O.
             But you will get a good binary. However, you should try it
             with -O2 first, to make sure that you got this compiler and
             not the UCB compiler using BSD libraries.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    6.18 Why should I care about some old system with BSD libraries? cc is
    the right thing on my Solaris system!
 
           Because there still are sites that use such systems. On those
-          systems, the assumption that "cc" does the right thing will
-          lead to corrupt binaries with no error message or other warning
-          that anything is amiss.
+          systems, the assumption that "cc" does the right thing will lead
+          to corrupt binaries with no error message or other warning that
+          anything is amiss.
 
           Too many sites have fallen victim to this problem.
-     _________________________________________________________________
 
-   6.19 Why do you insist upon writing .lock files in the spool
-   directory?
+   Back to top
+     __________________________________________________________________
+
+   6.19 Why do you insist upon writing .lock files in the spool directory?
 
           Compatibility with the past 30 years of UNIX software which
           deals with the spool directory, especially software which
           delivers mail. Otherwise, it is possible to lose mail.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    6.20 Why should I care about compatibility with the past?
 
@@ -1802,42 +1966,49 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           convinces those who ask it. Somehow, everybody who ever asks
           this question ends up answering it for themselves as they get
           older, with the very answer that they rejected years earlier.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
 7. Problems and Annoyances
-     _________________________________________________________________
+     __________________________________________________________________
 
    7.1 Help! My INBOX is empty! What happened to my messages?
 
           If you are seeing "0 messages" when you open INBOX and you know
           you have messages there (and perhaps have looked at your mail
-          spool file and see that messages are there), then probably
-          there is something wrong with the very first line of your mail
-          spool file. Make sure that the first five bytes of the file are
-          "From ", followed by an email address and a date/time in
-          ctime() format, e.g.:
+          spool file and see that messages are there), then probably there
+          is something wrong with the very first line of your mail spool
+          file. Make sure that the first five bytes of the file are "From
+          ", followed by an email address and a date/time in ctime()
+          format, e.g.:
 
  From fred@foo.bar Mon May  7 20:54:30 2001
-     _________________________________________________________________
 
-   7.2 Help! All my messages in a non-INBOX mailbox have been
-   concatenated into one message which claims to be from me and has a
-   subject of the file name of the mailbox! What's going on?
+   Back to top
+     __________________________________________________________________
+
+   7.2 Help! All my messages in a non-INBOX mailbox have been concatenated
+   into one message which claims to be from me and has a subject of the
+   file name of the mailbox! What's going on?
 
           Something wrong with the very first line of the mailbox. Make
-          sure that the first five bytes of the file are "From ",
-          followed by an email address and a date/time in ctime() format,
-          e.g.:
+          sure that the first five bytes of the file are "From ", followed
+          by an email address and a date/time in ctime() format, e.g.:
 
  From fred@foo.bar Mon May  7 20:54:30 2001
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.3 Why do I get the message: CREATE failed: Can't create mailbox node
    xxxxxxxxx: File exists and how do I fix it?
 
           See the answer to the Are hierarchical mailboxes supported?
           question.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.4 Why can't I log in to the server? The user name and password are
    right!
@@ -1847,9 +2018,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           under a debugger such as gdb while root (yes, you must be root)
           with a breakpoint at routines checkpw() and loginpw(), then
           single-step until you see which test rejected you. The server
-          isn't going to give any error messages other than "login
-          failed" in the name of not giving out any unnecessary
-          information to unauthorized individuals.
+          isn't going to give any error messages other than "login failed"
+          in the name of not giving out any unnecessary information to
+          unauthorized individuals.
 
           Here are some of the more common reasons why login may fail:
 
@@ -1864,47 +2035,51 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           + If you are using PAM, have you created a service file for the
             server in /etc/pam.d?
           + If you are using shadow passwords, have you used an
-            appropriate port when building? In particular, note that
-            "lnx" is for Linux systems without shadow passwords; you
-            probably want "slx" or "lnp" instead.
+            appropriate port when building? In particular, note that "lnx"
+            is for Linux systems without shadow passwords; you probably
+            want "slx" or "lnp" instead.
           + If your system has account or password expirations, check to
             see that the expiration date hasn't passed.
           + You can't log in as root or any other UID 0 user. This is for
             your own safety, not to mention the fact that the servers use
             UID 0 as meaning "not logged in".
-     _________________________________________________________________
 
-   7.5 Help! My load average is soaring and I see hundreds of POP and
-   IMAP servers, many logged in as the same user!
+   Back to top
+     __________________________________________________________________
+
+   7.5 Help! My load average is soaring and I see hundreds of POP and IMAP
+   servers, many logged in as the same user!
 
           Certain inferior losing GUI mail reading programs have a
           "synchronize all mailboxes at startup" (IMAP) or "check for new
           mail every second" (POP) feature which causes a rapid and
           unchecked spawning of servers.
 
-          This is not a problem in the server; the client is really
-          asking for all those server sessions. Unfortunately, there
-          isn't much that the POP and IMAP servers can do about it; they
-          don't spawned themselves.
+          This is not a problem in the server; the client is really asking
+          for all those server sessions. Unfortunately, there isn't much
+          that the POP and IMAP servers can do about it; they don't
+          spawned themselves.
 
           Some sites have added code to record the number of server
-          sessions spawned per user per hour, and disable login for a
-          user who has exceeded a predetermined rate. This doesn't stop
-          the servers from being spawned; it just means that a server
-          session will commit suicide a bit faster.
+          sessions spawned per user per hour, and disable login for a user
+          who has exceeded a predetermined rate. This doesn't stop the
+          servers from being spawned; it just means that a server session
+          will commit suicide a bit faster.
 
           Another possibility is to detect excessive server spawning
           activity at the level where the server is spawned, which would
           be inetd or possibly tcpd. The problem here is that this is a
-          hard time to quantify. 50 sessions in a minute from a
-          multi-user timesharing system may be perfectly alright, whereas
-          10 sessions a minute from a PC may be too much.
+          hard time to quantify. 50 sessions in a minute from a multi-user
+          timesharing system may be perfectly alright, whereas 10 sessions
+          a minute from a PC may be too much.
 
           The real solution is to fix the client configuration, by
           disabling those evil features. Also tell the vendors of those
-          clients how you feel about distributing denial-of-service
-          attack tools in the guise of mail reading programs.
-     _________________________________________________________________
+          clients how you feel about distributing denial-of-service attack
+          tools in the guise of mail reading programs.
+
+   Back to top
+     __________________________________________________________________
 
    7.6 Why does mail disappear even though I set "keep mail on server"?
    7.7 Why do I get the message Moved ##### bytes of new mail to
@@ -1914,24 +2089,25 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           exists on the user's home directory and is in UNIX mailbox
           format, then when INBOX is opened this file will be selected as
           INBOX instead of the mail spool file. Messages will be
-          automatically transferred from the mail spool file into the
-          mbox file.
+          automatically transferred from the mail spool file into the mbox
+          file.
 
           To disable this behavior, delete "mbox" from the EXTRADRIVERS
           list in the top-level Makefile and rebuild. Note that if you do
           this, users won't be able to access the messages that have
           already been moved to mbox unless they open mbox instead of
           INBOX.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.8 Why isn't it showing the local host name as a fully-qualified
    domain name?
-   7.9 Why is the local host name in the From/Sender/Message-ID headers
-   of outgoing mail not coming out as a fully-qualified domain name?
+   7.9 Why is the local host name in the From/Sender/Message-ID headers of
+   outgoing mail not coming out as a fully-qualified domain name?
 
           Your UNIX system is misconfigured. The entry for your system in
-          /etc/hosts must have the fully-qualified domain name first,
-          e.g.
+          /etc/hosts must have the fully-qualified domain name first, e.g.
 
  105.69.1.234   myserver.example.com myserver
 
@@ -1950,15 +2126,15 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           On some systems, a configuration file (typically named
           /etc/svc.conf, /etc/netsvc.conf, or /etc/nsswitch.conf) can be
-          used to configure the system to use the domain name system
-          (DNS) instead of /etc/hosts, so it doesn't matter if /etc/hosts
-          is misconfigured.
+          used to configure the system to use the domain name system (DNS)
+          instead of /etc/hosts, so it doesn't matter if /etc/hosts is
+          misconfigured.
 
-          Check the man pages for gethostbyname, hosts, svc, and/or
-          netsvc for more information.
+          Check the man pages for gethostbyname, hosts, svc, and/or netsvc
+          for more information.
 
-          Unfortunately, certain vendors, most notably SUN, have failed
-          to make this clear in their documentation. Most of SUN's
+          Unfortunately, certain vendors, most notably SUN, have failed to
+          make this clear in their documentation. Most of SUN's
           documentation assumes a corporate network that is not connected
           to the Internet.
 
@@ -1977,25 +2153,27 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           This practice has been thoroughly discredited for many years,
           but folklore dies hard.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.10 What does the message: Mailbox vulnerable - directory
    /var/spool/mail must have 1777 protection mean? How can I fix this?
 
           In order to update a mailbox in the default UNIX format, it is
           necessary to create a lock file to prevent the mailer from
-          delivering mail while an update is in progress. Some systems
-          use a directory protection of 775, requiring that all mail
-          handling programs be setgid mail; or of 755, requiring that all
-          mail handling programs be setuid root.
+          delivering mail while an update is in progress. Some systems use
+          a directory protection of 775, requiring that all mail handling
+          programs be setgid mail; or of 755, requiring that all mail
+          handling programs be setuid root.
 
-          The IMAP toolkit does not run with any special privileges, and
-          I plan to keep it that way. It is antithetical to the concept
-          of a toolkit if users can't write their own programs to use it.
-          Also, I've had enough bad experiences with security bugs while
-          running privileged; the IMAP and POP servers have to be root
-          when not logged in, in order to be able to log themselves in. I
-          don't want to go any deeper down that slippery slope.
+          The IMAP toolkit does not run with any special privileges, and I
+          plan to keep it that way. It is antithetical to the concept of a
+          toolkit if users can't write their own programs to use it. Also,
+          I've had enough bad experiences with security bugs while running
+          privileged; the IMAP and POP servers have to be root when not
+          logged in, in order to be able to log themselves in. I don't
+          want to go any deeper down that slippery slope.
 
           Directory protection 1777 is secure enough on most well-managed
           systems. If you can't trust your users with a 1777 mail spool
@@ -2010,30 +2188,36 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           try to call mlock to do it. I do not recommend doing this for
           performance reasons.
 
-          A sample mlock program is included as part of imap-2007. We
-          have tried to make this sample program secure, but it has not
-          been thoroughly audited.
-     _________________________________________________________________
+          A sample mlock program is included as part of imap-2010. We have
+          tried to make this sample program secure, but it has not been
+          thoroughly audited.
+
+   Back to top
+     __________________________________________________________________
 
    7.11 What does the message: Mailbox is open by another process, access
    is readonly mean? How do I fix this?
 
           A problem occurred in applying a lock to a /tmp lock file.
           Either some other program has the mailbox open and won't
-          relenquish it, or something is wrong with the protection of
-          /tmp or the lock.
+          relenquish it, or something is wrong with the protection of /tmp
+          or the lock.
 
           Make sure that the /tmp directory is protected 1777. Some
           security scripts incorrectly set the protection of the /tmp
           directory to 775, which disables /tmp for all non-privileged
           programs.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.12 What does the message: Can't get write access to mailbox, access
    is readonly mean?
 
           The mailbox file is write-protected against you.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.13 I set my POP3 client to "delete messages from server" but they
    never get deleted. What is wrong?
@@ -2053,15 +2237,16 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           finishes. The POP3 protocol specifies that deletions are
           discarded unless a proper QUIT is done.
 
-          Make sure that you are not opening multiple POP3 sessions to
-          the same mailbox. It is a requirement of the POP3 protocol than
-          only one POP3 session be in effect to a mailbox at a time,
-          however some, poorly-written POP3 clients violate this. Also,
-          some background "check for new mail" tasks also cause a
-          violation. See the answer to the What does the syslog message:
-          Killed (lost mailbox lock) user=... host=... mean? question for
-          more details.
-     _________________________________________________________________
+          Make sure that you are not opening multiple POP3 sessions to the
+          same mailbox. It is a requirement of the POP3 protocol than only
+          one POP3 session be in effect to a mailbox at a time, however
+          some, poorly-written POP3 clients violate this. Also, some
+          background "check for new mail" tasks also cause a violation.
+          See the answer to the What does the syslog message: Killed (lost
+          mailbox lock) user=... host=... mean? question for more details.
+
+   Back to top
+     __________________________________________________________________
 
    7.14 What do messages such as:
  Message ... UID ... already has UID ...
@@ -2073,8 +2258,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           Something happened to corrupt the unique identifier regime in
           the mailbox. In traditional UNIX-format mailboxes, this can
-          happen if the user deleted the "DO NOT DELETE" internal
-          message.
+          happen if the user deleted the "DO NOT DELETE" internal message.
 
           This problem is relatively harmless; a new valid unique
           identifier regime will be created. The main effect is that any
@@ -2082,7 +2266,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           So, unless it is a chronic problem or you feel like debugging,
           you can safely ignore these messages.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.15 What do the error messages:
  Unable to read internal header at ...
@@ -2110,11 +2296,11 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           editor can handle binary!!!
 
           If you are not comfortable with emacs, or if the file is too
-          large to read with emacs, see the "step-by-step" technique
-          later on for another way of doing it.
+          large to read with emacs, see the "step-by-step" technique later
+          on for another way of doing it.
 
-          After the word "at" in the error message is the byte position
-          it got to when it got unhappy with the file, e.g. if you see:
+          After the word "at" in the error message is the byte position it
+          got to when it got unhappy with the file, e.g. if you see:
 
  Unable to parse internal header at 43921: ne bombastic blurdybloop
 
@@ -2136,10 +2322,10 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           Here's what to do if you want to be smarter and do a little bit
           more work. Generally, you're in the middle of a message, and
-          there's nothing wrong with that message. The problem happened
-          in the *previous* message. So, search back to the previous
-          internal header. Now, remember that "ssss" field? That's the
-          size of that message.
+          there's nothing wrong with that message. The problem happened in
+          the *previous* message. So, search back to the previous internal
+          header. Now, remember that "ssss" field? That's the size of that
+          message.
 
           Mark where you are in the file, move the cursor to the line
           after the internal header, and skip that many bytes ("ssss")
@@ -2154,14 +2340,14 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           header.
 
           Usually, once you know what you're looking at, it's pretty easy
-          to work out the corruption, and the best remedial action.
-          Repair scripts will make the problem go away but may not always
-          do the smartest/best salvage of the user's data. Manual repair
-          is more flexible and usually preferable.
+          to work out the corruption, and the best remedial action. Repair
+          scripts will make the problem go away but may not always do the
+          smartest/best salvage of the user's data. Manual repair is more
+          flexible and usually preferable.
 
           Here is a step-by-step technique for fixing corrupt mbx files
-          that's a bit cruder than the procedure outlined above, but
-          works for any size file.
+          that's a bit cruder than the procedure outlined above, but works
+          for any size file.
 
           In this example, suppose that the corrupt file is INBOX, the
           error message is
@@ -2174,35 +2360,34 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           error:
 
           + Rename the INBOX file to some other name, such as INBOX.bad.
-          + Copy the first 132,551,754 bytes of INBOX.bad to another
-            file, such as INBOX.new.
+          + Copy the first 132,551,754 bytes of INBOX.bad to another file,
+            such as INBOX.new.
           + Extract the trailing 316,116 bytes (132867870-132551754) of
             INBOX.bad into another file, such as INBOX.tail.
           + You no longer need INBOX.bad. Delete it.
 
-          In other words, use the number from the "Unable to find CRLF
-          at" as the point to split INBOX into two new files, INBOX.new
-          and INBOX.tail.
+          In other words, use the number from the "Unable to find CRLF at"
+          as the point to split INBOX into two new files, INBOX.new and
+          INBOX.tail.
 
           Now, remove the erroneous data:
 
-          + Verify that you can open INBOX.new in IMAP or Pine.
+          + Verify that you can open INBOX.new in IMAP or Alpine.
           + The last message of INBOX.new is probably corrupted. Copy it
             to another file, such as badmsg.1, then delete and expunge
             that last message from INBOX.new
           + Locate the first occurance of text in INBOX.tail which looks
             like an internal header, as described above.
           + Remove all the text which occurs prior to that point, and
-            place it into another file, such as badmsg.2. Note that in
-            the case of a single digit date, there is a leading space
-            which must not be removed (e.g. " 6-Nov-2001" not
-            "6-Nov-2001").
+            place it into another file, such as badmsg.2. Note that in the
+            case of a single digit date, there is a leading space which
+            must not be removed (e.g. " 6-Nov-2001" not "6-Nov-2001").
 
           Reassemble the mailbox:
 
           + Append INBOX.tail to INBOX.new.
           + You no longer need INBOX.tail. Delete it.
-          + Verify that you can open INBOX.new in IMAP or Pine.
+          + Verify that you can open INBOX.new in IMAP or Alpine.
 
           Reinstall INBOX.new as INBOX:
 
@@ -2214,10 +2399,12 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
             messages from INBOX to INBOX.new before doing the rename.
 
           You now have a working INBOX, as well as two files with
-          corrupted data (badmsg.1 and badmsg.2). There may be some
-          useful data in the two badmsg files that you might want to try
+          corrupted data (badmsg.1 and badmsg.2). There may be some useful
+          data in the two badmsg files that you might want to try
           salvaging; otherwise you can delete the two badmsg files.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.16 What do the syslog messages:
 
@@ -2227,11 +2414,10 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
    mean? When it happens, the listed service shuts down. How can I fix
    this?
 
-          The error message "server failing (looping), service
-          terminated" is not from either the IMAP or POP servers.
-          Instead, it comes from inetd, the daemon which listens for TCP
-          connections to a number of servers, including the IMAP and POP
-          servers.
+          The error message "server failing (looping), service terminated"
+          is not from either the IMAP or POP servers. Instead, it comes
+          from inetd, the daemon which listens for TCP connections to a
+          number of servers, including the IMAP and POP servers.
 
           inetd has a limit of 40 new server sessions per minute for any
           particular service. If more than 40 sessions are initiated in a
@@ -2240,19 +2426,18 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           inetd does this to prevent system resource consumption by a
           client which is spawning infinite numbers of servers. It should
           be noted that this is a denial of service; however for some
-          systems the alternative is a crash which would be a worse
-          denial of service!
+          systems the alternative is a crash which would be a worse denial
+          of service!
 
           For larger server systems, the limit of 40 is much too low. The
           limit was established many years ago when a system typically
           only ran a few dozen servers.
 
-          On some versions of inetd, such as the one distributed with
-          most versions of Linux, you can modify the /etc/inetd.conf file
-          to have a larger number of servers by appending a period
-          followed by a number after the nowait word for the server
-          entry. For example, if your existing /etc/inetd.conf line
-          reads:
+          On some versions of inetd, such as the one distributed with most
+          versions of Linux, you can modify the /etc/inetd.conf file to
+          have a larger number of servers by appending a period followed
+          by a number after the nowait word for the server entry. For
+          example, if your existing /etc/inetd.conf line reads:
 
  imap    stream  tcp     nowait  root    /usr/etc/imapd imapd
 
@@ -2276,22 +2461,24 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           that you will disable IMAP service entirely.
 
           Another way to fix this problem is to edit the inetd.c source
-          code (provided by your UNIX system vendor) to set higher
-          limits, rebuild inetd, install the new binary, and reboot your
-          system. This should only be done by a UNIX system expert. In
-          the inetd.c source code, the limits TOOMANY (normally 40) is
-          the maximum number of new server sessions permitted per minute,
-          and RETRYTIME (normally 600) is the number of seconds inetd
-          will shut down the server after it exceeds TOOMANY.
-     _________________________________________________________________
+          code (provided by your UNIX system vendor) to set higher limits,
+          rebuild inetd, install the new binary, and reboot your system.
+          This should only be done by a UNIX system expert. In the inetd.c
+          source code, the limits TOOMANY (normally 40) is the maximum
+          number of new server sessions permitted per minute, and
+          RETRYTIME (normally 600) is the number of seconds inetd will
+          shut down the server after it exceeds TOOMANY.
+
+   Back to top
+     __________________________________________________________________
 
    7.17 What does the syslog message: Mailbox lock file /tmp/.600.1df3
    open failure: Permission denied mean?
 
           This usually means that some "helpful" security script person
-          has protected /tmp so that it is no longer world-writeable.
-          /tmp must be world-writeable because lots of applications use
-          it for scratch space. To fix this, do
+          has protected /tmp so that it is no longer world-writeable. /tmp
+          must be world-writeable because lots of applications use it for
+          scratch space. To fix this, do
 
  chmod 1777 /tmp
 
@@ -2301,7 +2488,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           file. If it is something other than 666, then either someone is
           hacking or some "helpful" person modified the code to have a
           different default lock file protection.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.18 What do the syslog messages:
  Command stream end of file, while reading line user=... host=...
@@ -2311,12 +2500,12 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
    mean?
 
           This message occurs when the session is disconnected without a
-          proper LOGOUT (IMAP) or QUIT (POP) command being received by
-          the server first.
+          proper LOGOUT (IMAP) or QUIT (POP) command being received by the
+          server first.
 
           In many cases, this is perfectly normal; many client
-          implementations are impolite and do this. Some programmers
-          think this sort of rudeness is "more efficient".
+          implementations are impolite and do this. Some programmers think
+          this sort of rudeness is "more efficient".
 
           The condition could, however, indicate a client or network
           connectivity problem. The server has no way of knowing whether
@@ -2327,36 +2516,37 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           failed login, and instead of saying that the login failed, just
           say that they can't access the mailbox. They then complain to
           the system manager, who looks in the syslog and finds this
-          message. Not very helpful, eh? See the answer to the Why can't
-          I log in to the server? The user name and password are right!
+          message. Not very helpful, eh? See the answer to the Why can't I
+          log in to the server? The user name and password are right!
           question.
 
           If the user isn't reporting a problem, you can probably ignore
           this message.
-     _________________________________________________________________
 
-   7.19 Why did my POP or IMAP session suddenly disconnect? The syslog
-   has the message: Killed (lost mailbox lock) user=... host=...
+   Back to top
+     __________________________________________________________________
+
+   7.19 Why did my POP or IMAP session suddenly disconnect? The syslog has
+   the message: Killed (lost mailbox lock) user=... host=...
 
           This message only happens when either the traditional UNIX
-          mailbox format or MMDF format is in use. This format only
-          allows one session to have the mailbox open read/write at a
-          time.
+          mailbox format or MMDF format is in use. This format only allows
+          one session to have the mailbox open read/write at a time.
 
-          The servers assume that if a second session attempts to open
-          the mailbox, that means that the first session is probably
-          owned by an abandoned client. The common scenario here is a
-          user who leaves his client running at the office, and then
-          tries to read his mail from home. Through an internal mechanism
-          called kiss of death, the second session requests the first
-          session to kill itself. When the first session receives the
-          "kiss of death", it issues the "Killed (lost mailbox lock)"
-          syslog message and terminates. The second session then seizes
-          read/write access, and becomes the new "first" session.
+          The servers assume that if a second session attempts to open the
+          mailbox, that means that the first session is probably owned by
+          an abandoned client. The common scenario here is a user who
+          leaves his client running at the office, and then tries to read
+          his mail from home. Through an internal mechanism called kiss of
+          death, the second session requests the first session to kill
+          itself. When the first session receives the "kiss of death", it
+          issues the "Killed (lost mailbox lock)" syslog message and
+          terminates. The second session then seizes read/write access,
+          and becomes the new "first" session.
 
-          Certain poorly-designed clients routinely open multiple
-          sessions to the same mailbox; the users of those clients tend
-          to get this message a lot.
+          Certain poorly-designed clients routinely open multiple sessions
+          to the same mailbox; the users of those clients tend to get this
+          message a lot.
 
           Another cause of this message is a background "check for new
           mail" task which does its work by opening a POP session to
@@ -2364,9 +2554,11 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           a way to announce new mail.
 
           The solution to both situations is to replace the client with a
-          good online IMAP client such as Pine. Life is too short to
+          good online IMAP client such as Alpine. Life is too short to
           waste on POP clients and poorly-designed IMAP clients.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.20 Why does my IMAP client show all the files on the system,
    recursively from the UNIX root directory?
@@ -2374,36 +2566,40 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
    UNIX home directory?
 
           A well-written client should only show one level of hierarchy
-          and then stop, awaiting explicit user action before going
-          lower. However, some poorly-designed clients will recursively
-          list all files, which may be a very long list (especially if
-          you have symbolic links to directories that create a loop in
-          the filesystem graph!).
+          and then stop, awaiting explicit user action before going lower.
+          However, some poorly-designed clients will recursively list all
+          files, which may be a very long list (especially if you have
+          symbolic links to directories that create a loop in the
+          filesystem graph!).
 
           This behavior has also been observed in some third-party
           c-client drivers, including maildir drivers. Consequently, this
-          problem has even been observed in Pine. It is important to
-          understand that this is not a problem in Pine or c-client; it
-          is a problem in the third-party driver. A Pine built without
+          problem has even been observed in Alpine. It is important to
+          understand that this is not a problem in Alpine or c-client; it
+          is a problem in the third-party driver. A Alpine built without
           that third-party driver will not have this problem.
 
-          See also the answer to Why does my IMAP client show all my
-          files in my home directory?
-     _________________________________________________________________
+          See also the answer to Why does my IMAP client show all my files
+          in my home directory?
+
+   Back to top
+     __________________________________________________________________
 
    7.22 Why does my IMAP client show that I have mailboxes named
    "#mhinbox", "#mh", "#shared", "#ftp", "#news", and "#public"?
 
-          These are IMAP namespace names. They represent other
-          hierarchies in which messages may exist. These hierarchies may
-          not necessarily exist on a server, but the namespace name is
-          still in the namespace list in order to mark it as reserved.
+          These are IMAP namespace names. They represent other hierarchies
+          in which messages may exist. These hierarchies may not
+          necessarily exist on a server, but the namespace name is still
+          in the namespace list in order to mark it as reserved.
 
           A few poorly-designed clients display all namespace names as if
           they were top-level mailboxes in a user's list of mailboxes,
           whether or not they actually exist. This is a flaw in those
           clients.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.23 Why does my IMAP client show all my files in my home directory?
 
@@ -2413,7 +2609,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           use IMAP to access any file.
 
           Most clients have an option to configure your connected
-          directory on the IMAP server. For example, in Pine you can
+          directory on the IMAP server. For example, in Alpine you can
           specify this as the "Path" in your folder-collection, e.g.
 
  Nickname  : Secondary Folders
@@ -2430,7 +2626,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           automatically connected to some other directory, e.g. a
           subdirectory of the user's home directory. Read the file CONFIG
           for more details.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.24 Why is there a long delay before I get connected to the IMAP or
    POP server, no matter what client I use?
@@ -2445,10 +2643,10 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
             The IDENT protocol is a well-known bad idea that does not
             deliver any real security but causes incredible problems. The
             idea is that this will give the server a record of the user
-            name, or at least what some program listening on port 113
-            says is the user name. So, if somebody coming from port nnnnn
-            on a system does something bad, IDENT may give you the userid
-            of the bad guy.
+            name, or at least what some program listening on port 113 says
+            is the user name. So, if somebody coming from port nnnnn on a
+            system does something bad, IDENT may give you the userid of
+            the bad guy.
             The problem is, IDENT is only meaningful on a timesharing
             system which has an administrator who is privileged and users
             who are not. It is of no value on a personal system which has
@@ -2466,74 +2664,76 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
  log_on_success += USERID
             Hunt down such lines, and delete them ruthlessly from all
             files in which they occur. Don't be shy about it.
-          + The DNS is taking a long time to do a reverse DNS (PTR
-            record) lookup of the IP address of your client. This is a
-            problem in your DNS, which either you or you ISP need to
-            resolve. Ideally, the DNS should return the client's name;
-            but if it can't it should at least return an error quickly.
+          + The DNS is taking a long time to do a reverse DNS (PTR record)
+            lookup of the IP address of your client. This is a problem in
+            your DNS, which either you or you ISP need to resolve.
+            Ideally, the DNS should return the client's name; but if it
+            can't it should at least return an error quickly.
 
-          As you may have noticed, neither of these are actual problems
-          in the IMAP or POP servers; they are configuration issues with
+          As you may have noticed, neither of these are actual problems in
+          the IMAP or POP servers; they are configuration issues with
           either your system or your network infrastructure. If this is
           all new to you, run (don't walk) to the nearest technical
           bookstore and get yourself a good pedagogical text on system
           administration for the type of system you are running.
-     _________________________________________________________________
 
-   7.25 Why is there a long delay in Pine or any other c-client based
+   Back to top
+     __________________________________________________________________
+
+   7.25 Why is there a long delay in Alpine or any other c-client based
    application call before I get connected to the IMAP server? The hang
-   seems to be in the c-client mail_open() call. I don't have this
-   problem with any other IMAP client. There is no delay connecting to a
-   POP3 or NNTP server with mail_open().
+   seems to be in the c-client mail_open() call. I don't have this problem
+   with any other IMAP client. There is no delay connecting to a POP3 or
+   NNTP server with mail_open().
 
           By default, the c-client library attempts to make a connection
           through rsh (and ssh, if you enable that). If the command:
 
  rsh imapserver exec /etc/rimapd
 
-          (or ssh if that is enabled) returns with a "* PREAUTH"
-          response, it will use the resulting rsh session as the IMAP
-          session and not require an authentication step on the server.
+          (or ssh if that is enabled) returns with a "* PREAUTH" response,
+          it will use the resulting rsh session as the IMAP session and
+          not require an authentication step on the server.
 
           Unfortunately, rsh has a design error that treats "TCP
           connection refused" as "temporary failure, try again"; it
           expects the "rsh not allowed" case to be implemented as a
-          successful connection followed by an error message and close
-          the connection.
+          successful connection followed by an error message and close the
+          connection.
 
-          It must be emphasized that this is a bug in rsh. It is not a
-          bug in the IMAP toolkit.
+          It must be emphasized that this is a bug in rsh. It is not a bug
+          in the IMAP toolkit.
 
           The use of rsh can be disabled in any the following ways:
 
           + You can disable it for this particular session by either:
-               o setting an explicit port number in the mailbox name,
-                 e.g.
+               o setting an explicit port number in the mailbox name, e.g.
  {imapserver.foo.com:143}INBOX
                o using SSL (the /ssl switch)
           + You can disable rsh globally by setting the rsh timeout value
             to 0 with the call:
  mail_parameters (NIL,SET_RSHTIMEOUT,0);
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.26 Why does a message sometimes get split into two or more messages
    on my SUN system?
 
           This is caused by an interaction of two independent design
           problems in SUN mail software. The first problem is that the
-          "forward message" option in SUN's mail tool program includes
-          the internal "From " header line in the text that it forwarded.
-          This internal header line is specific to traditional UNIX
-          mailbox files and is not suitable for use in forwarded
-          messages.
+          "forward message" option in SUN's mail tool program includes the
+          internal "From " header line in the text that it forwarded. This
+          internal header line is specific to traditional UNIX mailbox
+          files and is not suitable for use in forwarded messages.
 
           The second problem is that the mail delivery agent assumes that
           mail reading programs will not use the traditional UNIX mailbox
           format but instead an incompatible variant that depends upon a
           Content-Length: message header. Content-Length is widely
           recognized to have been a terrible mistake, and is no longer
-          recommended for use in mail (it is used in other facilities
-          that use MIME).
+          recommended for use in mail (it is used in other facilities that
+          use MIME).
 
           One symptom of the problem is that under certain circumstances,
           a message may get broken up into several messages. I'm also
@@ -2541,20 +2741,22 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           "Content-Length:" headers with evil values.
 
           To fix the mailer on your system, edit your sendmail.cf to
-          change the Mlocal line to have the -E flag. A typical entry
-          will lool like:
+          change the Mlocal line to have the -E flag. A typical entry will
+          lool like:
 
  Mlocal,        P=/usr/lib/mail.local, F=flsSDFMmnPE, S=10, R=20,
                 A=mail.local -d $u
 
           This fix will also work around the problem with mail tool,
           because it will insert a ">" before the internal header line to
-          prevent it from being interpreted by mail reading software as
-          an internal header line.
-     _________________________________________________________________
+          prevent it from being interpreted by mail reading software as an
+          internal header line.
 
-   7.27 Why did my POP or IMAP session suddenly disconnect? The syslog
-   has the message:
+   Back to top
+     __________________________________________________________________
+
+   7.27 Why did my POP or IMAP session suddenly disconnect? The syslog has
+   the message:
  Autologout user=<...my user name...> host=<...my client system...>
 
           This is a problem in your client.
@@ -2562,7 +2764,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           In the case of IMAP, it failed to communicate with the IMAP
           server for over 30 minutes; in the case of POP, it failed to
           communicate with the POP server for over 10 minutes.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.28 What does the UNIX error message: TLS/SSL failure: myserver: SSL
    negotiation failed mean?
@@ -2576,7 +2780,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           Use the /notls option in the mailbox name to disable TLS
           negotiation.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.30 What does the error message: TLS/SSL failure: myserver: Server
    name does not match certificate mean?
@@ -2591,7 +2797,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           Use the /novalidate-cert option in the mailbox name to disable
           validation of the certificate.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.31 What does the UNIX error message: TLS/SSL failure: myserver:
    self-signed certificate mean?
@@ -2601,22 +2809,24 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           An SSL or TLS session encryption failed because your server's
           certificate is "self-signed"; that is, it is not signed by any
           Certificate Authority (CA) and thus can not be validated. A
-          CA-signed certificate costs money, and some smaller sites
-          either don't want to pay for it or haven't gotten one yet. The
-          bad part about this is that this means there is no guarantee
-          that the server is really the system you think that it is.
+          CA-signed certificate costs money, and some smaller sites either
+          don't want to pay for it or haven't gotten one yet. The bad part
+          about this is that this means there is no guarantee that the
+          server is really the system you think that it is.
 
           Use the /novalidate-cert option in the mailbox name to disable
           validation of the certificate.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.33 What does the UNIX error message: TLS/SSL failure: myserver:
    unable to get local issuer certificate mean?
 
-          An SSL or TLS session encryption failed because your system
-          does not have the Certificate Authority (CA) certificates
-          installed on OpenSSL's certificates directory. On most systems,
-          this directory is /usr/local/ssl/certs). As a result, it is not
+          An SSL or TLS session encryption failed because your system does
+          not have the Certificate Authority (CA) certificates installed
+          on OpenSSL's certificates directory. On most systems, this
+          directory is /usr/local/ssl/certs). As a result, it is not
           possible to validate the server's certificate.
 
           If CA certificates are properly installed, you should see
@@ -2625,20 +2835,22 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           As a workaround, you can use the /novalidate-cert option in the
           mailbox name to disable validation of the certificate; however,
-          note that you are then vulnerable to various security attacks
-          by bad guys.
+          note that you are then vulnerable to various security attacks by
+          bad guys.
 
           The correct fix is to copy all the files from the certs/
           directory in the OpenSSL distribution to the
-          /usr/local/ssl/certs (or whatever) directory. Note that you
-          need to do this after building OpenSSL, because the OpenSSL
-          build creates a number of needed symbolic links. For some
-          bizarre reason, the OpenSSL "make install" doesn't do this for
-          you, so you must do it manually.
-     _________________________________________________________________
+          /usr/local/ssl/certs (or whatever) directory. Note that you need
+          to do this after building OpenSSL, because the OpenSSL build
+          creates a number of needed symbolic links. For some bizarre
+          reason, the OpenSSL "make install" doesn't do this for you, so
+          you must do it manually.
+
+   Back to top
+     __________________________________________________________________
 
    7.34 Why does reading certain messages hang when using Netscape? It
-   works fine with Pine!
+   works fine with Alpine!
 
           There are two possible causes.
 
@@ -2647,18 +2859,19 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           regarding that message.
 
           Check the affected mailbox to see if there are embedded NUL
-          characters in the message. NULs in message texts are a
-          technical violation of both the message format and IMAP
-          specifications. Most clients don't care, but apparently
-          Netscape does.
+          characters in the message. NULs in message texts are a technical
+          violation of both the message format and IMAP specifications.
+          Most clients don't care, but apparently Netscape does.
 
           You can work around this by rebuilding imapd with the
           NETSCAPE_BRAIN_DAMAGE option set (see src/imapd/Makefile); this
           will cause imapd to convert all NULs to 0x80 characters. A
           better solution is to enable the feature in your MTA to
-          MIME-convert messages with binary content. See the
-          documentation for your MTA for how to do this.
-     _________________________________________________________________
+          MIME-convert messages with binary content. See the documentation
+          for your MTA for how to do this.
+
+   Back to top
+     __________________________________________________________________
 
    7.35 Why does Netscape say that there's a problem with the IMAP server
    and that I should "Contact your mail server administrator."?
@@ -2670,20 +2883,24 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           You can work around this by rebuilding imapd with the
           NETSCAPE_BRAIN_DAMAGE option set (see src/imapd/Makefile) to a
           URL that points either to an alternative IMAP client (e.g.
-          Pine) or perhaps to a homebrew mail account management page.
-     _________________________________________________________________
+          Alpine) or perhaps to a homebrew mail account management page.
+
+   Back to top
+     __________________________________________________________________
 
    7.36 Why is one user creating huge numbers of IMAP or POP server
    sessions?
 
-          The user is probably using Outlook Express, Eudora, or a
-          similar program. See the answer to the Help! My load average is
-          soaring and I see hundreds of POP and IMAP servers, many logged
-          in as the same user! question.
-     _________________________________________________________________
+          The user is probably using Outlook Express, Eudora, or a similar
+          program. See the answer to the Help! My load average is soaring
+          and I see hundreds of POP and IMAP servers, many logged in as
+          the same user! question.
 
-   7.37 Why don't I get any new mail notifications from Outlook Express
-   or Outlook after a while?
+   Back to top
+     __________________________________________________________________
+
+   7.37 Why don't I get any new mail notifications from Outlook Express or
+   Outlook after a while?
 
           This is a known bug in Outlook Express. Microsoft is aware of
           the problem and its cause. They have informed us that they do
@@ -2692,20 +2909,19 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           The problem is also reported in Outlook 2000, but not verified.
 
           Outlook Express uses the IMAP IDLE command to avoid having to
-          "ping" the server every few minutes for new mail.
-          Unfortunately, Outlook Express overlooks the part in the IDLE
-          specification which requires that a client terminate and
-          restart the IDLE before the IMAP 30 minute inactivity
-          autologout timer triggers.
+          "ping" the server every few minutes for new mail. Unfortunately,
+          Outlook Express overlooks the part in the IDLE specification
+          which requires that a client terminate and restart the IDLE
+          before the IMAP 30 minute inactivity autologout timer triggers.
 
           When this happens, Outlook Express displays "Not connected" at
           the bottom of the window. Since it's no longer connected to the
           IMAP server, it isn't going to notice any new mail.
 
           As soon as the user does anything that would cause an IMAP
-          operation, Outlook Express will reconnect and new mail will
-          flow again. If the user does something that causes an IMAP
-          operation at least every 29 minutes, the problem won't happen.
+          operation, Outlook Express will reconnect and new mail will flow
+          again. If the user does something that causes an IMAP operation
+          at least every 29 minutes, the problem won't happen.
 
           Modern versions of imapd attempt to work around the problem by
           automatically reporting fake new mail after 29 minutes. This
@@ -2713,7 +2929,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           happens imapd revokes the fake new mail. As long as this
           behavior isn't known to cause problems with other clients, this
           workaround will remain in imapd.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.38 Why don't I get any new mail notifications from Entourage?
 
@@ -2727,7 +2945,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           Note: the MICROSOFT_BRAIN_DAMAGE option no longer exists in
           modern versions, as the Outlook Express problem which it
           attempted to solve has been worked around in another way.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.39 Why doesn't Entourage work at all?
 
@@ -2737,14 +2957,16 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           like STATUS (MESSAGES) on the currently selected mailbox and
           re-fetching the same static data over and over again.
 
-          It seems that every time we understand what it is doing wrong
-          in Entourage and come up with a workaround, we learn about
+          It seems that every time we understand what it is doing wrong in
+          Entourage and come up with a workaround, we learn about
           something else that's broken.
 
           Try building imapd with the ENTOURAGE_BRAIN_DAMAGE option set,
-          in order to disable the diagnostic that occurs when doing
-          STATUS on the currently selected mailbox.
-     _________________________________________________________________
+          in order to disable the diagnostic that occurs when doing STATUS
+          on the currently selected mailbox.
+
+   Back to top
+     __________________________________________________________________
 
    7.40 Why doesn't Netscape Notify (NSNOTIFY.EXE) work at all?
 
@@ -2753,15 +2975,17 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           Fortunately, there is no reason to use this program with IMAP;
           NSNOTIFY is a polling program to let you know when new mail has
-          appeared in your maildrop. This is necessary with POP; but
-          since IMAP dynamically announces new mail in the session you're
-          better off (and will actually cause less load on the server!)
-          keeping your mail reading program's IMAP session open and let
-          IMAP do the notifying for you.
+          appeared in your maildrop. This is necessary with POP; but since
+          IMAP dynamically announces new mail in the session you're better
+          off (and will actually cause less load on the server!) keeping
+          your mail reading program's IMAP session open and let IMAP do
+          the notifying for you.
 
-          Consequently, the recommended fix for the NSNOTIFY problem is
-          to delete the NSNOTIFY binary.
-     _________________________________________________________________
+          Consequently, the recommended fix for the NSNOTIFY problem is to
+          delete the NSNOTIFY binary.
+
+   Back to top
+     __________________________________________________________________
 
    7.41 Why can't I connect via SSL to Eudora? It says the connection has
    been broken, and in the server syslogs I see "Command stream end of
@@ -2770,16 +2994,18 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           There is a report that you can fix the problem by going into
           Eudora's advanced network configuration menu and increasing the
           network buffer size to 8192.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.42 Sheesh. Aren't there any good IMAP clients out there?
 
           Yes!
 
-          Pine is a wonderful client. It's fast, it uses IMAP well, and
+          Alpine is a wonderful client. It's fast, it uses IMAP well, and
           it generates text mail (life is too short to waste on HTML
           mail). Also, there are some really wonderful things in progress
-          in the Pine world.
+          in the Alpine world.
 
           There are some good GUI clients out there, mostly from smaller
           vendors. Without naming names, look for the vendors who are
@@ -2787,22 +3013,24 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           products.
 
           Netscape, Eudora, and Outlook can be configured with enough
-          effort to be good citizens and work well for users, but they
-          can also be badly misconfigured, and often the misconfiguration
-          is the default.
-     _________________________________________________________________
+          effort to be good citizens and work well for users, but they can
+          also be badly misconfigured, and often the misconfiguration is
+          the default.
 
-   7.43 But wait! PC Pine (or other PC program build with c-client)
+   Back to top
+     __________________________________________________________________
+
+   7.43 But wait! PC Alpine (or other PC program build with c-client)
    crashes with the message incomplete SecBuffer exceeds maximum buffer
    size when I use SSL connections. This is a bug in c-client, right?
 
           It's a bug in the Microsoft SChannel.DLL, which implements SSL.
-          Microsoft admits it (albeit with an unstatement: "it's not
-          fully RFC compliant"). The problem is that SChannel indicates
-          that the maximum SSL packet data size is 5 bytes smaller than
-          the actual maximum. Thus, any IMAP server which transmits a
-          maximum sized SSL packet will not work with PC Pine or any
-          other program which uses SChannel.
+          Microsoft admits it (albeit with an unstatement: "it's not fully
+          RFC compliant"). The problem is that SChannel indicates that the
+          maximum SSL packet data size is 5 bytes smaller than the actual
+          maximum. Thus, any IMAP server which transmits a maximum sized
+          SSL packet will not work with PC Alpine or any other program
+          which uses SChannel.
 
           It can take a while for the problem to show up. The client has
           to do something that causes at least 16K of contiguous data.
@@ -2810,8 +3038,8 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           number of cases where this can happen. However, all software
           which uses SChannel to support SSL is affected by this bug.
 
-          This problem does not affect UNIX code, since OpenSSL is used
-          on UNIX.
+          This problem does not affect UNIX code, since OpenSSL is used on
+          UNIX.
 
           This problem most recently showed up with the CommunigatePro
           IMAP server. They have an update which trims down their maximum
@@ -2819,24 +3047,26 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           problem.
 
           This problem has also shown up with the Exchange IMAP server
-          with UNIX clients (including Pine built with an older version
+          with UNIX clients (including Alpine built with an older version
           of c-client) which sends full-sized 16K SSL packets. Modern
           c-client works around the problem by trimming down its maximum
           outgoing SSL packet size to 8K.
 
           Microsoft has developed a hotfix for this bug. Look up MSKB
           article number 300562. Contrary to the article text which
-          implies that this is a Pine issue, this bug also affect
+          implies that this is a Alpine issue, this bug also affect
           Microsoft Exchange server with *any* UNIX based client that
           transmits full-sized SSL payloads.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.44 My qpopper users keep on getting the DON'T DELETE THIS MESSAGE --
-   FOLDER INTERNAL DATA if they also use Pine or IMAP. How can I fix
+   FOLDER INTERNAL DATA if they also use Alpine or IMAP. How can I fix
    this?
 
           This is an incompatibility between qpopper and the c-client
-          library used by Pine, imapd, and ipop[23]d.
+          library used by Alpine, imapd, and ipop[23]d.
 
           Assuming that you want to continue using qpopper, look into
           qpopper's --enable-uw-kludge-flag configuration flag, which is
@@ -2844,21 +3074,22 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           messages".
 
           The other alternative is to switch from qpopper to ipop3d.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.45 Help! I installed the servers but I can't connect to them from my
    client!
 
           Review the installation instructions carefully. Make sure that
           you have not skipped any of the steps. Make sure that you have
-          made the correct entries in the configuration files; pay
-          careful attention to the exact spelling of the service names
-          and the path names. Make sure as well that you have properly
-          restarted inetd.
+          made the correct entries in the configuration files; pay careful
+          attention to the exact spelling of the service names and the
+          path names. Make sure as well that you have properly restarted
+          inetd.
 
-          If you have a system with Yellow Pages/NIS such as Solaris,
-          have you updated the service names there as well as in
-          /etc/services?
+          If you have a system with Yellow Pages/NIS such as Solaris, have
+          you updated the service names there as well as in /etc/services?
 
           If you have a system with TCP wrappers, have you properly
           updated the TCP wrapper files (e.g. /etc/hosts.allow and
@@ -2869,25 +3100,26 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           xinetd changes for those services?
 
           Try telneting to the server port (143 for IMAP, 110 for POP3).
-          If you get a "refused" error, that probably means that you
-          don't have the service set up in inetd.conf. If the connection
-          opens and then closes with no message, the service is set up,
-          but either the path name of the server binary in inetd.conf is
-          wrong or your TCP wrappers are configured to deny access.
+          If you get a "refused" error, that probably means that you don't
+          have the service set up in inetd.conf. If the connection opens
+          and then closes with no message, the service is set up, but
+          either the path name of the server binary in inetd.conf is wrong
+          or your TCP wrappers are configured to deny access.
 
-          If you don't know how to make the corresponding changes to
-          these files, seek the help of a local expert for your system.
-     _________________________________________________________________
+          If you don't know how to make the corresponding changes to these
+          files, seek the help of a local expert for your system.
+
+   Back to top
+     __________________________________________________________________
 
    7.46 Why do I get the message Can not authenticate to SMTP server: 421
    SMTP connection went away! and why did this happen? There was also
-   something about SECURITY PROBLEM: insecure server advertised
-   AUTH=PLAIN
+   something about SECURITY PROBLEM: insecure server advertised AUTH=PLAIN
 
           Some versions of qmail, including that running on
           mail.smtp.yahoo.com, disconnect the SMTP session if you fail to
-          authenticate prior to attempting to transmit mail. An attempt
-          to authenticate was made, but it failed because the server had
+          authenticate prior to attempting to transmit mail. An attempt to
+          authenticate was made, but it failed because the server had
           already disconnected.
 
           To work around this, you need to specify /user=... in the host
@@ -2895,14 +3127,16 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           The SECURITY PROBLEM came about because the server advertised
           the AUTH=PLAIN SASL authentication mechanism outside of a
-          TLS-encrypted session, in violation of RFC 4616. This message
-          is just a warning, and in fact occurred after the server had
+          TLS-encrypted session, in violation of RFC 4616. This message is
+          just a warning, and in fact occurred after the server had
           disconnected.
-     _________________________________________________________________
 
-   7.47 Why do I get the message SMTP Authentication cancelled and why
-   did this happen? There was also something about SECURITY PROBLEM:
-   insecure server advertised AUTH=PLAIN
+   Back to top
+     __________________________________________________________________
+
+   7.47 Why do I get the message SMTP Authentication cancelled and why did
+   this happen? There was also something about SECURITY PROBLEM: insecure
+   server advertised AUTH=PLAIN
 
           This is a bug in the SMTP server.
 
@@ -2923,15 +3157,17 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           In the case of AUTH=PLAIN, RFC 4422 (page 7) requires that the
           encoded string have no data. In other words, the appropropiate
-          standards-compliant server response is "334" followed by a
-          SPACE and a CRLF.
+          standards-compliant server response is "334" followed by a SPACE
+          and a CRLF.
 
           The SECURITY PROBLEM came about because the server advertised
           the AUTH=PLAIN SASL authentication mechanism outside of a
-          TLS-encrypted session, in violation of RFC 4616. This message
-          is just a warning, and is not related the "Authentication
+          TLS-encrypted session, in violation of RFC 4616. This message is
+          just a warning, and is not related the "Authentication
           cancelled" problem.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    7.48 Why do I get the message Invalid base64 string when I try to
    authenticate to a Cyrus server?
@@ -2947,10 +3183,12 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           via Kerberos, fail to get the Kerberos credentials, cancel the
           authentication attempt, and try the next available
           authentication technology.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
 8. Where to Go For Additional Information
-     _________________________________________________________________
+     __________________________________________________________________
 
    8.1 Where can I go to ask questions?
    8.2 I have some ideas for enhancements to IMAP. Where should I go?
@@ -2958,28 +3196,22 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           If you have questions about the IMAP protocol, or want to
           participate in discussions of future directions of the IMAP
           protocol, the appropriate mailing list is
-          imap-protocol@u.washington.edu. You can subscribe to this
-          list via imap-protocol-request@u.washington.edu
+          imap-protocol@u.washington.edu. You can subscribe to this list
+          via imap-protocol-request@u.washington.edu
 
-          If you have questions about this software, you can send me
-          email directly or use the imap-uw@u.washington.edu mailing
-          list. You can subscribe to this list via
-          imap-uw-request@u.washington.edu
-
-          If you have general questions about the use of IMAP software
-          (not specific to the UW IMAP toolkit) use the
-          imap-use@u.washington.edu mailing list. You can subscribe to
-          this list via imap-use-request@u.washington.edu
-
-          You must be a subscriber to post to these lists.  As an
+          You must be a subscriber to post to this list. As an
           alternative, you can use the comp.mail.imap newsgroup.
-          _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    8.3 Where can I read more about IMAP and other email protocols?
 
           We recommend Internet Email Protocols: A Developer's Guide, by
           Kevin Johnson, published by Addison Wesley, ISBN 0-201-43288-9.
-     _________________________________________________________________
+
+   Back to top
+     __________________________________________________________________
 
    8.4 Where can I find out more about setting up and administering an
    IMAP server?
@@ -2987,7 +3219,6 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           We recommend Managing IMAP, by Dianna Mullet & Kevin Mullet,
           published by O'Reilly, ISBN 0-596-00012-X.
 
-          This book also has an excellent comparison of the UW and Cyrus
-          IMAP servers.
+   Back to top
 
-   Last Updated: 15 November 2007
+   Last Updated: 5 May 2010

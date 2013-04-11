@@ -1,15 +1,6 @@
 # ========================================================================
-# Copyright 1988-2006 University of Washington
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# 
+# Copyright 2008-2010 Mark Crispin
 # ========================================================================
-
 
 # Program:	IMAPD Makefile
 #
@@ -23,6 +14,16 @@
 #
 # Date:		5 November 1990
 # Last Edited:	30 August 2006
+#
+# Previous versions of this file were
+#
+# Copyright 1988-2006 University of Washington
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
 
 
 ALERT=/etc/imapd.alert
@@ -37,7 +38,11 @@ SHELL= /bin/sh
 # causes the "Manage Mail" menu item to open the given URL, e.g. to point to
 # an alternative IMAP client (e.g. Pine) or perhaps to a homebrew mail
 # account management page.
-#NSBD= -DNETSCAPE_BRAIN_DAMAGE=\"http://www.washington.edu/pine\"
+#NSBD= -DNETSCAPE_BRAIN_DAMAGE=\"http://sourceforge.net/projects/re-alpine\"
+
+# Un-comment to enable the ESEARCH command.  Unfortunately, the iOS4 Mail
+# client misinterprets the ESEARCH results due to an ambiguity in RFC 4731.
+#ESEARCH=1
 
 
 # Get local definitions from c-client directory
@@ -45,7 +50,7 @@ SHELL= /bin/sh
 C = ../c-client
 CCLIENTLIB = $C/c-client.a
 CC = `cat $C/CCTYPE`
-CFLAGS = -I$C `cat $C/CFLAGS` $(NSBD) $(ENBD) -DANOFILE=\"$(ANO)\" \
+CFLAGS = -I$C `cat $C/CFLAGS` $(NSBD) $(ESEARCH) -DANOFILE=\"$(ANO)\" \
 	-DALERTFILE=\"$(ALERT)\" -DNNTPFILE=\"$(NNTP)\" \
 	-DUSERALERTFILE=\"$(USERALERT)\" -DSHUTDOWNFILE=\"$(SHUTDOWN)\"
 LDFLAGS = $(CCLIENTLIB) `cat $C/LDFLAGS`

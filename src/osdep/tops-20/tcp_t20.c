@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2010 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	TOPS-20 TCP/IP routines
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	1 August 1988
+ * Last Edited:	19 November 2008
+ *
+ * Previous versions of this file were
+ *
  * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -9,21 +23,6 @@
  *
  * 
  * ========================================================================
- */
-
-/*
- * Program:	TOPS-20 TCP/IP routines
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	1 August 1988
- * Last Edited:	13 January 2008
  */
 
 
@@ -146,7 +145,8 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
 
 char *tcp_getline (TCPSTREAM *stream)
 {
-  unsigned long n,contd;
+  long contd;
+  unsigned long n;
   char *ret = tcp_getline_work (stream,&n,&contd);
   if (ret && contd) {		/* got a line needing continuation? */
     STRINGLIST *stl = mail_newstringlist ();
@@ -332,9 +332,10 @@ char *tcp_localhost (TCPSTREAM *stream)
 char *tcp_canonical (char *name)
 {
   int argblk[5];
-  static char tmp[MAILTMPLEN];
+  char tmp[MAILTMPLEN];
 				/* look like domain literal? */
-  if (name[0] == '[' && name[strlen (name) - 1] == ']') return name;
+  if (name[0] == '[' && name[strlen (name) - 1] == ']')
+    return cpystr (name);
   argblk[1] = _GTHPN;		/* get IP address and primary name */
   argblk[2] = (int) (name-1);	/* pointer to host */
   argblk[4] = (int) (tmp-1);	/* pointer to return destination */
@@ -344,14 +345,14 @@ char *tcp_canonical (char *name)
     argblk[4] = (int) (tmp-1);
     if (!jsys (GTDOM,argblk)) {	/* try the CHIVES domain way */
       argblk[1] = _GTHSN;	/* failed, do the host table then */
-      if (!jsys (GTHST,argblk)) return name;
+      if (!jsys (GTHST,argblk)) return cpystr (name);
       argblk[1] = _GTHNS;	/* convert number to string */
       argblk[2] = (int) (tmp-1);
 				/* get the official name */
-      if (!jsys (GTHST,argblk)) return name;
+      if (!jsys (GTHST,argblk)) return cpystr (name);
     }
   }
-  return tmp;
+  return cpystr (tmp);
 }
 
 

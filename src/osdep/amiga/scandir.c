@@ -1,4 +1,18 @@
 /* ========================================================================
+ * Copyright 2008-2009 Mark Crispin
+ * ========================================================================
+ */
+
+/*
+ * Program:	Scan directories
+ *
+ * Author:	Mark Crispin
+ *
+ * Date:	1 August 1988
+ * Last Edited:	12 June 2009
+ *
+ * Previous versions of this file were:
+ *
  * Copyright 1988-2006 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -9,21 +23,6 @@
  *
  * 
  * ========================================================================
- */
-
-/*
- * Program:	Scan directories
- *
- * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
- *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
- *
- * Date:	1 August 1988
- * Last Edited:	15 September 2006
  */
  
 /* Emulator for BSD scandir() call
@@ -43,7 +42,8 @@ int scandir (char *dirname,struct direct ***namelist,select_t select,
   long nlmax;
   DIR *dirp = opendir (dirname);/* open directory and get status poop */
   if ((!dirp) || (fstat (dirp->dd_fd,&stb) < 0)) return -1;
-  nlmax = stb.st_size / 24;	/* guesstimate at number of files */
+				/* guesstimate at number of files */
+  nlmax = max (stb.st_size / 24,32);
   names = (struct direct **) fs_get (nlmax * sizeof (struct direct *));
   nitems = 0;			/* initially none found */
   while (d = readdir (dirp)) {	/* read directory item */
