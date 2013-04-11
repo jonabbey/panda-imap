@@ -37,6 +37,7 @@
 # The following ports are bundled:
 # a32	AIX 3.2 for RS/6000
 # a41	AIX 4.1 for RS/6000
+# a52	Attempt at AIX 5.2
 # aix	AIX/370 (not RS/6000!!)
 # ami	AmigaDOS
 # am2	AmigaDOS with a 68020+
@@ -306,7 +307,7 @@ SPECIALS:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsi d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul h11 hpp hpx lnp lyn mct mnt nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx soc sol sos uw2: an
+a32 a41 a52 aix bs3 bsi d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul h11 hpp hpx lnp lyn mct mnt nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx soc sol sos uw2: an
 	$(BUILD) BUILDTYPE=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.

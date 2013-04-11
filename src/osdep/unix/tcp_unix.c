@@ -239,7 +239,7 @@ int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
   size_t len;
   time_t now;
   struct protoent *pt = getprotobyname ("tcp");
-  fd_set fds,efds;
+  fd_set rfds,wfds,efds;
   struct timeval tmo;
   struct sockaddr *sadr = ip_sockaddr (family,adr,adrlen,port,&len);
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
@@ -285,13 +285,15 @@ int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
       now = time (0);		/* open timeout */
       ti = ttmo_open ? now + ttmo_open : 0;
       tmo.tv_usec = 0;
-      FD_ZERO (&fds);		/* initialize selection vector */
+      FD_ZERO (&rfds);		/* initialize selection vector */
+      FD_ZERO (&wfds);		/* initialize selection vector */
       FD_ZERO (&efds);		/* handle errors too */
-      FD_SET (sock,&fds);	/* block for error or readable */
+      FD_SET (sock,&rfds);	/* block for error or readable or writable */
+      FD_SET (sock,&wfds);
       FD_SET (sock,&efds);
       do {			/* block under timeout */
 	tmo.tv_sec = ti ? ti - now : 0;
-	i = select (sock+1,&fds,NIL,&efds,ti ? &tmo : NIL);
+	i = select (sock+1,&rfds,&wfds,&efds,ti ? &tmo : NIL);
 	now = time (0);		/* fake timeout if interrupt & time expired */
 	if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
       } while ((i < 0) && (errno == EINTR));
@@ -300,7 +302,7 @@ int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
 	fcntl (sock,F_SETFL,flgs);
 	/* This used to be a zero-byte read(), but that crashes Solaris */
 				/* get socket status */
-	while (((i = *ctr = read (sock,tmp,1)) < 0) && (errno == EINTR));
+	if(FD_ISSET(sock, &rfds)) while (((i = *ctr = read (sock,tmp,1)) < 0) && (errno == EINTR));
       }	
       if (i <= 0) {		/* timeout or error? */
 	i = i ? errno : ETIMEDOUT;/* determine error code */

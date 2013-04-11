@@ -11,6 +11,17 @@
  * ========================================================================
  */
 
+Updated: 22 July 2011
+
+imap-2007f fixes a couple bugs.
+Fix for RFC 4959 Initial Client Response auth failures noted first by
+  MacOSX Lion Mail users.
+Adjust tcp_open.c:tcp_socket_open to make it a little more useful by adding
+  a write file descriptor test to the select in the case that the open
+  timeout is set.
+In osdep/unix/env_unix.c:create_path there was a printf that should have
+  been an sprintf. Doesn't matter on modern systems.
+
 Updated: 16 December 2008
 
 imap-2007e is a maintenance release, consisting primarily of bugfixes to

@@ -21,7 +21,7 @@
  *		Internet: MRC@Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 May 2008
+ * Last Edited:	23 February 2009
  */
 
 #include <grp.h>
@@ -1813,7 +1813,7 @@ long path_create (MAILSTREAM *stream,char *path)
   restrictBox = NIL;		/* can't restrict */
   if (blackBox) {		/* if black box */
 				/* toss out driver dependent names */
-    printf (path,"%s/INBOX",mymailboxdir ());
+    sprintf (path,"%s/INBOX",mymailboxdir ());
     blackBox = NIL;		/* well that's evil - evil is going on */
     ret = mail_create (stream,path);
     blackBox = T;		/* restore the box */

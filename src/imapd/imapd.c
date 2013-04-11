@@ -21,7 +21,7 @@
  *		Internet: MRC@Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	3 March 2008
+ * Last Edited:	22 July 2011
  */
 
 /* Parameter files */
@@ -2141,7 +2141,7 @@ unsigned char *snarf_base64 (unsigned char **arg)
 				/* must be at least one BASE64 char */
   else if (!base64mask[*ret]) return NIL;
   else {			/* quick and dirty */
-    while (base64mask[*s++]);	/* scan until end of BASE64 */
+    while (base64mask[*s]) s++;	/* scan until end of BASE64 */
     if (*s == '=') ++s;		/* allow up to two padding chars */
     if (*s == '=') ++s;
   }

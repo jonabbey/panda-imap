@@ -199,6 +199,14 @@ a41:	# AIX 4.1 for RS/6000
 	 BASECFLAGS="-g -Dunix=1 -D_BSD -qro -qroconst" \
 	 BASELDFLAGS="-ls"
 
+a52:	# Attempt at AIX 5.2
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CHECKPW=a41 CRXTYPE=nfs \
+	 SPOOLDIR=/var/spool \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -Dunix=1 -D_BSD -qro -qroconst" \
+	 BASELDFLAGS="-ls"
+
 aix:	# AIX/370
 	@echo You are building for AIX on an S/370 class machine
 	@echo If you want AIX on an RS/6000 you need to use a32 or a41 instead!
