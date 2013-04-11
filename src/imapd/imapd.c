@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	12 August 1998
+ * Last Edited:	8 September 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -83,7 +83,7 @@ typedef struct text_args {
 
 /* Global storage */
 
-char *version = "11.240";	/* version number of this server */
+char *version = "11.241";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 int state = LOGIN;		/* server state */
 int trycreate = 0;		/* saw a trycreate */

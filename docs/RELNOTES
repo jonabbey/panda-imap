@@ -1,7 +1,14 @@
-Updated: 18 August 1998
+Updated: 8 September 1998
 
-imap-4.3 is a maintenance update of imap-4.2, which in turn was a maintenance
-update of imap-4.1.
+imap-4.4 is a maintenace update.  It fixes the following bugs in imap-4.3,
+which was distributed with Pine 4.03:
+ 1) international character searching did not handle MIME2 headers properly
+ 2) crashes if the first UID in a UID sequence range did not correspond to a
+     message
+ 3) no messages selected if neither UID in a UID sequence range corresponded
+     to a message
+ 4) memory leak in local news spool access each time the ACTIVE file was
+     scanned for a valid news group.
 
 This version supports IMAP4rev1 (RFC 2060).  There are major internal and
 external changes from the IMAP2bis version (e.g. imap-3.6, distributed with
@@ -12,12 +19,12 @@ for the IMAP2bis version will definitely need to be rewritten.
 Most notable operational changes from imap-3.x:
  . SASL authentication is supported in the IMAP and POP3 servers, and in
     the IMAP, POP3, and SMTP client code.  There is no support for NNTP
-    SASL yet.
+    SASL yet
  . Kerberos V5 is supported through the GSSAPI on UNIX and NT.  To enable
     Kerberos V5 on UNIX, add "gss" to the EXTRAAUTHENTICATORS list in the
     top-level Makefile and rebuild.  You may also need to edit the GSSAPI
     directory paths in the ../src/osdep/unix/Makefile
- . Kerberos V4 client-only contributed code is supplied, but is unsupported.
+ . Kerberos V4 client-only contributed code is supplied, but is unsupported
  . The mbox driver is now enabled by default.  If the file "mbox" exists on
     the user's home directory and is in UNIX mailbox format, then when INBOX
     is opened this file will be selected as INBOX instead of the mail spool

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	1 September 1998
+ * Last Edited:	3 September 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -2467,15 +2467,17 @@ long mail_uid_sequence (MAILSTREAM *stream,char *sequence)
       if (i > j) {		/* swap the range if backwards */
 	x = i; i = j; j = x;
       }
+      x = mail_msgno (stream,i);/* get msgnos */
+      y = mail_msgno (stream,j);/* for both UIDS (don't && it) */
 				/* easy if both UIDs valid */
-      if ((x = mail_msgno (stream,i)) && (y = mail_msgno (stream,j)))
-	while (x <= y) mail_elt (stream,x++)->sequence = T;
+      if (x && y) while (x <= y) mail_elt (stream,x++)->sequence = T;
 				/* start UID valid, end is not */
       else if (x) while ((x <= stream->nmsgs) && (mail_uid (stream,x) <= j))
 	mail_elt (stream,x++)->sequence = T;
 				/* end UID valid, start is not */
-      else if (y) for (x = 1; x <= y; x++)
+      else if (y) for (x = 1; x <= y; x++) {
 	if (mail_uid (stream,x) >= i) mail_elt (stream,x)->sequence = T;
+      }
 				/* neither is valid, ugh */
       else for (x = 1; x <= stream->nmsgs; x++)
 	if (((k = mail_uid (stream,x)) >= i) && (k <= j))
@@ -2758,7 +2760,7 @@ long mail_search_text (MAILSTREAM *stream,unsigned long msgno,STRINGLIST *st,
     s.data = (unsigned char *) mail_fetch_header (stream,msgno,NIL,NIL,&s.size,
 						  FT_INTERNAL | FT_PEEK);
     utf8_mime2text (&s,&t);
-    ret = mail_search_string (&t,NIL,&stream->private.search.string);
+    ret = mail_search_string (&t,"UTF-8",&stream->private.search.string);
     if (t.data != s.data) fs_give ((void **) &t.data);
   }
   if (!ret && mail_fetchstructure (stream,msgno,&body) && body)
@@ -2800,7 +2802,7 @@ long mail_search_body (MAILSTREAM *stream,unsigned long msgno,BODY *body,
     if (stream->dtb->flags & DR_LOWMEM) ret = stream->private.search.result;
     else {
       utf8_mime2text (&st,&h);	/* make UTF-8 version of header */
-      ret = mail_search_string (&h,NIL,&stream->private.search.string);
+      ret = mail_search_string (&h,"UTF-8",&stream->private.search.string);
       if (h.data != st.data) fs_give ((void **) &h.data);
     }
   }
@@ -2819,7 +2821,7 @@ long mail_search_body (MAILSTREAM *stream,unsigned long msgno,BODY *body,
       if (stream->dtb->flags & DR_LOWMEM) ret = stream->private.search.result;
       else {
 	utf8_mime2text (&st,&h);/* make UTF-8 version of header */
-	ret = mail_search_string (&h,NIL,&stream->private.search.string);
+	ret = mail_search_string (&h,"UTF-8",&stream->private.search.string);
 	if (h.data != st.data) fs_give ((void **) &h.data);
       }
     }

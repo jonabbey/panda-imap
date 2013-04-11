@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	26 August 1998
+# Last Edited:	8 September 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -172,7 +172,7 @@ bs3:	# BSD/i386 3.0 or higher
 	 MAILSPOOL=/var/mail NEWSSPOOL=/var/news/spool \
 	 ACTIVEFILE=/var/news/etc/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O2 -pipe -DNFSKLUDGE"
+	 BASECFLAGS="-g -O2 -pipe -DNFSKLUDGE" CC=shlicc
 
 bsd:	# BSD UNIX
 	$(BUILD) OS=$@ \

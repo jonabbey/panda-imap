@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	1 September 1998
+ * Last Edited:	8 September 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -117,7 +117,10 @@ DRIVER *news_valid (char *name)
     close (fd);			/* flush file */
     while (*t && (u = strchr (t,' '))) {
       *u++ = '\0';		/* tie off at end of name */
-      if (!strcmp (name+6,t)) return &newsdriver;
+      if (!strcmp (name+6,t)) {
+	fs_give ((void **) &s);	/* flush data */
+	return &newsdriver;
+      }
       t = 1 + strchr (u,'\n');	/* next line */
     }
     fs_give ((void **) &s);	/* flush data */
