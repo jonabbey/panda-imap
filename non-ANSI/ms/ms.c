@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 November 1988
- * Last Edited:	8 September 1993
+ * Last Edited:	11 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -75,12 +75,6 @@ static char *newslist[] = {	/* News server host list */
 #include "nntp.h"
 #include "rfc822.h"
 #include "misc.h"
-
-
-/* Drivers we use */
-
-extern DRIVER imapdriver,bezerkdriver,tenexdriver,mboxdriver,mhdriver,
- newsdriver,nntpdriver,dummydriver,dawzdriver;
 
 
 /* Size of temporary buffers */
@@ -370,19 +364,7 @@ short ms_init ()
   personal = NIL;
 #endif
   flgtab._ktcnt = 0;		/* init keyword table */
-  mail_link (&imapdriver);	/* install the IMAP driver */
-#ifdef MSDOS
-  mail_link (&dawzdriver);	/* install the dawz mail driver */
-#endif
-#if unix
-  mail_link (&tenexdriver);	/* install the Tenex mail driver */
-  mail_link (&mhdriver);	/* link in mh mail driver */
-  mail_link (&mboxdriver);	/* link in mbox mail driver */
-  mail_link (&bezerkdriver);	/* install the Berkeley mail driver */
-  mail_link (&newsdriver);	/* install the news driver */
-  mail_link (&nntpdriver);	/* install the NNTP client driver */
-  mail_link (&dummydriver);	/* install dummy driver */
-#endif
+#include "linkage.c"
   mm_mailbox ("INBOX");		/* INBOX is always known!! */
   mail_find (NIL,"*");		/* find local mailboxes */
   mail_find_bboards (NIL,"*");	/* find local bboards */

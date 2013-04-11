@@ -1,12 +1,17 @@
-# Program:	Portable C client makefile -- Macintosh (MPW-C) version
+# Program:	IMAP Makefile - VAX Ultrix version
 #
-# Author:	Gavin Eadie
-#		University of Michigan
+# Author:	Mark Crispin
+#		Networks and Distributed Computing
+#		Computing & Communications
+#		University of Washington
+#		Administration Building, AG-44
+#		Seattle, WA  98195
+#		Internet: MRC@CAC.Washington.EDU
 #
-# Date:		6 February 1992
-# Last Edited:	10 February 1992
+# Date:		7 December 1989
+# Last Edited:	17 October 1993
 #
-# Copyright 1992 by the University of Washington
+# Copyright 1993 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -24,31 +29,29 @@
 # LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
 # (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-#
-#########
-#  You need to define TCP_Folder to be the name of the folder in
-#  which the MacTCP includes and the dnr.c source files live.
- 
-#  You also need to replace [d] with the character <option-d> that
-#  is used in MPW to force a 'literal-next' function, allowing the
-#  lines below to be wrapped AND [f] with <option-f> ...
- 
-COptions = -r -i "{TCP_Folder}"
- 
-MTest.OBJ = mtest.c.o c-client.lib
- 
-MTest [f][f] Makefile {MTest.OBJ}
-   Link -d -c 'MPS ' -t MPST [d]
-      {MTest.OBJ} [d]
-      "{CLibraries}"StdClib.o [d]
-      "{Libraries}"Stubs.o [d]
-      "{Libraries}"Runtime.o [d]
-      "{Libraries}"Interface.o [d]
-      -o MTest
- 
- 
-Client.OBJ = mail.c.o imap2.c.o rfc822.c.o misc.c.o osdep.c.o [d]
-             smtp.c.o nntp.c.o "{TCP_Folder}"dnr.c.o
- 
-c-client.lib [f][f] Makefile {Client.OBJ}
-   Lib {Client.OBJ} -o c-client.lib
+
+
+# Make the IMAP server and client
+
+all:
+	rm -rf systype ANSI/c-client/Makefile non-ANSI/c-client/Makefile
+	ln -s non-ANSI systype
+	cd systype/c-client; ln -s makefile.vul Makefile; make
+	cd ms;make
+	cd ipopd;make
+	cd imapd;make
+
+clean:
+	rm -rf systype ANSI/c-client/Makefile non-ANSI/c-client/Makefile
+	cd ANSI/imapd;make clean
+	cd ANSI/ipopd;make clean
+	cd ANSI/ms;make clean
+	cd ANSI/c-client;make -f makefile.nxt clean
+	cd non-ANSI/imapd;make clean
+	cd non-ANSI/ipopd;make clean
+	cd non-ANSI/ms;make clean
+	cd non-ANSI/c-client;make -f makefile.vul clean
+
+# A monument to a hack of long ago and far away...
+love:
+	@echo 'not war?'

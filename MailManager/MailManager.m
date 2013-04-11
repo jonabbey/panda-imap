@@ -93,14 +93,7 @@ id read_action;
   };
   self = [super new];
   n = [self appName];
-  mail_link (&imapdriver);	// get IMAP driver
-  mail_link (&tenexdriver);	// get Tenex mail driver
-  mail_link (&mhdriver);	// get mh mail driver
-  mail_link (&mboxdriver);	// get mbox mail driver
-  mail_link (&bezerkdriver);	// get Berkeley mail driver
-  mail_link (&newsdriver);	// get news driver
-  mail_link (&nntpdriver);	// get NNTP driver
-  mail_link (&dummydriver);	// get dummy mail driver
+#include "../c-client/linkage.c"
   gethostname (s,TMPLEN-1);	// get local host name
 				// get it in full form
   strcpy (h,localhost =

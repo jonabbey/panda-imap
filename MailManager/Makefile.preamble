@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	30 September 1992
+# Last Edited:	11 October 1993
 #
-# Copyright 1992 by the University of Washington
+# Copyright 1993 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -36,7 +36,7 @@ C =		../c-client
 OTHER_OFILES =	$C/c-client.a
 
 # Force the C-client to be built first
-ALL:	C-CLIENT all
+ALL:	$(OTHER_OFILES) all
 
-C-CLIENT:
+$(OTHER_OFILES):
 	cd $(C);make

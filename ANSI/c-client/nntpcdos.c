@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 January 1993
- * Last Edited:	10 September 1993
+ * Last Edited:	21 October 1993
  *
  * Copyright 1993 by the University of Washington.
  *
@@ -346,7 +346,8 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     nstream->debug = stream->debug;
     nstream->reply = NIL;
 				/* get NNTP greeting */
-    if (smtp_reply (nstream) == NNTPGREET)
+    if ((smtp_reply (nstream) == NNTPGREET) &&
+	(smtp_send (nstream,"MODE","READER") == NNTPGREET))
       mm_log (nstream->reply + 4,(long) NIL);
     else {			/* oops */
       mm_log (nstream->reply,ERROR);
@@ -384,7 +385,9 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     }
 
     else {			/* try to get list of valid numbers */
-      if (smtp_send (nstream,"LISTGROUP",mb.mailbox) == NNTPGOK) {
+      sprintf (tmp,"%ld-%ld",i,j);
+      if ((smtp_send (nstream,"LISTGROUP",mb.mailbox) == NNTPGOK) ||
+	  (smtp_send (nstream,"XHDR Date",tmp) == NNTPHEAD)) {
 				/* create number map */
 	LOCAL->number = (unsigned long *) fs_get(nmsgs*sizeof (unsigned long));
 				/* initialize c-client/NNTP map */
@@ -419,6 +422,7 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
 
       mail_exists(stream,nmsgs);/* notify upper level about mailbox size */
       i = 0;			/* nothing scanned yet */
+      s = NIL;
       while (t = nntp_read_sdb (&f)) {
 	if ((s = strpbrk (t,":!")) && (c = *s)) {
 	  *s++ = '\0';		/* tie off newsgroup name, point to data */
@@ -428,6 +432,7 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
 	fs_give ((void **) &t);	/* give back this entry line */
       }
       if (s) {			/* newsgroup found? */
+	if (*s == ' ') s++;	/* skip whitespace */
 	if (c == '!') mm_log ("Not subscribed to that newsgroup",WARN);
 	while (*s && i < nmsgs){/* process until run out of messages or list */
 	  j = strtol (s,&s,10);	/* start of possible range */

@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	2 September 1993
+# Last Edited:	14 October 1993
 #
 # Copyright 1993 by the University of Washington
 #
@@ -30,8 +30,15 @@
 # (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+
+EXTRADRIVERS = #mh mbox
+DRIVERS = imap nntp mtx tenex bezerk news phile dummy
+RSH = rsh
+RSHPATH = /usr/bin/rsh
+OSDEFS = -DRSH=\"$(RSH)\" -DRSHPATH=\"$(RSHPATH)\"
 CFLAGS = -g -Dconst=
-LDFLAGS = -lsocket -lnsl -lgen
+EXTRALDFLAGS =
+LDFLAGS = -lsocket -lnsl -lgen $(EXTRALDFLAGS)
 
 mtest: mtest.o c-client.a
 	echo $(CFLAGS) > CFLAGS
@@ -39,22 +46,23 @@ mtest: mtest.o c-client.a
 	$(CC) $(CFLAGS) -o mtest mtest.o c-client.a $(LDFLAGS)
 
 clean:
-	rm -f *.o mtest c-client.a osdep.* CFLAGS LDFLAGS
+	rm -f *.o linkage.[ch] mtest c-client.a osdep.* CFLAGS LDFLAGS
 
-mtest.o: mail.h smtp.h nntp.h misc.h osdep.h
+mtest.o: mail.h smtp.h nntp.h misc.h osdep.h linkage
 
-c-client.a: mail.o bezerk.o tenex2.o mbox.o mh.o imap2.o news.o nntpclient.o\
-	phile.o dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o sm_unix.o
-	rm -f c-client.a
-	ar rc c-client.a mail.o bezerk.o tenex2.o mbox.o mh.o imap2.o news.o \
+c-client.a: mail.o bezerk.o mtx.o tenex2.o mbox.o mh.o imap2.o news.o \
 	nntpclient.o phile.o dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o \
 	sm_unix.o
+	rm -f c-client.a
+	ar rc c-client.a mail.o bezerk.o mtx.o tenex2.o mbox.o mh.o imap2.o \
+	news.o nntpclient.o phile.o dummy.o smtp.o nntp.o rfc822.o misc.o \
+	osdep.o sm_unix.o
 
 mail.o: mail.h misc.h osdep.h
 
 bezerk.o: mail.h bezerk.h rfc822.h misc.h osdep.h
 
-tenex.o: mail.h tenex.h rfc822.h misc.h osdep.h
+mtx.o: mail.h mtx.h rfc822.h misc.h osdep.h
 
 tenex2.o: mail.h tenex2.h rfc822.h misc.h osdep.h
 
@@ -66,7 +74,7 @@ imap2.o: mail.h imap2.h misc.h osdep.h
 
 news.o: mail.h news.h misc.h osdep.h
 
-nntpclient.o: mail.h nntp.h nntpclient.h misc.h rfc822.h news.h smtp.h osdep.h
+nntpclient.o: mail.h nntp.h nntpclient.h rfc822.h smtp.h news.h misc.h osdep.h
 
 phile.o: mail.h phile.h misc.h osdep.h
 
@@ -82,14 +90,16 @@ misc.o: mail.h misc.h osdep.h
 
 sm_unix.o: mail.h misc.h osdep.h
 
-osdep.o: mail.h osdep.h os_sol.c
-	$(CC) $(CFLAGS) -c os_sol.c
-	mv os_sol.o osdep.o
+osdep.o: mail.h osdep.h os_sv4.c
+	$(CC) $(CFLAGS) $(OSDEFS) -c os_sv4.c
+	mv os_sv4.o osdep.o
 
-osdep.h: os_sol.h
+osdep.h: os_sv4.h
 	rm -f osdep.h
-	ln os_sol.h osdep.h
+	ln os_sv4.h osdep.h
 
+linkage:
+	./drivers $(EXTRADRIVERS) $(DRIVERS)
 
 # A monument to a hack of long ago and far away...
 love:

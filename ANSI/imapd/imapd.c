@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	22 September 1993
+ * Last Edited:	11 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -65,12 +65,12 @@
 
 /* Global storage */
 
-char *version = "7.4(70)";	/* version number of this server */
+char *version = "7.5(72)";	/* version number of this server */
 struct itimerval timer;		/* timeout state */
 int state = LOGIN;		/* server state */
 int mackludge = 0;		/* MacMS kludge */
 int anonymous = 0;		/* non-zero if anonymous */
-long idletime = 0;		/* time we became idle */
+long kodcount = 0;		/* set if KOD has happened already */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 MAILSTREAM *tstream = NIL;	/* temporary mailbox stream */
 MAILSTREAM *create_policy;	/* current creation policy */
@@ -105,12 +105,6 @@ char *toobig = "* BAD Command line too long\015\012";
 char *nulcmd = "* BAD Null command\015\012";
 char *argrdy = "+ Ready for argument\015\012";
 
-/* Drivers we use */
-
-extern DRIVER bezerkdriver,tenexdriver,imapdriver,newsdriver,nntpdriver,
-  philedriver,dummydriver;
-
-
 /* Function prototypes */
 
 void main (int argc,char *argv[]);
@@ -145,13 +139,7 @@ void main (int argc,char *argv[])
   char *s,*t,*u,*v,tmp[MAILTMPLEN];
   struct hostent *hst;
   void (*f) () = NIL;
-  mail_link (&tenexdriver);	/* install the Tenex mail driver */
-  mail_link (&bezerkdriver);	/* install the Berkeley mail driver */
-  mail_link (&imapdriver);	/* install the IMAP driver */
-  mail_link (&newsdriver);	/* install the netnews driver */
-  mail_link (&nntpdriver);	/* install the NNTP driver */
-  mail_link (&philedriver);	/* install the file driver */
-  mail_link (&dummydriver);	/* install the dummy driver */
+#include "linkage.c"
   create_policy = mailstd_proto;/* default to creating system default */
   gethostname (cmdbuf,TMPLEN-1);/* get local name */
   host = cpystr ((hst = gethostbyname (cmdbuf)) ? hst->h_name : cmdbuf);
@@ -176,7 +164,6 @@ void main (int argc,char *argv[])
   timer.it_interval.tv_sec = TIMEOUT;
   timer.it_interval.tv_usec = 0;
   do {				/* command processing loop */
-    idletime = time (0);	/* get the idle time now */
 				/* get a command under timeout */
     timer.it_value.tv_sec = TIMEOUT; timer.it_value.tv_usec = 0;
     setitimer (ITIMER_REAL,&timer,NIL);
@@ -184,7 +171,6 @@ void main (int argc,char *argv[])
 				/* make sure timeout disabled */
     timer.it_value.tv_sec = timer.it_value.tv_usec = 0;
     setitimer (ITIMER_REAL,&timer,NIL);
-    idletime = 0;		/* not idle any more */
 				/* no more last error or literal */
     if (lsterr) fs_give ((void **) &lsterr);
     if (litbuf) fs_give ((void **) &litbuf);
@@ -269,6 +255,7 @@ void main (int argc,char *argv[])
 	  else if (s && *s) response = badarg;
 	  else if (msgno > stream->nmsgs) response = badseq;
 	  else {		/* looks good */
+	    int f = mail_elt (stream,msgno)->seen;
 	    u = s = NIL;	/* no strings yet */
 	    if (!strcmp (ucase (t),"RFC822")) {
 				/* have to make a temporary buffer for this */
@@ -296,8 +283,9 @@ void main (int argc,char *argv[])
 				/* tie off as appropriate */
 		if (count < (size - start)) s[count] = '\0';
 	      }
-	      printf ("* %ld FETCH %s (",msgno,t);
+	      printf ("* %ld FETCH (%s ",msgno,t);
 	      pstring (s);	/* write the string */
+	      changed_flags (msgno,f);
 	      fputs (")\015\012",stdout);
 	      if (u) fs_give ((void **) &u);
 	    }
@@ -418,7 +406,8 @@ void main (int argc,char *argv[])
 	      strcat (s,"\\Answered \\Flagged \\Deleted \\Seen)");
 				/* output list of flags */
 	      printf ("* FLAGS %s\015\012",(flags = cpystr (s)));
-	      state = OPEN;
+	      kodcount = 0;	/* initialize KOD count */
+	      state = OPEN;	/* note state open */
 				/* note readonly/readwrite */
 	      response = stream->readonly ?
 		"%s OK [READ-ONLY] %s completed\015\012" :
@@ -601,13 +590,19 @@ void clkint ()
 
 void kodint ()
 {
-  long t = time (0);
-  if (state == OPEN) {		/* must be open for this to work */
-    fputs ("* OK [READ-ONLY] Now READ-ONLY.  Mailbox lock surrendered\015\012",
-	   stdout);
+  char *s;
+  if (!kodcount++) {		/* only do this once please */
+				/* must be open for this to work */
+    if ((state == OPEN) && stream && stream->dtb && (s = stream->dtb->name) &&
+	(!strcmp (s,"bezerk") || !strcmp (s,"mbox") || !strcmp (s,"mmdf"))) {
+      fputs("* OK [READ-ONLY] Now READ-ONLY, mailbox lock surrendered\015\012",
+	    stdout);
+      stream->readonly = T;	/* make the stream readonly */
+      mail_ping (stream);	/* cause it to stick! */
+    }
+    else fputs ("* NO Unexpected KOD interrupt received, ignored\015\012",
+		stdout);
     fflush (stdout);		/* make sure output blatted */
-    stream->readonly = T;	/* make the stream readonly */
-    mail_ping (stream);		/* cause it to stick! */
   }
 }
 

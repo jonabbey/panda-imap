@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	14 September 1993
+ * Last Edited:	30 September 1993
  *
  * Copyright 1993 by Mark Crispin
  *
@@ -326,7 +326,8 @@ TCPSTREAM *tcp_open (char *host,long port)
   stream->host = cpystr (hst.cname);
 				/* tie off trailing dot */
   stream->host[strlen (stream->host) - 1] = '\0';
-  i = openpb->localHost >> 24;	/* the open gave us our address */
+				/* the open gave us our address */
+  i = (openpb->localHost >> 24) & 0xff;
   j = (openpb->localHost >> 16) & 0xff;
   k = (openpb->localHost >> 8) & 0xff;
   l = openpb->localHost & 0xff;

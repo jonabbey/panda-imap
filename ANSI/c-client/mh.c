@@ -13,7 +13,7 @@
  *		Internet: cohen@bucrf16.bu.edu
  *
  * Date:	23 February 1992
- * Last Edited:	10 September 1993
+ * Last Edited:	28 September 1993
  *
  * Copyright 1993 by the University of Washington
  *

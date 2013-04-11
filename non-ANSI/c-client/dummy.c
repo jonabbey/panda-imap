@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	15 July 1993
+ * Last Edited:	17 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -120,33 +120,17 @@ void dummy_find (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  void *sdb = NIL;
-  DIR *dirp;
-  struct direct *d;
-  char tmp[MAILTMPLEN],file[MAILTMPLEN];
-  char *s,*t;
-  int i = 0;
-				/* no-op if have a subscription database */
-  if (sm_read (&sdb)) fs_give ((void **) &sdb);
-  else {			/* no subscriptions, do a directory */
-    if (s = strrchr (pat,'/')) {/* directory specified in pattern? */
-      strncpy (file,pat,i = (++s) - pat);
-      file[i] = '\0';		/* tie off prefix */
-      t = dummy_file (tmp,pat);	/* make fully-qualified file name */
-				/* tie off directory name */
-      if (s = strrchr (t,'/')) *s = '\0';
-    }
-    else t = myhomedir ();	/* use home directory to search */
-    if (dirp = opendir (t)) {	/* now open that directory */
-      while (d = readdir (dirp)) {/* for each directory entry */
-	strcpy (file + i,d->d_name);
-	if (pmatch (file,pat)) mm_mailbox (file);
-      }
-      closedir (dirp);		/* flush directory */
-    }
+  void *s = NIL;
+  char *t;
+  if (*pat == '{') return;	/* local only */
+  if (t = sm_read (&s)) { 	/* if have subscription database */
+    do if ((*t != '{') && (*t != '*') && strcmp (t,"INBOX") && pmatch (t,pat))
+      mm_mailbox (t);
+    while (t = sm_read (&s));	/* until no more subscriptions */
   }
 }
-
+
+
 /* Dummy find list of subscribed bboards
  * Accepts: mail stream
  *	    pattern to search
@@ -156,29 +140,13 @@ void dummy_find_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  void *sdb = NIL;
-  DIR *dirp;
-  struct direct *d;
-  struct passwd *pw;
-  char tmp[MAILTMPLEN],file[MAILTMPLEN];
-  int i = 1;
-  char *s;
+  void *s = NIL;
+  char *t,tmp[MAILTMPLEN];
+  if (*pat == '{') return;	/* local only */
 				/* no-op if have a subscription database */
-  if (sm_read (&sdb)) fs_give ((void **) &sdb);
-  else {
-    if (!((pw = getpwnam ("ftp")) && pw->pw_dir)) return;
-    file[0] = '*';		/* bboard designator */
-				/* directory specified in pattern? */
-    if (s = strrchr (pat,'/')) strncpy (file + 1,pat,i += (++s) - pat);
-    file[i] = '\0';		/* tie off prefix */
-    sprintf (tmp,"%s/%s",pw->pw_dir,(file[1] == '/') ? file + 2 : file + 1);
-    if (dirp = opendir (tmp)) {	/* now open that directory */
-      while (d = readdir (dirp)) {/* for each directory entry */
-	strcpy (file + i,d->d_name);
-	if (pmatch (file + 1,pat)) mm_bboard (file + 1);
-      }
-      closedir (dirp);		/* flush directory */
-    }
+  if (t = sm_read (&s)) {	/* if have subscription database */
+    do if ((*t == '*') && (t[1] != '{') && pmatch (t+1,pat)) mm_bboard (t+1);
+    while (t = sm_read (&s));	/* read subscription database */
   }
 }
 
@@ -191,11 +159,31 @@ void dummy_find_all (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
+  DIR *dirp;
+  struct direct *d;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN];
+  char *s,*t;
+  int i = 0;
+  if (*pat == '{') return;	/* local only */
+  if (s = strrchr (pat,'/')) {	/* directory specified in pattern? */
+    strncpy (file,pat,i = (++s) - pat);
+    file[i] = '\0';		/* tie off prefix */
+    t = dummy_file (tmp,pat);	/* make fully-qualified file name */
+				/* tie off directory name */
+    if (s = strrchr (t,'/')) *s = '\0';
+  }
+  else t = myhomedir ();	/* use home directory to search */
+  if (dirp = opendir (t)) {	/* now open that directory */
+    while (d = readdir (dirp)) {/* for each directory entry */
+      strcpy (file + i,d->d_name);
+      if (pmatch (file,pat)) mm_mailbox (file);
+    }
+    closedir (dirp);		/* flush directory */
+  }
 				/* always an INBOX */
   if (pmatch ("INBOX",pat)) mm_mailbox ("INBOX");
 }
-
-
+
 /* Dummy find list of all bboards
  * Accepts: mail stream
  *	    pattern to search
@@ -205,7 +193,26 @@ void dummy_find_all_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  /* Exit quietly */
+  DIR *dirp;
+  struct direct *d;
+  struct passwd *pw;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN];
+  int i = 1;
+  char *s;
+				/* local only */
+  if ((*pat == '{') || !((pw = getpwnam ("ftp")) && pw->pw_dir)) return;
+  file[0] = '*';		/* bboard designator */
+				/* directory specified in pattern? */
+  if (s = strrchr (pat,'/')) strncpy (file + 1,pat,i += (++s) - pat);
+  file[i] = '\0';		/* tie off prefix */
+  sprintf (tmp,"%s/%s",pw->pw_dir,(file[1] == '/') ? file + 2 : file + 1);
+  if (dirp = opendir (tmp)) {	/* now open that directory */
+    while (d = readdir (dirp)) {/* for each directory entry */
+      strcpy (file + i,d->d_name);
+      if (pmatch (file + 1,pat)) mm_bboard (file + 1);
+    }
+    closedir (dirp);		/* flush directory */
+  }
 }
 
 /* Dummy subscribe to mailbox

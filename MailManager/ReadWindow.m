@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 February 1989
- * Last Edited:	11 February 1993
+ * Last Edited:	20 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -499,7 +499,7 @@
   case TYPETEXT:		// plain text -- display in view
     [self displayText:(unsigned char *) s length:len type:b->type
      subtype:b->subtype encoding:b->encoding];
-    break;
+    if (!([cell mouseDownFlags] & NX_SHIFTMASK)) break;
   case TYPEVIDEO:		// video
   default:			// random
     if (!(file = [self attachmentStream:(unsigned char *) s length:len
@@ -507,8 +507,14 @@
       mm_log ("Can't open memory stream for attachment",ERROR);
     else {
       sprintf (tmp,"Save %s",body_types[b->type]);
-      if ([[ds setTitle:tmp] runModal] &&
-	  NXSaveToFile (file,(char *) [ds filename]))
+      [ds setTitle:tmp];	// set prompt string
+				// get suggested filename
+      for (t = NIL,par = b->parameter; par && !t; par = par->next)
+	if (!strcmp (par->attribute,"NAME")) t = par->value;
+				// excise directory parths
+      if (t && strchr (t,'/')) t = strrchr (t,'/') + 1;
+      if ((t ? [ds runModalForDirectory:[ds directory] file:t] :
+	       [ds runModal]) && NXSaveToFile (file,(char *) [ds filename]))
 	mm_log ("Can't write attachment",ERROR);
       NXCloseMemory (file,NX_FREEBUFFER);
     }

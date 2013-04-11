@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	13 September 1993
+ * Last Edited:	11 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -68,11 +68,6 @@ char *pass = NIL;		/* password */
 long *msg = NIL;		/* message translation vector */
 
 
-/* Drivers we use */
-
-extern DRIVER imapdriver,tenexdriver,mhdriver,mboxdriver,bezerkdriver;
-
-
 /* Function prototypes */
 
 void main  ();
@@ -88,11 +83,7 @@ void main (argc,argv)
   long i,j,k;
   char *s,*t;
   char tmp[TMPLEN];
-  mail_link (&imapdriver);	/* install the IMAP driver */
-  mail_link (&tenexdriver);	/* install the Tenex mail driver */
-  mail_link (&mhdriver);	/* install the mh mail driver */
-  mail_link (&mboxdriver);	/* install the mbox mail driver */
-  mail_link (&bezerkdriver);	/* install the Berkeley mail driver */
+#include "linkage.c"
   rfc822_date (tmp);		/* get date/time now */
   printf ("+OK POP3 %s w/IMAP2 client %s at %s\015\012",version,
 	  "(Comments to MRC@CAC.Washington.EDU)",tmp);

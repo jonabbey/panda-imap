@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	4 August 1993
+# Last Edited:	11 October 1993
 #
 # Copyright 1993 by the University of Washington
 #
@@ -32,20 +32,21 @@
 
 
 C = ../c-client
+CCLIENTLIB = $C/c-client.a
 
 CCMD = ../../../ccmd
 
 # Get local CFLAGS and LFLAGS definitions from c-client directory
 
 CFLAGS = -I$C -I$(CCMD) `cat $C/CFLAGS`
-LDFLAGS = $(CCMD)/ccmd.a $C/c-client.a -ltermlib `cat $C/LDFLAGS`
+LDFLAGS = $(CCMD)/ccmd.a $(CCLIENTLIB) -ltermlib `cat $C/LDFLAGS`
 
-ms: C-CLIENT ms.o $(CCMD)/ccmd.a
+ms: $(CCLIENTLIB) ms.o $(CCMD)/ccmd.a
 	$(CC) $(CFLAGS) -o ms ms.o $(LDFLAGS)
 
 ms.o: $C/mail.h $C/smtp.h $C/rfc822.h $C/misc.h $C/osdep.h
 
-C-CLIENT:
+$(CCLIENTLIB):
 	cd $C;make
 
 clean:

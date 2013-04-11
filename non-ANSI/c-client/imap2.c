@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	9 September 1993
+ * Last Edited:	18 October 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -414,8 +414,6 @@ MAILSTREAM *map_open (stream)
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &imapproto;
   mail_valid_net_parse (stream->mailbox,&mb);
-				/* default mailbox name */
-  if (!*mb.mailbox) strcpy (mb.mailbox,mb.bbdflag ? "general" : "INBOX");
   if (LOCAL) {			/* if stream opened earlier by us */
     if (strcmp (ucase (strcpy (tmp,mb.host)),
 		ucase (strcpy (pwd,imap_host (stream))))) {
@@ -1898,13 +1896,13 @@ void imap_parse_body (stream,msgno,body,seg,txtptr,reply)
     s = imap_parse_string (stream,txtptr,reply,msgno);
     if (!(b = *body)) {		/* must have structure first */
       mm_log ("Body contents received when body structure unknown",WARN);
-      fs_give ((void **) &s);
+      if (s) fs_give ((void **) &s);
       return;
     }
 				/* get first section number */
     if (!(seg && *seg && ((i = strtol (seg,&seg,10)) > 0))) {
       mm_log ("Bogus section number",WARN);
-      fs_give ((void **) &s);
+      if (s) fs_give ((void **) &s);
       return;
     }
 
@@ -1912,15 +1910,15 @@ void imap_parse_body (stream,msgno,body,seg,txtptr,reply)
       if (b->type == TYPEMULTIPART) {
 	part = b->contents.part;/* yes, find desired part */
 	while (--i && (part = part->next));
-	if (!part || (((b = &part->body)->type == TYPEMULTIPART) && !*s)) {
+	if (!part || (((b = &part->body)->type == TYPEMULTIPART) && !(s&&*s))){
 	  mm_log ("Bad section number",WARN);
-	  fs_give ((void **) &s);
+	  if (s) fs_give ((void **) &s);
 	  return;
 	}
       }
       else if (i != 1) {	/* otherwise must be section 1 */
 	mm_log ("Invalid section number",WARN);
-	fs_give ((void **) &s);
+	if (s) fs_give ((void **) &s);
 	return;
       }
 				/* need to go down further? */
@@ -1931,25 +1929,25 @@ void imap_parse_body (stream,msgno,body,seg,txtptr,reply)
 	if ((*seg++ == '.') && (i = strtol (seg,&seg,10)) > 0) break;
       default:			/* bogus subpart */
 	mm_log ("Invalid sub-section",WARN);
-	fs_give ((void **) &s);
+	if (s) fs_give ((void **) &s);
 	return;
       }
     } while (i);
     if (b) switch (b->type) {	/* decide where the data goes based on type */
     case TYPEMULTIPART:		/* nothing to fetch with these */
       mm_log ("Textual body contents received for MULTIPART body part",WARN);
-      fs_give ((void **) &s);
+      if (s) fs_give ((void **) &s);
       return;
     case TYPEMESSAGE:		/* encapsulated message */
-      fs_give ((void **) &b->contents.msg.text);
+      if (b->contents.msg.text) fs_give ((void **) &b->contents.msg.text);
       b->contents.msg.text = s;
       break;
     case TYPETEXT:		/* textual data */
-      fs_give ((void **) &b->contents.text);
+      if (b->contents.text) fs_give ((void **) &b->contents.text);
       b->contents.text = (unsigned char *) s;
       break;
     default:			/* otherwise assume it is binary */
-      fs_give ((void **) &b->contents.binary);
+      if (b->contents.binary) fs_give ((void **) &b->contents.binary);
       b->contents.binary = (void *) s;
       break;
     }

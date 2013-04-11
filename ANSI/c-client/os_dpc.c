@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	16 August 1993
+ * Last Edited:	30 September 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -264,8 +264,8 @@ TCPSTREAM *tcp_open (char *host,long port)
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
   stream->host = hostname;	/* official host name */
   if (adr = gethostid ()) {	/* get local IP address */
-    i = adr >> 24; j = (adr >> 16) & 0xff; k = (adr >> 8) & 0xff;
-    l = adr & 0xff;
+    i = (adr >> 24) & 0xff; j = (adr >> 16) & 0xff;
+    k = (adr >> 8) & 0xff; l = adr & 0xff;
     sprintf (tmp,"[%ld.%ld.%ld.%ld]",i,j,k,l);
     stream->localhost = cpystr (tmp);
   }

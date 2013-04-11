@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	29 April 1992
+# Last Edited:	17 October 1993
 #
-# Copyright 1992 by the University of Washington
+# Copyright 1993 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -35,8 +35,8 @@
 
 all:
 	rm -rf systype ANSI/c-client/Makefile non-ANSI/c-client/Makefile
-	ln -s non-ANSI systype
-	cd systype/c-client; ln -s makefile.sgi Makefile
+	ln -s ANSI systype
+	cd systype/c-client; ln -s makefile.sgi Makefile; make
 	cd ms;make
 	cd ipopd;make
 	cd imapd;make
@@ -46,11 +46,11 @@ clean:
 	cd ANSI/imapd;make clean
 	cd ANSI/ipopd;make clean
 	cd ANSI/ms;make clean
-	cd ANSI/c-client;make -f makefile.nxt clean
+	cd ANSI/c-client;make -f makefile.sgi clean
 	cd non-ANSI/imapd;make clean
 	cd non-ANSI/ipopd;make clean
 	cd non-ANSI/ms;make clean
-	cd non-ANSI/c-client;make -f makefile.sgi clean
+	cd non-ANSI/c-client;make -f makefile.bsd clean
 
 # A monument to a hack of long ago and far away...
 love:

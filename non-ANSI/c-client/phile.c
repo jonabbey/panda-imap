@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	13 September 1993
+ * Last Edited:	28 September 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -48,6 +48,7 @@ extern int errno;		/* just in case */
 #include "phile.h"
 #include "rfc822.h"
 #include "misc.h"
+#include "dummy.h"
 
 /* File routines */
 
@@ -153,15 +154,7 @@ void phile_find (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  char *s,*t,tmp[MAILTMPLEN];
-  void *sdb = NIL;
-  if (t = sm_read (&sdb)) {	/* if have subscription database */
-    do if ((*t != '{') && (*t != '*') &&
-	   strcmp (t,"INBOX") && pmatch (t,pat) && phile_isvalid (t,tmp))
-      mm_mailbox (t);
-    while (t = sm_read (&sdb));	/* read subscription database */
-    fs_give ((void **) &sdb);
-  }
+  if (stream) dummy_find (NIL,pat);
 }
 
 
@@ -174,17 +167,10 @@ void phile_find_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  char *s,*t,tmp[MAILTMPLEN];
-  void *sdb = NIL;
-  if (t = sm_read (&sdb)) {	/* if have subscription database */
-    do if ((*t != '{') && (*t == '*') &&
-	   pmatch (t+1,pat) && phile_isvalid (t,tmp))
-      mm_bboard (t+1);
-    while (t = sm_read (&sdb));	/* read subscription database */
-    fs_give ((void **) &sdb);
-  }
+  if (stream) dummy_find_bboards (NIL,pat);
 }
-
+
+
 /* File find list of all mailboxes
  * Accepts: mail stream
  *	    pattern to search
@@ -194,28 +180,10 @@ void phile_find_all (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  DIR *dirp;
-  struct direct *d;
-  char tmp[MAILTMPLEN],file[MAILTMPLEN];
-  char *s,*t;
-  int i = 0;
-  if (s = strrchr (pat,'/')) {	/* directory specified in pattern? */
-    strncpy (file,pat,i = (++s) - pat);
-    file[i] = '\0';		/* tie off prefix */
-    t = phile_file (tmp,pat);	/* make fully-qualified file name */
-				/* tie off directory name */
-    if (s = strrchr (t,'/')) *s = '\0';
-  }
-  else t = myhomedir ();	/* use home directory to search */
-  if (dirp = opendir (t)) {	/* now open that directory */
-    while (d = readdir (dirp)) {/* for each directory entry */
-      strcpy (file + i,d->d_name);
-      if (pmatch (file,pat)) mm_mailbox (file);
-    }
-    closedir (dirp);		/* flush directory */
-  }
+  if (stream) dummy_find_all (NIL,pat);
 }
-
+
+
 /* File find list of all bboards
  * Accepts: mail stream
  *	    pattern to search
@@ -225,26 +193,7 @@ void phile_find_all_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  DIR *dirp;
-  struct direct *d;
-  struct passwd *pw;
-  char tmp[MAILTMPLEN],file[MAILTMPLEN];
-  int i = 1;
-  char *s;
-  if (!((pw = getpwnam ("ftp")) && pw->pw_dir)) return;
-  file[0] = '*';		/* bboard designator */
-				/* directory specified in pattern? */
-  if (s = strrchr (pat,'/')) strncpy (file + 1,pat,i += (++s) - pat);
-  file[i] = '\0';		/* tie off prefix */
-  sprintf (tmp,"%s/%s",pw->pw_dir,(file[1] == '/') ? file + 2 : file + 1);
-  if (dirp = opendir (tmp)) {	/* now open that directory */
-    while (d = readdir (dirp)) {/* for each directory entry */
-      strcpy (file + i,d->d_name);
-      if (pmatch (file + 1,pat) && (phile_isvalid (file,tmp)))
-	mm_bboard (file + 1);
-    }
-    closedir (dirp);		/* flush directory */
-  }
+  if (stream) dummy_find_all_bboards (NIL,pat);
 }
 
 /* File subscribe to mailbox

@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		28 October 1990
-# Last Edited:	10 January 1992
+# Last Edited:	11 October 1993
 #
-# Copyright 1992 by the University of Washington
+# Copyright 1993 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -32,25 +32,26 @@
 
 
 C = ../c-client
+CCLIENTLIB = $C/c-client.a
 
 # Get local CFLAGS and LFLAGS definitions from c-client directory
 
 CFLAGS = -I$C `cat $C/CFLAGS`
-LDFLAGS = $C/c-client.a `cat $C/LDFLAGS`
+LDFLAGS = $(CCLIENTLIB) `cat $C/LDFLAGS`
 
 ipopd: ipop2d ipop3d
 
-ipop2d: C-CLIENT ipop2d.o
+ipop2d: $(CCLIENTLIB) ipop2d.o
 	$(CC) $(CFLAGS) -o ipop2d ipop2d.o $(LDFLAGS)
 
-ipop3d: C-CLIENT ipop3d.o
+ipop3d: $(CCLIENTLIB) ipop3d.o
 	$(CC) $(CFLAGS) -o ipop3d ipop3d.o $(LDFLAGS)
 
 ipop2d.o: $C/mail.h $C/misc.h $C/osdep.h
 
 ipop3d.o: $C/mail.h $C/misc.h $C/osdep.h
 
-C-CLIENT:
+$(CCLIENTLIB):
 	cd $C;make
 
 clean:

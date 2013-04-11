@@ -1,4 +1,4 @@
-.		      C-Client Revision History
+		      C-Client Revision History
 
 Note: Dates in this revision history indicate when the work was completed.
 
@@ -164,6 +164,8 @@ Note: Dates in this revision history indicate when the work was completed.
 		[bezerk.h/c] Fixed bad file closing bug when recycling a
 		bezerk stream.
 
+		*** 1.0 frozen at this point ***
+
 21 September 1992
 		[lots of files] Major surgery to MIME parser to use a new
 		concept called a `stringstruct' instead of char * strings.
@@ -237,6 +239,8 @@ Note: Dates in this revision history indicate when the work was completed.
 27 October 1992	[os_ptx.c, os_sv4.c] Fix DST handling on SysV like systems.
 
 27 October 1992	[os*.c/h] Add tcp_sout() for IMAP APPEND support.
+
+		*** 2.2 frozen at this point ***
 
 29 October 1992	[os*.c] Fixed server_login() to set up group access properly.
 
@@ -352,6 +356,8 @@ Note: Dates in this revision history indicate when the work was completed.
 
 11 February 1993 [tenex.c] Validate target type in tenex_copy_messages().
 
+		*** 2.3 frozen at this point ***
+
 15 February 1993 [bezerk.c/h] Implement Kiss Of Death for mbox streams which
 		have the read-write lock.
 
@@ -379,6 +385,8 @@ Note: Dates in this revision history indicate when the work was completed.
 9 March 1993	[nntpc*.c] Implement half-opens.
 
 15 March 1993	[news.c] Fix brain-damage in find bboards.
+
+		*** 2.4 frozen at this point ***
 
 15 March 1993	[makefile.bsi, os_bsi.c/h] Add BSDI port.
 
@@ -789,3 +797,89 @@ Note: Dates in this revision history indicate when the work was completed.
 22 September 1993 [imapd.c] Default creation policy is system default.
 
 22 September 1993 [imapd.c] Change init file name to /etc/imapd.conf
+
+		*** 3.0 frozen at this point ***
+
+23 September 1993 [tenex2.c] Don't snarf from read-only bezerk inbox.
+
+23 September 1993 [Updates.DOC] Add notes when various versions were frozen.
+
+26 September 1993 [mmdf.c] Change bezerk_file() reference to mmdf_file().
+
+26 September 1993 [nntpc*.c] Use suggestion from Arnt Gulbrandsen to work
+		around servers which don't support LISTGROUP.
+
+28 September 1993 [bezerk.c, dummy.c, mbox.c, mh.c, mmdf.c, phile.c, tenex2.c]
+		Change to make dummy driver do all FIND logic for local file
+		based drivers.
+
+29 September 1993 [makefile.vul] Create VAX Ultrix port (uses ULT sources, only
+		the makefile is different).
+
+30 September 1993 [os_d*.c] Fix negative network number in bracketed local
+		host number.
+
+30 September 1993 [os_mac.c] Similar change for the Mac (probably paranoia).
+
+30 September 1993 [os_sgi.c] rsh lives on /usr/bsd on SGI systems.
+
+30 September 1993 [imapd.c] Ignore KOD interrupts when stream is not a bezerk,
+		mbox, or mmdf type stream.
+
+30 September 1993 [bezerk.c, mmdf.c] Don't send or receive KOD when called
+		from tenex.  Don't open read-only when called from tenex.
+
+ 3 October 1993	[bezerk.c, mmdf.c] Have to try locking at least one for snarf
+		to work.
+
+ 3 October 1993	[makefile.* os*c] Make rsh name and path be a build parameter.
+
+ 5 October 1993 [bezerk.c, mmdf.c, tenex2.c] Make official tenex extension be
+		.TxT instead of .txt; mail.txt is still checked for
+		compatibility.
+
+ 5 October 1993 [imap2.c, mail.c] Make INBOX/general name defaulting on net
+		mailboxes happen in all cases.
+
+ 5 October 1993 [ipop2d.c] Fix bad current message number default.
+
+ 7 October 1993 [bezerk.c] Fix crash when a prototype is desired.
+
+ 8 October 1993 [imapd.c] Fix bad syntax in PARTIAL response.
+
+11 October 1993 [makefile.*, mail.h, mtest.c, ms.c, i*d.c, MailManager.c/h]
+		New linkage mechanism defines drivers to use in the c-client
+		makefile.
+
+12 October 1993 [makefile.sgi, os_sgi.c/h] New SGI port from Angel Li.
+
+12 October 1993 [makefile.*] More linkage stuff.
+
+13 October 1993 [makefile.*] Add ./ in front of drivers call.  Add new
+		EXTRALDFLAGS variable.
+
+14 October 1993	[mtx.c/h] Create MTX driver.
+
+14 October 1993	[tenex2.c] Don't accept files with CR's.
+
+17 October 1993	[mtx.c] Fix fenceposts in flag handling due to CR.
+
+17 October 1993	[mtest.c] Show driver used in status display.
+
+17 October 1993	[dummy.c] Find no longer calls findall if no subscriptions.
+
+19 October 1993	[mtx.c] Fix missing count from mail_fetchbody().
+
+20 October 1993	[nntpc*.c] Do MODE READER command at NNTP startup.
+
+21 October 1993	[mail.c] Purge short cache in mail_expunged().
+
+21 October 1993	[news.c, nntpc*.c] Fix bogus ``Bogus syntax in news state
+		file'' message.
+
+21 October 1993	[makefile.d-g, os_d-g.c/c] Add D-G port.
+
+22 October 1993	[bezerk.c, mmdf.c] Use time_t instead of unsigned long for
+		time(0) values.
+
+23 October 1993	[nntp.c] Do MODE READER here too.

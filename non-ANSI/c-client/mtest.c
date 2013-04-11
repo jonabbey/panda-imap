@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	8 September 1993
+ * Last Edited:	17 October 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -63,8 +63,6 @@
 char *curhst = NIL;		/* currently connected host */
 char *curusr = NIL;		/* current login user */
 char personalname[256];		/* user's personal name */
-extern DRIVER imapdriver,bezerkdriver,tenexdriver,mboxdriver,mhdriver,
- newsdriver,nntpdriver,philedriver,dummydriver,dawzdriver;
 
 static char *hostlist[] = {	/* SMTP server host list */
   "mailhost",
@@ -123,22 +121,7 @@ void main ()
   curhst = cpystr ("someplace");
 #endif
   puts ("MTest -- C client test program");
-  mail_link (&imapdriver);	/* link in IMAP driver */
-#ifdef MSDOS
-  mail_link (&dawzdriver);	/* link in dawz mail driver */
-  mail_link (&nntpdriver);	/* link in NNTP driver */
-  mail_link (&dummydriver);	/* finally dummy driver at the end */
-#endif
-#if unix
-  mail_link (&tenexdriver);	/* link in Tenex mail driver */
-  mail_link (&mhdriver);	/* link in mh mail driver */
-  mail_link (&mboxdriver);	/* link in mbox mail driver */
-  mail_link (&bezerkdriver);	/* link in Berkeley mail driver */
-  mail_link (&newsdriver);	/* link in netnews mail driver */
-  mail_link (&nntpdriver);	/* link in NNTP driver */
-  mail_link (&philedriver);	/* line in file driver */
-  mail_link (&dummydriver);	/* finally dummy driver at the end */
-#endif
+#include "linkage.c"
 				/* user wants protocol telemetry? */
   prompt ("Debug protocol (y/n)?",tmp);
   ucase (tmp);
@@ -435,8 +418,9 @@ void status (stream)
   rfc822_date (date);
   puts (date);
   if (stream) {
-    if (stream->mailbox) printf ("Mailbox: %s, %ld messages, %ld recent\n",
-				 stream->mailbox,stream->nmsgs,stream->recent);
+    if (stream->mailbox)
+      printf (" %s mailbox: %s, %ld messages, %ld recent\n",
+	      stream->dtb->name,stream->mailbox,stream->nmsgs,stream->recent);
     else puts ("%No mailbox is open on this stream");
     if (stream->user_flags[0]) {
       printf ("Keywords: %s",stream->user_flags[0]);

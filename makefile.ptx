@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	3 June 1992
+# Last Edited:	17 October 1993
 #
-# Copyright 1992 by the University of Washington
+# Copyright 1993 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -36,7 +36,7 @@
 all:
 	rm -rf systype ANSI/c-client/Makefile non-ANSI/c-client/Makefile
 	ln -s non-ANSI systype
-	cd systype/c-client; ln -s makefile.ptx Makefile
+	cd systype/c-client; ln -s makefile.ptx Makefile; make
 	cd ms;make
 	cd ipopd;make
 	cd imapd;make

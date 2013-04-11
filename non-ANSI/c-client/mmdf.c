@@ -11,7 +11,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1993
- * Last Edited:	12 September 1993
+ * Last Edited:	22 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -49,6 +49,7 @@ extern int errno;		/* just in case */
 #include "mmdf.h"
 #include "rfc822.h"
 #include "misc.h"
+#include "dummy.h"
 
 /* MMDF mail routines */
 
@@ -131,8 +132,8 @@ int mmdf_isvalid (name,tmp)
 				/* if file, get its status */
   if (*name != '{' && (stat (mmdf_file (tmp,name),&sbuf) == 0) &&
       ((fd = open (tmp,O_RDONLY,NIL)) >= 0)) {
-    if (sbuf.st_size == 0) { 	/* allow empty file if not .txt */
-      if ((i = strlen (tmp)) < 4 || strcmp (tmp + i - 4 ,".txt"))
+    if (sbuf.st_size == 0) { 	/* allow empty file if not .TxT */
+      if ((i = strlen (tmp)) < 4 || strcmp (tmp + i - 4 ,".TxT"))
 	return LONGT;
     }
     else if ((read (fd,tmp,MAILTMPLEN-1) >= 0) &&
@@ -164,11 +165,7 @@ void mmdf_find (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  void *s = NIL;
-  char *t,tmp[MAILTMPLEN];
-  while (t = sm_read (&s))	/* read subscription database */
-    if ((*t != '{') && strcmp (t,"INBOX") && pmatch (t,pat) &&
-	mmdf_isvalid (t,tmp)) mm_mailbox (t);
+  if (stream) dummy_find (NIL,pat);
 }
 
 
@@ -181,9 +178,10 @@ void mmdf_find_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  /* Always a no-op */
+  if (stream) dummy_find_bboards (NIL,pat);
 }
-
+
+
 /* MMDF mail find list of all mailboxes
  * Accepts: mail stream
  *	    pattern to search
@@ -193,26 +191,7 @@ void mmdf_find_all (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  DIR *dirp;
-  struct direct *d;
-  char tmp[MAILTMPLEN],file[MAILTMPLEN];
-  int i = 0;
-  char *s,*t;
-  if (s = strrchr (pat,'/')) {	/* directory specified in pattern? */
-    strncpy (file,pat,i = (++s) - pat);
-    file[i] = '\0';		/* tie off prefix */
-    t = mmdf_file (tmp,pat);	/* make fully-qualified file name */
-				/* tie off directory name */
-    if (s = strrchr (t,'/')) *s = '\0';
-  }
-  else t = myhomedir ();	/* use home directory to search */
-  if (dirp = opendir (t)) {	/* now open that directory */
-    while (d = readdir (dirp)) {/* for each directory entry */
-      strcpy (file + i,d->d_name);
-      if (pmatch (file,pat) && (mmdf_isvalid (file,tmp))) mm_mailbox (file);
-    }
-    closedir (dirp);		/* flush directory */
-  }
+  if (stream) dummy_find_all (NIL,pat);
 }
 
 
@@ -225,7 +204,7 @@ void mmdf_find_all_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  /* Always a no-op */
+  if (stream) dummy_find_all_bboards (NIL,pat);
 }
 
 /* MMDF mail subscribe to mailbox
@@ -297,12 +276,12 @@ long mmdf_create (stream,mailbox)
 {
   char tmp[MAILTMPLEN];
   int i,fd;
-				/* must be a ".txt" file */
-  if ((i = strlen (mailbox)) > 4 && !strcmp (mailbox + i - 4 ,".txt")) {
-    mm_log ("Can't create mailbox: name must not end with .txt",ERROR);
+				/* must not be a ".TxT" file */
+  if ((i = strlen (mailbox)) > 4 && !strcmp (mailbox + i - 4 ,".TxT")) {
+    mm_log ("Can't create mailbox: name must not end with .TxT",ERROR);
     return NIL;
   }
-  if ((fd = open (bezerk_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600))<0) {
+  if ((fd = open (mmdf_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600))<0) {
     sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -384,7 +363,7 @@ MAILSTREAM *mmdf_open (stream)
 {
   long i;
 
-  long retry = KODRETRY;	/* number of seconds to retry */
+  long retry = stream->silent ? 1 : KODRETRY;
   int fd;
   char tmp[MAILTMPLEN];
   struct stat sbuf;
@@ -439,16 +418,21 @@ MAILSTREAM *mmdf_open (stream)
 	else retry = 0;		/* give up */
       }
       close (fd);		/* get a new handle next time around */
-      if (retry) sleep (1);	/* wait a second before trying again */
-      else mm_log ("Mailbox is open by another process, access is readonly",
-		   WARN);
+      if (!stream->silent) {	/* nothing if silent stream */
+	if (retry) sleep (1);	/* wait a second before trying again */
+	else mm_log ("Mailbox is open by another process, access is readonly",
+		     WARN);
+      }
     }
     else {			/* got the lock, nobody else can alter state */
       LOCAL->ld = fd;		/* note lock's fd */
       chmod (LOCAL->lname,0666);/* make sure mode OK (don't use fchmod()) */
-				/* note our PID in the lock */
-      sprintf (tmp,"%d",getpid ());
-      write (fd,tmp,strlen (tmp));
+      if (stream->silent) i = 0;/* silent streams won't accept KOD */
+      else {			/* note our PID in the lock */
+	sprintf (tmp,"%d",getpid ());
+	write (fd,tmp,strlen (tmp));
+      }
+      ftruncate (fd,i);		/* make sure tied off */
       fsync (fd);		/* make sure it's available */
       retry = 0;		/* no more need to try */
     }
@@ -465,8 +449,10 @@ MAILSTREAM *mmdf_open (stream)
     unlink (LOCAL->lname);	/* delete it */
     fs_give ((void **) &LOCAL->lname);
   }
+				/* abort if can't get RW silent stream */
+  if (stream->silent && !stream->readonly && !LOCAL->ld) bezerk_abort (stream);
 				/* parse mailbox */
-  if ((fd = mmdf_parse (stream,tmp,LOCK_SH)) >= 0) {
+  else if ((fd = mmdf_parse (stream,tmp,LOCK_SH)) >= 0) {
     mmdf_unlock (fd,stream,tmp);
     mail_unlock (stream);
   }
@@ -1036,7 +1022,7 @@ long mmdf_append (stream,mailbox,message)
   char c,tmp[MAILTMPLEN],lock[MAILTMPLEN];
   int i = 0;
   char *s = tmp;
-  long t = time (0);
+  time_t t = time (0);
   long size = SIZE (message);
   if ((fd = mmdf_lock (mmdf_file (tmp,mailbox),O_WRONLY|O_APPEND|O_CREAT,
 			 S_IREAD|S_IWRITE,lock,LOCK_EX)) < 0) {

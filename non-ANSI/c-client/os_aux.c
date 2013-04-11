@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- SUN-OS 4.0 version
+ * Program:	Operating-system dependent routines -- A/UX version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -9,7 +9,7 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	16 August 1993
+ * Last Edited:	13 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -50,22 +50,26 @@ TCPSTREAM {
   char ibuf[BUFLEN];		/* input buffer */
 };
 
-
 #include "osdep.h"
+#include <ctype.h>
 #include <sys/time.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <ctype.h>
 #include <errno.h>
-extern int errno;		/* just in case */
 #include <pwd.h>
 #include <syslog.h>
 #include "mail.h"
 #include "misc.h"
 
-extern int sys_nerr;
 extern char *sys_errlist[];
+extern int sys_nerr;
+
+/*
+#define toint(c)	((c)-'0')
+#define isodigit(c)	(((unsigned)(c)>=060)&((unsigned)(c)<=067))
+*/
 
 /* Write current time in RFC 822 format
  * Accepts: destination string
@@ -81,14 +85,15 @@ void rfc822_date (date)
   struct tm *t;
   struct timeval tv;
   struct timezone tz;
+
   gettimeofday (&tv,&tz);	/* get time and timezone poop */
   t = localtime (&tv.tv_sec);	/* convert to individual items */
-  zone = t->tm_gmtoff/60;	/* get timezone from TZ environment stuff */
-  zonename = t->tm_zone;
-				/* and output it */
+				/* use this for older systems */
+  zone = (t->tm_isdst ? 60 : 0) -tz.tz_minuteswest;
   sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,zonename);
+	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
+	   tzname[t->tm_isdst ? 1 : 0]);
 }
 
 /* Get a block of free storage
@@ -181,7 +186,7 @@ unsigned long strcrlfcpy (dst,dstl,src,srcl)
     break;
   }
   *d = '\0';			/* tie off destination */
-  return d - *dst;		/* return length */
+  return d- *dst;		/* return length */
 }
 
 
@@ -409,7 +414,7 @@ TCPSTREAM *tcp_aopen (host,service)
     dup2 (pipeo[0],0);		/* parent's output is my input */
     close (pipeo[0]); close (pipeo[1]);
 				/* now run it */
-    execl ("/usr/ucb/rsh","rsh",hostname,"exec",service,0);
+    execl ("/usr/bin/remsh","remsh",hostname,"exec",service,0);
     _exit (1);			/* spazzed */
   }
 
@@ -620,25 +625,15 @@ char *tcp_localhost (stream)
   return stream->localhost;	/* return local host name */
 }
 
-/* Return pointer to first occurance in string of a substring
- * Accepts: source pointer
- *	    substring pointer
- * Returns: pointer to substring in source or NIL if not found
+/* Return implementation-defined string corresponding to error
+ * Accepts: error number
+ * Returns: string for that error
  */
 
-char *strstr (cs,ct)
-     char *cs;
-     char *ct;
+char *strerror (n)
+     int n;
 {
-  char *s;
-  char *t;
-  while (cs = strchr (cs,*ct)) {/* for each occurance of the first character */
-				/* see if remainder of string matches */
-    for (s = cs + 1, t = ct + 1; *t && *s == *t; s++, t++);
-    if (!*t) return cs;		/* if ran out of substring then have match */
-    cs++;			/* try from next character */
-  }
-  return NIL;			/* not found */
+  return (n >= 0 && n < sys_nerr) ? sys_errlist[n] : NIL;
 }
 
 
@@ -656,16 +651,4 @@ char *memmove (s,ct,n)
 {
   bcopy (ct,s,n);		/* they should have this one */
   return ct;
-}
-
-
-/* Return implementation-defined string corresponding to error
- * Accepts: error number
- * Returns: string for that error
- */
-
-char *strerror (n)
-     int n;
-{
-  return (n >= 0 && n < sys_nerr) ? sys_errlist[n] : NIL;
 }

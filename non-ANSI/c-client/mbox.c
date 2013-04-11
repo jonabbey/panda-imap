@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	15 July 1993
+ * Last Edited:	28 September 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -57,10 +57,10 @@ DRIVER mboxdriver = {
   (DRIVER *) NIL,		/* next driver */
   mbox_valid,			/* mailbox is valid for us */
   bezerk_parameters,		/* manipulate parameters */
-  mbox_find,			/* find mailboxes */
-  mbox_find,			/* find bboards */
-  mbox_find,			/* find all mailboxes */
-  mbox_find,			/* find all bboards */
+  bezerk_find,			/* find mailboxes */
+  bezerk_find_bboards,		/* find bboards */
+  bezerk_find_all,		/* find all mailboxes */
+  bezerk_find_all_bboards,	/* find all bboards */
   bezerk_subscribe,		/* subscribe to mailbox */
   bezerk_unsubscribe,		/* unsubscribe from mailbox */
   bezerk_subscribe_bboard,	/* subscribe to bboard */
@@ -119,19 +119,6 @@ DRIVER *mbox_valid (name)
     }
   }
   return ret ? &mboxdriver : NIL;
-}
-
-
-/* MBOX mail find list of mailboxes
- * Accepts: mail stream
- *	    pattern to search
- */
-
-void mbox_find (stream,pat)
-	MAILSTREAM *stream;
-	char *pat;
-{
-  /* Always a no-op since bezerk will do this */
 }
 
 /* MBOX mail open

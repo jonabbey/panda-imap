@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- Solaris version
+ * Program:	Operating-system dependent routines -- A/UX version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -9,8 +9,8 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:	10 April 1992
- * Last Edited:	2 September 1993
+ * Date:	11 May 1989
+ * Last Edited:	13 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -33,41 +33,23 @@
  *
  */
 
-#define MAILFILE "/var/mail/%s"
-#define ACTIVEFILE "/usr/share/news/active"
-#define NEWSSPOOL "/var/spool/news"
+#define MAILFILE "/usr/mail/%s"
+#define ACTIVEFILE "/usr/lib/news/active"
+#define NEWSSPOOL "/usr/spool/news"
 #define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
-
-#include <string.h>
+#define NFSKLUDGE
 
 #include <sys/types.h>
+#include <sys/dir.h>
 #include <stdlib.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <time.h>
-#include <sys/utime.h>
+#include <strings.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <time.h>
 
+extern void *malloc ();
+extern void *realloc ();
 
-/* Different names, equivalent things in BSD and SysV */
-
-/* L_SET is defined for some strange reason in <sys/file.h> on SVR4. */
-#ifndef L_SET
-#define L_SET SEEK_SET
-#endif
-#define L_INCR SEEK_CUR
-#define L_XTND SEEK_END
-
-#define direct dirent
-
-
-/* For flock() emulation */
-
-#define LOCK_SH 1
-#define LOCK_EX 2
-#define LOCK_NB 4
-#define LOCK_UN 8
+extern int errno;
 
 
 /* Dummy definition overridden by TCP routines */
@@ -88,7 +70,7 @@ unsigned long strcrlflen  ();
 long server_login  ();
 char *myusername ();
 char *myhomedir ();
-char *lockname ();
+char *lockname  ();
 TCPSTREAM *tcp_open  ();
 TCPSTREAM *tcp_aopen  ();
 char *tcp_getline  ();
@@ -99,11 +81,5 @@ long tcp_sout  ();
 void tcp_close  ();
 char *tcp_host  ();
 char *tcp_localhost  ();
-
-long gethostid ();
-long random ();
-void *memmove ();
-int scandir ();
-int flock ();
-int gettimeofday ();
-int utimes ();
+char *strerror ();
+char *memmove ();

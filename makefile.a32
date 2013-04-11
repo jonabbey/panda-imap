@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	4 August 1993
+# Last Edited:	17 October 1993
 #
 # Copyright 1993 by the University of Washington
 #
@@ -36,7 +36,7 @@
 all:
 	rm -rf systype ANSI/c-client/Makefile non-ANSI/c-client/Makefile
 	ln -s ANSI systype
-	cd systype/c-client; ln -s makefile.a32 Makefile
+	cd systype/c-client; ln -s makefile.a32 Makefile; make
 	cd ms;make
 	cd ipopd;make
 	cd imapd;make

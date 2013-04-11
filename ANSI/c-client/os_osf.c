@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	17 August 1993
+ * Last Edited:	3 October 1993
  *
  * Copyright 1993 by the University of Washington.
  *
@@ -403,7 +403,7 @@ TCPSTREAM *tcp_aopen (char *host,char *service)
     dup2 (pipeo[0],0);		/* parent's output is my input */
     close (pipeo[0]); close (pipeo[1]);
 				/* now run it */
-    execl ("/usr/ucb/rsh","rsh",hostname,"exec",service,0);
+    execl (RSHPATH,RSH,hostname,"exec",service,0);
     _exit (1);			/* spazzed */
   }
 

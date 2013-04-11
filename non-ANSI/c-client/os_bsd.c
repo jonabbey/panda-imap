@@ -9,7 +9,7 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	16 August 1993
+ * Last Edited:	3 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -410,7 +410,7 @@ TCPSTREAM *tcp_aopen (host,service)
     dup2 (pipeo[0],0);		/* parent's output is my input */
     close (pipeo[0]); close (pipeo[1]);
 				/* now run it */
-    execl ("/usr/ucb/rsh","rsh",hostname,"exec",service,0);
+    execl (RSHPATH,RSH,hostname,"exec",service,0);
     _exit (1);			/* spazzed */
   }
 

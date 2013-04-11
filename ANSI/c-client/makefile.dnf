@@ -9,7 +9,7 @@
 #		Internet: MikeS@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	29 July 1993
+# Last Edited:	11 October 1993
 #
 # Copyright 1993 by the University of Washington
 #
@@ -30,17 +30,18 @@
 # (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-CFLAGS= -Os -AL -Gy -Gt2 -I\nfs\ptk40\include
-# for debugging
-#CFLAGS=	-Zi -Od -AL -Gy -Gt2
 
-all:	mtest.exe
-	
+EXTRADRIVERS = 
+DRIVERS = imap nntp dawz dummy
+CFLAGS= -AL
+CC = cl
+
 .c.obj:
 	$(CC) -c $(CFLAGS) $*.c
 
 osdep.h: os_dnf.h
 	copy os_dnf.h osdep.h
+	drivers $(EXTRADRIVERS) $(DRIVERS)
 
 mtest.obj: mail.h smtp.h misc.h osdep.h mtest.c
 
@@ -75,4 +76,4 @@ cclient.lib: mail.obj imap2.obj dawz.obj nntpcdos.obj dummydos.obj smtp.obj \
 	lib cclient +mail+imap2+dawz+nntpcdos+dummydos+smtp+nntp+misc+rfc822+sm_dos+osdep;
 
 mtest.exe: mtest.obj cclient.lib
-	link /stack:32767 mtest.obj,mtest.exe,,cclient.lib ltklib.lib;
+	link /stack:32767 mtest.obj,mtest.exe,,cclient.lib ltklib.lib

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	14 September 1993
+ * Last Edited:	21 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -415,6 +415,8 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
       return NIL;
     } while (c);		/* see if anything more to parse */
   }
+				/* default mailbox name */
+  if (!*mb->mailbox) strcpy (mb->mailbox,mb->bbdflag ? "general" : "INBOX");
 				/* default service name */
   if (!(*mb->service && strcmp (mb->service,"imap")))
     strcpy (mb->service,"imap2");
@@ -784,12 +786,13 @@ void mail_fetchfrom (char *s,MAILSTREAM *stream,long msgno,long length)
   char *t;
   char tmp[MAILTMPLEN];
   ENVELOPE *env = mail_fetchstructure (stream,msgno,NIL);
+  ADDRESS *adr = env ? env->from : NIL;
   memset (s,' ',length);	/* fill it with spaces */
   s[length] = '\0';		/* tie off with null */
 				/* get first from address from envelope */
-  if (env && env->from) {	/* if a personal name exists use it */
-    if (!(t = env->from->personal))
-      sprintf (t = tmp,"%s@%s",env->from->mailbox,env->from->host);
+  while (adr && !adr->host) adr = adr->next;
+  if (adr) {			/* if a personal name exists use it */
+    if (!(t = adr->personal)) sprintf (t = tmp,"%s@%s",adr->mailbox,adr->host);
     memcpy (s,t,min (length,(long) strlen (t)));
   }
 }
@@ -1242,6 +1245,9 @@ void mail_expunged (MAILSTREAM *stream,long msgno)
 				/* expunge the slot */
   (*mailcache) (stream,msgno,CH_EXPUNGE);
   --stream->nmsgs;		/* update stream status */
+  stream->msgno = 0;		/* nuke the short cache too */
+  mail_free_envelope (&stream->env);
+  mail_free_body (&stream->body);
 				/* notify main program of change */
   if (!stream->silent) mm_expunged (stream,msgno);
 }

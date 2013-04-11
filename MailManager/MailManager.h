@@ -68,12 +68,6 @@
 #import <sys/time.h>
 #import <sys/timeb.h>
 
-// Linkages to MAIL drivers
-
-extern DRIVER imapdriver,bezerkdriver,tenexdriver,mboxdriver,mhdriver,
-	newsdriver,nntpdriver,dummydriver;
-
-
 // Prototypes of functions certain individuals would rather we not use
 
 void ftime (struct timeb *tb);

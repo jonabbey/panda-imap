@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	21 September 1993
+ * Last Edited:	22 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -59,6 +59,7 @@ extern int errno;		/* just in case */
 #include "bezerk.h"
 #include "rfc822.h"
 #include "misc.h"
+#include "dummy.h"
 
 /* Berkeley mail routines */
 
@@ -144,8 +145,8 @@ int bezerk_isvalid (name,tmp)
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
       (stat (bezerk_file (tmp,name),&sbuf) == 0) &&
       ((fd = open (tmp,O_RDONLY,NIL)) >= 0)) {
-    if (sbuf.st_size == 0) { 	/* allow empty file if not .txt */
-      if ((i = strlen (tmp)) < 4 || strcmp (tmp + i - 4 ,".txt"))
+    if (sbuf.st_size == 0) { 	/* allow empty file if not .TxT */
+      if ((i = strlen (tmp)) < 4 || strcmp (tmp + i - 4 ,".TxT"))
 	return LONGT;
     }
     else if ((read (fd,tmp,MAILTMPLEN-1) >= 0) &&
@@ -178,12 +179,7 @@ void bezerk_find (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  void *s = NIL;
-  char *t,tmp[MAILTMPLEN];
-  while (t = sm_read (&s))	/* read subscription database */
-    if ((*t != '{') && (*t != '*') &&
-	strcmp (t,"INBOX") && pmatch (t,pat) && bezerk_isvalid (t,tmp))
-      mm_mailbox (t);
+  if (stream) dummy_find (NIL,pat);
 }
 
 
@@ -196,14 +192,10 @@ void bezerk_find_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  void *s = NIL;
-  char *t,tmp[MAILTMPLEN];
-  while (t = sm_read (&s))	/* read subscription database */
-    if ((*t == '*') && (t[1] != '{') &&
-	pmatch (t+1,pat) && bezerk_isvalid (t+1,tmp))
-      mm_bboard (t+1);
+  if (stream) dummy_find_bboards (NIL,pat);
 }
-
+
+
 /* Berkeley mail find list of all mailboxes
  * Accepts: mail stream
  *	    pattern to search
@@ -213,28 +205,10 @@ void bezerk_find_all (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  DIR *dirp;
-  struct direct *d;
-  char tmp[MAILTMPLEN],file[MAILTMPLEN];
-  int i = 0;
-  char *s,*t;
-  if (s = strrchr (pat,'/')) {	/* directory specified in pattern? */
-    strncpy (file,pat,i = (++s) - pat);
-    file[i] = '\0';		/* tie off prefix */
-    t = bezerk_file (tmp,pat);	/* make fully-qualified file name */
-				/* tie off directory name */
-    if (s = strrchr (t,'/')) *s = '\0';
-  }
-  else t = myhomedir ();	/* use home directory to search */
-  if (dirp = opendir (t)) {	/* now open that directory */
-    while (d = readdir (dirp)) {/* for each directory entry */
-      strcpy (file + i,d->d_name);
-      if (pmatch (file,pat) && (bezerk_isvalid (file,tmp))) mm_mailbox (file);
-    }
-    closedir (dirp);		/* flush directory */
-  }
+  if (stream) dummy_find_all (NIL,pat);
 }
-
+
+
 /* Berkeley mail find list of all bboards
  * Accepts: mail stream
  *	    pattern to search
@@ -244,26 +218,7 @@ void bezerk_find_all_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  DIR *dirp;
-  struct direct *d;
-  struct passwd *pw;
-  char tmp[MAILTMPLEN],file[MAILTMPLEN];
-  int i = 1;
-  char *s;
-  if (!((pw = getpwnam ("ftp")) && pw->pw_dir)) return;
-  file[0] = '*';		/* bboard designator */
-				/* directory specified in pattern? */
-  if (s = strrchr (pat,'/')) strncpy (file + 1,pat,i += (++s) - pat);
-  file[i] = '\0';		/* tie off prefix */
-  sprintf (tmp,"%s/%s",pw->pw_dir,(file[1] == '/') ? file + 2 : file + 1);
-  if (dirp = opendir (tmp)) {	/* now open that directory */
-    while (d = readdir (dirp)) {/* for each directory entry */
-      strcpy (file + i,d->d_name);
-      if (pmatch (file + 1,pat) && (bezerk_isvalid (file,tmp)))
-	mm_bboard (file + 1);
-    }
-    closedir (dirp);		/* flush directory */
-  }
+  if (stream) dummy_find_all_bboards (NIL,pat);
 }
 
 /* Berkeley mail subscribe to mailbox
@@ -335,9 +290,9 @@ long bezerk_create (stream,mailbox)
 {
   char tmp[MAILTMPLEN];
   int i,fd;
-				/* must be a ".txt" file */
-  if ((i = strlen (mailbox)) > 4 && !strcmp (mailbox + i - 4 ,".txt")) {
-    mm_log ("Can't create mailbox: name must not end with .txt",ERROR);
+				/* must not be a ".TxT" file */
+  if ((i = strlen (mailbox)) > 4 && !strcmp (mailbox + i - 4 ,".TxT")) {
+    mm_log ("Can't create mailbox: name must not end with .TxT",ERROR);
     return NIL;
   }
   if ((fd = open (bezerk_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600))<0) {
@@ -421,12 +376,13 @@ MAILSTREAM *bezerk_open (stream)
 	MAILSTREAM *stream;
 {
   long i;
-  long retry = KODRETRY;	/* number of seconds to retry */
   int fd;
   char tmp[MAILTMPLEN];
   struct stat sbuf;
+  long retry;
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &bezerkproto;
+  retry = stream->silent ? 1 : KODRETRY;
   if (LOCAL) {			/* close old file if stream being recycled */
     bezerk_close (stream);	/* dump and save the changes */
     stream->dtb = &bezerkdriver;/* reattach this driver */
@@ -480,16 +436,20 @@ MAILSTREAM *bezerk_open (stream)
 	else retry = 0;		/* give up */
       }
       close (fd);		/* get a new handle next time around */
-      if (retry) sleep (1);	/* wait a second before trying again */
-      else mm_log ("Mailbox is open by another process, access is readonly",
-		   WARN);
+      if (!stream->silent) {	/* nothing if silent stream */
+	if (retry) sleep (1);	/* wait a second before trying again */
+	else mm_log ("Mailbox is open by another process, access is readonly",
+		     WARN);
+      }
     }
     else {			/* got the lock, nobody else can alter state */
       LOCAL->ld = fd;		/* note lock's fd */
       chmod (LOCAL->lname,0666);/* make sure mode OK (don't use fchmod()) */
-				/* note our PID in the lock */
-      sprintf (tmp,"%d",getpid ());
-      write (fd,tmp,(i = strlen (tmp))+1);
+      if (stream->silent) i = 0;/* silent streams won't accept KOD */
+      else {			/* note our PID in the lock */
+	sprintf (tmp,"%d",getpid ());
+	write (fd,tmp,(i = strlen (tmp))+1);
+      }
       ftruncate (fd,i);		/* make sure tied off */
       fsync (fd);		/* make sure it's available */
       retry = 0;		/* no more need to try */
@@ -507,8 +467,10 @@ MAILSTREAM *bezerk_open (stream)
     unlink (LOCAL->lname);	/* delete it */
     fs_give ((void **) &LOCAL->lname);
   }
+				/* abort if can't get RW silent stream */
+  if (stream->silent && !stream->readonly && !LOCAL->ld) bezerk_abort (stream);
 				/* parse mailbox */
-  if ((fd = bezerk_parse (stream,tmp,LOCK_SH)) >= 0) {
+  else if ((fd = bezerk_parse (stream,tmp,LOCK_SH)) >= 0) {
     bezerk_unlock (fd,stream,tmp);
     mail_unlock (stream);
   }
@@ -1080,7 +1042,7 @@ long bezerk_append (stream,mailbox,message)
   char buf[BUFLEN],lock[MAILTMPLEN];
   char c = '\n';
   long ok = T;
-  unsigned long t = time (0);
+  time_t t = time (0);
   long size = SIZE (message);
   if ((fd = bezerk_lock (bezerk_file (buf,mailbox),O_WRONLY|O_APPEND|O_CREAT,
 			 S_IREAD|S_IWRITE,lock,LOCK_EX)) < 0) {

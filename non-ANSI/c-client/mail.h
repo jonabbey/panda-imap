@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	14 September 1993
+ * Last Edited:	11 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -437,6 +437,8 @@ extern MAILSTREAM *mailstd_proto;
 extern char *lhostn;
 extern mailgets_t mailgets;
 extern mailcache_t mailcache;
+
+#include "linkage.h"
 
 /* Coddle certain compilers' 6-character symbol limitation */
 

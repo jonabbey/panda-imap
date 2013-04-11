@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- DOS (PC/TCP) version
+ * Program:	Operating-system dependent routines -- DOS (B&W) version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing

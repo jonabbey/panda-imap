@@ -1,17 +1,18 @@
 /*
- * Program:	Operating-system dependent routines -- IRIX version
+ * Program:	Operating-system dependent routines -- SGI version
  *
- * Author:	Mark Crispin/johnb@edge.cis.mcmaster.ca
+ * Author:	Angel Li from code by Mark Crispin
  *		Networks and Distributed Computing
  *		Computing & Communications
  *		University of Washington
  *		Administration Building, AG-44
  *		Seattle, WA  98195
+ *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:	11 May 1989
- * Last Edited:	16 August 1993
+ * Date:	1 August 1988
+ * Last Edited:	11 October 1993
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -19,8 +20,8 @@
  * above copyright notice and this permission notice appear in supporting
  * documentation, and that the name of the University of Washington not be
  * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
+ * without specific, written prior permission.  This software is made available
+ * "as is", and
  * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
  * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
@@ -31,7 +32,7 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
-
+ 
 /* TCP input buffer */
 
 #define BUFLEN 8192
@@ -50,20 +51,21 @@ TCPSTREAM {
   char ibuf[BUFLEN];		/* input buffer */
 };
 
+
+#include "mail.h"
 #include "osdep.h"
-#include <ctype.h>
+#include <time.h>
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <ctype.h>
 #include <errno.h>
+extern int errno;		/* just in case */
 #include <pwd.h>
 #include <syslog.h>
-#include "mail.h"
 #include "misc.h"
-
-#define toint(c)	((c)-'0')
-#define isodigit(c)	(((unsigned)(c)>=060)&((unsigned)(c)<=067))
+extern char *crypt();
 
 /* Write current time in RFC 822 format
  * Accepts: destination string
@@ -71,23 +73,22 @@ TCPSTREAM {
 
 char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
-void rfc822_date (date)
-	char *date;
+void rfc822_date (char *date)
 {
   int zone;
-  char *zonename;
   struct tm *t;
   struct timeval tv;
   struct timezone tz;
-
+  tzset ();
   gettimeofday (&tv,&tz);	/* get time and timezone poop */
   t = localtime (&tv.tv_sec);	/* convert to individual items */
-				/* use this for older systems */
-  zone = (t->tm_isdst ? 60 : 0) -tz.tz_minuteswest;
+				/* get timezone from TZ environment stuff */
+  zone = _timezone;
+				/* and output it */
   sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs(zone)%60,
-	   _tzname[t->tm_isdst ? 1 : 0]);
+	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
+	   tzname[t->tm_isdst ? 1 : 0]);
 }
 
 /* Get a block of free storage
@@ -95,8 +96,7 @@ void rfc822_date (date)
  * Returns: free storage block
  */
 
-void *fs_get (size)
-	size_t size;
+void *fs_get (size_t size)
 {
   void *block = malloc (size);
   if (!block) fatal ("Out of free storage");
@@ -109,9 +109,7 @@ void *fs_get (size)
  *	    new size
  */
 
-void fs_resize (block,size)
-	void **block;
-	size_t size;
+void fs_resize (void **block,size_t size)
 {
   if (!(*block = realloc (*block,size))) fatal ("Can't resize free storage");
 }
@@ -121,8 +119,7 @@ void fs_resize (block,size)
  * Accepts: ** pointer to free storage block
  */
 
-void fs_give (block)
-	void **block;
+void fs_give (void **block)
 {
   free (*block);
   *block = NIL;
@@ -133,10 +130,9 @@ void fs_give (block)
  * Accepts: string to output
  */
 
-void fatal (string)
-	char *string;
+void fatal (char *string)
 {
-  mm_fatal (string);		/* output the string */
+  mm_fatal (string);		/* pass up the string */
   syslog (LOG_ALERT,"IMAP C-Client crash: %s",string);
   abort ();			/* die horribly */
 }
@@ -149,11 +145,8 @@ void fatal (string)
  * Returns: length of copied string
  */
 
-unsigned long strcrlfcpy (dst,dstl,src,srcl)
-	char **dst;
-	unsigned long *dstl;
-	char *src;
-	unsigned long srcl;
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl)
 {
   long i,j;
   char *d = src;
@@ -180,7 +173,7 @@ unsigned long strcrlfcpy (dst,dstl,src,srcl)
     break;
   }
   *d = '\0';			/* tie off destination */
-  return d- *dst;		/* return length */
+  return d - *dst;		/* return length */
 }
 
 
@@ -189,8 +182,7 @@ unsigned long strcrlfcpy (dst,dstl,src,srcl)
  * Returns: length of string
  */
 
-unsigned long strcrlflen (s)
-	STRING *s;
+unsigned long strcrlflen (STRING *s)
 {
   unsigned long pos = GETPOS (s);
   unsigned long i = SIZE (s);
@@ -218,12 +210,7 @@ unsigned long strcrlflen (s)
  * Returns: T if password validated, NIL otherwise
  */
 
-long server_login (user,pass,home,argc,argv)
-	char *user;
-	char *pass;
-	char **home;
-	int argc;
-	char *argv[];
+long server_login (char *user,char *pass,char **home,int argc,char *argv[])
 {
   struct passwd *pw = getpwnam (lcase (user));
 				/* no entry for this user or root */
@@ -242,11 +229,11 @@ long server_login (user,pass,home,argc,argv)
  * Returns: my user name
  */
 
-char *myuname = NIL;
+char *uname = NIL;
 
 char *myusername ()
 {
-  return myuname ? myuname : (myuname = cpystr(getpwuid(geteuid ())->pw_name));
+  return uname ? uname : (uname = cpystr (getpwuid (geteuid ())->pw_name));
 }
 
 
@@ -268,25 +255,21 @@ char *myhomedir ()
  * Returns: name of file to lock
  */
 
-char *lockname (tmp,fname)
-	char *tmp;
-	char *fname;
+char *lockname (char *tmp,char *fname)
 {
   int i;
   sprintf (tmp,"/tmp/.%s",fname);
   for (i = 6; i < strlen (tmp); ++i) if (tmp[i] == '/') tmp[i] = '\\';
   return tmp;			/* note name for later */
 }
-
+  
 /* TCP/IP open
  * Accepts: host name
  *	    contact port number
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_open (host,port)
-	char *host;
-	long port;
+TCPSTREAM *tcp_open (char *host,int port)
 {
   TCPSTREAM *stream = NIL;
   int sock;
@@ -325,7 +308,24 @@ TCPSTREAM *tcp_open (host,port)
       memcpy (&sin.sin_addr,host_name->h_addr,host_name->h_length);
     }
     else {
-      sprintf (tmp,"No such host as %.80s",host);
+      switch (h_errno) {
+	case HOST_NOT_FOUND:	/* authoritative error */
+	  s = "No such host as %.80s";
+	  break;
+	case TRY_AGAIN:		/* non-authoritative error */
+	  s = "Transient error for host %.80s, try again";
+	  break;
+	case NO_RECOVERY:	/* non-recoverable errors */
+	  s = "Non-recoverable error looking up host %.80s";
+	  break;
+	case NO_DATA:		/* no data record of requested type */
+	  s = "No IP address known for host %.80s";
+	  break;
+	default:
+	  s = "Unknown error for host %.80s";
+	  break;
+      }
+      sprintf (tmp,s,host);
       mm_log (tmp,ERROR);
       return NIL;
     }
@@ -359,16 +359,14 @@ TCPSTREAM *tcp_open (host,port)
   stream->ictr = 0;		/* init input counter */
   return stream;		/* return success */
 }
-
+  
 /* TCP/IP authenticated open
  * Accepts: host name
  *	    service name
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_aopen (host,service)
-	char *host;
-	char *service;
+TCPSTREAM *tcp_aopen (char *host,char *service)
 {
   TCPSTREAM *stream = NIL;
   struct hostent *host_name;
@@ -408,7 +406,7 @@ TCPSTREAM *tcp_aopen (host,service)
     dup2 (pipeo[0],0);		/* parent's output is my input */
     close (pipeo[0]); close (pipeo[1]);
 				/* now run it */
-    execl ("/usr/ucb/rsh","rsh",hostname,"exec",service,0);
+    execl (RSHPATH,RSH,hostname,"exec",service,0);
     _exit (1);			/* spazzed */
   }
 
@@ -431,8 +429,7 @@ TCPSTREAM *tcp_aopen (host,service)
  * Returns: text line string or NIL if failure
  */
 
-char *tcp_getline (stream)
-	TCPSTREAM *stream;
+char *tcp_getline (TCPSTREAM *stream)
 {
   int n,m;
   char *st,*ret,*stp;
@@ -482,10 +479,7 @@ char *tcp_getline (stream)
  * Returns: T if success, NIL otherwise
  */
 
-long tcp_getbuffer (stream,size,buffer)
-	TCPSTREAM *stream;
-	unsigned long size;
-	char *buffer;
+long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer)
 {
   unsigned long n;
   char *bufptr = buffer;
@@ -503,14 +497,12 @@ long tcp_getbuffer (stream,size,buffer)
   return T;
 }
 
-
 /* TCP/IP receive data
  * Accepts: TCP/IP stream
  * Returns: T if success, NIL otherwise
  */
 
-long tcp_getdata (stream)
-	TCPSTREAM *stream;
+long tcp_getdata (TCPSTREAM *stream)
 {
   fd_set fds;
   FD_ZERO (&fds);		/* initialize selection vector */
@@ -536,9 +528,7 @@ long tcp_getdata (stream)
  * Returns: T if success else NIL
  */
 
-long tcp_soutr (stream,string)
-	TCPSTREAM *stream;
-	char *string;
+long tcp_soutr (TCPSTREAM *stream,char *string)
 {
   return tcp_sout (stream,string,(unsigned long) strlen (string));
 }
@@ -551,10 +541,7 @@ long tcp_soutr (stream,string)
  * Returns: T if success else NIL
  */
 
-long tcp_sout (stream,string,size)
-	TCPSTREAM *stream;
-	char *string;
-	unsigned long size;
+long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 {
   int i;
   fd_set fds;
@@ -580,8 +567,7 @@ long tcp_sout (stream,string,size)
  * Accepts: TCP/IP stream
  */
 
-void tcp_close (stream)
-	TCPSTREAM *stream;
+void tcp_close (TCPSTREAM *stream)
 {
 
   if (stream->tcpsi >= 0) {	/* no-op if no socket */
@@ -601,8 +587,7 @@ void tcp_close (stream)
  * Returns: host name for this stream
  */
 
-char *tcp_host (stream)
-	TCPSTREAM *stream;
+char *tcp_host (TCPSTREAM *stream)
 {
   return stream->host;		/* return host name */
 }
@@ -613,8 +598,7 @@ char *tcp_host (stream)
  * Returns: local host name
  */
 
-char *tcp_localhost (stream)
-	TCPSTREAM *stream;
+char *tcp_localhost (TCPSTREAM *stream)
 {
   return stream->localhost;	/* return local host name */
 }

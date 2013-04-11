@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	10 September 1993
+ * Last Edited:	21 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -459,6 +459,7 @@ MAILSTREAM *news_open (stream)
 	else break;		/* found it! */
       }
       if (s) {			/* newsgroup found? */
+	if (*s == ' ') s++;	/* skip whitespace */
 	if (c == '!') mm_log ("Not subscribed to that newsgroup",WARN);
 	while (*s && i < nmsgs){/* process until run out of messages or list */
 	  j = strtol (s,&s,10);	/* start of possible range */

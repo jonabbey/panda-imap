@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	13 September 1993
+ * Last Edited:	11 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -59,20 +59,15 @@
 
 /* Global storage */
 
-char *version = "2.2(11)";	/* server version */
+char *version = "2.2(12)";	/* server version */
 short state = LISN;		/* server state */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 long nmsgs = 0;			/* number of messages */
-long current = 0;		/* current message number */
+long current = 1;		/* current message number */
 long size = 0;			/* size of current message */
 char *user = "";		/* user name */
 char *pass = "";		/* password */
 short *msg = NIL;		/* message translation vector */
-
-
-/* Drivers we use */
-
-extern DRIVER imapdriver,tenexdriver,mhdriver,mboxdriver,bezerkdriver;
 
 
 /* Function prototypes */
@@ -94,11 +89,7 @@ void main (argc,argv)
 {
   char *s,*t;
   char cmdbuf[TMPLEN];
-  mail_link (&imapdriver);	/* install the IMAP driver */
-  mail_link (&tenexdriver);	/* install the Tenex mail driver */
-  mail_link (&mhdriver);	/* install the mh mail driver */
-  mail_link (&mboxdriver);	/* install the mbox mail driver */
-  mail_link (&bezerkdriver);	/* install the Berkeley mail driver */
+#include "linkage.c"
   rfc822_date (cmdbuf);		/* get date/time now */
   printf ("+ POP2 %s w/IMAP2 client %s at %s\015\012",version,
 	  "(Comments to MRC@CAC.Washington.EDU)",cmdbuf);
@@ -231,7 +222,10 @@ short c_read (t)
 				/* set message number if possible */
   if (t && *t) current = atoi (t);
 				/* validity check message number */
-  if (current < 1 || current > nmsgs) current = 0;
+  if (current < 1 || current > nmsgs) {
+    puts ("- Invalid message number given to READ\015");
+    return DONE;
+  }
 				/* set size if message valid and exists */
   size = msg[current] ? mail_elt (stream,msg[current])->rfc822_size : 0;
 				/* display results */

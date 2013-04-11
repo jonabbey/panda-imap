@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	14 September 1993
+ * Last Edited:	14 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -48,6 +48,7 @@ extern int errno;		/* just in case */
 #include "tenex2.h"
 #include "rfc822.h"
 #include "misc.h"
+#include "dummy.h"
 
 /* Tenex mail routines */
 
@@ -130,7 +131,7 @@ long tenex_isvalid (name,tmp)
     if (sbuf.st_size != 0) {	/* if non-empty file */
       if ((fd = open (tmp,O_RDONLY,NIL)) >= 0 && read (fd,tmp,64) >= 0) {
 	close (fd);		/* close the file */
-	if (s = strchr (tmp,'\n')) {
+	if ((s = strchr (tmp,'\n')) && (s[-1] != '\015')) {
 	  *s = '\0';		/* tie off header */
 				/* must begin with dd-mmm-yy" */
 	  if (((tmp[2] == '-' && tmp[6] == '-') ||
@@ -139,8 +140,8 @@ long tenex_isvalid (name,tmp)
 	}
       }
     }
-				/* allow empty if a ".txt" file */
-    else if ((i = strlen (tmp)) > 4 && !strcmp (tmp + i - 4 ,".txt"))
+				/* allow empty if a ".TxT" file */
+    else if ((i = strlen (tmp)) > 4 && !strcmp (tmp + i - 4 ,".TxT"))
       return LONGT;
   }
   return NIL;			/* failed miserably */
@@ -170,12 +171,7 @@ void tenex_find (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  void *s = NIL;
-  char *t,tmp[MAILTMPLEN];
-  while (t = sm_read (&s))	/* read subscription database */
-    if ((*t != '{') && (*t != '*') &&
-	strcmp (t,"INBOX") && pmatch (t,pat) &&	tenex_isvalid (t,tmp))
-      mm_mailbox (t);
+  if (stream) dummy_find (NIL,pat);
 }
 
 
@@ -188,14 +184,10 @@ void tenex_find_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  void *s = NIL;
-  char *t,tmp[MAILTMPLEN];
-  while (t = sm_read (&s))	/* read subscription database */
-    if ((*t == '*') && (t[1] != '{') &&
-	pmatch (t+1,pat) && tenex_isvalid (t+1,tmp))
-      mm_bboard (t+1);
+  if (stream) dummy_find_bboards (NIL,pat);
 }
-
+
+
 /* Tenex mail find list of all mailboxes
  * Accepts: mail stream
  *	    pattern to search
@@ -205,28 +197,10 @@ void tenex_find_all (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  DIR *dirp;
-  struct direct *d;
-  char tmp[MAILTMPLEN],file[MAILTMPLEN];
-  int i = 0;
-  char *s,*t;
-  if (s = strrchr (pat,'/')) {	/* directory specified in pattern? */
-    strncpy (file,pat,i = (++s) - pat);
-    file[i] = '\0';		/* tie off prefix */
-    t = tenex_file (tmp,pat);	/* make fully-qualified file name */
-				/* tie off directory name */
-    if (s = strrchr (t,'/')) *s = '\0';
-  }
-  else t = myhomedir ();	/* use home directory to search */
-  if (dirp = opendir (t)) {	/* now open that directory */
-    while (d = readdir (dirp)) {/* for each directory entry */
-      strcpy (file + i,d->d_name);
-      if (pmatch (file,pat) && (tenex_isvalid (file,tmp))) mm_mailbox (file);
-    }
-    closedir (dirp);		/* flush directory */
-  }
+  if (stream) dummy_find_all (NIL,pat);
 }
-
+
+
 /* Tenex mail find list of all bboards
  * Accepts: mail stream
  *	    pattern to search
@@ -236,26 +210,7 @@ void tenex_find_all_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  DIR *dirp;
-  struct direct *d;
-  struct passwd *pw;
-  char tmp[MAILTMPLEN],file[MAILTMPLEN];
-  int i = 1;
-  char *s;
-  if (!((pw = getpwnam ("ftp")) && pw->pw_dir)) return;
-  file[0] = '*';		/* bboard designator */
-				/* directory specified in pattern? */
-  if (s = strrchr (pat,'/')) strncpy (file + 1,pat,i += (++s) - pat);
-  file[i] = '\0';		/* tie off prefix */
-  sprintf (tmp,"%s/%s",pw->pw_dir,(file[1] == '/') ? file + 2 : file + 1);
-  if (dirp = opendir (tmp)) {	/* now open that directory */
-    while (d = readdir (dirp)) {/* for each directory entry */
-      strcpy (file + i,d->d_name);
-      if (pmatch (file + 1,pat) && (tenex_isvalid (file,tmp)))
-	mm_bboard (file + 1);
-    }
-    closedir (dirp);		/* flush directory */
-  }
+  if (stream) dummy_find_all_bboards (NIL,pat);
 }
 
 /* Tenex mail subscribe to mailbox
@@ -327,9 +282,9 @@ long tenex_create (stream,mailbox)
 {
   char tmp[MAILTMPLEN];
   int i,fd;
-				/* must be a ".txt" file */
-  if ((i = strlen (mailbox)) < 4 || strcmp (mailbox + i - 4 ,".txt")) {
-    mm_log ("Can't create mailbox: name must end with .txt",ERROR);
+				/* must be a ".TxT" file */
+  if ((i = strlen (mailbox)) < 4 || strcmp (mailbox + i - 4 ,".TxT")) {
+    mm_log ("Can't create mailbox: name must end with .TxT",ERROR);
     return NIL;
   }
   if ((fd = open (tenex_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600)) < 0){
@@ -998,9 +953,10 @@ void tenex_snarf (stream)
   stat (LOCAL->buf,&sbuf);	/* see if anything there */
   if (sbuf.st_size) {		/* non-empty? */
     fstat (LOCAL->fd,&sbuf);	/* yes, get current file size */
+				/* sizes match and can get bezerk mailbox? */
     if ((sbuf.st_size == LOCAL->filesize) &&
 	(bezerk = mail_open (bezerk,LOCAL->buf,OP_SILENT)) &&
-	(r = bezerk->nmsgs)) {	/* sizes match and can get bezerk mailbox? */
+	(!bezerk->readonly) && (r = bezerk->nmsgs)) {
 				/* yes, go to end of file in our mailbox */
       lseek (LOCAL->fd,sbuf.st_size,L_SET);
 				/* for each message in bezerk mailbox */
@@ -1325,8 +1281,9 @@ char *tenex_file (dst,name)
     }
     sprintf (dst,"%s%s",t,(s = strchr (name,'/')) ? s : "");
     break;
-  default:			/* other name - INBOX becomes mail.txt */
-    if (!strcmp (ucase (strcpy (dst,name)),"INBOX")) name = "mail.txt";
+  default:			/* other name - INBOX becomes mail.TxT */
+    if (!strcmp (ucase (strcpy (dst,name)),"INBOX"))
+      name = tenex_isvalid ("~/mail.TxT",tmp) ? "mail.TxT" : "mail.txt";
     sprintf (dst,"%s/%s",myhomedir (),name);
   }
   return dst;

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	16 August 1993
+ * Last Edited:	3 October 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -33,52 +33,8 @@
  *
  */
 
-#define MAILFILE "/usr/spool/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
-#define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
-#define NFSKLUDGE
-
-#include <sys/types.h>
-#include <sys/dir.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/uio.h>		/* needed for writev() prototypes */
-
-extern char *strstr ();
-extern char *strerror ();
-extern char *memmove ();
 extern void *malloc ();
 extern void free ();
 extern void *realloc ();
 
-
-/* Dummy definition overridden by TCP routines */
-
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
-
-/* Function prototypes */
-
-void rfc822_date  ();
-void *fs_get  ();
-void fs_resize  ();
-void fs_give  ();
-void fatal  ();
-unsigned long strcrlfcpy  ();
-unsigned long strcrlflen  ();
-long server_login  ();
-char *myusername ();
-char *myhomedir ();
-char *lockname  ();
-TCPSTREAM *tcp_open  ();
-TCPSTREAM *tcp_aopen  ();
-char *tcp_getline  ();
-long tcp_getbuffer  ();
-long tcp_getdata  ();
-long tcp_soutr  ();
-long tcp_sout  ();
-void tcp_close  ();
-char *tcp_host  ();
-char *tcp_localhost  ();
+#include "os_sun.h"		/* now use regular SUN-OS file */
