@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	24 November 1993
+ * Last Edited:	29 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -89,6 +89,12 @@ DRIVER dummydriver = {
 
 				/* prototype stream */
 MAILSTREAM dummyproto = {&dummydriver};
+
+
+				/* driver parameters */
+static long mbx_protection = 0600;
+static long sub_protection = 0600;
+static long lock_protection = 0666;
 
 /* Dummy validate mailbox
  * Accepts: mailbox name
@@ -117,7 +123,29 @@ DRIVER *dummy_valid (char *name)
 
 void *dummy_parameters (long function,void *value)
 {
-  return NIL;
+  switch ((int) function) {
+  case SET_MBXPROTECTION:
+    mbx_protection = (long) value;
+    break;
+  case GET_MBXPROTECTION:
+    value = (void *) mbx_protection;
+    break;
+  case SET_SUBPROTECTION:
+    sub_protection = (long) value;
+    break;
+  case GET_SUBPROTECTION:
+    value = (void *) sub_protection;
+    break;
+  case SET_LOCKPROTECTION:
+    lock_protection = (long) value;
+    break;
+  case GET_LOCKPROTECTION:
+    value = (void *) lock_protection;
+    break;
+  default:
+    break;
+  }
+  return value;
 }
 
 /* Dummy find list of subscribed mailboxes
@@ -131,8 +159,7 @@ void dummy_find (MAILSTREAM *stream,char *pat)
   char *t;
   if (*pat == '{') return;	/* local only */
   if (t = sm_read (&s)) { 	/* if have subscription database */
-    do if ((*t != '{') && (*t != '*') && strcmp (t,"INBOX") && pmatch (t,pat))
-      mm_mailbox (t);
+    do if ((*t != '{') && (*t != '*') && pmatch (t,pat)) mm_mailbox (t);
     while (t = sm_read (&s));	/* until no more subscriptions */
   }
 }
@@ -276,7 +303,8 @@ long dummy_create (MAILSTREAM *stream,char *mailbox)
 {
   char tmp[MAILTMPLEN];
   int fd;
-  if ((fd = open (dummy_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600))<0) {
+  if ((fd = open (dummy_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,
+		  (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
     sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -463,8 +491,7 @@ void dummy_clearflag (MAILSTREAM *stream,char *sequence,char *flag)
 {
   fatal ("Impossible dummy_clearflag");
 }
-
-
+
 /* Dummy search for messages
  * Accepts: MAIL stream
  *	    search criteria
@@ -474,7 +501,8 @@ void dummy_search (MAILSTREAM *stream,char *criteria)
 {
 				/* return silently */
 }
-
+
+
 /* Dummy ping mailbox
  * Accepts: MAIL stream
  * Returns: T if stream alive, else NIL
@@ -537,40 +565,46 @@ long dummy_move (MAILSTREAM *stream,char *sequence,char *mailbox)
   fatal ("Impossible dummy_move");
   return NIL;
 }
-
-
+
 /* Dummy append message string
  * Accepts: mail stream
  *	    destination mailbox
+ *	    optional flags
+ *	    optional date
  *	    stringstruct of message to append
  * Returns: T on success, NIL on failure
  */
 
-long dummy_append (MAILSTREAM *stream,char *mailbox,STRING *message)
+long dummy_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		   STRING *message)
 {
   struct stat sbuf;
-  int fd,e;
+  int fd = -1;
+  int e;
   char tmp[MAILTMPLEN];
-				/* see if such a file */
-  if ((*mailbox == '*') || (*mailbox == '{'))
-    sprintf (tmp,"%s is not a valid mailbox",mailbox);
-  else if ((fd = open (dummy_file (tmp,mailbox),O_RDONLY,NIL)) < 0) {
-    if ((e = errno) == ENOENT)	/* failed, was it no such file? */
+  if ((strcmp (ucase (strcpy (tmp,mailbox)),"INBOX")) &&
+	   ((fd = open (dummy_file (tmp,mailbox),O_RDONLY,NIL)) < 0)) {
+    if ((e = errno) == ENOENT) {/* failed, was it no such file? */
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+      return NIL;
+    }
     sprintf (tmp,"%s: %s",strerror (e),mailbox);
+    mm_log (tmp,ERROR);		/* pass up error */
+    return NIL;			/* always fails */
   }
-  else {			/* found a file */
+  else if (fd >= 0) {		/* found file? */
     fstat (fd,&sbuf);		/* get its size */
     close (fd);			/* toss out the fd */
-    if (sbuf.st_size) sprintf (tmp,"Invalid mailbox: %s",mailbox);
-    else if (mailstd_proto)
-      return (*mailstd_proto->dtb->append) (mailstd_proto,mailbox,message);
-    else sprintf (tmp,"Indeterminate mailbox format: %s",mailbox);
+    if (sbuf.st_size) {		/* non-empty file? */
+      sprintf (tmp,"Indeterminate mailbox format: %s",mailbox);
+      mm_log (tmp,ERROR);
+      return NIL;
+    }
   }
-  mm_log (tmp,ERROR);		/* pass up error */
-  return NIL;			/* always fails */
+  return (*default_proto ()->dtb->append) (stream,mailbox,flags,date,message);
 }
-
+
+
 /* Dummy garbage collect stream
  * Accepts: mail stream
  *	    garbage collection flags
@@ -580,8 +614,7 @@ void dummy_gc (MAILSTREAM *stream,long gcflags)
 {
 				/* return silently */
 }
-
-
+
 /* Dummy mail generate file string
  * Accepts: temporary buffer to write into
  *	    mailbox name string

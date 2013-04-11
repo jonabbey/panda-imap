@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	2 September 1993
+ * Last Edited:	2 March 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -101,7 +101,8 @@ void phile_check (MAILSTREAM *stream);
 void phile_expunge (MAILSTREAM *stream);
 long phile_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long phile_move (MAILSTREAM *stream,char *sequence,char *mailbox);
-long phile_append (MAILSTREAM *stream,char *mailbox,STRING *message);
+long phile_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		   STRING *message);
 void phile_gc (MAILSTREAM *stream,long gcflags);
 
 char *phile_file (char *dst,char *name);

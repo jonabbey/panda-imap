@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	13 December 1993
+ * Last Edited:	16 June 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -102,7 +102,7 @@ DRIVER *mbox_valid (char *name)
   char s[MAILTMPLEN];
   char *t = sysinbox ();
   int ti,zn;
-  int ret = NIL;
+  DRIVER *ret = NIL;
   struct stat sbuf;
 			
   if (!mailboxfile (s,name)) {	/* only consider INBOX */
@@ -110,13 +110,15 @@ DRIVER *mbox_valid (char *name)
 				/* file exist? */
     if ((stat (s,&sbuf) == 0) && (fd = open (s,O_RDONLY,NIL)) >= 0) {
 				/* allow empty or valid file */
-      if ((sbuf.st_size == 0) || ((read (fd,s,MAILTMPLEN-1) >= 0) &&
-				  (*s == 'F') && VALID (s,t,ti,zn))) ret = T;
+      if ((sbuf.st_size == 0) || (read (fd,s,MAILTMPLEN-1) >= 0)) {
+	VALID (s,t,ti,zn);
+	if (ti) ret = &mboxdriver;
+      }
       close (fd);		/* close the file */
 
     }
   }
-  return ret ? &mboxdriver : NIL;
+  return ret;
 }
 
 /* MBOX mail open
@@ -135,10 +137,8 @@ MAILSTREAM *mbox_open (MAILSTREAM *stream)
   sprintf (tmp,"%s/mbox",myhomedir ());
   fs_give ((void **) &stream->mailbox);
   stream->mailbox = cpystr (tmp);
-  stream->silent = T;		/* don't babble on this stream */
 				/* open mailbox, snarf new mail */
   if (!(bezerk_open (stream) && mbox_ping (stream))) return NIL;
-  stream->silent = NIL;		/* allow external events again */
 				/* notify upper level of mailbox sizes */
   mail_exists (stream,stream->nmsgs);
   while (i <= stream->nmsgs) if (mail_elt (stream,i++)->recent) ++recent;
@@ -168,7 +168,8 @@ long mbox_ping (MAILSTREAM *stream)
 				/* yes, read it */
 	read (sfd,s = (char *) fs_get (sbuf.st_size + 1),size);
 	s[sbuf.st_size] = '\0';	/* tie it off */
-	if ((*s == 'F') && VALID (s,t,ti,zn)) {
+	VALID (s,t,ti,zn);
+	if (ti) {		/* must be valid format */
 	  if ((fd = bezerk_lock (stream->mailbox,O_WRONLY|O_APPEND,NIL,lock,
 				 LOCK_EX)) >= 0) {
 	    fstat (fd,&sbuf);	/* get current file size before write*/

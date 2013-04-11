@@ -9,9 +9,9 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	30 November 1993
+ * Last Edited:	4 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,8 +33,10 @@
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
+#include "mail.h"
 #include "osdep.h"
 #include <ctype.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <time.h>
@@ -44,7 +46,6 @@
 #include <errno.h>
 #include <pwd.h>
 #include <syslog.h>
-#include "mail.h"
 #include "misc.h"
 
 extern char *sys_errlist[];
@@ -56,7 +57,7 @@ extern int sys_nerr;
 #include "env_unix.c"
 #include "tcp_unix.c"
 #include "log_std.c"
-#include "gr_wait3.c"
+#include "gr_wait.c"
 #include "strerror.c"
 #include "memmove.c"
 

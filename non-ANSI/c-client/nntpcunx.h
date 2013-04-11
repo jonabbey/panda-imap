@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 January 1993
- * Last Edited:	11 February 1993
+ * Last Edited:	14 April 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -131,7 +131,6 @@ char nntp_search_bcc  ();
 char nntp_search_cc  ();
 char nntp_search_from  ();
 char nntp_search_to  ();
-
 typedef char (*search_t)  ();
 search_t nntp_search_date  ();
 search_t nntp_search_flag  ();

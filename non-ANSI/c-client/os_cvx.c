@@ -9,9 +9,9 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	30 November 1993
+ * Last Edited:	4 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -35,9 +35,12 @@
 #define isodigit(c)    (((unsigned)(c)>=060)&((unsigned)(c)<=067))
 #define toint(c)       ((c)-'0')
 
+#include <stdio.h>
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
+#include "mail.h"
 #include "osdep.h"
+#include <stdio.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/socket.h>
@@ -48,7 +51,6 @@
 extern int errno;		/* just in case */
 #include <pwd.h>
 #include <syslog.h>
-#include "mail.h"
 #include "misc.h"
 
 
@@ -58,7 +60,7 @@ extern int errno;		/* just in case */
 #include "env_unix.c"
 #include "tcp_unix.c"
 #include "log_std.c"
-#include "gr_wait3.c"
+#include "gr_wait.c"
 
 /* Write current time in RFC 822 format
  * Accepts: destination string

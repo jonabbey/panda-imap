@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	11 October 1993
+ * Last Edited:	15 June 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,6 +44,10 @@
 #include "misc.h"
 
 
+/* Login tries */
+#define LOGTRY 3
+
+
 /* Size of temporary buffers */
 #define TMPLEN 1024
 
@@ -54,11 +58,18 @@
 #define TRANSACTION 1
 #define UPDATE 2
 
+/* Eudora food */
+
+#define STATUS "Status: %s%s\015\012\015\012"
+#define SLEN (sizeof (STATUS)-5)
+
+
 /* Global storage */
 
-char *version = "3.2(12)";	/* server version */
+char *version = "3.3(17)";	/* server version */
 int state = AUTHORIZATION;	/* server state */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
+int logtry = LOGTRY;		/* login tries */
 long nmsgs = 0;			/* current number of messages */
 long last = 0;			/* highest message accessed */
 long il = 0;			/* initial last message */
@@ -72,7 +83,7 @@ long *msg = NIL;		/* message translation vector */
 
 void main  ();
 int login  ();
-void blat  ();
+long blat  ();
 
 /* Main program */
 
@@ -129,7 +140,7 @@ void main (argc,argv)
 	  for (i = 1,j = 0,k = 0; i <= nmsgs; i++)
 	    if (msg[i] > 0) {	/* message still exists? */
 	      j++;		/* count one more undeleted message */
-	      k += mail_elt (stream,msg[i])->rfc822_size;
+	      k += mail_elt (stream,msg[i])->rfc822_size + SLEN;
 	    }
 	  printf ("+OK %d %d\015\012",j,k);
 	}
@@ -137,25 +148,31 @@ void main (argc,argv)
 	  if (t && *t) {	/* argument do single message */
 	    if (((i = atoi (t)) > 0) && (i <= nmsgs) && (msg[i] >0))
 	      printf ("+OK %d %d\015\012",i,
-		      mail_elt(stream,msg[i])->rfc822_size);
+		      mail_elt(stream,msg[i])->rfc822_size + SLEN);
 	    else puts ("-ERR No such message\015");
 	  }
 	  else {		/* entire mailbox */
 	    puts ("+OK Mailbox scan listing follows\015");
 	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++) if (msg[i] > 0)
-	      printf ("%d %d\015\012",i,mail_elt (stream,msg[i])->rfc822_size);
+	      printf ("%d %d\015\012",i,
+		      mail_elt (stream,msg[i])->rfc822_size + SLEN);
 	    puts (".\015");	/* end of list */
 	  }
 	}
 	else if (!strcmp (s,"RETR")) {
 	  if (t && *t) {	/* must have an argument */
 	    if (((i = atoi (t)) > 0) && (i <= nmsgs) && (msg[i] > 0)) {
+	      MESSAGECACHE *elt;
 				/* update highest message accessed */
 	      if (i > last) last = i;
 	      printf ("+OK %d octets\015\012",
-		      mail_elt (stream,msg[i])->rfc822_size);
+		      (elt = mail_elt (stream,msg[i]))->rfc822_size + SLEN);
 				/* output message */
-	      blat (mail_fetchheader (stream,msg[i]),-1);
+	      j = strlen (t = cpystr (mail_fetchheader (stream,msg[i])));
+	      t[j - 2] = '\0';	/* flush trailing CRLF */
+	      blat (t,-1);	/* output header */
+	      fs_give ((void **) &t);
+	      printf (STATUS,elt->seen ? "R" : " ",elt->recent ? " " : "O");
 	      blat (mail_fetchtext (stream,msg[i]),-1);
 	      puts (".\015");	/* end of list */
 	    }
@@ -203,12 +220,17 @@ void main (argc,argv)
 	  if (t && *t) {	/* must have an argument */
 	    if (((i = strtol (t,&t,10)) > 0) && (i <= nmsgs) && t && *t &&
 		((j = atoi (t)) >= 0) && (msg[i] > 0)) {
+	      MESSAGECACHE *elt = mail_elt (stream,msg[i]);
 				/* update highest message accessed */
 	      if (i > last) last = i;
 	      puts ("+OK Top of message follows\015");
 				/* output message */
-	      blat (mail_fetchheader (stream,msg[i]),-1);
-	      blat (mail_fetchtext (stream,msg[i]),j);
+	      k = strlen (t = cpystr (mail_fetchheader (stream,msg[i])));
+	      t[k - 2] = '\0';	/* flush trailing CRLF */
+	      j -= (blat (t,-1) + 2);
+	      fs_give ((void **) &t);
+	      printf (STATUS,elt->seen ? "R" : " ",elt->recent ? " " : "O");
+	      if (j > 0) blat (mail_fetchtext (stream,msg[i]),j);
 	      puts (".\015");	/* end of list */
 	    }
 	    else puts ("-ERR Bad argument or no such message\015");
@@ -229,7 +251,8 @@ void main (argc,argv)
   if (stream && nmsgs) mail_expunge (stream);
 				/* clean up the stream */
   if (stream) mail_close (stream);
-  puts ("+OK Sayonara\015");	/* "now it's time to say sayonara..." */
+				/* "now it's time to say sayonara..." */
+  if (logtry) puts ("+OK Sayonara\015");
   fflush (stdout);		/* make sure output finished */
   exit (0);			/* all done */
 }
@@ -264,8 +287,13 @@ int login (t,argc,argv)
 				/* local; attempt login, select INBOX */
   else if (server_login (user,pass,NIL,argc,argv)) strcpy (tmp,"INBOX");
   else {
-    puts ("-ERR Bad login\015");/* vague error message to confuse crackers */
-    return AUTHORIZATION;
+    sleep (3);			/* slow the cracker down */
+    if (--logtry) {		/* vague error message to confuse crackers */
+      puts ("-ERR Bad login\015");
+      return AUTHORIZATION;
+    }
+    fputs ("-ERR Too many login failures\015\012",stdout);
+    return UPDATE;
   }
   nmsgs = 0;			/* no messages yet */
   if (msg) fs_give ((void **) &msg);
@@ -286,30 +314,34 @@ int login (t,argc,argv)
 /* Blat a string with dot checking
  * Accepts: string
  *	    maximum number of lines if greater than zero
+ * Returns: number of lines output
  * This routine is uglier and kludgier than it should be, just to be robust
  * in the case of a Tenex-format message which doesn't end in a newline.
  */
 
-void blat (text,lines)
+long blat (text,lines)
 	char *text;
 	long lines;
 {
   char c = *text++;
   char d = *text++;
   char e;
+  long ret = 0;
 				/* no-op if zero lines or empty string */
   if (!(lines && c && d)) return;
   if (c == '.') putchar ('.');	/* double string-leading dot if necessary */
   while (e = *text++) {		/* copy loop */
     putchar (c);		/* output character */
     if (c == '\012') {		/* end of line? */
-      if (!--lines) return;	/* count down another line, return if done */
+      ret++;			/* count another line */
+      if (!--lines) return ret;	/* count down another line, return if done */
 				/* double leading dot as necessary */
       if (d == '.') putchar ('.');
     }
     c = d; d = e;		/* move to next character */
   }
   puts ("\015");		/* output newline instead of last 2 chars */
+  return ++ret;
 }
 
 /* Co-routines from MAIL library */

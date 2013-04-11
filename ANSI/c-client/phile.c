@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	7 January 1994
+ * Last Edited:	29 May 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -137,7 +137,6 @@ int phile_isvalid (char *name,char *tmp)
 
 void *phile_parameters (long function,void *value)
 {
-  fatal ("Invalid phile_parameters function");
   return NIL;
 }
 
@@ -245,7 +244,7 @@ long phile_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox)
 
 long phile_create (MAILSTREAM *stream,char *mailbox)
 {
-  /* Never valid for Phile */
+  return dummy_create (stream,mailbox);
 }
 
 
@@ -257,7 +256,7 @@ long phile_create (MAILSTREAM *stream,char *mailbox)
 
 long phile_delete (MAILSTREAM *stream,char *mailbox)
 {
-  /* Never valid for Phile */
+  return dummy_delete (stream,mailbox);
 }
 
 
@@ -270,7 +269,7 @@ long phile_delete (MAILSTREAM *stream,char *mailbox)
 
 long phile_rename (MAILSTREAM *stream,char *old,char *new)
 {
-  /* Never valid for Phile */
+  return dummy_rename (stream,old,new);
 }
 
 /* File open
@@ -730,7 +729,8 @@ long phile_move (MAILSTREAM *stream,char *sequence,char *mailbox)
  * Returns: T if append successful, else NIL
  */
 
-long phile_append (MAILSTREAM *stream,char *mailbox,STRING *message)
+long phile_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		   STRING *message)
 {
   mm_log ("Append not valid for file",ERROR);
   return NIL;
@@ -759,7 +759,7 @@ void phile_gc (MAILSTREAM *stream,long gcflags)
 
 short phile_getflags (MAILSTREAM *stream,char *flag)
 {
-  char *t,tmp[MAILTMPLEN];
+  char *t,tmp[MAILTMPLEN],err[MAILTMPLEN];
   short f = 0;
   short i,j;
   if (flag && *flag) {		/* no-op if no flag string */
@@ -773,7 +773,7 @@ short phile_getflags (MAILSTREAM *stream,char *flag)
     tmp[j] = '\0';
     t = ucase (tmp);		/* uppercase only from now on */
 
-    while (*t) {		/* parse the flags */
+    while (t && *t) {		/* parse the flags */
       if (*t == '\\') {		/* system flag? */
 	switch (*++t) {		/* dispatch based on first character */
 	case 'S':		/* possible \Seen flag */
@@ -801,14 +801,12 @@ short phile_getflags (MAILSTREAM *stream,char *flag)
 	}
 				/* add flag to flags list */
 	if (i && ((*t == '\0') || (*t++ == ' '))) f |= i;
-	else {			/* bitch about bogus flag */
-	  mm_log ("Unknown system flag",ERROR);
-	  return NIL;
-	}
       }
       else {			/* no user flags yet */
-	mm_log ("Unknown flag",ERROR);
-	return NIL;
+	t = strtok (t," ");	/* isolate flag name */
+	sprintf (err,"Unknown flag: %.80s",t);
+	t = strtok (NIL," ");	/* get next flag */
+	mm_log (err,ERROR);
       }
     }
   }

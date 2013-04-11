@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	25 November 1993
+ * Last Edited:	18 May 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -37,7 +37,6 @@
  * Accepts: file descriptor
  *	    operation bitmask
  * Returns: 0 if successful, -1 if failure
- * Note: this emulator does not handle shared locks
  */
 
 int flock (int fd,int operation)
@@ -48,7 +47,7 @@ int flock (int fd,int operation)
 				/* lock applies to entire file */
   fl.l_whence = fl.l_start = fl.l_len = 0;
   fl.l_pid = getpid ();		/* shouldn't be necessary */
-  switch (operation & ~LOCK_NB){/* translate to lockf() operation */
+  switch (operation & ~LOCK_NB){/* translate to fcntl() operation */
   case LOCK_EX:			/* exclusive */
     fl.l_type = F_WRLCK;
     break;

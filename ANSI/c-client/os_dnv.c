@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	11 November 1993
+ * Last Edited:	24 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -70,21 +70,31 @@ TCPSTREAM {
 
 /* TCP/IP open
  * Accepts: host name
+ *	    contact service name
  *	    contact port number
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_open (char *host,long port)
+TCPSTREAM *tcp_open (char *host,char *service,long port)
 {
   TCPSTREAM *stream = NIL;
   struct sockaddr_in sin;
   struct hostent *host_name;
   int sock;
   long adr,i,j,k,l;
-  char *s = host;
+  char *s;
   char tmp[MAILTMPLEN];
 				/* set default gets routine */
   if (!mailgets) mailgets = mm_gets;
+  if (s = strchr (host,':')) {	/* port number specified? */
+    *s++ = '\0';		/* yes, tie off port */
+    port = strtol (s,&s,10);	/* parse port */
+    if (s && *s) {
+      sprintf (tmp,"Junk after port number: %.80s",s);
+      mm_log (tmp,ERROR);
+      return NIL;
+    }
+  }
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */
@@ -100,6 +110,7 @@ TCPSTREAM *tcp_open (char *host,long port)
     }
   }
   else {			/* lookup host name */
+    s = host;			/* in case of error */
     if ((sin.sin_addr.s_addr = rhost (&host)) == -1) {
       sprintf (tmp,"Host not found: %s",s);
       mm_log (tmp,ERROR);

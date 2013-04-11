@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	17 February 1994
+ * Last Edited:	23 June 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -91,8 +91,6 @@ DRIVER dawzdriver = {
 
 				/* prototype stream */
 MAILSTREAM dawzproto = {&dawzdriver};
-				/* standard driver's prototype */
-MAILSTREAM *mailstd_proto = &dawzproto;
 
 /* Dawz mail validate mailbox
  * Accepts: mailbox name
@@ -119,7 +117,7 @@ long dawz_isvalid (char *name)
 				/* INBOX is always accepted */
   if (!strcmp (ucase (strcpy (tmp,name)),"INBOX")) return T;
 				/* if file, get its status */
-  if (*name != '{' && dawz_file (tmp,name) && (stat (tmp,&sbuf) == 0)) {
+  if (*name != '{' && mailboxfile (tmp,name) && (stat (tmp,&sbuf) == 0)) {
 				/* allow empty file */
     if (sbuf.st_size == 0) return LONGT;
     if ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0 && read (fd,tmp,64) >= 0){
@@ -145,7 +143,7 @@ long dawz_isvalid (char *name)
 
 void *dawz_parameters (long function,void *value)
 {
-  fatal ("Invalid dawz_parameters function");
+  return NIL;
 }
 
 /* Dawz mail find list of mailboxes
@@ -170,7 +168,7 @@ void dawz_find (MAILSTREAM *stream,char *pat)
       file[i] = '\0';		/* tie off prefix */
     }
 				/* make fully-qualified file name */
-    if (!dawz_file (tmp,pat)) return;
+    if (!mailboxfile (tmp,pat)) return;
 				/* tie off directory name */
     if (s = strrchr (tmp,'\\')) *s = '\0';
     else tmp[2] = '\0';
@@ -212,7 +210,7 @@ void dawz_find_all (MAILSTREAM *stream,char *pat)
     file[i] = '\0';		/* tie off prefix */
   }
 				/* make fully-qualified file name */
-  if (!dawz_file (tmp,pat)) return;
+  if (!mailboxfile (tmp,pat)) return;
 				/* tie off directory name */
   if (s = strrchr (tmp,'\\')) *s = '\0';
   else tmp[2] = '\0';
@@ -235,7 +233,7 @@ void dawz_find_all (MAILSTREAM *stream,char *pat)
 long dawz_subscribe (MAILSTREAM *stream,char *mailbox)
 {
   char tmp[MAILTMPLEN];
-  if (dawz_file (tmp,mailbox)) return sm_subscribe (mailbox);
+  if (mailboxfile (tmp,mailbox)) return sm_subscribe (mailbox);
   else return dawz_badname (tmp,mailbox);
 }
 
@@ -249,7 +247,7 @@ long dawz_subscribe (MAILSTREAM *stream,char *mailbox)
 long dawz_unsubscribe (MAILSTREAM *stream,char *mailbox)
 {
   char tmp[MAILTMPLEN];
-  if (dawz_file (tmp,mailbox)) return sm_unsubscribe (mailbox);
+  if (mailboxfile (tmp,mailbox)) return sm_unsubscribe (mailbox);
   else return dawz_badname (tmp,mailbox);
 }
 
@@ -275,7 +273,7 @@ long dawz_create (MAILSTREAM *stream,char *mailbox)
 {
   char tmp[MAILTMPLEN];
   int fd;
-  if (!dawz_file (tmp,mailbox)) return dawz_badname (tmp,mailbox);
+  if (!mailboxfile (tmp,mailbox)) return dawz_badname (tmp,mailbox);
   if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
 				/* failed */
     sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
@@ -310,8 +308,8 @@ long dawz_rename (MAILSTREAM *stream,char *old,char *new)
 {
   char tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
 				/* make file name */
-  if (!dawz_file (file,old)) return dawz_badname (tmp,old);
-  if (!dawz_file (tmp,new)) return dawz_badname (tmp,new);
+  if (!mailboxfile (file,old)) return dawz_badname (tmp,old);
+  if (new && !mailboxfile (tmp,new)) return dawz_badname (tmp,new);
 				/* do the rename or delete operation */
   if (new ? rename (file,tmp) : unlink (file)) {
     sprintf (tmp,"Can't %s mailbox %s: %s",new ? "rename" : "delete",old,
@@ -345,7 +343,7 @@ MAILSTREAM *dawz_open (MAILSTREAM *stream)
     if (stream->flagstring) fs_give ((void **) &stream->flagstring);
     for (i = 0; i < NUSERFLAGS; ++i) stream->user_flags[i] = NIL;
   }
-  if (!dawz_file (tmp,stream->mailbox))
+  if (!mailboxfile (tmp,stream->mailbox))
     return (MAILSTREAM *) dawz_badname (tmp,stream->mailbox);
   if (((fd = open (tmp,O_BINARY|(stream->readonly ? O_RDONLY:O_RDWR),NIL)) < 0)
       && (strcmp (ucase (stream->mailbox),"INBOX") ||
@@ -978,24 +976,40 @@ long dawz_move (MAILSTREAM *stream,char *sequence,char *mailbox)
  * Returns: T if append successful, else NIL
  */
 
-long dawz_append (MAILSTREAM *stream,char *mailbox,STRING *message)
+long dawz_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		  STRING *message)
 {
-  int fd,zone;
   struct stat sbuf;
+  int fd,zone;
   char tmp[MAILTMPLEN];
+  MESSAGECACHE elt;
   time_t ti;
   struct tm *t;
   long i;
   long size = SIZE (message);
+  short f = dawz_getflags (stream,flags);
+  if (date) {			/* want to preserve date? */
+				/* yes, parse date into an elt */
+    if (!mail_parse_date (&elt,date)) {
+      mm_log ("Bad date in append",ERROR);
+      return NIL;
+    }
+  }
   tzset ();			/* initialize timezone stuff */
   if (!dawz_isvalid (mailbox)) {/* make sure valid mailbox */
-    sprintf (tmp,"Not a Dawz-format mailbox: %s",mailbox);
-    mm_log (tmp,ERROR);
+    if (errno == ENOENT)
+      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
+		 (long) NIL);
+    else if (mailboxfile (tmp,mailbox)) {
+      sprintf (tmp,"Not a Dawz-format mailbox: %s",mailbox);
+      mm_log (tmp,ERROR);
+    }
+    else dawz_badname (tmp,mailbox);
     return NIL;
   }
-  if (!dawz_file (tmp,mailbox)) return dawz_badname (tmp,mailbox);
 				/* open the destination */
-  if ((fd = open (tmp,O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE))<0){
+  if ((fd = open (mailboxfile (tmp,mailbox),
+		  O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE)) < 0) {
     sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -1005,9 +1019,12 @@ long dawz_append (MAILSTREAM *stream,char *mailbox,STRING *message)
   ti = time (0);		/* get time now */
   t = localtime (&ti);		/* output local time */
   zone = -(((int)timezone)/ 60);/* get timezone from TZ environment stuff */
-  sprintf (tmp,"%2d-%s-%d %02d:%02d:%02d %+03d%02d,%ld;000000000000\015\012",
-	   t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,size);
+  if (date) mail_date(tmp,&elt);/* use date if given */
+  else sprintf (tmp,"%2d-%s-%d %02d:%02d:%02d %+03d%02d",
+		t->tm_mday,months[t->tm_mon],t->tm_year+1900,
+		t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60);
+				/* add remainder of header */
+  sprintf (tmp + strlen (tmp),",%ld;0000000000%02o\015\012",size,f);
 
 				/* write header */
   if (write (fd,tmp,strlen (tmp)) < 0) {
@@ -1044,24 +1061,6 @@ void dawz_gc (MAILSTREAM *stream,long gcflags)
 }
 
 /* Internal routines */
-
-
-/* Dawz mail generate file string
- * Accepts: temporary buffer to write into
- *	    mailbox name string
- * Returns: local file string
- */
-
-char *dawz_file (char *dst,char *name)
-{
-  char *s;
-				/* forbid extensions of filename */
-  if (strchr ((s = strrchr (name,'\\')) ? s : name,'.')) return NIL;
-				/* absolute path name? */
-  if ((*name == '\\') || (name[1] == ':')) sprintf (dst,"%s%s",name,DEFEXT);
-  else sprintf (dst,"%s\\%s%s",myhomedir (),name,DEFEXT);
-  return ucase (dst);
-}
 
 
 /* Return bad file name error message
@@ -1129,7 +1128,6 @@ long dawz_getflags (MAILSTREAM *stream,char *flag)
       if (!i) {			/* didn't find a matching flag? */
 	sprintf (key,"Unknown flag: %.80s",t);
 	mm_log (key,ERROR);
-	return NIL;		/* return no system flags */
       }
 				/* parse next flag */
     } while (t = strtok (NIL," "));
@@ -1226,9 +1224,20 @@ long dawz_copy_messages (MAILSTREAM *stream,char *mailbox)
   MESSAGECACHE *elt;
   unsigned long i,j,k;
   int fd;
-				/* got file? */
-  if (!dawz_file (tmp,mailbox)) return dawz_badname (tmp,mailbox);
-  if ((fd = open (tmp,O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE))<0){
+  if (!dawz_isvalid (mailbox)) {/* make sure valid mailbox */
+    if (errno == ENOENT)
+      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
+		 (long) NIL);
+    else if (mailboxfile (tmp,mailbox)) {
+      sprintf (tmp,"Not a Dawz-format mailbox: %s",mailbox);
+      mm_log (tmp,ERROR);
+    }
+    else dawz_badname (tmp,mailbox);
+    return NIL;
+  }
+				/* open the destination */
+  if ((fd = open (mailboxfile (tmp,mailbox),
+		  O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE)) < 0) {
     sprintf (tmp,"Unable to open copy mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;

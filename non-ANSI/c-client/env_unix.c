@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	13 December 1993
+ * Last Edited:	9 June 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -38,6 +38,9 @@ static char *myUserName = NIL;	/* user name */
 static char *myHomeDir = NIL;	/* home directory name */
 static char *sysInbox = NIL;	/* system inbox name */
 static long blackBox = NIL;	/* is a black box */
+static rconce = NIL;		/* configuration parameters */
+static MAILSTREAM *defaultProto = NIL;
+static char *userFlags[NUSERFLAGS] = {NIL};
 
 /* Return my user name
  * Returns: my user name
@@ -45,6 +48,7 @@ static long blackBox = NIL;	/* is a black box */
 
 char *myusername ()
 {
+  extern MAILSTREAM STDPROTO;
   struct passwd *pw;
   struct stat sbuf;
   char tmp[MAILTMPLEN];
@@ -62,6 +66,12 @@ char *myusername ()
       myHomeDir = cpystr (pw->pw_dir);
       sysInbox = cpystr (tmp);
     }
+  }
+  if (!rconce++) {		/* done the rc file already? */
+    dorc (strcat (strcpy (tmp,myhomedir ()),"/.imaprc"));
+    dorc (strcat (strcpy (tmp,myhomedir ()),"/.mminit"));
+    dorc ("/etc/imapd.conf");
+    if (!defaultProto) defaultProto = &STDPROTO;
   }
   return myUserName;
 }
@@ -155,4 +165,81 @@ char *lockname (tmp,fname)
     sprintf (tmp,"/tmp/.%s",s ? s : fname);
   else sprintf (tmp,"/tmp/.%hx.%lx",sbuf.st_dev,sbuf.st_ino);
   return tmp;			/* note name for later */
+}
+
+
+/* Determine default prototype stream to user
+ * Returns: default prototype stream
+ */
+
+MAILSTREAM *default_proto ()
+{
+  myusername ();		/* make sure initialized */
+  return defaultProto;		/* return default driver's prototype */
+}
+
+
+/* Set up user flags for stream
+ * Accepts: MAIL stream
+ * Returns: MAIL stream with user flags set up
+ */
+
+MAILSTREAM *user_flags (stream)
+	MAILSTREAM *stream;
+{
+  int i;
+  myusername ();		/* make sure initialized */
+  for (i = 0; i < NUSERFLAGS; ++i) stream->user_flags[i] = userFlags[i];
+  return stream;
+}
+
+/* Process rc file
+ * Accepts: file name
+ */
+
+void dorc (file)
+	char *file;
+{
+  int i;
+  char *s,*t,*k,tmp[MAILTMPLEN],tmpx[MAILTMPLEN];
+  extern DRIVER *maildrivers;
+  extern MAILSTREAM STDPROTO;
+  DRIVER *d;
+  FILE *f = fopen (file,"r");
+  if (!f) return;		/* punt if no file */
+  while ((s = fgets (tmp,MAILTMPLEN,f)) && (t = strchr (s,'\n'))) {
+    *t++ = '\0';		/* tie off line, find second space */
+    if ((k = strchr (s,' ')) && (k = strchr (++k,' '))) {
+      *k++ = '\0';		/* tie off two words*/
+      lcase (s);		/* make case-independent */
+      if (!(defaultProto || strcmp (s,"set empty-folder-format"))) {
+	if (!strcmp (lcase (k),"same-as-inbox"))
+	  defaultProto = ((d = mail_valid (NIL,"INBOX",NIL)) &&
+			  strcmp (d->name,"dummy")) ?
+			    ((*d->open) (NIL)) : &STDPROTO;
+	else if (!strcmp (k,"system-standard")) defaultProto = &STDPROTO;
+	else {			/* see if a driver name */
+	  for (d = maildrivers; d && strcmp (d->name,k); d = d->next);
+	  if (d) defaultProto = (*d->open) (NIL);
+	  else {		/* duh... */
+	    sprintf (tmpx,"Unknown empty folder format in %s: %s",file,k);
+	    mm_log (tmpx,WARN);
+	  }
+	}
+      }
+      else if (!(userFlags[0] || strcmp (s,"set keywords"))) {
+	k = strtok (k,", ");	/* yes, get first keyword */
+				/* copy keyword list */
+	for (i = 0; k && i < NUSERFLAGS; ++i) {
+	  userFlags[i] = cpystr (k);
+	  k = strtok (NIL,", ");
+	}
+      }
+      else if (!strcmp (s,"set from-widget"))
+	mail_parameters (NIL,SET_FROMWIDGET,strcmp (lcase (k),"header-only") ?
+			 (void *) T : NIL);
+    }
+    s = t;			/* try next line */
+  }
+  fclose (f);			/* flush the file */
 }

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	16 December 1993
+ * Last Edited:	9 May 1994
  *
  * Copyright 1993 by the University of Washington
  *
@@ -105,7 +105,6 @@ struct direct *readdir ();
 int scandir ();
 int flock ();
 int gettimeofday ();
-int utimes ();
 int fsync ();
 int writev ();
 int setitimer ();

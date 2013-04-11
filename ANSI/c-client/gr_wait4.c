@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	30 November 1993
- * Last Edited:	30 November 1993
+ * Last Edited:	6 May 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,10 +41,8 @@
  * Accepts: process ID
  */
 
-void grim_pid_reap (int pid)
+void grim_pid_reap (int pid,int killreq)
 {
-  int options = WNOHANG;
-				/* kill if not already dead */
-  if (getuid () && !kill (pid,SIGKILL)) options = 0;
-  while ((wait4 (pid,NIL,options,NIL) < 0) && (errno != ECHILD));
+  if (killreq) kill(pid,SIGHUP);/* kill if not already dead */
+  while ((wait4 (pid,NIL,NIL,NIL) < 0) && (errno != ECHILD));
 }

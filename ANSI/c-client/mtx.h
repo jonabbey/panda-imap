@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	14 November 1993
+ * Last Edited:	10 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -49,8 +49,11 @@
 	
 typedef struct mtx_local {
   unsigned int inbox : 1;	/* if this is an INBOX or not */
+  unsigned int shouldcheck: 1;	/* if ping should do a check instead */
+  unsigned int mustcheck: 1;	/* if ping must do a check instead */
   int fd;			/* file descriptor for I/O */
   off_t filesize;		/* file size parsed */
+  time_t filetime;		/* last file time */
   char *buf;			/* temporary buffer */
   unsigned long buflen;		/* current size of temporary buffer */
 } MTXLOCAL;
@@ -94,14 +97,15 @@ void mtx_snarf (MAILSTREAM *stream);
 void mtx_expunge (MAILSTREAM *stream);
 long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long mtx_move (MAILSTREAM *stream,char *sequence,char *mailbox);
-long mtx_append (MAILSTREAM *stream,char *mailbox,STRING *message);
+long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		 STRING *message);
 void mtx_gc (MAILSTREAM *stream,long gcflags);
 
 int mtx_lock (int fd,char *lock,int op);
 void mtx_unlock (int fd,char *lock);
 unsigned long mtx_size (MAILSTREAM *stream,long m);
 char *mtx_file (char *dst,char *name);
-long mtx_getflags (MAILSTREAM *stream,char *flag,long *uf);
+long mtx_getflags (MAILSTREAM *stream,char *flag,unsigned long *uf);
 long mtx_parse (MAILSTREAM *stream);
 long mtx_copy_messages (MAILSTREAM *stream,char *mailbox);
 MESSAGECACHE *mtx_elt (MAILSTREAM *stream,long msgno);

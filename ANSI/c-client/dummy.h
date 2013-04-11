@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	18 May 1993
+ * Last Edited:	14 March 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -64,6 +64,7 @@ void dummy_check (MAILSTREAM *stream);
 void dummy_expunge (MAILSTREAM *stream);
 long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long dummy_move (MAILSTREAM *stream,char *sequence,char *mailbox);
-long dummy_append (MAILSTREAM *stream,char *mailbox,STRING *message);
+long dummy_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		   STRING *message);
 void dummy_gc (MAILSTREAM *stream,long gcflags);
 char *dummy_file (char *dst,char *name);

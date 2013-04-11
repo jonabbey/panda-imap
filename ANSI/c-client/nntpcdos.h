@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 January 1993
- * Last Edited:	2 September 1993
+ * Last Edited:	14 April 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -106,7 +106,8 @@ void nntp_check (MAILSTREAM *stream);
 void nntp_expunge (MAILSTREAM *stream);
 long nntp_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long nntp_move (MAILSTREAM *stream,char *sequence,char *mailbox);
-long nntp_append (MAILSTREAM *stream,char *mailbox,STRING *message);
+long nntp_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		  STRING *message);
 void nntp_gc (MAILSTREAM *stream,long gcflags);
 
 char *nntp_read_sdb (FILE **f);

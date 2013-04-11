@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	21 September 1993
+ * Last Edited:	17 June 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -49,33 +49,45 @@
  *	    return pointer to end of date/time field
  *	    return pointer to offset from t of time (hours of ``mmm dd hh:mm'')
  *	    return pointer to offset from t of time zone (if non-zero)
- * Returns: T if valid From string, t,ti,zn set; else NIL
+ * Returns: t,ti,zn set if valid From string, else ti is NIL
  */
 
-#define VALID(s,x,ti,zn) \
-  (s[1] == 'r') && (s[2] == 'o') && (s[3] == 'm') && (s[4] == ' ') && \
-  (x = strchr (s+5,'\n')) && \
-  ((x-s < 41) || ((ti = ((x[-2] == ' ') ? -14 : (x[-3] == ' ') ? -15 : \
-			 (x[-4] == ' ') ? -16 : (x[-5] == ' ') ? -17 : \
-			 (x[-6] == ' ') ? -18 : (x[-7] == ' ') ? -19 : \
-			 (x[-8] == ' ') ? -20 : (x[-9] == ' ') ? -21 : \
-			 (x[-10]== ' ') ? -22 : (x[-11]== ' ') ? -23 : 0)) && \
-		  (x[ti]   == ' ') && (x[ti+1] == 'r') && (x[ti+2] == 'e') && \
-		  (x[ti+3] == 'm') && (x[ti+4] == 'o') && (x[ti+5] == 't') && \
-		  (x[ti+6] == 'e') && (x[ti+7] == ' ') && (x[ti+8] == 'f') && \
-		  (x[ti+9] == 'r') && (x[ti+10]== 'o') && (x[ti+11]== 'm') && \
-		  (x += ti)) || T) && \
-  (x-s >= 27) && \
-  ((x[ti = -5] == ' ') ? ((x[-8] == ':') ? !(zn = 0) : \
-			  ((x[ti = zn = -9] == ' ') || \
-			   ((x[ti = zn = -11] == ' ') && \
-			    ((x[-10] == '+') || (x[-10] == '-'))))) : \
-   ((x[zn = -4] == ' ') ? (x[ti = -9] == ' ') : \
-    ((x[zn = -6] == ' ') && ((x[-5] == '+') || (x[-5] == '-')) && \
-     (x[ti = -11] == ' ')))) && \
-  (x[ti - 3] == ':') && (x[ti -= ((x[ti - 6] == ':') ? 9 : 6)] == ' ') && \
-  (x[ti - 3] == ' ') && (x[ti - 7] == ' ') && (x[ti - 11] == ' ')
-
+#define VALID(s,x,ti,zn) {						\
+  ti = 0;								\
+  if ((*s == 'F') && (s[1] == 'r') && (s[2] == 'o') && (s[3] == 'm') &&	\
+      (s[4] == ' ')) {							\
+    for (x = s + 5; *x && *x != '\n'; x++);				\
+    if (x) {								\
+      if (x - s >= 41) {						\
+	for (zn = -1; x[zn] != ' '; zn--);				\
+	if ((x[zn-1] == 'm') && (x[zn-2] == 'o') && (x[zn-3] == 'r') &&	\
+	    (x[zn-4] == 'f') && (x[zn-5] == ' ') && (x[zn-6] == 'e') &&	\
+	    (x[zn-7] == 't') && (x[zn-8] == 'o') && (x[zn-9] == 'm') &&	\
+	    (x[zn-10] == 'e') && (x[zn-11] == 'r') && (x[zn-12] == ' '))\
+	  x += zn - 12;							\
+      }									\
+      if (x - s >= 27) {						\
+	if (x[-5] == ' ') {						\
+	  if (x[-8] == ':') zn = 0,ti = -5;				\
+	  else if (x[-9] == ' ') ti = zn = -9;				\
+	  else if ((x[-11] == ' ') && ((x[-10]=='+') || (x[-10]=='-')))	\
+	    ti = zn = -11;						\
+	}								\
+	else if (x[-4] == ' ') {					\
+	  if (x[-9] == ' ') zn = -4,ti = -9;				\
+	}								\
+	else if (x[-6] == ' ') {					\
+	  if ((x[-11] == ' ') && ((x[-5] == '+') || (x[-5] == '-')))	\
+	    zn = -6,ti = -11;						\
+	}								\
+	if (ti && !((x[ti - 3] == ':') &&				\
+		    (x[ti -= ((x[ti - 6] == ':') ? 9 : 6)] == ' ') &&	\
+		    (x[ti - 3] == ' ') && (x[ti - 7] == ' ') &&		\
+		    (x[ti - 11] == ' '))) ti = 0;			\
+      }									\
+    }									\
+  }									\
+}
 
 /* You are not expected to understand this macro, but read the next page if
  * you are not faint of heart.
@@ -101,40 +113,40 @@
  * insist.  Actually, it isn't really all that difficult, provided that you
  * take it step by step.
  *
- * Line 1	Validates that the 2-5th characters are ``rom ''.
- * Line 2	Sets x to point to the end of the line.
- * Lines 3-12	First checks to see if the line is at least 41 characters long.
- *		If so, it scans backwards up to 10 characters (the UUCP system
- *		name length limit due to old versions of UNIX) to find a space.
- *		If one is found, it backs up 12 characters from that point, and
- *		sees if the string from there is `` remote from''.  If so, it
- *		sets x to that position.  The ``|| T'' is there so the parse
- *		will still continue.
- * Line 13	Makes sure that there are at least 27 characters in the line.
- * Lines 14-17	Checks if the date/time ends with the year.  If so, It sees if
- *		there is a colon 3 characters further back; this would mean
- *		that there is no timezone field and zn is set to 0 and ti is
- *		left in front of the year.  If not, then it expects there to
+ * Line 1	Initializes the return ti value to failure (0);
+ * Lines 2-3	Validates that the 1st-5th characters are ``From ''.
+ * Lines 4-5	Validates that there is an end of line and points x at it.
+ * Lines 6-13	First checks to see if the line is at least 41 characters long.
+ *		If so, it scans backwards to find the rightmost space.  From
+ *		that point, it scans backwards to see if the string matches
+ *		`` remote from''.  If so, it sets x to point to the space at
+ *		the start of the string.
+ * Line 14	Makes sure that there are at least 27 characters in the line.
+ * Lines 15-20	Checks if the date/time ends with the year (there is a space
+ *		five characters back).  If there is a colon three characters
+ *		further back, there is no timezone field, so zn is set to 0
+ *		and ti is set in front of the year.  Otherwise, there must
  *		either to be a space four characters back for a three-letter
  *		timezone, or a space six characters back followed by a + or -
- *		for a numeric timezone.  If a timezone is found, both zn and
- *		ti are the offset of the space immediately before it.
- * Lines 18-20	Are the failure case for a date/time not ending with a year in
- *		line 14.  If there is a space four characters back, it is a
- *		three-letter timezone; there must be a space for the year nine
- *		characters back.  Otherwise, there must be a space six
- *		characters back and a + or - five characters back to indicate a
- *		numeric timezone and a space eleven characters back to indicate
- *		a year.  zn and ti are set appropriately.
- * Line 21	Make sure that the string before ti is of the form hh:mm or
- *		hh:mm:ss.  There must be a colon three characters back, and a
- *		space six or nine characters back (depending upon whether or
- *		not the character six characters back is a colon).  ti is set
- *		to be the offset of the space immediately before the time.
- * Line 22	Make sure the string before ti is of the form www mmm dd.
- *		There must be a space three characters back (in front of the
- *		day), one seven characters back (in front of the month), and
- *		one eleven characters back (in front of the day of week).
+ *		for a numeric timezone; in either case, zn and ti become the
+ *		offset of the space immediately before it.
+ * Lines 21-23	Are the failure case for line 14.  If there is a space four
+ *		characters back, it is a three-letter timezone; there must be a
+ *		space for the year nine characters back.  zn is the zone
+ *		offset; ti is the offset of the space.
+ * Lines 24-27	Are the failure case for line 20.  If there is a space six
+ *		characters back, it is a numeric timezone; there must be a
+ *		space eleven characters back and a + or - five characters back.
+ *		zn is the zone offset; ti is the offset of the space.
+ * Line 28-31	If ti is valid, make sure that the string before ti is of the
+ *		form www mmm dd hh:mm or www mmm dd hh:mm:ss, otherwise
+ *		invalidate ti.  There must be a colon three characters back
+ *		and a space six or nine	characters back (depending upon
+ *		whether or not the character six characters back is a colon).
+ *		There must be a space three characters further back (in front
+ *		of the day), one seven characters back (in front of the month),
+ *		and one eleven characters back (in front of the day of week).
+ *		ti is set to be the offset of the space before the time.
  *
  * Why a macro?  It gets invoked a *lot* in a tight loop.  On some of the
  * newer pipelined machines it is faster being open-coded than it would be if

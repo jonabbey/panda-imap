@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 November 1993
+ * Last Edited:	29 May 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,8 +39,8 @@
 #include "env.h"
 
 char *myusername ();
-char *myhomedir ();
 char *sysinbox ();
-char *mailboxfile (char *dst,char *name);
 char *lockname (char *tmp,char *fname);
-void grim_pid_reap (int pid);
+MAILSTREAM *user_flags (MAILSTREAM *stream);
+void dorc (char *file);
+void grim_pid_reap (int pid,int killreq);

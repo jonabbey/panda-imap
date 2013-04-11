@@ -9,13 +9,10 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- *		Andrew Cohen
- *		Internet: cohen@bucrf16.bu.edu
- *
  * Date:	23 February 1992
- * Last Edited:	29 October 1992
+ * Last Edited:	17 March 1994
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -38,7 +35,8 @@
 
 /* Build parameters */
 
-#define MHRC strcat (strcpy (tmp,myhomedir ()),"/.mhrc")
+#define MHPROFILE ".mh_profile"
+#define MHPATH "Mail"
 
 
 /* Command bits from mh_getflags() */
@@ -52,14 +50,11 @@
 /* MH I/O stream local data */
 
 typedef struct mh_local {
-  unsigned int dirty : 1;	/* disk copy of .mhrc needs updating */
+  unsigned int inbox : 1;	/* if it's an INBOX or not */
   char *dir;			/* spool directory name */
   char *buf;			/* temporary buffer */
+  char *hdr;			/* current header */
   unsigned long buflen;		/* current size of temporary buffer */
-  unsigned long *number;	/* mh message numbers */
-  char **header;		/* message headers */
-  char **body;			/* message bodies */
-  char *seen;			/* local seen status */
 } MHLOCAL;
 
 
@@ -72,7 +67,6 @@ typedef struct mh_local {
 DRIVER *mh_valid  ();
 int mh_isvalid  ();
 void *mh_parameters  ();
-char *mh_file  ();
 void mh_find  ();
 void mh_find_bboards  ();
 void mh_find_all  ();
@@ -85,8 +79,6 @@ long mh_create  ();
 long mh_delete  ();
 long mh_rename  ();
 MAILSTREAM *mh_open  ();
-int mh_select  ();
-int mh_numsort  ();
 void mh_close  ();
 void mh_fetchfast  ();
 void mh_fetchflags  ();
@@ -104,6 +96,10 @@ long mh_copy  ();
 long mh_move  ();
 long mh_append  ();
 void mh_gc  ();
+
+int mh_select  ();
+int mh_numsort  ();
+char *mh_file  ();
 short mh_getflags  ();
 char mh_search_all  ();
 char mh_search_answered  ();
@@ -134,9 +130,5 @@ typedef char (*search_t)  ();
 search_t mh_search_date  ();
 search_t mh_search_flag  ();
 search_t mh_search_string  ();
-
-/* This is embarassing */
 
-extern char *bezerk_file  ();
-extern int bezerk_lock  ();
-extern void bezerk_unlock  ();
+char *bezerk_snarf  ();

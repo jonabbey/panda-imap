@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	12 November 1993
+ * Last Edited:	9 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -86,4 +86,3 @@ void *memmove ();
 int scandir ();
 int flock ();
 int gettimeofday ();
-int utimes ();

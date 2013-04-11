@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 January 1993
- * Last Edited:	22 December 1993
+ * Last Edited:	10 June 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -117,7 +117,6 @@ DRIVER *nntp_valid (char *name)
 
 void *nntp_parameters (long function,void *value)
 {
-  fatal ("Invalid nntp_parameters function");
   return NIL;
 }
 
@@ -335,24 +334,15 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     stream->dtb = &nntpdriver;/* reattach this driver */
     mail_free_cache (stream);	/* clean up cache */
   }
+				/* in case /debug switch given */
+  if (mb.dbgflag) stream->debug = T;
 
-				/* open NNTP now if not already open */
-  if (!nstream && (tcpstream = tcp_open (mb.host,mb.port ?
-					 (long) mb.port : NNTPTCPPORT))) {
-    nstream = (SMTPSTREAM *) fs_get (sizeof (SMTPSTREAM));
-    nstream->tcpstream = tcpstream;
-    nstream->debug = stream->debug;
-    nstream->reply = NIL;
-				/* get NNTP greeting */
-    if (((i = smtp_reply (nstream)) == NNTPGREET) || (i == NNTPGREETNOPOST)) {
-      mm_log (nstream->reply + 4,(long) NIL);
-      smtp_send (nstream,"MODE","READER");
-    }
-    else {			/* oops */
-      mm_log (nstream->reply,ERROR);
-      smtp_close (nstream);	/* punt stream */
-      nstream = NIL;
-    }
+  if (!nstream) {		/* open NNTP now if not already open */
+    char *hostlist[2];
+    hostlist[0] = strcpy (tmp,mb.host);
+    if (mb.port) sprintf (tmp + strlen (tmp),":%ld",mb.port);
+    hostlist[1] = NIL;
+    nstream = nntp_open (hostlist,OP_READONLY+(stream->debug ? OP_DEBUG:NIL));
   }
   if (nstream) {		/* now try to open newsgroup */
     if ((!stream->halfopen) &&	/* open the newsgroup if not halfopen */
@@ -422,7 +412,6 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
       }
       if (s) {			/* newsgroup found? */
 	if (*s == ' ') s++;	/* skip whitespace */
-	if (c == '!') mm_log ("Not subscribed to that newsgroup",WARN);
 	while (*s && i < nmsgs){/* process until run out of messages or list */
 	  j = strtol (s,&s,10);	/* start of possible range */
 				/* other end of range */
@@ -868,7 +857,7 @@ long nntp_ping (MAILSTREAM *stream)
   /* Kludge alert: SMTPSOFTFATAL is 421 which is used in NNTP to mean ``No
    * next article in this group''.  Hopefully, no NNTP server will choke on
    * a bogus command. */
-  return (smtp_send (LOCAL->nntpstream,"PING","PONG") != SMTPSOFTFATAL);
+  return (smtp_send (LOCAL->nntpstream,"NOOP",NIL) != SMTPSOFTFATAL);
 }
 
 
@@ -887,7 +876,8 @@ void nntp_check (MAILSTREAM *stream)
   if (!LOCAL->dirty) return;	/* never do if no updates */
   *LOCAL->buf = '\n';		/* header to make for easier searches */
 				/* open .newsrc file */
-  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,0600)) < 0) {
+  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,
+		  (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) < 0) {
     mm_log ("Can't update news state",ERROR);
     return;
   }
@@ -905,7 +895,8 @@ void nntp_check (MAILSTREAM *stream)
   LOCAL->buf[sbuf.st_size + 1] = '\0';
 				/* make backup file */
   strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
-  if ((i = open (tmp,O_WRONLY|O_CREAT,0600)) >= 0) {
+  if ((i = open (tmp,O_WRONLY|O_CREAT,
+		 (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) >= 0) {
     write (i,LOCAL->buf + 1,sbuf.st_size);
     close (i);
   }
@@ -1008,7 +999,8 @@ long nntp_move (MAILSTREAM *stream,char *sequence,char *mailbox)
  * Returns: T if append successful, else NIL
  */
 
-long nntp_append (MAILSTREAM *stream,char *mailbox,STRING *message)
+long nntp_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		  STRING *message)
 {
   mm_log ("Append not valid for NNTP",ERROR);
   return NIL;
@@ -1042,7 +1034,7 @@ void nntp_gc (MAILSTREAM *stream,long gcflags)
 
 short nntp_getflags (MAILSTREAM *stream,char *flag)
 {
-  char *t;
+  char *t,tmp[MAILTMPLEN],err[MAILTMPLEN];
   short f = 0;
   short i,j;
   if (flag && *flag) {		/* no-op if no flag string */
@@ -1052,11 +1044,11 @@ short nntp_getflags (MAILSTREAM *stream,char *flag)
       return NIL;
     }
 				/* copy the flag string w/o list construct */
-    strncpy (LOCAL->buf,flag+i,(j = strlen (flag) - (2*i)));
-    LOCAL->buf[j] = '\0';
-    t = ucase (LOCAL->buf);	/* uppercase only from now on */
+    strncpy (tmp,flag+i,(j = strlen (flag) - (2*i)));
+    tmp[j] = '\0';
+    t = ucase (tmp);		/* uppercase only from now on */
 
-    while (*t) {		/* parse the flags */
+    while (t && *t) {		/* parse the flags */
       if (*t == '\\') {		/* system flag? */
 	switch (*++t) {		/* dispatch based on first character */
 	case 'S':		/* possible \Seen flag */
@@ -1084,14 +1076,12 @@ short nntp_getflags (MAILSTREAM *stream,char *flag)
 	}
 				/* add flag to flags list */
 	if (i && ((*t == '\0') || (*t++ == ' '))) f |= i;
-	else {			/* bitch about bogus flag */
-	  mm_log ("Unknown system flag",ERROR);
-	  return NIL;
-	}
       }
       else {			/* no user flags yet */
-	mm_log ("Unknown flag",ERROR);
-	return NIL;
+	t = strtok (t," ");	/* isolate flag name */
+	sprintf (err,"Unknown flag: %.80s",t);
+	t = strtok (NIL," ");	/* get next flag */
+	mm_log (err,ERROR);
       }
     }
   }

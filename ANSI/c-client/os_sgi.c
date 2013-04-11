@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 November 1993
+ * Last Edited:	14 April 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,6 +36,7 @@
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
 #include "osdep.h"
+#include <stdio.h>
 #include <time.h>
 #include <sys/time.h>
 #include <sys/stat.h>

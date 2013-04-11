@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	18 November 1993
+ * Last Edited:	29 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -134,7 +134,6 @@ DRIVER *news_valid (char *name)
 
 void *news_parameters (long function,void *value)
 {
-  fatal ("Invalid news_parameters function");
   return NIL;
 }
 
@@ -250,7 +249,8 @@ long news_subscribe_bboard (MAILSTREAM *stream,char *mailbox)
   struct stat sbuf;
   long ret = NIL;
 				/* open .newsrc file */
-  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,0600)) < 0) {
+  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,
+		  (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) < 0) {
     mm_log ("Can't update news state",ERROR);
     return NIL;
   }
@@ -261,14 +261,15 @@ long news_subscribe_bboard (MAILSTREAM *stream,char *mailbox)
   txt[sbuf.st_size + 1] = '\0';	/* tie off string */
 				/* make backup file */
   strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
-  if ((fdo = open (tmp,O_WRONLY|O_CREAT,0600)) >= 0) {
+  if ((fdo = open (tmp,O_WRONLY|O_CREAT,
+		   (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) >= 0) {
     write (fdo,txt + 1,sbuf.st_size);
     close (fdo);
   }
   sprintf (tmp,"\n%s:",mailbox);/* see if already subscribed */
   if (strstr (txt,tmp)) {	/* well? */
     sprintf (tmp,"Already subscribed to newsgroup %s",mailbox);
-    mm_log (tmp,ERROR);
+    mm_log (tmp,WARN);
   }
   else {
     sprintf (tmp,"\n%s!",mailbox);
@@ -304,7 +305,8 @@ long news_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox)
   struct stat sbuf;
   long ret = NIL;
 				/* open .newsrc file */
-  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,0600)) < 0) {
+  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,
+		  (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) < 0) {
     mm_log ("Can't update news state",ERROR);
     return NIL;
   }
@@ -315,18 +317,23 @@ long news_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox)
   txt[sbuf.st_size + 1] = '\0';	/* tie off string */
 				/* make backup file */
   strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
-  if ((fdo = open (tmp,O_WRONLY|O_CREAT,0600)) >= 0) {
+  if ((fdo = open (tmp,O_WRONLY|O_CREAT,
+		   (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) >= 0) {
     write (fdo,txt + 1,sbuf.st_size);
     close (fdo);
   }
-  sprintf (tmp,"\n%s:",mailbox);/* see if subscribed */
-  if (!(s = strstr (txt,tmp))) {/* well? */
-    sprintf (tmp,"Not subscribed to newsgroup %s",mailbox);
-    mm_log (tmp,ERROR);
-  }
-  else {			/* unsubscribe */
-    lseek (fd,strchr (s,':') - (txt + 1),L_SET);
-    write (fd,"!",1);		/* now unsubscribed */
+  sprintf (tmp,"\n%s!",mailbox);/* see if already unsubscribed */
+  if (!strstr (txt,tmp)) {	/* well? */
+    sprintf (tmp,"\n%s:",mailbox);
+    if (s = strstr (txt,tmp)) {	/* already there as subscribed? */
+      lseek (fd,strchr (s,':') - (txt + 1),L_SET);
+      write (fd,"!",1);		/* now unsubscribed */
+    }
+    else {			/* otherwise write new entry */
+      lseek (fd,sbuf.st_size,L_SET);
+      sprintf (tmp,"%s!\n",mailbox);
+      write (fd,tmp,strlen (tmp));
+    }
     fsync (fd);			/* drop changes */
     ret = T;
   }
@@ -432,7 +439,6 @@ MAILSTREAM *news_open (MAILSTREAM *stream)
       }
       if (s) {			/* newsgroup found? */
 	if (*s == ' ') s++;	/* skip whitespace */
-	if (c == '!') mm_log ("Not subscribed to that newsgroup",WARN);
 	while (*s && i < nmsgs){/* process until run out of messages or list */
 	  j = strtol (s,&s,10);	/* start of possible range */
 				/* other end of range */
@@ -884,7 +890,8 @@ void news_check (MAILSTREAM *stream)
   if (stream->anonymous || !LOCAL->dirty) return;
   *LOCAL->buf = '\n';		/* header to make for easier searches */
 				/* open .newsrc file */
-  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,0600)) < 0) {
+  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,
+		  (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) < 0) {
     mm_log ("Can't update news state",ERROR);
     return;
   }
@@ -902,7 +909,8 @@ void news_check (MAILSTREAM *stream)
   LOCAL->buf[sbuf.st_size + 1] = '\0';
 				/* make backup file */
   strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
-  if ((i = open (tmp,O_WRONLY|O_CREAT,0600)) >= 0) {
+  if ((i = open (tmp,O_WRONLY|O_CREAT,
+		 (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) >= 0) {
     write (i,LOCAL->buf + 1,sbuf.st_size);
     close (i);
   }
@@ -1005,7 +1013,8 @@ long news_move (MAILSTREAM *stream,char *sequence,char *mailbox)
  * Returns: T if append successful, else NIL
  */
 
-long news_append (MAILSTREAM *stream,char *mailbox,STRING *message)
+long news_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		  STRING *message)
 {
   mm_log ("Append not valid for netnews",ERROR);
   return NIL;
@@ -1065,7 +1074,7 @@ char *news_read (void **sdb)
 
 short news_getflags (MAILSTREAM *stream,char *flag)
 {
-  char *t;
+  char *t,tmp[MAILTMPLEN],err[MAILTMPLEN];
   short f = 0;
   short i,j;
   if (flag && *flag) {		/* no-op if no flag string */
@@ -1075,11 +1084,11 @@ short news_getflags (MAILSTREAM *stream,char *flag)
       return NIL;
     }
 				/* copy the flag string w/o list construct */
-    strncpy (LOCAL->buf,flag+i,(j = strlen (flag) - (2*i)));
-    LOCAL->buf[j] = '\0';
-    t = ucase (LOCAL->buf);	/* uppercase only from now on */
+    strncpy (tmp,flag+i,(j = strlen (flag) - (2*i)));
+    tmp[j] = '\0';
+    t = ucase (tmp);		/* uppercase only from now on */
 
-    while (*t) {		/* parse the flags */
+    while (t && *t) {		/* parse the flags */
       if (*t == '\\') {		/* system flag? */
 	switch (*++t) {		/* dispatch based on first character */
 	case 'S':		/* possible \Seen flag */
@@ -1107,14 +1116,12 @@ short news_getflags (MAILSTREAM *stream,char *flag)
 	}
 				/* add flag to flags list */
 	if (i && ((*t == '\0') || (*t++ == ' '))) f |= i;
-	else {			/* bitch about bogus flag */
-	  mm_log ("Unknown system flag",ERROR);
-	  return NIL;
-	}
       }
       else {			/* no user flags yet */
-	mm_log ("Unknown flag",ERROR);
-	return NIL;
+	t = strtok (t," ");	/* isolate flag name */
+	sprintf (err,"Unknown flag: %.80s",t);
+	t = strtok (NIL," ");	/* get next flag */
+	mm_log (err,ERROR);
       }
     }
   }

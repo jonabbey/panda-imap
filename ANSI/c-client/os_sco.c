@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	16 December 1993
+ * Last Edited:	18 June 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,6 +36,7 @@
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include <sys/time.h>		/* must be before osdep.h */
 #include "mail.h"
+#include <stdio.h>
 #include "osdep.h"
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -65,7 +66,6 @@ extern char *crypt();
 #include "memmove2.c"
 #include "flock.c"
 #include "scandir.c"
-#include "utimes.c"
 
 /* Write current time in RFC 822 format
  * Accepts: destination string
@@ -79,9 +79,9 @@ void rfc822_date (char *date)
   struct tm *t;
   struct timeval tv;
   struct timezone tz;
+  tzset ();			/* get timezone from TZ environment stuff */
   gettimeofday (&tv,&tz);	/* get time and timezone poop */
   t = localtime (&tv.tv_sec);	/* convert to individual items */
-  tzset ();			/* get timezone from TZ environment stuff */
   dstflag = daylight ? t->tm_isdst : 0;
   zone = (dstflag * 60) - timezone/60;
 				/* and output it */
@@ -111,6 +111,7 @@ long server_login (char *user,char *pass,char **home,int argc,char *argv[])
   if (strcmp (pw->ufld.fd_encrypt,(char *) crypt (pass,pw->ufld.fd_encrypt)))
     return NIL;
   pwd = getpwnam (user);	/* all OK, get the public information */
+  setluid ((uid_t) pwd->pw_uid);/* purportedly needed */
   setgid ((gid_t) pwd->pw_gid);	/* login in as that user */
   setuid ((uid_t) pwd->pw_uid);
 				/* note home directory */
@@ -159,20 +160,6 @@ int fsync (int fd)
   return (0);
 }
 
-/* Emulator for BSD setitimer() call
- * Accepts: which timer to set
- *	    new timer value
- *	    previous timer value
- * Returns: 0 if successful, -1 if failure
- */
-
-int setitimer(int which, struct itimerval *val, struct itimerval *oval)
-{
-  (void) alarm ((unsigned)val->it_value.tv_sec);
-  return (0);
-}
-
-
 /* Emulator for geteuid()
  * I'm not quite sure why this is done; it was this way in the code Ken sent
  * me.  It only had the comment ``EUIDs don't work on SCO!''.  I think it has

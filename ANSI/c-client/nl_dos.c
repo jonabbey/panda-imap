@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	11 November 1993
+ * Last Edited:	14 April 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -46,10 +46,10 @@ unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
 {
   if (srcl > *dstl) {		/* resize if not enough space */
     fs_give ((void **) dst);	/* fs_resize does an unnecessary copy */
-    *dst = (char *) fs_get ((*dstl = srcl) + 1);
+    *dst = (char *) fs_get ((size_t) (*dstl = srcl) + 1);
   }
 				/* copy strings */
-  if (srcl) memcpy (*dst,src,srcl);
+  if (srcl) memcpy (*dst,src,(size_t) srcl);
   *(*dst + srcl) = '\0';	/* tie off destination */
   return srcl;			/* return length */
 }

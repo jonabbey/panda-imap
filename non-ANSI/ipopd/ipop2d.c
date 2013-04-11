@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	11 October 1993
+ * Last Edited:	30 March 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -59,12 +59,13 @@
 
 /* Global storage */
 
-char *version = "2.2(12)";	/* server version */
+char *version = "2.3(14)";	/* server version */
 short state = LISN;		/* server state */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 long nmsgs = 0;			/* number of messages */
 long current = 1;		/* current message number */
 long size = 0;			/* size of current message */
+char status[MAILTMPLEN];	/* space for status string */
 char *user = "";		/* user name */
 char *pass = "";		/* password */
 short *msg = NIL;		/* message translation vector */
@@ -218,16 +219,25 @@ short c_fold (t)
 short c_read (t)
 	char *t;
 {
-  MESSAGECACHE *elt = NIL;;
-				/* set message number if possible */
-  if (t && *t) current = atoi (t);
+  MESSAGECACHE *elt = NIL;
+  if (t && *t) {		/* have a message number argument? */
+    current = atoi (t);		/* set message number if possible */
 				/* validity check message number */
-  if (current < 1 || current > nmsgs) {
-    puts ("- Invalid message number given to READ\015");
-    return DONE;
+    if (current < 1 || current > nmsgs) {
+      puts ("- Invalid message number given to READ\015");
+      return DONE;
+    }
+  }
+  else if (current > nmsgs) {	/* at end of mailbox? */
+    puts ("=0 No more messages\015");
+    return MBOX;
   }
 				/* set size if message valid and exists */
-  size = msg[current] ? mail_elt (stream,msg[current])->rfc822_size : 0;
+  size = msg[current] ? (elt = mail_elt(stream,msg[current]))->rfc822_size : 0;
+  if (elt) sprintf (status,"Status: %s%s\015\012",
+		    elt->seen ? "R" : " ",elt->recent ? " " : "O");
+  else status[0] = '\0';	/* no status */
+  size += strlen (status);	/* update size to reflect status */
 				/* display results */
   printf ("=%d characters in message %d\015\012",size,current);
   return ITEM;
@@ -242,12 +252,13 @@ short c_read (t)
 short c_retr (t)
 	char *t;
 {
+  char c,*s;
   if (t) {			/* disallow argument */
     puts ("- Bogus argument given to RETR\015");
     return DONE;
   }
   if (size) {			/* message size valid? */
-				/* yes, output messages */
+    fputs (status,stdout);	/* yes, output message */
     fputs (mail_fetchheader (stream,msg[current]),stdout);
     fputs (mail_fetchtext (stream,msg[current]),stdout);
   }

@@ -9,13 +9,10 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- *		Andrew Cohen
- *		Internet: cohen@bucrf16.bu.edu
- *
  * Date:	23 February 1992
- * Last Edited:	29 October 1992
+ * Last Edited:	17 March 1994
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -38,7 +35,8 @@
 
 /* Build parameters */
 
-#define MHRC strcat (strcpy (tmp,myhomedir ()),"/.mhrc")
+#define MHPROFILE ".mh_profile"
+#define MHPATH "Mail"
 
 
 /* Command bits from mh_getflags() */
@@ -52,14 +50,11 @@
 /* MH I/O stream local data */
 	
 typedef struct mh_local {
-  unsigned int dirty : 1;	/* disk copy of .mhrc needs updating */
+  unsigned int inbox : 1;	/* if it's an INBOX or not */
   char *dir;			/* spool directory name */
   char *buf;			/* temporary buffer */
+  char *hdr;			/* current header */
   unsigned long buflen;		/* current size of temporary buffer */
-  unsigned long *number;	/* mh message numbers */
-  char **header;		/* message headers */
-  char **body;			/* message bodies */
-  char *seen;			/* local seen status */
 } MHLOCAL;
 
 
@@ -70,9 +65,8 @@ typedef struct mh_local {
 /* Function prototypes */
 
 DRIVER *mh_valid (char *name);
-int mh_isvalid (char *name,char *tmp);
+int mh_isvalid (char *name,char *tmp,long synonly);
 void *mh_parameters (long function,void *value);
-char *mh_file (char *dst,char *name);
 void mh_find (MAILSTREAM *stream,char *pat);
 void mh_find_bboards (MAILSTREAM *stream,char *pat);
 void mh_find_all (MAILSTREAM *stream,char *pat);
@@ -85,8 +79,6 @@ long mh_create (MAILSTREAM *stream,char *mailbox);
 long mh_delete (MAILSTREAM *stream,char *mailbox);
 long mh_rename (MAILSTREAM *stream,char *old,char *new);
 MAILSTREAM *mh_open (MAILSTREAM *stream);
-int mh_select (struct direct *name);
-int mh_numsort (struct direct **d1,struct direct **d2);
 void mh_close (MAILSTREAM *stream);
 void mh_fetchfast (MAILSTREAM *stream,char *sequence);
 void mh_fetchflags (MAILSTREAM *stream,char *sequence);
@@ -102,8 +94,13 @@ void mh_check (MAILSTREAM *stream);
 void mh_expunge (MAILSTREAM *stream);
 long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long mh_move (MAILSTREAM *stream,char *sequence,char *mailbox);
-long mh_append (MAILSTREAM *stream,char *mailbox,STRING *message);
+long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		STRING *message);
 void mh_gc (MAILSTREAM *stream,long gcflags);
+
+int mh_select (struct direct *name);
+int mh_numsort (struct direct **d1,struct direct **d2);
+char *mh_file (char *dst,char *name);
 short mh_getflags (MAILSTREAM *stream,char *flag);
 char mh_search_all (MAILSTREAM *stream,long msgno,char *d,long n);
 char mh_search_answered (MAILSTREAM *stream,long msgno,char *d,long n);
@@ -134,9 +131,5 @@ typedef char (*search_t) (MAILSTREAM *stream,long msgno,char *d,long n);
 search_t mh_search_date (search_t f,long *n);
 search_t mh_search_flag (search_t f,char **d);
 search_t mh_search_string (search_t f,char **d,long *n);
-
-/* This is embarassing */
 
-extern char *bezerk_file (char *dst,char *name);
-extern int bezerk_lock (char *file,int flags,int mode,char *lock,int op);
-extern void bezerk_unlock (int fd,MAILSTREAM *stream,char *lock);
+char *bezerk_snarf (MAILSTREAM *stream,long msgno,long *size);

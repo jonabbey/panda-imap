@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	11 November 1993
+ * Last Edited:	29 May 1994
  *
- * Copyright 1993 by Mark Crispin
+ * Copyright 1994 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -59,6 +59,8 @@ extern short resolveropen;	/* make this global so caller can sniff */
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+
+#define TCPDRIVER "\p.IPP"
 
 #define gethostid clock
 

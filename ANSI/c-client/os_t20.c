@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	11 November 1993
+ * Last Edited:	24 May 1994
  *
- * Copyright 1993 by Mark Crispin
+ * Copyright 1994 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -122,17 +122,27 @@ long server_login (char *user,char *pass,char **home,int argc,char *argv[])
 
 /* TCP/IP open
  * Accepts: host name
+ *	    contact service name
  *	    contact port number
  * Returns: TCP stream if success else NIL
  */
 
-TCPSTREAM *tcp_open (char *host,long port)
+TCPSTREAM *tcp_open (char *host,char *service,long port)
 {
-  char tmp[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN];
   TCPSTREAM *stream = NIL;
   int argblk[5];
   int jfn;
   char file[MAILTMPLEN];
+  if (s = strchr (host,':')) {	/* port number specified? */
+    *s++ = '\0';		/* yes, tie off port */
+    port = strtol (s,&s,10);	/* parse port */
+    if (s && *s) {
+      sprintf (tmp,"Junk after port number: %.80s",s);
+      mm_log (tmp,ERROR);
+      return NIL;
+    }
+  }
   argblk[1] = monsym (".GTDPN");/* get IP address and primary name */
   argblk[2] = (int) (host-1);	/* pointer to host */
   argblk[4] = (int) (tmp-1);

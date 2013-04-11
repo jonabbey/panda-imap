@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	17 October 1993
+ * Last Edited:	17 June 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -18,8 +18,8 @@
  *		by the Biomedical Research Technology Program of the National
  *		Institutes of Health under grant number RR-00785.
  *
- * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1993 by the University of Washington.
+ * Original version Copyright 1988 by The Leland Stanford Junior University
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -46,20 +46,41 @@
 #include <signal.h>
 #include "mail.h"
 #include "osdep.h"
-#if unix
-#include <pwd.h>
-#include <netdb.h>
-#endif
-#ifdef noErr
-#include <MacTCPCommonTypes.h>
-#include <AddressXlation.h>
-#endif
 #include "rfc822.h"
 #include "smtp.h"
 #include "nntp.h"
 #include "misc.h"
 
+/* Excellent reasons to hate ifdefs, and why my real code never uses them */
 
+#ifdef __MINT__
+# define UNIXLIKE 1
+# define MAC 1
+# define MACOS 0
+#else
+# if unix
+#  define UNIXLIKE 1
+#  define MACOS 0
+# else
+#  define USWPWD 0
+#  ifdef noErr
+#   define MAC 1
+#   define MACOS 1
+#  else
+#   define MAC 0
+#   define MACOS 0
+#  endif
+# endif
+#endif
+#if UNIXLIKE
+#include <pwd.h>
+#include <netdb.h>
+#endif
+#if MAC
+#include <MacTCPCommonTypes.h>
+#include <AddressXlation.h>
+#endif
+
 char *curhst = NIL;		/* currently connected host */
 char *curusr = NIL;		/* current login user */
 char personalname[256];		/* user's personal name */
@@ -90,16 +111,19 @@ void main ()
   MAILSTREAM *stream = NIL;
   char tmp[MAILTMPLEN];
   long debug;
-#ifdef noErr
+#if MACOS
   size_t *base = (size_t *) 0x000908;
 				/* increase stack size on a Mac */
   SetApplLimit ((Ptr) (*base - (size_t) 65535L));
 #endif
-#if unix
+#if UNIXLIKE
   char *name;
   char *suffix;
   struct passwd *pwd;
   struct hostent *host_name;
+#ifdef __MINT__
+  mint_setup ();
+#endif
   gethostname (tmp,MAILTMPLEN);	/* get local name */
 				/* get it in full form */
   curhst = (host_name = gethostbyname (tmp)) ?
@@ -137,9 +161,13 @@ void main ()
     else if (tmp[0]) stream = mail_open (stream,tmp,debug ? OP_DEBUG : NIL);
   } while (!stream && tmp[0]);
   mm (stream,debug);		/* run user interface if opened */
-#ifdef noErr
+#ifdef __MINT__
+  mint_cleanup ();
+#else
+# if MACOS
 				/* clean up resolver */
   if (resolveropen) CloseResolver ();
+# endif
 #endif
 }
 
@@ -527,7 +555,7 @@ void mm_nocritical (MAILSTREAM *stream)
 
 long mm_diskerror (MAILSTREAM *stream,long errcode,long serious)
 {
-#if unix
+#if UNIXLIKE
   kill (getpid (),SIGSTOP);
 #else
   abort ();
@@ -550,10 +578,13 @@ void smtptest (long debug)
   unsigned char *text = (unsigned char *) fs_get (8*MAILTMPLEN);
   ENVELOPE *msg = mail_newenvelope ();
   BODY *body = mail_newbody ();
-  sprintf (line,"%s <%s@%s>",personalname,curusr,curhst);
-  rfc822_parse_adrlist (&msg->from,line,curhst);
-  sprintf (line,"%s@%s",curusr,curhst);
-  rfc822_parse_adrlist (&msg->return_path,line,curhst);
+  msg->from = mail_newaddr ();
+  msg->from->personal = cpystr (personalname);
+  msg->from->mailbox = cpystr (curusr);
+  msg->from->host = cpystr (curhst);
+  msg->return_path = mail_newaddr ();
+  msg->return_path->mailbox = cpystr (curusr);
+  msg->return_path->host = cpystr (curhst);
   prompt ("To: ",line);
   rfc822_parse_adrlist (&msg->to,line,curhst);
   if (msg->to) {

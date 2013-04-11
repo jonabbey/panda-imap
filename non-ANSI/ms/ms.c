@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 November 1988
- * Last Edited:	11 October 1993
+ * Last Edited:	16 June 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -37,14 +37,14 @@
 
 static char *copyright = "\
  MS user interface is:\n\
-  Copyright 1993 University of Washington\n\
+  Copyright 1994 University of Washington\n\
  Electronic Mail C-Client is:\n\
-  Copyright 1993 University of Washington\n\
+  Copyright 1994 University of Washington\n\
   Original version Copyright 1988 The Leland Stanford Junior University\n\
  CCMD command interface is:\n\
   Copyright 1986, 1987 Columbia University in the City of New York";
 static char *author = "Mark Crispin";
-static char *version = "7.92";
+static char *version = "7.94";
 static char *bug_mailbox = "MRC";
 static char *bug_host = "CAC.Washington.EDU";
 static char *hostlist[] = {	/* SMTP server host list */
@@ -155,6 +155,7 @@ void r_literal_type  ();
 void r_mark  ();
 void r_move  ();
 void r_next  ();
+void r_pipe  ();
 void r_previous  ();
 void r_quit  ();
 void r_remail  ();
@@ -553,9 +554,10 @@ void c_bug (help)
     noise ("REPORT");
     confirm ();
     msg = send_init ();		/* make a message block */
-				/* set up to-list */
-    sprintf (tmp,"MS maintainer <%s@%s>",bug_mailbox,bug_host);
-    rfc822_parse_adrlist (&msg->to,tmp,curhst);
+    msg->to = mail_newaddr ();	/* set up to-list */
+    msg->to->personal = cpystr ("MS maintainer");
+    msg->to->mailbox = cpystr (bug_mailbox);
+    msg->to->host = cpystr (bug_host);
 				/* set up subject */
     sprintf (tmp,"Bug in MS %s",version);
     msg->subject = cpystr (tmp);
@@ -1332,13 +1334,14 @@ static keywrd readcmds[] = {
   {"MARK",	NIL,	(keyval) r_mark},
   {"MOVE",	NIL,	(keyval) r_move},
   {"NEXT",	NIL,	(keyval) r_next},
+  {"PIPE",	NIL,	(keyval) r_pipe},
   {"POST",	NIL,	(keyval) c_post},
   {"PREVIOUS",	NIL,	(keyval) r_previous},
   {"QUIT",	NIL,	(keyval) r_quit},
-  {"R",		KEY_INV|KEY_ABR,(keyval) 26},
+  {"R",		KEY_INV|KEY_ABR,(keyval) 27},
   {"REMAIL",	NIL,	(keyval) r_remail},
   {"REPLY",	NIL,	(keyval) r_answer},
-  {"S",		KEY_INV|KEY_ABR,(keyval) 28},
+  {"S",		KEY_INV|KEY_ABR,(keyval) 29},
   {"SEND",	NIL,	(keyval) c_send},
   {"STATUS",	NIL,	(keyval) r_status},
   {"TYPE",	NIL,	(keyval) r_type},
@@ -2142,8 +2145,51 @@ The NEXT command goes to the next message in the sequence.\n");
     done = -1;			/* let read level know it's time to next */
   }
 }
+
+/* PIPE command
+ * Accepts: help flag
+ */
 
-
+void r_pipe (help)
+	short help;
+{
+  if (help) cmxprintf ("Pipe to a program.\n");
+  else {
+    char tmp[TMPLEN];
+    pval parseval;
+    fdb *used;
+    static fdb linfdb = {_CMTXT,CM_SDH,NIL,NIL,NIL,NIL,NIL};
+    static fdb optfdb = {_CMCFM,CM_SDH,NIL,NIL,NIL,NIL,NIL};
+    static para_data pd = {NIL,NIL};
+    static fdb parafdb = {_CMPARA,NIL,NIL,NIL,NIL,NIL,NIL};
+    parafdb._cmdat = (pdat) &pd;
+    noise ("TO PROGRAM");
+    linfdb._cmhlp = "program";
+    linfdb._cmdef = "more";
+    parse (&linfdb,&parseval,&used);
+    strcpy (tmp,atmbuf);
+    confirm ();
+    if (stream) {		/* type the message */
+      if (current) {
+#if unix
+	FILE *pipe = popen (tmp,"w");
+	if (pipe) {
+	  fflush (stdout);	/* make sure regular output is done */
+	  fflush (stderr);
+	  critical = T;		/* ignore CTRL/C while running */
+	  literal_type_message (pipe,current);
+	  fflush (pipe);	/* wait for output to be done */
+	  pclose (pipe);	/* close the pipe */
+	  critical = NIL;	/* allow CTRL/C again */
+	}
+#endif
+      }
+      else cmxprintf ("%%No current message\n");
+    }
+    else cmxprintf ("%%No mailbox is currently open\n");
+  }
+}
+
 /* PREVIOUS command
  * Accepts: help flag
  */
@@ -3409,11 +3455,13 @@ ENVELOPE *send_init ()
   ENVELOPE *msg = mail_newenvelope ();
   rfc822_date (tmp);
   msg->date = cpystr (tmp);
-  if (personal) sprintf (tmp,"%s <%s@%s>",personal,curusr,curhst);
-  else sprintf (tmp,"%s@%s",curusr,curhst);
-  rfc822_parse_adrlist (&msg->from,tmp,curhst);
-  sprintf (tmp,"%s@%s",curusr,curhst);
-  rfc822_parse_adrlist (&msg->return_path,tmp,curhst);
+  msg->from = mail_newaddr ();
+  if (personal) msg->from->personal = cpystr (personal);
+  msg->from->mailbox = cpystr (curusr);
+  msg->from->host = cpystr (curhst);
+  msg->return_path = mail_newaddr ();
+  msg->return_path->mailbox = cpystr (curusr);
+  msg->return_path->host = cpystr (curhst);
   sprintf (tmp,"<MS-C.%d.%d.%s@%s>",time (0),rand (),curusr,curhst);
   msg->message_id = cpystr (tmp);
   return (msg);

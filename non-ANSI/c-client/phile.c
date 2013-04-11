@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	7 January 1994
+ * Last Edited:	29 May 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -142,7 +142,6 @@ void *phile_parameters (function,value)
 	long function;
 	void *value;
 {
-  fatal ("Invalid phile_parameters function");
   return NIL;
 }
 
@@ -268,7 +267,7 @@ long phile_create (stream,mailbox)
 	MAILSTREAM *stream;
 	char *mailbox;
 {
-  /* Never valid for Phile */
+  return dummy_create (stream,mailbox);
 }
 
 
@@ -282,7 +281,7 @@ long phile_delete (stream,mailbox)
 	MAILSTREAM *stream;
 	char *mailbox;
 {
-  /* Never valid for Phile */
+  return dummy_delete (stream,mailbox);
 }
 
 
@@ -298,7 +297,7 @@ long phile_rename (stream,old,new)
 	char *old;
 	char *new;
 {
-  /* Never valid for Phile */
+  return dummy_rename (stream,old,new);
 }
 
 /* File open
@@ -798,9 +797,11 @@ long phile_move (stream,sequence,mailbox)
  * Returns: T if append successful, else NIL
  */
 
-long phile_append (stream,mailbox,message)
+long phile_append (stream,mailbox,flags,date,message)
 	MAILSTREAM *stream;
 	char *mailbox;
+	char *flags;
+	char *date;
 	STRING *message;
 {
   mm_log ("Append not valid for file",ERROR);
@@ -834,7 +835,7 @@ short phile_getflags (stream,flag)
 	MAILSTREAM *stream;
 	char *flag;
 {
-  char *t,tmp[MAILTMPLEN];
+  char *t,tmp[MAILTMPLEN],err[MAILTMPLEN];
   short f = 0;
   short i,j;
   if (flag && *flag) {		/* no-op if no flag string */
@@ -848,7 +849,7 @@ short phile_getflags (stream,flag)
     tmp[j] = '\0';
     t = ucase (tmp);		/* uppercase only from now on */
 
-    while (*t) {		/* parse the flags */
+    while (t && *t) {		/* parse the flags */
       if (*t == '\\') {		/* system flag? */
 	switch (*++t) {		/* dispatch based on first character */
 	case 'S':		/* possible \Seen flag */
@@ -876,14 +877,12 @@ short phile_getflags (stream,flag)
 	}
 				/* add flag to flags list */
 	if (i && ((*t == '\0') || (*t++ == ' '))) f |= i;
-	else {			/* bitch about bogus flag */
-	  mm_log ("Unknown system flag",ERROR);
-	  return NIL;
-	}
       }
       else {			/* no user flags yet */
-	mm_log ("Unknown flag",ERROR);
-	return NIL;
+	t = strtok (t," ");	/* isolate flag name */
+	sprintf (err,"Unknown flag: %.80s",t);
+	t = strtok (NIL," ");	/* get next flag */
+	mm_log (err,ERROR);
       }
     }
   }

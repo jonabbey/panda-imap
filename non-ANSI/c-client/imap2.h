@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	6 February 1994
+ * Last Edited:	29 May 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -41,22 +41,13 @@
  *
  */
 
+/* IMAP2 specific definitions */
+
 /* Parameters */
 
 #define MAXLOGINTRIALS 3	/* maximum number of login trials */
-#define SET_MAXLOGINTRIALS 100
-#define GET_MAXLOGINTRIALS 101
 #define MAPLOOKAHEAD 20		/* fetch lookahead */
-#define SET_LOOKAHEAD 102
-#define GET_LOOKAHEAD 103
-#define IMAPTCPPORT 143		/* assigned TCP contact port */
-#define SET_PORT 104
-#define GET_PORT 105
-#define SET_PREFETCH 106
-#define GET_PREFETCH 107
-
-
-/* IMAP2 specific definitions */
+#define IMAPTCPPORT (long) 143	/* assigned TCP contact port */
 
 
 /* Parsed reply message from imap_reply */
@@ -128,8 +119,14 @@ typedef struct imap_local {
 
 #define imap_host imhost
 #define imap_select imsele
+#define imap_send0 imsnd0
+#define imap_send1 imsnd1
+#define imap_send2 imsnd2
+#define imap_send2f imsn2f
+#define imap_sendq1 imsnq1
+#define imap_sendq2 imsnq2
 #define imap_send imsend
-#define imap_send_literal imsndl
+#define imap_soutr imsotr
 #define imap_reply imrepl
 #define imap_parse_reply imprep
 #define imap_fake imfake
@@ -191,8 +188,14 @@ void map_gc  ();
 void map_gc_body  ();
 
 char *imap_host  ();
+IMAPPARSEDREPLY *imap_send0  ();
+IMAPPARSEDREPLY *imap_send1  ();
+IMAPPARSEDREPLY *imap_send2  ();
+IMAPPARSEDREPLY *imap_send2f  ();
+IMAPPARSEDREPLY *imap_sendq1  ();
+IMAPPARSEDREPLY *imap_sendq2  ();
 IMAPPARSEDREPLY *imap_send  ();
-IMAPPARSEDREPLY *imap_send_quoted  ();
+IMAPPARSEDREPLY *imap_soutr  ();
 IMAPPARSEDREPLY *imap_reply  ();
 IMAPPARSEDREPLY *imap_parse_reply  ();
 IMAPPARSEDREPLY *imap_fake  ();

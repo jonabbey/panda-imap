@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 November 1993
+ * Last Edited:	31 May 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,6 +36,7 @@
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
 #include "osdep.h"
+#include <stdio.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -79,9 +80,9 @@ void rfc822_date (char *date)
   struct tm *t;
   struct timeval tv;
   struct timezone tz;
+  tzset ();			/* get timezone from TZ environment stuff */
   gettimeofday (&tv,&tz);	/* get time and timezone poop */
   t = localtime (&tv.tv_sec);	/* convert to individual items */
-  tzset ();			/* get timezone from TZ environment stuff */
   dstflag = daylight ? t->tm_isdst : 0;
   zone = (dstflag * 60) - timezone/60;
 				/* and output it */

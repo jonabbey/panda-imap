@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	2 December 1993
+ * Last Edited:	8 June 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -49,8 +49,17 @@
 #include "misc.h"
 
 
+/* Daemon files */
+#define ALERTFILE "/etc/imapd.alert"
+#define ANOFILE "/etc/anonymous.newsgroups"
+
+
 /* Autologout timer */
 #define TIMEOUT 60*30
+
+
+/* Login tries */
+#define LOGTRY 3
 
 /* Size of temporary buffers */
 #define TMPLEN 8192
@@ -65,16 +74,16 @@
 
 /* Global storage */
 
-char *version = "7.6(74)";	/* version number of this server */
-struct itimerval timer;		/* timeout state */
+char *version = "7.8(84)";	/* version number of this server */
+time_t alerttime = 0;		/* time of last alert */
 int state = LOGIN;		/* server state */
 int mackludge = 0;		/* MacMS kludge */
 int trycreate = 0;		/* saw a trycreate */
 int anonymous = 0;		/* non-zero if anonymous */
+int logtry = LOGTRY;		/* login tries */
 long kodcount = 0;		/* set if KOD has happened already */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 MAILSTREAM *tstream = NIL;	/* temporary mailbox stream */
-MAILSTREAM *create_policy;	/* current creation policy */
 long nmsgs = 0;			/* number of messages */
 long recent = 0;		/* number of recent messages */
 char *host = NIL;		/* local host name */
@@ -111,7 +120,6 @@ char *argrdy = "+ Ready for argument\015\012";
 void main (int argc,char *argv[]);
 void clkint ();
 void kodint ();
-void dorc (char *file);
 char *snarf (char **arg);
 void fetch (char *s,char *t);
 void fetch_body (long i,char *s);
@@ -139,9 +147,9 @@ void main (int argc,char *argv[])
   long i;
   char *s,*t,*u,*v,tmp[MAILTMPLEN];
   struct hostent *hst;
+  struct stat sbuf;
   void (*f) () = NIL;
 #include "linkage.c"
-  create_policy = mailstd_proto;/* default to creating system default */
   gethostname (cmdbuf,TMPLEN-1);/* get local name */
   host = cpystr ((hst = gethostbyname (cmdbuf)) ? hst->h_name : cmdbuf);
   rfc822_date (cmdbuf);		/* get date/time now */
@@ -155,23 +163,13 @@ void main (int argc,char *argv[])
   }
   else t = "OK";
   printf ("* %s %s IMAP2bis Service %s at %s\015\012",t,host,version,cmdbuf);
-  dorc ("/etc/imapd.conf");	/* run system init */
-				/* run user's init */
-  if (i) dorc (strcat (strcpy (tmp,myhomedir ()),"/.imaprc"));
   fflush (stdout);		/* dump output buffer */
   signal (SIGALRM,clkint);	/* prepare for clock interrupt */
   signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
-				/* initialize timeout interval */
-  timer.it_interval.tv_sec = TIMEOUT;
-  timer.it_interval.tv_usec = 0;
   do {				/* command processing loop */
-				/* get a command under timeout */
-    timer.it_value.tv_sec = TIMEOUT; timer.it_value.tv_usec = 0;
-    setitimer (ITIMER_REAL,&timer,NIL);
+    alarm (TIMEOUT);		/* get a command under timeout */
     if (!fgets (cmdbuf,TMPLEN-1,stdin)) _exit (1);
-				/* make sure timeout disabled */
-    timer.it_value.tv_sec = timer.it_value.tv_usec = 0;
-    setitimer (ITIMER_REAL,&timer,NIL);
+    alarm (0);			/* make sure timeout disabled */
 				/* no more last error or literal */
     if (lsterr) fs_give ((void **) &lsterr);
     if (litbuf) fs_give ((void **) &litbuf);
@@ -209,7 +207,6 @@ void main (int argc,char *argv[])
       else switch (state) {	/* dispatch depending upon state */
       case LOGIN:		/* waiting to get logged in */
 	if (!strcmp (cmd,"LOGIN")) {
-	  struct stat sbuf;
 	  struct passwd *pwd;
 	  fs_give ((void **) &user);
 	  fs_give ((void **) &pass);
@@ -220,16 +217,21 @@ void main (int argc,char *argv[])
 				/* see if username and password are OK */
 	  else if (server_login (user,pass,&home,argc,argv)) state = SELECT;
 				/* nope, see if we allow anonymous */
-	  else if (!stat ("/etc/anonymous.newsgroups",&sbuf) &&
-		   !strcmp (user,"anonymous") && (pwd = getpwnam ("nobody"))) {
+	  else if (!stat (ANOFILE,&sbuf) && !strcmp (user,"anonymous") &&
+		   (pwd = getpwnam ("nobody"))) {
 	    anonymous = T;	/* note we are anonymous, login as nobody */
 	    setgid (pwd->pw_gid);
 	    setuid (pwd->pw_uid);
 	    state = SELECT;	/* make selected */
-				/* run user's init */
-	    dorc (strcat (strcpy (tmp,myhomedir ()),"/.imaprc"));
 	  }
-	  else response = "%s NO Bad %s user name and/or password\015\012";
+	  else {
+	    response = "%s NO Bad %s user name and/or password\015\012";
+	    sleep (3);		/* slow the cracker down */
+	    if (!--logtry) {
+	      fputs ("* BYE Too many login failures\015\012",stdout);
+	      state = LOGOUT;
+	    }
+	  }
 	}
 	else response = "%s BAD Command unrecognized/login please: %s\015\012";
 	break;
@@ -325,9 +327,8 @@ void main (int argc,char *argv[])
 	  else if (arg) response = badarg;
 	  else if ((!mail_copy (stream,s,t)) &&
 		   !(mackludge && trycreate &&
-		     (mail_create (tstream = create_policy,t)) &&
-		     (!(tstream = NIL)) && (mail_copy (stream,s,t)))) {
-	    response = lose;
+		     (mail_create (stream,t)) && (mail_copy (stream,s,t)))) {
+	    response = lose;	/* in case TRYCREATE failure */
 	    if (!lsterr) lsterr = cpystr ("No such destination mailbox");
 	  }
 	}
@@ -350,14 +351,10 @@ void main (int argc,char *argv[])
 		fflush (stdout);/* dump output buffer */
 				/* copy the literal */
 		while (i--) *t++ = getchar ();
-				/* start a timeout */
-		timer.it_value.tv_sec = TIMEOUT; timer.it_value.tv_usec = 0;
-		setitimer (ITIMER_REAL,&timer,NIL);
+		alarm (TIMEOUT); /* start a timeout */
 				/* get new command tail */
 		if (!fgets (t,TMPLEN - (t-cmdbuf) - 1,stdin)) _exit (1);
-				/* clear timeout */
-		timer.it_value.tv_sec = timer.it_value.tv_usec = 0;
-		setitimer (ITIMER_REAL,&timer,NIL);
+		alarm (0);	/* clear timeout */
 				/* find end of line */
 		if (!(s = strchr (t,'\012'))) response = toobig;
 		else {
@@ -420,15 +417,37 @@ void main (int argc,char *argv[])
 	    }
 	  }
 	}
+
 				/* APPEND message to mailbox */
 	else if (!(anonymous || strcmp (cmd,"APPEND"))) {
-	  if (!((s = snarf (&arg)) && (t = snarf (&arg)))) response = misarg;
-	  else if (arg) response = badarg;
-	  else {		/* append the data */
-	    STRING st;
-	    INIT (&st,mail_string,(void *) t,strlen (t));
-	    mail_append (NIL,s,&st);
+	  u = v = NIL;		/* init flags/date */
+				/* parse mailbox name */
+	  if ((s = snarf (&arg)) && arg) {
+	    if (*arg == '(') {	/* parse optional flag list */
+	      u = ++arg;	/* pointer to flag list contents */
+	      while (*arg && (*arg != ')')) arg++;
+	      if (*arg) *arg++ = '\0';
+	      if (*arg == ' ') arg++;
+	    }
+				/* parse optional date */
+	    if (*arg == '"') v = snarf (&arg);
+				/* parse message */
+	    if (!arg || (*arg != '{'))
+	      response = "%s BAD Missing literal in %s\015\012";
+	    else if (!(isdigit (arg[1]) && (i = strtol (arg+1,NIL,10))))
+	      response = "%s NO Empty message to %s\015\012";
+	    else if (!(t = snarf (&arg))) response = misarg;
+	    else if (arg) response = badarg;
+	    else {		/* append the data */
+	      STRING st;
+	      INIT (&st,mail_string,(void *) t,i);
+	      if (!mail_append_full (NIL,s,u,v,&st)) {
+		response = lose;/* in case TRYCREATE failure */
+		if (!lsterr) lsterr = cpystr ("No such destination mailbox");
+	      }
+	    }
 	  }
+	  else response = misarg;
 	}
 
 				/* find mailboxes or bboards */
@@ -509,9 +528,7 @@ void main (int argc,char *argv[])
 	else if (!(anonymous || strcmp (cmd,"CREATE"))) {
 	  if (!(s = snarf (&arg))) response = misarg;
 	  else if (arg) response = badarg;
-				/* use specified creation policy */
-	  mail_create (tstream = create_policy,s);
-	  tstream = NIL;	/* drop prototype */
+	  mail_create (NIL,s);	/* create the sucker */
 	}
 				/* delete mailbox */
 	else if (!(anonymous || strcmp (cmd,"DELETE"))) {
@@ -541,6 +558,21 @@ void main (int argc,char *argv[])
 	  printf ("* %d FETCH (",i);
 	  fetch_flags (i,NIL);
 	  fputs (")\015\012",stdout);
+	}
+      }
+				/* output any new alerts */
+      if (!stat (ALERTFILE,&sbuf) && (sbuf.st_mtime > alerttime)) {
+	FILE *alf = fopen (ALERTFILE,"r");
+	char c,lc = '\n';
+	if (alf) {		/* only if successful */
+	  do {			/* loop outputting message */
+	    if (lc == '\n') fputs ("* OK [ALERT] ",stdout);
+	    putchar (c);	/* for each character */
+	    lc = c;		/* note previous character */
+	  } while ((c = getc (alf)) != EOF);
+	  fclose (alf);
+	  if (lc != '\n') putchar ('\n');
+	  alerttime = sbuf.st_mtime;
 	}
       }
 				/* get text for alternative win message now */
@@ -588,39 +620,6 @@ void kodint ()
   }
 }
 
-/* Process rc file
- * Accepts: file name
- */
-
-void dorc (char *file)
-{
-  char *s,*t,*k;
-  void *fs;
-  struct stat sbuf;
-  int fd = open (file,O_RDONLY, NIL);
-  if (fd < 0) return;		/* punt if no file */
-  fstat (fd,&sbuf);		/* yes, get size */
-				/* make readin area and read the file */
-  read (fd,(s = (char *) (fs = fs_get (sbuf.st_size + 1))),sbuf.st_size);
-  close (fd);			/* don't need the file any more */
-  s[sbuf.st_size] = '\0';	/* tie it off */
-				/* parse init file */
-  while (*s && (t = strchr (s,'\n'))) {
-    *t = '\0';			/* tie off line, find second space */
-    if ((k = strchr (s,' ')) && (k = strchr (++k,' '))) {
-      *k++ = '\0';		/* tie off two words*/
-      if (!strcmp (lcase (s),"set create-folder-format")) {
-	if (!strcmp (lcase (k),"same-as-inbox")) create_policy = NIL;
-	else if (!strcmp (lcase (k),"system-standard"))
-	  create_policy = mailstd_proto;
-	else printf ("* NO Unknown format in imaprc: %s\015\012",k);
-      }
-    }
-    s = ++t;			/* try next line */
-  }
-  fs_give (&fs);		/* free buffer */
-}
-
 /* Snarf an argument
  * Accepts: pointer to argument text pointer
  * Returns: argument
@@ -638,8 +637,15 @@ char *snarf (char **arg)
   case ' ':
     return NIL;
   case '"':			/* quoted string */
-    if (!(strchr (s,'"') && (c = strtok (c,"\"")))) return NIL;
-    break;
+    for (c = s; *c != '"'; c++){/* hunt for trailing quote */
+      if (*c == '\\') c++;	/* quote next character */
+      if (!*c) return NIL;	/* unterminated quoted string! */
+    }
+    *c++ = '\0';		/* tie off string */
+				/* update argument pointer */
+    if (*c) *arg = (*c == ' ') ? c + 1 : c;
+    else *arg = NIL;		/* no more arguments */
+    return s;
   case '{':			/* literal string */
     if (isdigit (*s)) {		/* be sure about that */
       i = strtol (s,&t,10);	/* get its length */
@@ -649,17 +655,13 @@ char *snarf (char **arg)
       fflush (stdout);		/* dump output buffer */
 				/* get a literal buffer */
       c = litbuf = (char *) fs_get (i+1);
-				/* start timeout */
-      timer.it_value.tv_sec = TIMEOUT; timer.it_value.tv_usec = 0;
-      setitimer (ITIMER_REAL,&timer,NIL);
+      alarm (TIMEOUT);		/* start timeout */
       while (i--) *c++ = getchar ();
       *c++ = NIL;		/* make sure string tied off */
       c = litbuf;		/* return value */
     				/* get new command tail */
       if (!fgets ((*arg = t),TMPLEN - (t - cmdbuf) - 1,stdin)) _exit (1);
-				/* clear timeout */
-      timer.it_value.tv_sec = timer.it_value.tv_usec = 0;
-      setitimer (ITIMER_REAL,&timer,NIL);
+      alarm (0);		/* clear timeout */
       if (!strchr (t,'\012')) {	/* have a newline there? */
 	response = toobig;	/* lost it seems */
 	return NIL;
@@ -688,6 +690,7 @@ void fetch (char *s,char *t)
   char c,*v;
   long i,k;
   BODY *b;
+  int parse_envs = NIL;
   int parse_bodies = NIL;
   void (*f[MAXFETCH]) ();
   char *fa[MAXFETCH];
@@ -712,7 +715,8 @@ void fetch (char *s,char *t)
   k = 0;			/* initial index */
   if (s = strtok (t," ")) do {	/* parse attribute list */
     if (*s == 'B' && s[1] == 'O' && s[2] == 'D' && s[3] == 'Y') {
-      parse_bodies = T;		/* we will need to parse bodies */
+				/* we will need to parse bodies */
+      parse_envs = parse_bodies = T;
       switch (s[4]) {
       case '\0':		/* entire body */
 	f[k++] = fetch_body;
@@ -728,7 +732,10 @@ void fetch (char *s,char *t)
 	return;
       }
     }
-    else if (!strcmp (s,"ENVELOPE")) f[k++] = fetch_envelope;
+    else if (!strcmp (s,"ENVELOPE")) {
+      parse_envs = T;		/* we will need to parse envelopes */
+      f[k++] = fetch_envelope;
+    }
     else if (!strcmp (s,"FLAGS")) f[k++] = fetch_flags;
     else if (!strcmp (s,"INTERNALDATE")) f[k++] = fetch_internaldate;
     else if (!strcmp (s,"RFC822")) f[k++] = fetch_rfc822;
@@ -752,7 +759,7 @@ void fetch (char *s,char *t)
 				/* for each requested message */
   for (i = 1; i <= nmsgs; i++) if (mail_elt (stream,i)->sequence) {
 				/* parse envelope, set body, do warnings */
-    mail_fetchstructure (stream,i,parse_bodies ? &b : NIL);
+    if (parse_envs) mail_fetchstructure (stream,i,parse_bodies ? &b : NIL);
     printf ("* %d FETCH (",i);	/* leader */
     (*f[0]) (i,fa[0]);		/* do first attribute */
     for (k = 1; f[k]; k++) {	/* for each subsequent attribute */
@@ -1280,9 +1287,7 @@ long mm_diskerror (MAILSTREAM *s,long errcode,long serious)
   if (serious) {		/* try your damnest if clobberage likely */
     fputs ("* BAD Retrying to fix probable mailbox damage!\015\012",stdout);
     fflush (stdout);		/* dump output buffer */
-				/* make damn sure timeout disabled */
-    timer.it_value.tv_sec = timer.it_value.tv_usec = 0;
-    setitimer (ITIMER_REAL,&timer,NIL);
+    alarm (0);			/* make damn sure timeout disabled */
     sleep (60);			/* give it some time to clear up */
     return NIL;
   }

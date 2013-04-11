@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	22 December 1993
+ * Last Edited:	23 June 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -35,12 +35,14 @@
 
 /* TCP/IP open
  * Accepts: host name
+ *	    contact service name
  *	    contact port number
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_open (host,port)
+TCPSTREAM *tcp_open (host,service,port)
 	char *host;
+	char *service;
 	long port;
 {
   TCPSTREAM *stream = NIL;
@@ -50,6 +52,19 @@ TCPSTREAM *tcp_open (host,port)
   struct hostent *host_name;
   char hostname[MAILTMPLEN];
   char tmp[MAILTMPLEN];
+  struct servent *sv = service ? getservbyname (service,"tcp") : NIL;
+  if (s = strchr (host,':')) {	/* port number specified? */
+    *s++ = '\0';		/* yes, tie off port */
+    port = strtol (s,&s,10);	/* parse port */
+    if (s && *s) {
+      sprintf (tmp,"Junk after port number: %.80s",s);
+      mm_log (tmp,ERROR);
+      return NIL;
+    }
+    sin.sin_port = htons (port);
+  }
+				/* copy port number in network format */
+  else sin.sin_port = sv ? sv->s_port : htons (port);
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */
@@ -85,8 +100,6 @@ TCPSTREAM *tcp_open (host,port)
       return NIL;
     }
   }
-				/* copy port number in network format */
-  if (!(sin.sin_port = htons (port))) fatal ("Bad port argument to tcp_open");
 				/* get a TCP stream */
   if ((sock = socket (sin.sin_family,SOCK_STREAM,0)) < 0) {
     sprintf (tmp,"Unable to create TCP socket: %s",strerror (errno));
@@ -266,16 +279,18 @@ long tcp_getdata (stream)
 	TCPSTREAM *stream;
 {
   int i;
-  fd_set fds;
+  fd_set fds,efds;
   FD_ZERO (&fds);		/* initialize selection vector */
+  FD_ZERO (&efds);		/* handle errors too */
   if (stream->tcpsi < 0) return NIL;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
+    FD_SET(stream->tcpsi,&efds);/* set bit in error selection vector */
     errno = NIL;		/* block and read */
-    while (((i = select (stream->tcpsi+1,&fds,0,0,0)) < 0) &&
+    while (((i = select (stream->tcpsi+1,&fds,0,&efds,0)) < 0) &&
 	   (errno == EINTR));
     if (i < 0) return tcp_abort (stream);
-    while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 1) &&
+    while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
 	   (errno == EINTR));
     if (i < 1) return tcp_abort (stream);
     stream->ictr = i;		/* set new byte count */
@@ -359,7 +374,7 @@ long tcp_abort (stream)
     stream->tcpsi = stream->tcpso = -1;
   }
   if (stream->pid) {		/* reap any PID we may have */
-    grim_pid_reap (stream->pid);
+    grim_pid_reap (stream->pid,T);
     stream->pid = 0;
   }
   return NIL;

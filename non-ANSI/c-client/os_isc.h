@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	25 December 1993
+ * Last Edited:	9 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -46,7 +46,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
-#include <utime.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
 
 
@@ -72,6 +71,7 @@
 #define LOCK_NB 4
 #define LOCK_UN 8
 
+
 #include "env_unix.h"
 #include "fs.h"
 #include "ftl.h"
@@ -83,4 +83,3 @@ void *memmove ();
 int scandir ();
 int flock ();
 int gettimeofday ();
-int utimes ();

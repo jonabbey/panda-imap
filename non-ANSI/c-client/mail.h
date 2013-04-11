@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	16 February 1994
+ * Last Edited:	9 June 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -52,6 +52,30 @@
 #define WARN (long) 1		/* mm_log warning type */
 #define ERROR (long) 2		/* mm_log error type */
 #define PARSE (long) 3		/* mm_log parse error type */
+#define BYE (long) 4		/* mm_notify stream dying */
+
+/* Global and Driver Parameters */
+
+#define SET_MAXLOGINTRIALS 100	/* 1xx: used by network drivers */
+#define GET_MAXLOGINTRIALS 101
+#define SET_LOOKAHEAD 102
+#define GET_LOOKAHEAD 103
+#define SET_PORT 104
+#define GET_PORT 105
+#define SET_PREFETCH 106
+#define GET_PREFETCH 107
+#define SET_LOGINFULLNAME 108
+#define GET_LOGINFULLNAME 109
+#define SET_CLOSEONERROR 110
+#define GET_CLOSEONERROR 111
+#define SET_MBXPROTECTION 200	/* 2xx: used by UNIX local file drivers */
+#define GET_MBXPROTECTION 201
+#define SET_SUBPROTECTION 202
+#define GET_SUBPROTECTION 203
+#define SET_LOCKPROTECTION 204
+#define GET_LOCKPROTECTION 205
+#define SET_FROMWIDGET 206
+#define GET_FROMWIDGET 207
 
 
 /* Open options */
@@ -291,7 +315,6 @@ STRINGDRIVER {
 #define SNX(s) (--(s)->cursize ? *(s)->curpos++ : (*(s)->dtb->next) (s))
 #define GETPOS(s) ((s)->offset + ((s)->curpos - (s)->chunk))
 #define SETPOS(s,i) (*(s)->dtb->setpos) (s,i)
-
 
 /* Mail Access I/O stream */
 
@@ -419,9 +442,10 @@ typedef struct net_mailbox {
   char host[MAILTMPLEN];	/* host name */
   char mailbox[MAILTMPLEN];	/* mailbox name */
   char service[MAXSRV+1];	/* service name */
-  int port;			/* TCP port number */
+  long port;			/* TCP port number */
   unsigned int anoflag : 1;	/* anonymous */
   unsigned int bbdflag : 1;	/* bboard flag */
+  unsigned int dbgflag : 1;	/* debug flag */
 } NETMBX;
 
 /* Other symbols */
@@ -435,7 +459,6 @@ typedef long (*readfn_t) ();
 typedef char *(*mailgets_t) ();
 typedef void *(*mailcache_t) ();
 
-extern MAILSTREAM *mailstd_proto;
 extern char *lhostn;
 extern mailgets_t mailgets;
 extern mailcache_t mailcache;
@@ -506,6 +529,7 @@ extern mailcache_t mailcache;
 #define mail_copy mlcopy
 #define mail_move mlmove
 #define mail_append mlappd
+#define mail_append_full mlapdf
 #define mail_gc mailgc
 #define mail_date mldate
 #define mail_cdate mlcdat
@@ -599,6 +623,7 @@ void mail_expunge  ();
 long mail_copy  ();
 long mail_move  ();
 long mail_append  ();
+long mail_append_full  ();
 void mail_gc  ();
 char *mail_date  ();
 char *mail_cdate  ();

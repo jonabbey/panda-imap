@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	17 February 1994
+ * Last Edited:	23 June 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -84,6 +84,10 @@ DRIVER dummydriver = {
   dummy_append,			/* append string message to mailbox */
   dummy_gc			/* garbage collect stream */
 };
+
+
+				/* prototype stream */
+MAILSTREAM dummyproto = {&dummydriver};
 
 /* Dummy validate mailbox
  * Accepts: mailbox name
@@ -93,13 +97,10 @@ DRIVER dummydriver = {
 DRIVER *dummy_valid (char *name)
 {
   char tmp[MAILTMPLEN];
-  struct stat sbuf;
 				/* must be valid local mailbox */
   return (name && *name && (*name != '*') && (*name != '{') &&
 				/* INBOX is always accepted */
-	  ((!strcmp (ucase (strcpy (tmp,name)),"INBOX")) ||
-				/* so is empty file */
-	   (!(stat (dummy_file (tmp,name),&sbuf) || sbuf.st_size))))
+	  ((!strcmp (ucase (strcpy (tmp,name)),"INBOX"))))
     ? &dummydriver : NIL;
 }
 
@@ -122,7 +123,7 @@ void *dummy_parameters (long function,void *value)
 
 void dummy_find (MAILSTREAM *stream,char *pat)
 {
-  /* Exit quietly */
+				/* return silently */
 }
 
 
@@ -133,7 +134,7 @@ void dummy_find (MAILSTREAM *stream,char *pat)
 
 void dummy_find_bboards (MAILSTREAM *stream,char *pat)
 {
-  /* Exit quietly */
+				/* return silently */
 }
 
 
@@ -156,7 +157,7 @@ void dummy_find_all (MAILSTREAM *stream,char *pat)
 
 void dummy_find_all_bboards (MAILSTREAM *stream,char *pat)
 {
-  /* Exit quietly */
+				/* return silently */
 }
 
 /* Dummy subscribe to mailbox
@@ -254,19 +255,17 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
   char tmp[MAILTMPLEN];
 				/* OP_PROTOTYPE call or silence */
   if (!stream || stream->silent) return NIL;
-  if (*stream->mailbox == '*')	/* is it a bboard? */
-    sprintf (tmp,"No such bboard: %s",stream->mailbox+1);
-				/* remote specification? */
-  else if (*stream->mailbox == '{')
-    sprintf (tmp,"Invalid remote specification: %s",stream->mailbox);
-  else if ((fd = open (dummy_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0)
-    sprintf (tmp,"%s: %s",strerror (errno),stream->mailbox);
-  else {			/* must be bogus format file */
-    sprintf (tmp,"%s is not a mailbox",stream->mailbox);
-    close (fd);			/* toss out the fd */
+  if (strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX")) {
+    sprintf (tmp,"Not a mailbox: %s",stream->mailbox);
+    mm_log (tmp,ERROR);
+    return NIL;			/* always fails */
   }
-  mm_log (tmp,ERROR);
-  return NIL;			/* always fails */
+  if (!stream->silent) {	/* only if silence not requested */
+				/* say there are 0 messages */
+    mail_exists (stream,(long) 0);
+    mail_recent (stream,(long) 0);
+  }
+  return stream;		/* return success */
 }
 
 
@@ -276,7 +275,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
 
 void dummy_close (MAILSTREAM *stream)
 {
-  /* Exit quietly */
+				/* return silently */
 }
 
 /* Dummy fetch fast information
@@ -385,7 +384,7 @@ void dummy_clearflag (MAILSTREAM *stream,char *sequence,char *flag)
 
 void dummy_search (MAILSTREAM *stream,char *criteria)
 {
-  fatal ("Impossible dummy_search");
+				/* return silently */
 }
 
 /* Dummy ping mailbox
@@ -396,8 +395,7 @@ void dummy_search (MAILSTREAM *stream,char *criteria)
 
 long dummy_ping (MAILSTREAM *stream)
 {
-  fatal ("Impossible dummy_ping");
-  return NIL;
+  return T;
 }
 
 
@@ -408,7 +406,7 @@ long dummy_ping (MAILSTREAM *stream)
 
 void dummy_check (MAILSTREAM *stream)
 {
-  fatal ("Impossible dummy_check");
+  dummy_ping (stream);		/* invoke ping */
 }
 
 
@@ -418,7 +416,7 @@ void dummy_check (MAILSTREAM *stream)
 
 void dummy_expunge (MAILSTREAM *stream)
 {
-  fatal ("Impossible dummy_expunge");
+				/* return silently */
 }
 
 /* Dummy copy message(s)
@@ -447,8 +445,7 @@ long dummy_move (MAILSTREAM *stream,char *sequence,char *mailbox)
   fatal ("Impossible dummy_move");
   return NIL;
 }
-
-
+
 /* Dummy append message string
  * Accepts: mail stream
  *	    destination mailbox
@@ -456,24 +453,34 @@ long dummy_move (MAILSTREAM *stream,char *sequence,char *mailbox)
  * Returns: T on success, NIL on failure
  */
 
-long dummy_append (MAILSTREAM *stream,char *mailbox,STRING *message)
+long dummy_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		   STRING *message)
 {
-  int fd = -1,e;
+  struct stat sbuf;
+  int fd = -1;
+  int e;
   char tmp[MAILTMPLEN];
-				/* see if such a file */
-  if ((*mailbox != '*') && (*mailbox != '{') &&
-      (fd = open (dummy_file (tmp,mailbox),O_RDONLY,NIL)) < 0) {
-    if ((e = errno) == ENOENT)	/* failed, was it no such file? */
+  if ((strcmp (ucase (strcpy (tmp,mailbox)),"INBOX")) &&
+	   ((fd = open (mailboxfile (tmp,mailbox),O_RDONLY,NIL)) < 0)) {
+    if ((e = errno) == ENOENT) {/* failed, was it no such file? */
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
 		 (long) NIL);
+      return NIL;
+    }
     sprintf (tmp,"%s: %s",strerror (e),mailbox);
+    mm_log (tmp,ERROR);		/* pass up error */
+    return NIL;			/* always fails */
   }
-  else {			/* must be bogus format file */
-    sprintf (tmp,"%s is not a valid mailbox",mailbox);
+  else if (fd >= 0) {		/* found file? */
+    fstat (fd,&sbuf);		/* get its size */
     close (fd);			/* toss out the fd */
+    if (sbuf.st_size) {		/* non-empty file? */
+      sprintf (tmp,"Indeterminate mailbox format: %s",mailbox);
+      mm_log (tmp,ERROR);
+      return NIL;
+    }
   }
-  mm_log (tmp,ERROR);		/* pass up error */
-  return NIL;			/* always fails */
+  return (*default_proto ()->dtb->append) (stream,mailbox,flags,date,message);
 }
 
 
@@ -484,21 +491,5 @@ long dummy_append (MAILSTREAM *stream,char *mailbox,STRING *message)
 
 void dummy_gc (MAILSTREAM *stream,long gcflags)
 {
-  fatal ("Impossible dummy_gc");
-}
-
-/* Dummy mail generate file string
- * Accepts: temporary buffer to write into
- *	    mailbox name string
- * Returns: local file string
- */
-
-char *dummy_file (char *dst,char *name)
-{
-  char *s;
-  ucase (strcpy (dst,name));	/* copy name */
-				/* absolute path name? */
-  if (!((*name == '\\') || name[1] == ':'))
-    sprintf (dst,"%s\\%s",myhomedir (),name);
-  return ucase (dst);
+				/* return silently */
 }

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	2 February 1994
+ * Last Edited:	14 April 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -18,8 +18,8 @@
  *		by the Biomedical Research Technology Program of the National
  *		Institutes of Health under grant number RR-00785.
  *
- * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1994 by the University of Washington.
+ * Original version Copyright 1988 by The Leland Stanford Junior University
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -270,8 +270,10 @@ void rfc822_address (dest,adr)
     }
 				/* write mailbox name */
     rfc822_cat (dest,adr->mailbox,wspecials);
-    strcat (dest,"@");		/* host delimiter */
-    strcat (dest,adr->host);	/* write host name */
+    if (*adr->host != '@') {	/* unless null host (HIGHLY discouraged!) */
+      strcat (dest,"@");	/* host delimiter */
+      strcat (dest,adr->host);	/* write host name */
+    }
   }
 }
 
@@ -962,7 +964,8 @@ ADDRESS *rfc822_parse_routeaddr (string,ret,defaulthost)
     if (**ret == '\0') *ret = NIL;
     return adr;			/* return the address */
   }
-  sprintf (tmp,"Unterminated mailbox: %.80s@%.80s",adr->mailbox,adr->host);
+  sprintf (tmp,"Unterminated mailbox: %.80s@%.80s",adr->mailbox,
+	   *adr->host == '@' ? "<null>" : adr->host);
   mm_log (tmp,PARSE);
   return adr;			/* return the address */
 }
@@ -1083,15 +1086,21 @@ char *rfc822_parse_word (s,delimiters)
       case '\0':		/* unbalanced quoted string */
 	return NIL;		/* sick sick sick */
       case '\\':		/* quoted character */
-	++st;			/* skip the next character */
+	if (!*++st) return NIL;	/* skip the next character */
       default:			/* ordinary character */
 	break;			/* no special action */
       }
       str = ++st;		/* continue parse */
       break;
     case '\\':			/* quoted character */
-      str = st + 2;		/* skip quoted character and go on */
-      break;
+      /* This is wrong; a quoted-pair can not be part of a word.  However,
+       * domain-literal is parsed as a word and quoted-pairs can be used
+       * *there*.  Either way, it's pretty pathological.
+       */
+      if (st[1]) {		/* not on NUL though... */
+	str = st + 2;		/* skip quoted character and go on */
+	break;
+      }
     default:			/* found a word delimiter */
       return (st == s) ? NIL : st;
     }
@@ -1190,7 +1199,7 @@ void rfc822_skipws (s)
 	}
 	break;
       case '\\':		/* quote next character? */
-	if (*++*s != '\0') break;
+	if (*++*s) break;
       case '\0':		/* end of string */
 	sprintf (tmp,"Unterminated comment: %.80s",t);
 	mm_log (tmp,PARSE);
@@ -1577,6 +1586,6 @@ unsigned char *rfc822_8bit (src,srcl,len)
   *d = '\0';			/* tie off destination */
   *len = d - ret;		/* calculate true size */
 				/* try to give some space back */
-  fs_resize ((void **) &ret,*len);
+  fs_resize ((void **) &ret,1 + *len);
   return ret;
 }

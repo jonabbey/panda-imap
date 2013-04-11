@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	12 November 1993
+ * Last Edited:	7 April 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -47,9 +47,11 @@ long server_login (user,pass,home,argc,argv)
 	int argc;
 	char *argv[];
 {
-  char *pwd;
-  struct passwd *pw = getpwnam (lcase (user));
+  char *pwd,tmp[MAILTMPLEN];
   struct spwd *sp = NIL;
+  struct passwd *pw = getpwnam (user);
+				/* allow case-independent match */
+  if (!pw) pw = getpwnam (lcase (strcpy (tmp,user)));
 				/* no entry for this user or root */
   if (!(pw && pw->pw_uid)) return NIL;
 				/* get shadow password if necessary */

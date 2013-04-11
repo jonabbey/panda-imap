@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 November 1993
+ * Last Edited:	31 May 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -20,7 +20,7 @@
  * above copyright notice and this permission notice appear in supporting
  * documentation, and that the name of the University of Washington not be
  * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made available
+ * without specific, written prior permission.	This software is made available
  * "as is", and
  * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
  * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
@@ -36,6 +36,7 @@
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
 #include "osdep.h"
+#include <stdio.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -69,15 +70,15 @@ void rfc822_date (char *date)
   int zone,dstnow;
   struct tm *t;
   time_t time_sec = time (0);
-  t = localtime (&time_sec);    /* convert to individual items */
-  tzset ();                     /* initialize timezone/daylight variables */
-                                /* see if it is DST now */
+  tzset ();			/* initialize timezone/daylight variables */
+  t = localtime (&time_sec);	/* convert to individual items */
+				/* see if it is DST now */
   dstnow = daylight && t->tm_isdst;
-                                /* get timezone value */
+				/* get timezone value */
   zone = - (dstnow ? altzone : timezone) / 60;
-                                /* and output it */
+				/* and output it */
   sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
-           days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-           t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-           tzname[dstnow]);
+	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
+	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
+	   tzname[dstnow]);
 }

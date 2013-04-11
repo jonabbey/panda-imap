@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	19 December 1993
+ * Last Edited:	18 June 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -34,13 +34,14 @@
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
+#include "mail.h"
 #include "osdep.h"
 #include <ctype.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <ctype.h>
 #include <errno.h>
 extern int errno;
 #include <pwd.h>
@@ -52,8 +53,6 @@ extern int errno;
 #define KERNEL
 #include <sys/time.h>
 #undef KERNEL
-#include "select.h"
-#include "mail.h"
 #include "misc.h"
 
 #define DIR_SIZE(d) sizeof (DIR)
@@ -66,15 +65,29 @@ char *strerror();
 void syslog ();
 struct group *getgrent ();
 
-struct utimbuf {
-	time_t actime;		/* access time */
-	time_t modtime;		/* modification time */
-};
-
 #define toint(c)	((c)-'0')
 #define isodigit(c)	(((unsigned)(c)>=060)&((unsigned)(c)<=067))
+
+#define	NBBY	8	/* number of bits in a byte */
+#define	FD_SETSIZE	256
 
+typedef long	fd_mask;
+#define NFDBITS	(sizeof(fd_mask) * NBBY)
+					/* bits per mask */
+#define	howmany(x, y)	(((x)+((y)-1))/(y))
 
+typedef	struct fd_set {
+  fd_mask fds_bits[howmany(FD_SETSIZE, NFDBITS)];
+} fd_set;
+
+#define	FD_SET(n, p)	((p)->fds_bits[(n)/NFDBITS] |= \
+					(1 << ((n) % NFDBITS)))
+#define	FD_CLR(n, p)	((p)->fds_bits[(n)/NFDBITS] &= \
+					~(1 << ((n) % NFDBITS)))
+#define	FD_ISSET(n, p)	((p)->fds_bits[(n)/NFDBITS] & \
+					(1 << ((n) % NFDBITS)))
+#define FD_ZERO(p)	bzero((char *)(p), sizeof(*(p)))
+
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
@@ -86,12 +99,12 @@ struct utimbuf {
 #include "gettime.c"
 #include "opendir.c"
 #include "scandir.c"
-#include "utimes.c"
 #include "memmove2.c"
 #include "strstr.c"
 #include "strerror.c"
 #include "ingroups.c"
-
+
+
 /* Write current time in RFC 822 format
  * Accepts: destination string
  */
@@ -104,8 +117,8 @@ void rfc822_date (date)
   int zone;
   struct tm *t;
   time_t time_sec = time (0);
-  t = localtime (&time_sec);	/* convert to individual items */
   tzset ();			/* initialize timezone/daylight variables */
+  t = localtime (&time_sec);	/* convert to individual items */
 				/* get timezone value */
   zone = - (t->tm_isdst ? timezone-3600 : timezone) / 60;
 				/* and output it */
@@ -160,23 +173,6 @@ int fsync (fd)
   return 0;
 }
 
-/* Emulator for BSD setitimer() call
- * Accepts: which timer to set
- *	    new timer value
- *	    previous timer value
- * Returns: 0 if successful, -1 if failure
- */
-
-int setitimer(which,val,oval)
-	int which;
-	struct itimerval *val;
-	struct itimerval *oval;
-{
-  (void) alarm ((unsigned)val->it_value.tv_sec);
-  return 0;
-}
-
-
 /* Emulator for BSD syslog() routine
  * Accepts: priority
  *	    message

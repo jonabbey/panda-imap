@@ -1,11 +1,11 @@
-		     IMAP Development Environment
-			     9 August 1993
-			     Mark Crispin
+		   IMAP/c-client Development Environment
+				6 June 1994
+			       Mark Crispin
 
 COPYRIGHT NOTICE:
 
 Some portions Copyright 1988 by The Leland Stanford Junior University.
-Copyright 1989, 1990, 1991, 1992, 1993 by the University of Washington.
+Copyright 1994 by the University of Washington.
 
  Permission to use, copy, modify, and distribute this software and its
 documentation for any purpose and without fee is hereby granted, provided
@@ -37,7 +37,7 @@ regarding this software may be reported to the author:
 		Seattle, WA  98195
 		USA
  Phone:		+1 (206) 543-5762
- FAX:		+1 (206) 543-3909
+ FAX:		+1 (206) 685-4045
 
 CONTENTS:
 
@@ -47,60 +47,55 @@ Documentation:
  . README		this file
  . RFC1176.TXT		IMAP2 protocol RFC
  . IMAP2bis.TXT		temporary documentation of MIME extensions for IMAP
- . RFC1341.TXT		MIME (message body format) Internet Proposed Standard
 
-Global build files:
+Sources:
  . Makefile		master makefile for Unix
- . systype		link to ANSI or non-ANSI depending upon your C compiler
  . ANSI			ANSI C sources
- . non-ANSI		sources converted into pre-ANSI C
+ . non-ANSI		source converted into pre-ANSI C
 
-C-Client programs:
- . c-client		portable C-Client, used by programs below
+c-client courtesy links:
+ . c-client		c-client Application Program Interface (API)
  . ms			Unix MS client (MM-like interface)
  . ipopd		Unix POP2/POP3 servers with IMAP2 client support
- . MailManager		NeXT MailManager client
- . EasyMail		NeXT EasyMail client
  . imapd		IMAP2 server (on Unix, runs under inetd)
-
-Other programs:
- . MM-D			Xerox Lisp MM-D client
- . mapser		server for TOPS-20
 
 NOTES ON THE VARIOUS COMPONENTS:
 
-     MS runs under BSD Unix and requires Columbia's CCMD command package in
-a ccmd directory at the same level as the root of this directory tree.  If
-ccmd is not available the build of ms is ignored.
+     ms runs under BSD Unix and requires Columbia's CCMD command package in
+a ccmd/ directory at the same level as the root of this directory tree.  If
+ccmd is not available, the build of ms is ignored.
 
-     MTest has been run under Unix, MS-DOS, Macintosh, and TOPS-20.  It is
-a very primitive interface, however, and is suited mainly as a model of how
+     mtest has been run under Unix, DOS, Macintosh, and TOPS-20.  It is a
+very primitive interface, however, and is suited mainly as a model of how
 to write a main program for the C-Client.  You should take a look at the
-source to figure out how to use it; briefly, it first asks for a mailbox
+source to figure out how to use it.  Briefly, it first asks for a mailbox
 name (either a local file path or an IMAP mailbox in the form
 {hostname}mailbox) and then puts you in a command mode where "?" will give
 you a list of commands.
-
-     MailManager and EasyMail run on a NeXT and require NEXTSTEP to build
-and execute.  MS and MTest will also run on the NeXT, albeit inside a
-terminal emulator window.
 
      The Unix clients ms and/or mtest may be installed on a system
 directory.  There is also a man page for ms.  The Pine mailer for Unix and
 DOS has IMAP2 support, and is available separately on the
 FTP.CAC.Washington.EDU archives.
 
-     The Unix servers ipop2d, ipop3d, and imapd should be installed in
-a system daemon directory, and invoked by your /etc/inetd.conf file
-with lines such as:
-	pop	stream	tcp	nowait	root	/usr/local/etc/ipop2d	ipop2d
-	pop3	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
-	imap	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
-You may also have to edit your /etc/services (or Yellow Pages,
-Netinfo, etc. equivalent) to register these services, e.g.
-	pop		109/tcp		postoffice
-	pop3		110/tcp
-	imap		143/tcp
+     The Unix servers ipop2d, ipop3d, and imapd should be installed in a
+system daemon directory, and invoked by your /etc/inetd.conf file with
+lines such as:
+
+pop	stream	tcp	nowait	root	/usr/local/etc/ipop2d	ipop2d
+pop3	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
+imap	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
+
+     Note that different variants of Unix have different versions of inetd,
+so you should verify the precise form of these commands (for example, some
+versions of inetd do not require the "nowait").
+
+     You may also have to edit your /etc/services (or Yellow Pages,
+NetInfo, etc. equivalent) to register these services, such as:
+
+pop		109/tcp		postoffice
+pop3		110/tcp
+imap		143/tcp
 
      If you want to enable the rimap capability, which allows users with a
 suitable client and .rhosts file on the server to access IMAP services
@@ -115,42 +110,62 @@ returning pipes to that process' standard I/O instead of a TCP socket.  You
 can set up `e-mail only accounts' by making the shell be something which
 accepts only that string and not ordinary Unix shell commands.
 
-     If your Unix system does not have an ANSI C compiler, you must
-change the systype link to use the non-ANSI sources before building:
-	% cd imap
-	% rm systype
-	% ln -s non-ANSI systype
+     Before doing a make on UNIX, you should read the top-level Makefile
+and see if your system type is known.  The various system types are
+three-letter codes, and are described in more detail in the c-client
+Makefile.  If your system type is known, then use this as the make option.
+After the first time you do a make, this option is remembered in a file
+called OSTYPE, so just typing "make" suffices.
 
-     Before doing a make, you should connect to the c-client/ directory and
-make sure that Makefile is lunk to the appropriate makefile.xxx for your
-system.  For example, if you are running on a Sun, do:
-	% cd imap/c-client
-	% rm Makefile
-	% ln -s makefile.sun Makefile
+     For example, if you are using an IBM AIX 3.2 system on an RS/6000,
+your system type is a32, and the appropriate command is:
+	make a32
 
-     If your system type is not one of the ones supplied, start with
-makefile.nxt if you are using an ANSI compiler and makefile.bsd if you are
-using a non-ANSI compiler, then modify them as necessary.  If you send the
-result back to us, we will make it available for others using your
-particular system type.
+     There are various other make options, described in the c-client
+Makefile.  A common additional option is to enable the mbox driver, which
+will move mail from /usr/spool/mail into a file called mbox in the user's
+home directory.  This is done by specifying the EXTRADRIVERS variable, as
+in:
+	make a32 EXTRADRIVERS=mbox
 
-     If you are building an MS-DOS client, you will need a TCP/IP stack
+     If your system type is not in the top-level Makefile, you first need
+to identify whether your compiler supports ANSI C.  This will determine
+what source tree to use.  [Note that some compilers, such as Ultrix,
+support some aspects of ANSI C but not others; c-client really beats on the
+full prototyping capability of ANSI C so you have to use the non-ANSI
+source tree for such systems.]  Next, identify a system which is somewhat
+close to the system you have.  For BSD-like systems, try the bsd port; for
+SVR4-like systems, try the sv4 port.
+
+     It's probably best to see if the unmodified bsd or sv4 ports will work
+on your system before inventing a new port.  If you must invent a new port,
+you need to create an entry in the top-level and c-client Makefiles for
+your new port, as well as os_???.h and os_???.c files with the appropriate
+OS-dependent support for that system.  If you send the result back to us,
+we will make it available for others using your particular system type.
+
+     If you are building a DOS client, you will need a TCP/IP stack
 installed on your DOS system along with its development environment.  The
-current supported stacks are Novell, Beame & Whiteside, PC/IP, PC-NFS, and
-Waterloo.  MTest and a version of Pine called PC Pine run under DOS.
+currently supported stacks are Beame & Whiteside, PC-NFS, Novell, PC/IP,
+Waterloo, and Winsock.  mtest and a version of Pine called PC Pine run
+under DOS.  You do not use the top-level Makefile under DOS, nor do you
+build any components other than c-client.  The DOS makefiles are found in
+the c-client directory in the ANSI source tree, and are named according to
+the TCP/IP stack in use (e.g. makefile.dnv for DOS/Novell)
 
      If you are building a Macintosh client, you will need MacTCP installed
-on your system as well as the MacTCP C includes and libraries.  MTest runs
-on the Macintosh.
+on your system as well as the MacTCP C includes and libraries.  mtest runs
+on the Macintosh, and is routinely built with THINK C.  Contact me for a
+THINK C project file and cute icon for it.
 
      If you use a Mac C compiler with 2-byte ints (such as THINK C's normal
 mode) you will need to fix some bugs in the MacTCP C includes and libraries
 to prevent it from generating bad code, since those MacTCP files violate
 Apple's standards of always using explicit shorts or longs, never ints.
 You could avoid this if you set 4-byte ints in THINK C; however, the ANSI
-library uses 2-byte ints so you lose the functionality of those functions.
-c-client itself is 2-byte int or 4-byte int clean; it can be used in either
-mode.
+and UNIX libraries in THINK C use 2-byte ints so you will also need to
+build 4-byte int versions of these.  c-client itself is 2-byte int or
+4-byte int clean; it can be used in either mode.
 
      The most important bug in the MacTCP files that you need to fix is in
 the file AddressXlation.h, you need to change the definition of the rtnCode
@@ -159,15 +174,8 @@ several other changes you need to make if you decide to compile dnr.c under
 THINK C instead of using the Apple-supplied object file; see me for details
 if you decide to undertake such an effort.
 
-     I have provided a c-client por for TOPS-20 systems, but you're on your
-own in terms of a nice TOPS-20 like main program.  Maybe someday some nice
-person will try porting MS to TOPS-20.  It's been a few years since I last
-tried building c-client on TOPS-20, so some hacking may be needed to get it
-to work.
-
-     If you are building a TOPS-20 server, you should install MAPSER.EXE on
-SYSTEM: and have IMAPSV.EXE invoked as a SYSJOB or PTYCON subjob (NOT a
-SYSJOB subfork) at system startup.
-
-     To run MM-D, you must have the TCP/IP libraries, including the
-TCPDOMAIN library, loaded in your environment.
+     I have provided a c-client port for TOPS-20 systems, but you're on
+your own in terms of a nice TOPS-20 like main program.  Maybe someday some
+nice person will try porting ms to TOPS-20.  It's been a number of years
+since I last tried building c-client on TOPS-20, so some hacking may be
+needed to get it to work.

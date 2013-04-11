@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	19 November 1992
- * Last Edited:	11 May 1993
+ * Last Edited:	29 May 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -61,7 +61,8 @@ long sm_subscribe (char *mailbox)
     }
   }
   SUBSCRIPTIONFILE (tmp);	/* open subscription database */
-  if ((fd = open (tmp,O_RDWR|O_CREAT,0600)) >= 0) {
+  if ((fd = open (tmp,O_RDWR|O_CREAT,
+		  (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) >= 0) {
     flock (fd,LOCK_EX);		/* wait for exclusive access */
     fstat (fd,&sbuf);		/* get file size and read data */
     read (fd,s = txt = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
@@ -164,7 +165,7 @@ char *sm_read (void **sdb)
   struct stat sbuf;
   if (!*sdb) {			/* first time through? */
     SUBSCRIPTIONFILE (tmp);	/* open subscription database */
-    if ((fd = open (tmp,O_RDONLY,NIL)) >= 0) {
+    if ((fd = open (tmp,O_RDWR,NIL)) >= 0) {
       flock (fd,LOCK_SH);	/* let others know we're here */
       fstat (fd,&sbuf);		/* get file size and read data */
       read (fd,s = (char *) (*sdb = fs_get (sbuf.st_size + 1)),sbuf.st_size);

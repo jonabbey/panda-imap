@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	16 December 1993
+ * Last Edited:	31 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -34,8 +34,10 @@
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
+#include "mail.h"
 #include "osdep.h"
 #include <ctype.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/time.h>
@@ -45,7 +47,6 @@
 #include <sys/poll.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <ctype.h>
 #include <regexpr.h>
 #include <errno.h>
 #include <pwd.h>
@@ -53,7 +54,6 @@
 #include <syslog.h>
 #include <sys/file.h>
 #include <sys/select.h>
-#include "mail.h"
 #include "misc.h"
 
 extern int sys_nerr;
@@ -76,7 +76,6 @@ extern char *sys_errlist[];
 #include "flock.c"
 #include "gettime.c"
 #include "scandir.c"
-#include "utimes.c"
 
 /* Write current time in RFC 822 format
  * Accepts: destination string
@@ -91,8 +90,9 @@ void rfc822_date (date)
 {
   int zone,dstnow;
   time_t time_sec = time (0);
-  struct tm *t = localtime (&time_sec);
+  struct tm *t;
   tzset ();			/* initialize timezone/daylight variables */
+  t = localtime (&time_sec);
 				/* see if it is DST now */
   dstnow = daylight && t->tm_isdst;
 				/* get timezone value */

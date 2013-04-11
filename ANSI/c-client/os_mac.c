@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	16 February 1994
+ * Last Edited:	29 May 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -36,9 +36,6 @@
  * also takes advantage of the Map panel in System 7 for the timezone.
  */
 
-#define BUFLEN (size_t) 8192	/* TCP input buffer */
-
-
 #include <limits.h>
 #include <time.h>
 #include <stdio.h>
@@ -47,19 +44,7 @@
 #include <TCPPB.h>
 #include <Script.h>
 
-
-/* TCP I/O stream (must be before osdep.h is included) */
-
-#define TCPSTREAM struct tcp_stream
-TCPSTREAM {
-  char *host;			/* host name */
-  char *localhost;		/* local host name */
-  struct TCPiopb pb;		/* MacTCP parameter block */
-  long ictr;			/* input counter */
-  char *iptr;			/* input pointer */
-  char ibuf[BUFLEN];		/* input buffer */
-};
-
+#include "tcp_mac.h"		/* must be before osdep.h */
 #include "mail.h"
 #include "osdep.h"
 #include "misc.h"
@@ -67,387 +52,22 @@ TCPSTREAM {
 short TCPdriver = 0;		/* MacTCP's reference number */
 short resolveropen = 0;		/* TCP's resolver open */
 
-				/* *** temporary *** */
-MAILSTREAM *mailstd_proto = NIL;/* standard driver's prototype */
 
 #include "env_mac.c"
 #include "fs_mac.c"
 #include "ftl_mac.c"
 #include "nl_mac.c"
-
-/* TCP/IP open
- * Accepts: host name
- *	    contact port number
- * Returns: TCP stream if success else NIL
+#include "tcp_mac.c"
+
+
+/* This is here instead of env_mac.c so the Mint port doesn't get confused */
+
+/* Determine default prototype stream to user
+ * Returns: default prototype stream
  */
 
-TCPSTREAM *tcp_open (char *host,long port)
+MAILSTREAM *default_proto ()
 {
-  TCPSTREAM *stream;
-  struct hostInfo hst;
-  struct TCPCreatePB *createpb;
-  struct TCPOpenPB *openpb;
-  char *s;
-  unsigned long i,j,k,l;
-  char tmp[MAILTMPLEN];
-				/* init MacTCP */
-  if (!TCPdriver && OpenDriver ("\p.IPP",&TCPdriver))
-    fatal ("Can't init MacTCP");
-				/* domain literal? */
-  if (host[0] == '[' && host[strlen (host)-1] == ']') {
-    if (((i = strtol (s = host+1,&s,10)) <= 255) && *s++ == '.' &&
-	((j = strtol (s,&s,10)) <= 255) && *s++ == '.' &&
-	((k = strtol (s,&s,10)) <= 255) && *s++ == '.' &&
-	((l = strtol (s,&s,10)) <= 255) && *s++ == ']' && !*s) {
-      hst.addr[0] = (i << 24) + (j << 16) + (k << 8) + l;
-      hst.addr[1] = 0;		/* only one address to try! */
-      sprintf (hst.cname,"[%ld.%ld.%ld.%ld]",i,j,k,l);
-    }
-    else {
-      sprintf (tmp,"Bad format domain-literal: %.80s",host);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-  }
-
-  else {			/* look up host name */
-    if (!resolveropen && OpenResolver (NIL))
-      fatal ("Can't init domain resolver");
-    resolveropen = T;		/* note resolver open now */
-    if (StrToAddr (host,&hst,tcp_dns_result,NIL)) {
-      while (hst.rtnCode == cacheFault && wait ());
-				/* kludge around MacTCP bug */
-      if (hst.rtnCode == outOfMemory) {
-	mm_log ("Re-initializing domain resolver",WARN);
-	CloseResolver ();	/* bop it on the head and try again */
-	OpenResolver (NIL);	/* note this will leak 12K */
-	StrToAddr (host,&hst,tcp_dns_result,NIL);
-	while (hst.rtnCode == cacheFault && wait ());
-      }
-      if (hst.rtnCode) {	/* still have error status? */
-	switch (hst.rtnCode) {	/* analyze return */
-	case nameSyntaxErr:
-	  s = "Syntax error in name";
-	  break;
-	case noResultProc:
-	  s = "No result procedure";
-	  break;
-	case noNameServer:
-	  s = "No name server found";
-	  break;
-	case authNameErr:
-	  s = "Host does not exist";
-	  break;
-	case noAnsErr:
-	  s = "No name servers responding";
-	  break;
-	case dnrErr:
-	  s = "Name server returned an error";
-	  break;
-	case outOfMemory:
-	  s = "Not enough memory to resolve name";
-	  break;
-	case notOpenErr:
-	  s = "Driver not open";
-	  break;
-	default:
-	  s = NIL;
-	  break;
-	}
-	if (s) sprintf (tmp,"%s: %.80s",s,host);
-	else sprintf (tmp,"Unknown resolver error (%ld): %.80s",
-		      hst.rtnCode,host);
-	mm_log (tmp,ERROR);
-	return NIL;
-      }
-    }
-  }
-
-				/* create local TCP/IP stream */
-  stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
-  stream->ictr = 0;		/* initialize input */
-  stream->pb.ioCRefNum = TCPdriver;
-  createpb = &stream->pb.csParam.create;
-  openpb = &stream->pb.csParam.open;
-  stream->pb.csCode = TCPCreate;/* create a TCP stream */
-				/* set up buffer for TCP */
-  createpb->rcvBuffLen = 4*BUFLEN;
-  createpb->rcvBuff = fs_get (createpb->rcvBuffLen);
-  createpb->notifyProc = NIL;	/* no special notify procedure */
-  createpb->userDataPtr = NIL;
-  if (PBControlSync ((ParmBlkPtr) &stream->pb)) fatal ("Can't create TCP stream");
-  				/* open TCP connection */
-  stream->pb.csCode = TCPActiveOpen;
-  openpb->ulpTimeoutValue = 30;	/* time out after 30 seconds */
-  openpb->ulpTimeoutAction = T;
-  openpb->validityFlags = timeoutValue|timeoutAction;
-				/* remote host (should try all) */
-  openpb->remoteHost = hst.addr[0];
-  openpb->remotePort = port;	/* caller specified remote port */
-  openpb->localPort = 0;	/* generate a local port */
-  openpb->tosFlags = 0;		/* no special TOS */
-  openpb->precedence = 0;	/* no special precedence */
-  openpb->dontFrag = 0;		/* allow fragmentation */
-  openpb->timeToLive = 255;	/* standards say 60, UNIX uses 255 */
-  openpb->security = 0;		/* no special security */
-  openpb->optionCnt = 0;	/* no IP options */
-  openpb->options[0] = 0;
-  openpb->userDataPtr = NIL;	/* no special data pointer */
-  PBControlAsync ((ParmBlkPtr) &stream->pb);
-  while (stream->pb.ioResult == inProgress && wait ());
-  if (stream->pb.ioResult) {	/* got back error status? */
-    sprintf (tmp,"Can't connect to %.80s,%ld",hst.cname,port);
-    mm_log (tmp,ERROR);
-				/* nuke the buffer */
-    stream->pb.csCode = TCPRelease;
-    createpb->userDataPtr = NIL;
-    if (PBControlSync ((ParmBlkPtr) &stream->pb)) fatal ("TCPRelease lossage");
-				/* free its buffer */
-    fs_give ((void **) &createpb->rcvBuff);
-    fs_give ((void **) &stream);/* and the local stream */
-    return NIL;
-  }
-
-				/* copy host names for later use */
-  stream->host = cpystr (hst.cname);
-				/* tie off trailing dot */
-  stream->host[strlen (stream->host) - 1] = '\0';
-				/* the open gave us our address */
-  i = (openpb->localHost >> 24) & 0xff;
-  j = (openpb->localHost >> 16) & 0xff;
-  k = (openpb->localHost >> 8) & 0xff;
-  l = openpb->localHost & 0xff;
-  sprintf (tmp,"[%ld.%ld.%ld.%ld]",i,j,k,l);
-  stream->localhost = cpystr (tmp);
-  return stream;
-}
-
-
-/* Called when have return from DNS
- * Accepts: host info pointer
- *	    user data pointer
- */
-
-pascal void tcp_dns_result (struct hostInfo *hostInfoPtr,char *userDataPtr)
-{
-  /* dummy routine */
-}
-
-/* TCP/IP authenticated open
- * Accepts: host name
- *	    service name
- * Returns: TCP/IP stream if success else NIL
- */
-
-TCPSTREAM *tcp_aopen (char *host,char *service)
-{
-  return NIL;			/* no authenticated opens on Mac */
-}
-
-/* TCP/IP receive line
- * Accepts: TCP/IP stream
- * Returns: text line string or NIL if failure
- */
-
-char *tcp_getline (TCPSTREAM *stream)
-{
-  int n,m;
-  char *st,*ret,*stp;
-  char c = '\0';
-  char d;
-				/* make sure have data */
-  if (!tcp_getdata (stream)) return NIL;
-  st = stream->iptr;		/* save start of string */
-  n = 0;			/* init string count */
-  while (stream->ictr--) {	/* look for end of line */
-    d = *stream->iptr++;	/* slurp another character */
-    if ((c == '\015') && (d == '\012')) {
-      ret = (char *) fs_get (n--);
-      memcpy (ret,st,n);	/* copy into a free storage string */
-      ret[n] = '\0';		/* tie off string with null */
-      return ret;
-    }
-    n++;			/* count another character searched */
-    c = d;			/* remember previous character */
-  }
-				/* copy partial string from buffer */
-  memcpy ((ret = stp = (char *) fs_get (n)),st,n);
-				/* get more data from the net */
-  if (!tcp_getdata (stream)) return NIL;
-				/* special case of newline broken by buffer */
-  if ((c == '\015') && (*stream->iptr == '\012')) {
-    stream->iptr++;		/* eat the line feed */
-    stream->ictr--;
-    ret[n - 1] = '\0';		/* tie off string with null */
-  }
-				/* else recurse to get remainder */
-  else if (st = tcp_getline (stream)) {
-    ret = (char *) fs_get (n + 1 + (m = strlen (st)));
-    memcpy (ret,stp,n);		/* copy first part */
-    memcpy (ret + n,st,m);	/* and second part */
-    fs_give ((void **) &stp);	/* flush first part */
-    fs_give ((void **) &st);	/* flush second part */
-    ret[n + m] = '\0';		/* tie off string with null */
-  }
-  return ret;
-}
-
-/* TCP/IP receive buffer
- * Accepts: TCP/IP stream
- *	    size in bytes
- *	    buffer to read into
- * Returns: T if success, NIL otherwise
- */
-
-long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer)
-{
-  unsigned long n;
-  char *bufptr = buffer;
-  while (size > 0) {		/* until request satisfied */
-    if (!tcp_getdata (stream)) return NIL;
-    n = min (size,stream->ictr);/* number of bytes to transfer */
-				/* do the copy */
-    memcpy (bufptr,stream->iptr,n);
-    bufptr += n;		/* update pointer */
-    stream->iptr +=n;
-    size -= n;			/* update # of bytes to do */
-    stream->ictr -=n;
-  }
-  bufptr[0] = '\0';		/* tie off string */
-  return T;
-}
-
-
-/* TCP/IP receive data
- * Accepts: TCP/IP stream
- * Returns: T if success, NIL otherwise
- */
-
-long tcp_getdata (TCPSTREAM *stream)
-{
-  struct TCPReceivePB *receivepb = &stream->pb.csParam.receive;
-  struct TCPAbortPB *abortpb = &stream->pb.csParam.abort;
-  while (stream->ictr < 1) {	/* if nothing in the buffer */
-    stream->pb.csCode = TCPRcv;	/* receive TCP data */
-				/* wait forever */
-    receivepb->commandTimeoutValue = 0;
-    receivepb->rcvBuff = stream->ibuf;
-    receivepb->rcvBuffLen = BUFLEN;
-    receivepb->secondTimeStamp = 0;
-    receivepb->userDataPtr = NIL;
-    PBControlAsync ((ParmBlkPtr) &stream->pb);
-    while (stream->pb.ioResult == inProgress && wait ());
-    if (stream->pb.ioResult) {	/* punt if got an error */
-    				/* nuke connection */
-      stream->pb.csCode = TCPAbort;
-      abortpb->userDataPtr = NIL;
-      PBControlSync ((ParmBlkPtr) &stream->pb);
-      return NIL;
-    }
-    stream->iptr = stream->ibuf;/* point at TCP buffer */
-    stream->ictr = receivepb->rcvBuffLen;
-  }
-  return T;
-}
-
-/* TCP/IP send string as record
- * Accepts: TCP/IP stream
- *	    string pointer
- * Returns: T if success else NIL
- */
-
-long tcp_soutr (TCPSTREAM *stream,char *string)
-{
-  return tcp_sout (stream,string,(unsigned long) strlen (string));
-}
-
-
-/* TCP/IP send string
- * Accepts: TCP/IP stream
- *	    string pointer
- *	    byte count
- * Returns: T if success else NIL
- */
-
-long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
-{
-  struct TCPSendPB *sendpb = &stream->pb.csParam.send;
-  struct TCPAbortPB *abortpb = &stream->pb.csParam.abort;
-  struct {
-    unsigned short length;
-    Ptr buffer;
-    unsigned short trailer;
-  } wds;
-  while (wds.length = (size > (unsigned long) 32768) ? 32768 : size) {
-    wds.buffer = string;	/* buffer */
-    wds.trailer = 0;		/* tie off buffer */
-    size -= wds.length;		/* this many words will be output */
-    string += wds.length;
-    stream->pb.csCode = TCPSend;/* send TCP data */
-				/* wait a maximum of 60 seconds */
-    sendpb->ulpTimeoutValue = 60;
-    sendpb->ulpTimeoutAction = 0;
-    sendpb->validityFlags = timeoutValue|timeoutAction;
-    sendpb->pushFlag = T;	/* send the data now */
-    sendpb->urgentFlag = NIL;	/* non-urgent data */
-    sendpb->wdsPtr = (Ptr) &wds;
-    sendpb->userDataPtr = NIL;
-    PBControlAsync ((ParmBlkPtr) &stream->pb);
-    while (stream->pb.ioResult == inProgress && wait ());
-    if (stream->pb.ioResult) {	/* punt if got an error */
-				/* nuke connection */
-      stream->pb.csCode =TCPAbort;
-      abortpb->userDataPtr = NIL;
-      PBControlSync ((ParmBlkPtr) &stream->pb);
-      return NIL;
-    }
-  }
-  return T;			/* success */
-}
-
-/* TCP/IP close
- * Accepts: TCP/IP stream
- */
-
-void tcp_close (TCPSTREAM *stream)
-{
-  struct TCPClosePB *closepb = &stream->pb.csParam.close;
-  struct TCPCreatePB *createpb = &stream->pb.csParam.create;
-  stream->pb.csCode = TCPClose;	/* close TCP stream */
-  closepb->ulpTimeoutValue = 15;/* wait a maximum of 15 seconds */
-  closepb->ulpTimeoutAction = 0;
-  closepb->validityFlags = timeoutValue|timeoutAction;
-  closepb->userDataPtr = NIL;
-  PBControlAsync ((ParmBlkPtr) &stream->pb);
-  while (stream->pb.ioResult == inProgress && wait ());
-  stream->pb.csCode =TCPRelease;/* flush the buffers */
-  createpb->userDataPtr = NIL;
-  if (PBControlSync ((ParmBlkPtr) &stream->pb)) fatal ("TCPRelease lossage");
-				/* free its buffer */
-  fs_give ((void **) &createpb->rcvBuff);
-				/* flush host names */
-  fs_give ((void **) &stream->host);
-  fs_give ((void **) &stream->localhost);
-  fs_give ((void **) &stream);	/* flush the stream */
-}
-
-/* TCP/IP return host for this stream
- * Accepts: TCP/IP stream
- * Returns: host name for this stream
- */
-
-char *tcp_host (TCPSTREAM *stream)
-{
-  return stream->host;		/* return host name */
-}
-
-
-/* TCP/IP return local host for this stream
- * Accepts: TCP/IP stream
- * Returns: local host name for this stream
- */
-
-char *tcp_localhost (TCPSTREAM *stream)
-{
-  return stream->localhost;	/* return local host name */
+  extern MAILSTREAM dummyproto;
+  return &dummyproto;		/* return default driver's prototype */
 }

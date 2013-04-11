@@ -10,7 +10,7 @@
  *		Internet: MikeS@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	27 February 1994
+ * Last Edited:	29 April 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -38,9 +38,14 @@
 #include <sys\types.h>
 
 #define gethostid clock
+#define	WSA_VERSION	((1 << 8) | 1)
 
 #include "env_dos.h"
 #include "fs.h"
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+
+
+#undef noErr
+#undef MAC

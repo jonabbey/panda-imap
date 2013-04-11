@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	2 November 1993
+ * Last Edited:	26 May 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,6 +42,11 @@
 #include "nntp.h"
 #include "rfc822.h"
 #include "misc.h"
+
+
+/* Mailer parameters */
+
+long nntp_port = 0;		/* default port override */
 
 /* Network News Transfer Protocol open connection
  * Accepts: service host list
@@ -54,23 +59,32 @@ SMTPSTREAM *nntp_open (hostlist,debug)
 	long debug;
 {
   SMTPSTREAM *stream = NIL;
+  long i;
   void *tcpstream;
   if (!(hostlist && *hostlist)) mm_log ("Missing NNTP service host",ERROR);
   else do {			/* try to open connection */
-    if (tcpstream = tcp_open (*hostlist,NNTPTCPPORT)) {
+    if (tcpstream = nntp_port ? tcp_open (*hostlist,NIL,nntp_port) :
+	tcp_open (*hostlist,"nntp",NNTPTCPPORT)) {
       stream = (SMTPSTREAM *) fs_get (sizeof (SMTPSTREAM));
       stream->tcpstream = tcpstream;
-      stream->debug = debug;
+      stream->debug = (debug & OP_DEBUG) ? T : NIL;
       stream->reply = NIL;
-				/* get NNTP greeting */
-      if (smtp_reply (stream) == NNTPGREET) {
-	smtp_send (stream,"MODE","READER");
-	return stream;
+      i = smtp_reply (stream);	/* get server greeting */
+      if (debug & OP_READONLY) {/* if just want to read, either code is OK */
+	if ((i == NNTPGREET) || (i == NNTPGREETNOPOST))
+	  mm_log (stream->reply + 4,(long) NIL);
+	else {			/* oops */
+	  mm_log (stream->reply,ERROR);
+	  stream = smtp_close (stream);
+	}
       }
-      smtp_close (stream);	/* otherwise punt stream */
+				/* want to post, don't babble */
+      else if (i != NNTPGREET) stream = smtp_close (stream);
     }
-  } while (*++hostlist);	/* try next server */
-  return NIL;
+  } while (!stream && *++hostlist);
+				/* some silly servers require this */
+  if (stream) smtp_send (stream,"MODE","READER");
+  return stream;
 }
 
 /* Network News Transfer Protocol deliver news

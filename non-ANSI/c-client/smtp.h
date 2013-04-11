@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	18 June 1992
+ * Last Edited:	24 May 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -18,8 +18,8 @@
  *		by the Biomedical Research Technology Program of the National
  *		Institutes of Health under grant number RR-00785.
  *
- * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1992 by the University of Washington.
+ * Original version Copyright 1988 by The Leland Stanford Junior University
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -79,7 +79,7 @@ typedef struct smtp_stream {
 /* Function prototypes */
 
 SMTPSTREAM *smtp_open  ();
-void smtp_close  ();
+SMTPSTREAM *smtp_close  ();
 long smtp_mail  ();
 void smtp_debug  ();
 void smtp_nodebug  ();

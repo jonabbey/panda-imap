@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	19 November 1992
+ * Last Edited:	2 March 1994
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -93,7 +93,8 @@ void news_check (MAILSTREAM *stream);
 void news_expunge (MAILSTREAM *stream);
 long news_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long news_move (MAILSTREAM *stream,char *sequence,char *mailbox);
-long news_append (MAILSTREAM *stream,char *mailbox,STRING *message);
+long news_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		  STRING *message);
 void news_gc (MAILSTREAM *stream,long gcflags);
 char *news_read (void **sdb);
 short news_getflags (MAILSTREAM *stream,char *flag);

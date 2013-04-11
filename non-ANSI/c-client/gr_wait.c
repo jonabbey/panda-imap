@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	30 November 1993
- * Last Edited:	16 December 1993
+ * Last Edited:	6 May 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,14 +41,14 @@
  * Accepts: process ID
  */
 
-void grim_pid_reap (pid)
+void grim_pid_reap (pid,killreq)
 	int pid;
+	int killreq;
 {
   int r;
-				/* kill if not already dead */
-  if (getuid ()) kill (pid,SIGKILL);
-  alarm (5);
-  while ((r = wait (NIL)) && (r != pid) &&
-	 ((r != -1) || ((errno != ECHILD) && (errno != EINTR))));
-  alarm (0);
+  if (killreq) kill(pid,SIGHUP);/* kill if not already dead */
+  alarm (10);			/* in case we get hosed */
+  while (((r = wait (NIL)) != pid) &&
+	 ((r > 0) || ((errno != ECHILD) && (errno != EINTR))));
+  alarm (0);			/* cancel the alarm */
 }

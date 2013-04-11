@@ -10,7 +10,7 @@
  *		Internet: MikeS@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	27 February 1994
+ * Last Edited:	24 May 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -37,7 +37,12 @@
 
 #define BUFLEN 8192
 
+#include <windows.h>
+#define _INC_WINDOWS
 #include <winsock.h>
+
+#define RECEIVE_TIMEOUT 30	/* seconds */
+
 
 /* TCP I/O stream (must be before osdep.h is included) */
 
@@ -67,21 +72,25 @@ TCPSTREAM {
 #include "nl_dos.c"
 #include "env_dos.c"
 
+
 /* Private functions */
 
 long tcp_abort (SOCKET *sock);
 
+
 /* Private data */
 
-static int wsa_initted = 0;	/* init, and keep track of open sockets */
+int wsa_initted = 0;		/* init ? */
+static int wsa_sock_open = 0;	/* keep track of open sockets */
 
 /* TCP/IP open
  * Accepts: host name
+ *	    contact service name
  *	    contact port number
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_open (char *host,long port)
+TCPSTREAM *tcp_open (char *host,char *service,long port)
 {
   TCPSTREAM *stream = NIL;
   SOCKET sock;
@@ -92,15 +101,24 @@ TCPSTREAM *tcp_open (char *host,long port)
   char *hostname = NIL;
   if (!wsa_initted++) {		/* init Windows Sockets */
     WSADATA wsock;
-    int     i, ver = 1;		/* ask for only the most basic support */
-    if ((i = (long)WSAStartup (ver,&wsock))) {
+    int     i;
+    if (i = (long) WSAStartup (WSA_VERSION,&wsock)) {
       wsa_initted = 0;		/* in case we try again */
-      sprintf (tmp,"Unable to start Windows Sockets (%ld)",i);
+      sprintf (tmp,"Unable to start Windows Sockets (%d)",i);
       mm_log (tmp,ERROR);
       return NIL;
     }
   }
   if (!mailgets) mailgets = mm_gets;
+  if (s = strchr (host,':')) {	/* port number specified? */
+    *s++ = '\0';		/* yes, tie off port */
+    port = strtol (s,&s,10);	/* parse port */
+    if (s && *s) {
+      sprintf (tmp,"Junk after port number: %.80s",s);
+      mm_log (tmp,ERROR);
+      return NIL;
+    }
+  }
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */
@@ -163,11 +181,20 @@ TCPSTREAM *tcp_open (char *host,long port)
     return (TCPSTREAM *) tcp_abort (&sock);
   }
 				/* create TCP/IP stream */
+  wsa_sock_open++;
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
   stream->host = hostname;	/* official host name */
-  gethostname (tmp,MAILTMPLEN-1);
-  stream->localhost = cpystr ((host_name = gethostbyname (tmp)) ?
-			      host_name->h_name : tmp);
+  if(gethostname (tmp,MAILTMPLEN-1) == SOCKET_ERROR){
+      struct sockaddr_in ss;
+      int    l = sizeof (struct sockaddr_in);
+      if(getsockname (sock,(struct sockaddr *) &ss,&l) != SOCKET_ERROR && l) {
+	sprintf (tmp,"[%s]",inet_ntoa (ss.sin_addr));
+	stream->localhost = cpystr (tmp);
+      }
+      else stream->localhost = cpystr ("random-pc");
+  }
+  else stream->localhost = cpystr ((host_name = gethostbyname (tmp)) ?
+				   host_name->h_name : tmp);
   stream->tcps = sock;		/* init socket */
   stream->ictr = 0;		/* init input counter */
   return stream;		/* return success */
@@ -265,16 +292,22 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer)
 
 long tcp_getdata (TCPSTREAM *stream)
 {
+  struct timeval timeout;
   int i;
   fd_set fds;
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcps == INVALID_SOCKET) return NIL;
+  timeout.tv_sec = RECEIVE_TIMEOUT;
+  timeout.tv_usec = 0;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     FD_SET (stream->tcps,&fds);	/* set bit in selection vector */
 				/* block and read */
-    while (((i = select (stream->tcps+1,&fds,0,0,0)) == SOCKET_ERROR) &&
+    while (((i = select (stream->tcps+1,&fds,0,0,&timeout))== SOCKET_ERROR) &&
 	   (WSAGetLastError() == WSAEINTR));
     if (i == SOCKET_ERROR) return tcp_abort(&stream->tcps);
+    if (i == 0)		/* Timeout! */
+	    return tcp_abort(&stream->tcps);
+    
     /*
      * recv() replaces read() because SOCKET def's changed and not
      * guaranteed to fly with read().  [see WinSock API doc, sect 2.6.5.1]
@@ -357,8 +390,11 @@ long tcp_abort (SOCKET *sock)
   if(sock && *sock != INVALID_SOCKET){
     closesocket(*sock);		/* WinSock socket close */
     *sock = INVALID_SOCKET;
-    if(!--wsa_initted)		/* no more open streams? */
-      WSACleanup();		/* last socket closed, clean up */
+				/* no more open streams? */
+    if(wsa_initted && !--wsa_sock_open){
+      wsa_initted = 0;		/* no more sockets, so... */
+      WSACleanup();		/* free up resources until needed */
+    }
   }
   return NIL;
 }

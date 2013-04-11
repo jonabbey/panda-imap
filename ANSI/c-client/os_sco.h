@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	4 January 1994
+ * Last Edited:	18 June 1994
  *
- * Copyright 1994 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -76,11 +76,6 @@ struct iovec {
 };
 
 
-/* For setitimer() emulation */
-
-#define ITIMER_REAL	0
-
-
 /* For geteuid emulation */
 
 #define geteuid Geteuid
@@ -96,5 +91,4 @@ int scandir (char *dirname,struct direct ***namelist,int (*select) (),
 	     int (*compar) ());
 int fsync (int fd);
 int writev (int fd,struct iovec *iov,int iovcnt);
-int setitimer (int which,struct itimerval *val,struct itimerval *oval);
 int Geteuid ();

@@ -8,9 +8,9 @@
  *		Internet: dmiller@beta.tricity.wsu.edu
  *
  * Date:	11 May 1989
- * Last Edited:	12 November 1993
+ * Last Edited:	9 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -64,4 +64,3 @@
 
 long gethostid ();
 int flock ();
-int utimes ();

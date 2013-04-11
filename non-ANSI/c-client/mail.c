@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	28 November 1993
+ * Last Edited:	24 June 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -45,7 +45,6 @@
 /* c-client global data */
 
 DRIVER *maildrivers = NIL;	/* list of mail drivers */
-DRIVER *inboxdriver = NIL;	/* INBOX mail driver */
 char *lhostn = NIL;		/* local host name */
 mailgets_t mailgets = NIL;	/* pointer to alternate gets function */
 				/* mail cache manipulation function */
@@ -260,7 +259,13 @@ void *mail_parameters (stream,function,value)
 	long function;
 	void *value;
 {
-  return stream->dtb ? (stream->dtb->parameters) (function,value) : NIL;
+  void *ret = NIL;
+  DRIVER *d = maildrivers;
+				/* if have a stream, do it for that stream */
+  if (stream && stream->dtb) return (*stream->dtb->parameters)(function,value);
+  else do if (ret = (d->parameters) (function,value)) return ret;
+  while (d = d->next);		/* until at the end */
+  return ret;
 }
 
 /* Mail find list of subscribed mailboxes
@@ -275,8 +280,7 @@ void mail_find (stream,pat)
   DRIVER *d = maildrivers;
 				/* if have a stream, do it for that stream */
   if (stream && stream->dtb) (*stream->dtb->find) (stream,pat);
-				/* otherwise do for all DTB's */
-  else do (d->find) (NIL,pat);
+  else do (d->find) (NIL,pat);	/* otherwise do for all DTB's */
   while (d = d->next);		/* until at the end */
 }
 
@@ -386,8 +390,9 @@ DRIVER *mail_valid_net (name,drv,host,mailbox)
 	char *mailbox;
 {
   NETMBX mb;
-  if (!mail_valid_net_parse (name,&mb) || strcmp (mb.service,drv->name))
-    return NIL;
+  if (!mail_valid_net_parse (name,&mb) ||
+      (strcmp (mb.service,"imap") ? strcmp (mb.service,drv->name) :
+       strncmp (drv->name,"imap",4))) return NIL;
   if (host) strcpy (host,mb.host);
   if (mailbox) strcpy (mailbox,mb.mailbox);
   return drv;
@@ -408,7 +413,8 @@ long mail_valid_net_parse (name,mb)
   char c,*s,*t,*v;
   mb->port = 0;			/* initialize structure */
   *mb->host = *mb->mailbox = *mb->service = '\0';
-  mb->anoflag = NIL;		/* not (yet) anonymous */
+				/* init flags */
+  mb->anoflag = mb->dbgflag = NIL;
 				/* check if bboard */
   if (mb->bbdflag = (*name == '*') ? T : NIL) name++;
 				/* have host specification? */
@@ -449,7 +455,10 @@ long mail_valid_net_parse (name,mb)
       }
       else {			/* non-argument switch */
 	if (!strcmp (s,"anonymous")) mb->anoflag = T;
+	else if (!strcmp (s,"bboard")) mb->bbdflag = T;
+	else if (!strcmp (s,"debug")) mb->dbgflag = T;
 	else if (!strcmp (s,"imap") || !strcmp (s,"imap2") ||
+		 !strcmp (s,"imap4") || !strcmp (s,"pop3") ||
 		 !strcmp (s,"nntp")) {
 	  if (*mb->service) return NIL;
 	  else strcpy (mb->service,s);
@@ -464,8 +473,7 @@ long mail_valid_net_parse (name,mb)
 				/* default mailbox name */
   if (!*mb->mailbox) strcpy (mb->mailbox,mb->bbdflag ? "general" : "INBOX");
 				/* default service name */
-  if (!(*mb->service && strcmp (mb->service,"imap")))
-    strcpy (mb->service,"imap2");
+  if (!*mb->service) strcpy (mb->service,"imap");
   return T;
 }
 
@@ -544,10 +552,13 @@ long mail_create (stream,mailbox)
 	MAILSTREAM *stream;
 	char *mailbox;
 {
-  int localp = *mailbox != '{';
+  /* A local mailbox is one that is not qualified as being a remote or a
+   * namespace mailbox.  Any remote or namespace mailbox driver must check
+   * for itself whether or not the mailbox already exists. */
+  int localp = (*mailbox != '{') && (*mailbox != '#');
   char tmp[MAILTMPLEN];
 				/* guess at driver if stream not specified */
-  if (!(stream || (stream = localp ? mailstd_proto :
+  if (!(stream || (stream = localp ? default_proto () :
 		   mail_open (NIL,mailbox,OP_PROTOTYPE)))) {
     sprintf (tmp,"Can't create mailbox %s: indeterminate format",mailbox);
     mm_log (tmp,ERROR);
@@ -591,7 +602,7 @@ long mail_rename (stream,old,new)
 {
   char tmp[MAILTMPLEN];
   DRIVER *factory = mail_valid (stream,old,"rename mailbox");
-  if ((*old != '{') && mail_valid (NIL,new,NIL)) {
+  if ((*old != '{') && (*old != '#') && mail_valid (NIL,new,NIL)) {
     sprintf (tmp,"Can't rename to mailbox %s: mailbox already exists",new);
     mm_log (tmp,ERROR);
     return NIL;
@@ -1026,6 +1037,8 @@ long mail_move (stream,sequence,mailbox)
 /* Mail append message string
  * Accepts: mail stream
  *	    destination mailbox
+ *	    initial flags
+ *	    message internal date
  *	    stringstruct of message to append
  * Returns: T on success, NIL on failure
  */
@@ -1035,10 +1048,29 @@ long mail_append (stream,mailbox,message)
 	char *mailbox;
 	STRING *message;
 {
-  DRIVER *factory = mail_valid (stream,mailbox,"append to mailbox");
-  if (!factory && mailstd_proto) factory = mailstd_proto->dtb;
+				/* compatibility jacket */
+  return mail_append_full (stream,mailbox,NIL,NIL,message);
+}
+
+
+long mail_append_full (stream,mailbox,flags,date,message)
+	MAILSTREAM *stream;
+	char *mailbox;
+	char *flags;
+	char *date;
+	STRING *message;
+{
+  DRIVER *factory = mail_valid (stream,mailbox,NIL);
+  if (!factory) {		/* got a driver to use? */
+    if (!stream &&		/* ask default for TRYCREATE if no stream */
+	(*default_proto ()->dtb->append) (stream,mailbox,flags,date,message))
+      fatal ("Append validity confusion");
+				/* now generate error message */
+    mail_valid (stream,mailbox,"append to mailbox");
+    return NIL;			/* return failure */
+  }
 				/* do the driver's action */
-  return factory ? (factory->append) (stream,mailbox,message) : NIL;
+  return (factory->append) (stream,mailbox,flags,date,message);
 }
 
 /* Mail garbage collect stream
@@ -1267,8 +1299,7 @@ long mail_parse_date (elt,s)
       case (('G'-'A')*1024)+(('M'-'A')*32)+'T'-'A':
       case 'Z': elt->zhours = 0; break;
 
-      case (('L'-'A')*1024) + (('C'-'A')*32)+'L'-'A':
-	/* I knew I was going to regret that idiotic `LCL' stuff someday!! */
+      default:			/* assume local otherwise */
 	tn = time (0);		/* time now... */
 	t = localtime (&tn);	/* get local minutes since midnight */
 	m = t->tm_hour * 60 + t->tm_min;
@@ -1283,8 +1314,6 @@ long mail_parse_date (elt,s)
 	elt->zhours = m / 60;	/* now break into hours and minutes */
 	elt->zminutes = m % 60;
 	break;
-      default:			/* unknown time zone name */
-	return NIL;
       }
       elt->zminutes = 0;	/* never a fractional hour */
       break;
@@ -1301,6 +1330,10 @@ long mail_parse_date (elt,s)
     default:
       return NIL;
     }
+  }
+  else {			/* make sure all time fields zero */
+    elt->hours = elt->minutes = elt->seconds = elt->zhours = elt->zminutes =
+      elt->zoccident = 0;
   }
   return T;
 }

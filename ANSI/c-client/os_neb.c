@@ -1,10 +1,5 @@
 /*
  * Program:	Operating-system dependent routines -- NetBSD 0.9 version
- *		Changes by Jason R. Thorpe
- *		System Administrator
- *		Oregon State University, Dept. of Computer Science
- *		Corvallis, Oregon 97331
- *		Internet: thorpej@cs.orst.edu
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -14,10 +9,10 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:         11 December 1993
- * Last Edited:  11 December 1993
+ * Date:	1 Ausgust 1988
+ * Last Edited:	14 April 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,6 +36,7 @@
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
 #include "osdep.h"
+#include <stdio.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/socket.h>

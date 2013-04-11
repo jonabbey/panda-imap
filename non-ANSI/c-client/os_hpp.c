@@ -2,15 +2,17 @@
  * Program:	Operating-system dependent routines -- HP/UX version
  *
  * Author:	David L. Miller
- *		Computing and Telecommunications Center
- *		Washington State University Tri-Cities
- *		Richland, WA 99352
- *		Internet: dmiller@beta.tricity.wsu.edu
+ *		Networks and Distributed Computing
+ *		Computing & Communications
+ *		University of Washington
+ *		Administration Building, AG-44
+ *		Seattle, WA  98195
+ *		Internet: DLM@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	30 November 1993
+ * Last Edited:	31 May 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -34,9 +36,12 @@
 #define isodigit(c)    (((unsigned)(c)>=060)&((unsigned)(c)<=067))
 #define toint(c)       ((c)-'0')
 
+#include <stdio.h>
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
+#include "mail.h"
 #include "osdep.h"
+#include <stdio.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/time.h>
@@ -52,7 +57,6 @@ extern char *sys_errlist[];
 extern int sys_nerr;
 #include <pwd.h>
 #include <syslog.h>
-#include "mail.h"
 #include "misc.h"
 
 
@@ -64,7 +68,6 @@ extern int sys_nerr;
 #include "log_std.c"
 #include "gr_waitp.c"
 #include "flock.c"
-#include "utimes.c"
 #include "strerror.c"
 #include "strstr.c"
 #include "strtol.c"
@@ -78,20 +81,20 @@ char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 void rfc822_date (date)
 	char *date;
 {
-  int zone;
-  char *zonename;
+  int zone,dstnow;
   struct tm *t;
-  struct timeval tv;
-  struct timezone tz;
-  gettimeofday (&tv,&tz);	/* get time and timezone poop */
-  t = localtime (&tv.tv_sec);	/* convert to individual items */
-				/* get timezone from TZ environment stuff */
-  zone = daylight ? -timezone/60 + 60 : -timezone/60;
-  zonename = daylight ? tzname[1] : tzname[0] ;
+  time_t time_sec = time (0);
+  tzset ();			/* initialize timezone/daylight variables */
+  t = localtime (&time_sec);	/* convert to individual items */
+				/* see if it is DST now */
+  dstnow = daylight && t->tm_isdst;
+				/* get timezone value */
+  zone = - (dstnow ? timezone-3600 : timezone) / 60;
 				/* and output it */
   sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,zonename);
+	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
+	   tzname[dstnow]);
 }
 
 /* Emulator for BSD gethostid() call

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	18 March 1993
+ * Last Edited:	26 May 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -18,8 +18,8 @@
  *		by the Biomedical Research Technology Program of the National
  *		Institutes of Health under grant number RR-00785.
  *
- * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1993 by the University of Washington.
+ * Original version Copyright 1988 by The Leland Stanford Junior University
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -48,6 +48,11 @@
 #include "smtp.h"
 #include "rfc822.h"
 #include "misc.h"
+
+
+/* Mailer parameters */
+
+long smtp_port = 0;		/* default port override */
 
 /* Mail Transfer Protocol open connection
  * Accepts: service host list
@@ -62,7 +67,8 @@ SMTPSTREAM *smtp_open (char **hostlist,long debug)
   char tmp[MAILTMPLEN];
   if (!(hostlist && *hostlist)) mm_log ("Missing MTP service host",ERROR);
   else do {			/* try to open connection */
-    if (tcpstream = tcp_open (*hostlist,SMTPTCPPORT)) {
+    if (tcpstream = smtp_port ? tcp_open (*hostlist,NIL,smtp_port) :
+	tcp_open (*hostlist,"smtp",SMTPTCPPORT)) {
 				/* default local host */
       if (!lhostn) lhostn = cpystr (tcp_localhost (tcpstream));
       stream = (SMTPSTREAM *) fs_get (sizeof (SMTPSTREAM));
@@ -84,9 +90,10 @@ SMTPSTREAM *smtp_open (char **hostlist,long debug)
 
 /* Mail Transfer Protocol close connection
  * Accepts: stream
+ * Returns: NIL always
  */
 
-void smtp_close (SMTPSTREAM *stream)
+SMTPSTREAM *smtp_close (SMTPSTREAM *stream)
 {
   if (stream) {			/* send "QUIT" */
     smtp_send (stream,"QUIT",NIL);
@@ -95,6 +102,7 @@ void smtp_close (SMTPSTREAM *stream)
     if (stream->reply) fs_give ((void **) &stream->reply);
     fs_give ((void **) &stream);/* flush the stream */
   }
+  return NIL;
 }
 
 /* Mail Transfer Protocol deliver mail
@@ -252,6 +260,8 @@ long smtp_fake (SMTPSTREAM *stream,long code,char *text)
 long smtp_soutr (void *stream,char *s)
 {
   char c,*t;
+				/* "." on first line */
+  if (s[0] == '.') tcp_soutr (stream,".");
 				/* find lines beginning with a "." */
   while (t = strstr (s,"\015\012.")) {
     c = *(t += 3);		/* remember next character after "." */

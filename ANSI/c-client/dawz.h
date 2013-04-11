@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	19 May 1993
+ * Last Edited:	23 June 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,10 +33,6 @@
  *
  */
 
-/* Build parameters */
-
-#define DEFEXT ".MTX"
-
 /* Command bits from dawz_getflags(), must correspond to mailbox bit values */
 
 #define fSEEN 1
@@ -87,7 +83,6 @@ void dawz_fetchfast (MAILSTREAM *stream,char *sequence);
 void dawz_fetchflags (MAILSTREAM *stream,char *sequence);
 void dawz_string_init (STRING *s,void *data,unsigned long size);
 char dawz_string_next (STRING *s);
-STRINGDRIVER mail_string;
 void dawz_string_setpos (STRING *s,unsigned long i);
 ENVELOPE *dawz_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body);
 char *dawz_fetchheader (MAILSTREAM *stream,long msgno);
@@ -103,7 +98,8 @@ void dawz_check (MAILSTREAM *stream);
 void dawz_expunge (MAILSTREAM *stream);
 long dawz_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long dawz_move (MAILSTREAM *stream,char *sequence,char *mailbox);
-long dawz_append (MAILSTREAM *stream,char *mailbox,STRING *message);
+long dawz_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		  STRING *message);
 void dawz_gc (MAILSTREAM *stream,long gcflags);
 char *dawz_file (char *dst,char *name);
 long dawz_badname (char *tmp,char *s);

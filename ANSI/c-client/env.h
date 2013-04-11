@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	11 November 1993
+ * Last Edited:	29 May 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -37,3 +37,6 @@
 
 void rfc822_date (char *date);
 long server_login (char *user,char *pass,char **home,int argc,char *argv[]);
+char *myhomedir (void);
+char *mailboxfile (char *dst,char *name);
+MAILSTREAM *default_proto (void);
