@@ -22,7 +22,7 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	30 August 2006
+ * Last Edited:	7 December 2006
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
@@ -45,8 +45,8 @@ extern int errno;		/* just in case */
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
-#include "env_unix.c"
 #define fork vfork
+#include "env_unix.c"
 #include "tcp_unix.c"
 #include "gr_waitp.c"
 #include "tz_bsd.c"

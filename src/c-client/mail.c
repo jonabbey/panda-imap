@@ -23,19 +23,14 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	30 August 2006
+ * Last Edited:	6 December 2006
  */
 
 
 #include <ctype.h>
 #include <stdio.h>
-#include "mail.h"
-#include "osdep.h"
 #include <time.h>
-#include "misc.h"
-#include "rfc822.h"
-#include "utf8.h"
-#include "smtp.h"
+#include "c-client.h"
 
 char *UW_copyright = "Copyright 1988-2006 University of Washington\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n     http://www.apache.org/licenses/LICENSE-2.0\n";
 
@@ -1328,7 +1323,7 @@ MAILSTREAM *mail_close_full (MAILSTREAM *stream,long options)
     if (stream->mailbox) fs_give ((void **) &stream->mailbox);
     if (stream->original_mailbox)
       fs_give ((void **) &stream->original_mailbox);
-    if (stream->snarf.name) fs_give ((void *) &stream->snarf.name);
+    if (stream->snarf.name) fs_give ((void **) &stream->snarf.name);
     stream->sequence++;		/* invalidate sequence */
 				/* flush user flags */
     for (i = 0; i < NUSERFLAGS; i++)
@@ -3368,6 +3363,8 @@ unsigned long mail_filter (char *text,unsigned long len,STRINGLIST *lines,
 	      ((*dst++ = *src++) != '\012') && ((*dst++ = *src++) != '\012'))||
 	     ((*src == ' ') || (*src == '\t')));
   }
+				/* in case hit the guard LF */
+  if (src > end) dst -= (src - end);
   *dst = '\0';			/* tie off destination */
   return dst - text;
 }

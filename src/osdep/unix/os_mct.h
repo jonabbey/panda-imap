@@ -12,7 +12,7 @@
  */
 
 /*
- * Program:	Operating-system dependent routines -- MachTen/Mac OS X version
+ * Program:	Operating-system dependent routines -- MachTen version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	7 December 2006
  */
 
 #include <stdlib.h>

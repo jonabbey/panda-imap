@@ -12,7 +12,7 @@
  */
 
 /*
- * Program:	Operating-system dependent routines -- MachTen/Mac OS X version
+ * Program:	Operating-system dependent routines -- Mac OS X version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	7 December 2006
  */
 
 #include <stdlib.h>
@@ -36,6 +36,12 @@
 #include <sys/file.h>
 
 #define unix 1
+
+/* Mac OS X security framework also has checkpw, and this causes
+ * multiple-definition problems when building Alpine.
+ */
+
+#define checkpw Checkpw
 
 #include "env_unix.h"
 #include "fs.h"

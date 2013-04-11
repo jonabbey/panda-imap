@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	6 December 2006
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -36,11 +36,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
-#include "mail.h"
-#include "osdep.h"
-#include "smtp.h"
-#include "rfc822.h"
-#include "misc.h"
+#include "c-client.h"
 
 /* Constants */
 

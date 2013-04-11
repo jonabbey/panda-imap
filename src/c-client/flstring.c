@@ -23,14 +23,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 April 1997
- * Last Edited:	30 August 2006
+ * Last Edited:	6 December 2006
  */
 
 
 #include <stdio.h>
 #include "mail.h"
-#include "osdep.h"
-#include "misc.h"
 #include "flstring.h"
 
 /* String driver for stdio file strings */
@@ -86,7 +84,7 @@ static char file_string_next (STRING *s)
 static void file_string_setpos (STRING *s,unsigned long i)
 {
   s->offset = i;		/* note new offset */
-  fseek ((FILE *) s->data,i,L_SET);
+  fseek ((FILE *) s->data,i,SEEK_SET);
 				/* in case using returnstringstruct hack */
   s->chunk = s->curpos = (char *) &s->data1;
   *s->curpos = (char) getc ((FILE *) s->data);

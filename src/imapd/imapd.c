@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	17 October 2006
+ * Last Edited:	27 November 2006
  */
 
 /* Parameter files */
@@ -128,6 +128,7 @@ void ioerror (FILE *f,char *reason);
 unsigned char *parse_astring (unsigned char **arg,unsigned long *i,
 			      unsigned char *del);
 unsigned char *snarf (unsigned char **arg);
+unsigned char *snarf_base64 (unsigned char **arg);
 unsigned char *snarf_list (unsigned char **arg);
 STRINGLIST *parse_stringlist (unsigned char **s,int *list);
 long parse_criteria (SEARCHPGM *pgm,unsigned char **arg,unsigned long maxmsg,
@@ -202,7 +203,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2006c.374";	/* version number of this server */
+char *version = "2006d.376";	/* version number of this server */
 char *logout = "Logout";	/* syslogreason for logout */
 char *goodbye = NIL;		/* bye reason */
 time_t alerttime = 0;		/* time of last alert */
@@ -465,7 +466,7 @@ int main (int argc,char *argv[])
 	  cancelled = NIL;	/* not cancelled */
 				/* mandatory first argument */
 	  if (!(s = snarf (&arg))) response = misarg;
-	  else if (arg && (!(initial = snarf (&arg)) || arg))
+	  else if (arg && (!(initial = snarf_base64 (&arg)) || arg))
 	    response = badarg;	/* optional second argument */
 	  else if (!strcmp (ucase (s),"ANONYMOUS") && !stat (ANOFILE,&sbuf)) {
 	    if (!(s = imap_responder ("",0,NIL)))
@@ -1824,6 +1825,49 @@ unsigned char *snarf (unsigned char **arg)
 }
 
 
+/* Snarf a BASE64 argument
+ * Accepts: pointer to argument text pointer
+ * Returns: argument
+ */
+
+unsigned char *snarf_base64 (unsigned char **arg)
+{
+  unsigned char *ret = *arg;
+  unsigned char *s = ret + 1;
+  static char base64mask[256] = {
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,
+   0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,
+   0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+  };
+
+			
+  if (*(ret = *arg) == '=');	/* easy case if zero-length argument */
+				/* must be at least one BASE64 char */
+  else if (!base64mask[*ret]) return NIL;
+  else {			/* quick and dirty */
+    while (base64mask[*s++]);	/* scan until end of BASE64 */
+    if (*s == '=') ++s;		/* allow up to two padding chars */
+    if (*s == '=') ++s;
+  }
+  switch (*s) {			/* anything following the argument? */
+  case ' ':			/* another argument */
+    *s++ = '\0';		/* tie off previous argument */
+    *arg = s;			/* and update argument pointer */
+    break;
+  case '\0':			/* end of command */
+    *arg = NIL;
+    break;
+  default:			/* syntax error */
+    return NIL;
+  }
+  return ret;			/* return BASE64 string */
+}
+
 /* Snarf a list command argument (simple jacket into parse_astring())
  * Accepts: pointer to argument text pointer
  * Returns: argument
@@ -3468,7 +3512,7 @@ void pcapability (long flag)
   }
   if (flag <= 0) {		/* want pre-authentication capabilities? */
     PSOUT (" SASL-IR LOGIN-REFERRALS");
-    if (s = ssl_start_tls (NIL)) fs_give ((void *) &s);
+    if (s = ssl_start_tls (NIL)) fs_give ((void **) &s);
     else PSOUT (" STARTTLS");
 				/* disable plaintext */
     if (!(i = !mail_parameters (NIL,GET_DISABLEPLAINTEXT,NIL)))
@@ -3604,26 +3648,34 @@ char *imap_responder (void *challenge,unsigned long clen,unsigned long *rlen)
   if (initial) {		/* initial response given? */
     if (clen) return NIL;	/* not permitted */
 				/* set up response */
-    t = (unsigned char *) initial;
+    i = strlen ((char *) (t = initial));
     initial = NIL;		/* no more initial response */
-    return (char *) rfc822_base64 (t,strlen ((char *) t),rlen ? rlen : &i);
+    if ((*t == '=') && !t[1]) {	/* SASL-IR does this for 0-length response */
+      if (rlen) *rlen = 0;	/* set length zero if empty */
+      return cpystr ("");	/* and return empty string as response */
+    }
   }
-  PSOUT ("+ ");
-  for (t = rfc822_binary ((void *) challenge,clen,&i),j = 0; j < i; j++)
-    if (t[j] > ' ') PBOUT (t[j]);
-  fs_give ((void **) &t);
-  CRLF;
-  PFLUSH ();			/* dump output buffer */
+  else {			/* issue challenge, get response */
+    PSOUT ("+ ");
+    for (t = rfc822_binary ((void *) challenge,clen,&i),j = 0; j < i; j++)
+      if (t[j] > ' ') PBOUT (t[j]);
+    fs_give ((void **) &t);
+    CRLF;
+    PFLUSH ();			/* dump output buffer */
 				/* slurp response buffer */
-  slurp ((char *) resp,RESPBUFLEN);
-  if (!(t = (unsigned char *) strchr ((char *) resp,'\012'))) return flush ();
-  if (t[-1] == '\015') --t;	/* remove CR */
-  *t = '\0';			/* tie off buffer */
-  if (resp[0] == '*') {
-    cancelled = T;
-    return NIL;
+    slurp ((char *) resp,RESPBUFLEN);
+    if (!(t = (unsigned char *) strchr ((char *) resp,'\012'))) return flush ();
+    if (t[-1] == '\015') --t;	/* remove CR */
+    *t = '\0';			/* tie off buffer */
+    if (resp[0] == '*') {
+      cancelled = T;
+      return NIL;
+    }
+    i = t - resp;		/* length of response */
+    t = resp;			/* set up for return call */
   }
-  return (char *) rfc822_base64 (resp,t-resp,rlen ? rlen : &i);
+  return (i % 4) ? NIL :	/* return if valid BASE64 */
+    (char *) rfc822_base64 (t,i,rlen ? rlen : &i);
 }
 
 /* Proxy copy across mailbox formats

@@ -23,21 +23,16 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	30 August 2006
+ * Last Edited:	6 December 2006
  */
 
 
 #include <ctype.h>
 #include <stdio.h>
-#include "mail.h"
-#include "osdep.h"
-#include "nntp.h"
-#include "rfc822.h"
-#include "misc.h"
+#include "c-client.h"
 #include "newsrc.h"
 #include "netmsg.h"
 #include "flstring.h"
-#include "utf8.h"
 
 /* Constants */
 

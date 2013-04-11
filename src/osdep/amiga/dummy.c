@@ -268,7 +268,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
   DIR *dp;
   struct direct *d;
   struct stat sbuf;
-  char tmp[MAILTMPLEN];
+  char tmp[MAILTMPLEN],path[MAILTMPLEN];
   size_t len = 0;
 				/* punt if bogus name */
   if (!mailboxdir (tmp,dir,NIL)) return;
@@ -282,6 +282,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 				/* list it if at top-level */
     if (!level && dir && pmatch_full (dir,pat,'/') && !pmatch (dir,"INBOX"))
       dummy_listed (stream,'/',dir,dt ? NIL : LATT_NOSELECT,contents);
+
 				/* scan directory, ignore . and .. */
     if (!dir || dir[(len = strlen (dir)) - 1] == '/') while (d = readdir (dp))
       if ((!(dt && (*dt) (d->d_name))) &&
@@ -293,29 +294,29 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 	if (dir) sprintf (tmp,"%s%s",dir,d->d_name);
 	else strcpy (tmp,d->d_name);
 				/* make sure useful and can get info */
-	if ((pmatch_full (tmp,pat,'/') ||
-	     pmatch_full (strcat (tmp,"/"),pat,'/') || dmatch (tmp,pat,'/')) &&
-	    mailboxdir (tmp,dir,d->d_name) && tmp[0] && !stat (tmp,&sbuf)) {
-				/* now make name we'd return */
-	  if (dir) sprintf (tmp,"%s%s",dir,d->d_name);
-	  else strcpy (tmp,d->d_name);
+	if ((pmatch_full (strcpy (path,tmp),pat,'/') ||
+	     pmatch_full (strcat (path,"/"),pat,'/') || dmatch (path,pat,'/')) &&
+	    mailboxdir (path,dir,"x") && (len = strlen (path)) &&
+	    strcpy (path+len-1,d->d_name) && !stat (path,&sbuf)) {
 				/* only interested in file type */
 	  switch (sbuf.st_mode & S_IFMT) {
 	  case S_IFDIR:		/* directory? */
+				/* form with trailing / */
+	    sprintf (path,"%s/",tmp);
+				/* skip listing if INBOX */
 	    if (!pmatch (tmp,"INBOX")) {
 	      if (pmatch_full (tmp,pat,'/')) {
 		if (!dummy_listed (stream,'/',tmp,LATT_NOSELECT,contents))
 		  break;
-		strcat(tmp,"/");/* set up for dmatch call */
 	      }
 				/* try again with trailing / */
-	      else if (pmatch_full (strcat (tmp,"/"),pat,'/') &&
+	      else if (pmatch_full (path,pat,'/') &&
 		       !dummy_listed (stream,'/',tmp,LATT_NOSELECT,contents))
 		break;
 	    }
-	    if (dmatch (tmp,pat,'/') &&
+	    if (dmatch (path,pat,'/') &&
 		(level < (long) mail_parameters (NIL,GET_LISTMAXLEVEL,NIL)))
-	      dummy_list_work (stream,tmp,pat,contents,level+1);
+	      dummy_list_work (stream,path,pat,contents,level+1);
 	    break;
 	  case S_IFREG:		/* ordinary name */
 	    /* Must use ctime for systems that don't update mtime properly */

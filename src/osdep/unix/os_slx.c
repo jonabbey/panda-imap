@@ -12,7 +12,7 @@
  */
 
 /*
- * Program:	Operating-system dependent routines -- Secure Linux version
+ * Program:	Operating-system dependent routines -- modern Linux version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1993
- * Last Edited:	30 August 2006
+ * Last Edited:	7 December 2006
  */
  
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
@@ -47,8 +47,9 @@ extern int errno;		/* just in case */
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
-#include "env_unix.c"
 #define fork vfork
+#include "env_unix.c"
+#include "getspnam.c"		/* has socklen_t in spite of man page?? */
 #include "tcp_unix.c"
 #include "gr_waitp.c"
 #include "tz_sv4.c"

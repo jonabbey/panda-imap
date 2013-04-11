@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	19 October 2006
+ * Last Edited:	13 November 2006
  */
 
 
@@ -43,6 +43,8 @@ extern int errno;		/* just in case */
 
 /* Build parameters */
 
+#define MHINBOX "#mhinbox"	/* corresponds to namespace in env_unix.c */
+#define MHINBOXDIR "inbox"
 #define MHPROFILE ".mh_profile"
 #define MHCOMMA ','
 #define MHSEQUENCE ".mh_sequence"
@@ -159,7 +161,7 @@ MAILSTREAM mhproto = {&mhdriver};
 static char *mh_profile = NIL;	/* holds MH profile */
 static char *mh_pathname = NIL;	/* holds MH path name */
 static long mh_once = 0;	/* already snarled once */
-static long mh_allow_inbox =NIL;/* allow INBOX as well as #mhinbox */
+static long mh_allow_inbox =NIL;/* allow INBOX as well as MHINBOX */
 
 /* MH mail validate mailbox
  * Accepts: mailbox name
@@ -183,36 +185,33 @@ DRIVER *mh_valid (char *name)
 int mh_isvalid (char *name,char *tmp,long synonly)
 {
   struct stat sbuf;
+  char *s,*t,altname[MAILTMPLEN];
   unsigned long i;
   int ret = NIL;
-				/* non-mh name? */
-  if (!((mh_allow_inbox && !compare_cstring (name,"INBOX")) ||
-	((name[0] == '#') && ((name[1] == 'm') || (name[1] == 'M')) &&
-	 ((name[2] == 'h') || (name[2] == 'H')) &&
-	 ((name[3] == '/') || !compare_cstring (name+3,"INBOX"))))) {
-				/* yes, valid if in hierarchy (list kludge) */
-    char *s,*t,altname[MAILTMPLEN];
-				/* see if non-NS name within mh hierarchy */
-    if ((name[0] != '#') && (s = mh_path (tmp)) && (i = strlen (s)) &&
-	(t = mailboxfile (tmp,name)) && !strncmp (t,s,i) && (tmp[i] == '/')) {
-      sprintf (altname,"#mh%.900s",tmp+i);
-				/* can't do synonly here! */
-      ret = mh_isvalid (altname,tmp,NIL);
+  errno = NIL;			/* zap any error condition */
+				/* mh name? */
+  if ((mh_allow_inbox && !compare_cstring (name,"INBOX")) ||
+      !compare_cstring (name,MHINBOX) ||
+      ((name[0] == '#') && ((name[1] == 'm') || (name[1] == 'M')) &&
+       ((name[2] == 'h') || (name[2] == 'H')) && (name[3] == '/') && name[4])){
+    if (mh_path (tmp))		/* validate name if INBOX or not synonly */
+      ret = (synonly && compare_cstring (name,"INBOX")) ?
+	T : ((stat (mh_file (tmp,name),&sbuf) == 0) &&
+	     (sbuf.st_mode & S_IFMT) == S_IFDIR);
+    else if (!mh_once++) {	/* only report error once */
+      sprintf (tmp,"%.900s not found, mh format names disabled",mh_profile);
+      mm_log (tmp,WARN);
     }
-    else errno = EINVAL;	/* bogus name */
   }
-  else if (mh_path (tmp)) {	/* INBOX, #mhinbox, or #mh/ name */
-				/* all done if syntax only check & not INBOX */
-    if (synonly && compare_cstring (name,"INBOX")) return T;
-    errno = NIL;		/* zap error */
-				/* validate name as directory */
-    ret = ((stat (mh_file (tmp,name),&sbuf) == 0) &&
-	   (sbuf.st_mode & S_IFMT) == S_IFDIR);
+				/* see if non-NS name within mh hierarchy */
+  else if ((name[0] != '#') && (s = mh_path (tmp)) && (i = strlen (s)) &&
+	   (t = mailboxfile (tmp,name)) && !strncmp (t,s,i) && (tmp[i] == '/') &&
+	   tmp[i+1]) {
+    sprintf (altname,"#mh%.900s",tmp+i);
+				/* can't do synonly here! */
+    ret = mh_isvalid (altname,tmp,NIL);
   }
-  else if (!mh_once++) {	/* only report error once */
-    sprintf (tmp,"%.900s not found, mh format names disabled",mh_profile);
-    mm_log (tmp,WARN);
-  }
+  else errno = EINVAL;		/* bogus name */
   return ret;
 }
 
@@ -257,7 +256,7 @@ char *mh_path (char *tmp)
 				/* found space in line? */
 	if (v = strpbrk (s," \t")) {
 	  *v++ = '\0';		/* tie off, is keyword "Path:"? */
-	  if (!strcmp (lcase (s),"path:")) {
+	  if (!compare_cstring (s,"Path:")) {
 				/* skip whitespace */
 	    while ((*v == ' ') || (*v == '\t')) ++v;
 				/* absolute path? */
@@ -270,7 +269,7 @@ char *mh_path (char *tmp)
 	}
       }
       fs_give ((void **) &t);	/* flush profile text */
-      if (!mh_pathname) {     /* default path if not in the profile */
+      if (!mh_pathname) {	/* default path if not in the profile */
 	sprintf (tmp,"%s/%s",myhomedir (),MHPATH);
 	mh_pathname = cpystr (tmp);
       }
@@ -375,8 +374,8 @@ void mh_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
       mh_list_work (stream,s,test,0);
     }
 				/* always an INBOX */
-    if (!compare_cstring (test,"#MHINBOX"))
-      mm_list (stream,NIL,"#MHINBOX",LATT_NOINFERIORS);
+    if (!compare_cstring (test,MHINBOX))
+      mm_list (stream,NIL,MHINBOX,LATT_NOINFERIORS);
   }
 }
 
@@ -582,9 +581,18 @@ MAILSTREAM *mh_open (MAILSTREAM *stream)
   if (!stream) return &mhproto;	/* return prototype for OP_PROTOTYPE call */
   if (stream->local) fatal ("mh recycle stream");
   stream->local = fs_get (sizeof (MHLOCAL));
-				/* note if an INBOX or not */
-  stream->inbox = (!compare_cstring (stream->mailbox,"#MHINBOX") ||
-		   !compare_cstring (stream->mailbox,"INBOX")) ? T : NIL;
+  /* INBOXness is one of the following:
+   * #mhinbox (case-independent)
+   * #mh/inbox (mh is case-independent, inbox is case-dependent)
+   * INBOX (case-independent
+   */		
+  stream->inbox =		/* note if an INBOX or not */
+    (!compare_cstring (stream->mailbox,MHINBOX) ||
+     ((stream->mailbox[0] == '#') &&
+      ((stream->mailbox[1] == 'm') || (stream->mailbox[1] == 'M')) &&
+      ((stream->mailbox[2] == 'h') || (stream->mailbox[2] == 'H')) &&
+      (stream->mailbox[3] == '/') && !strcmp (stream->mailbox+4,MHINBOXDIR)) ||
+     !compare_cstring (stream->mailbox,"INBOX")) ? T : NIL;
   mh_file (tmp,stream->mailbox);/* get directory name */
   LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
   LOCAL->scantime = 0;		/* not scanned yet */
@@ -838,13 +846,14 @@ long mh_ping (MAILSTREAM *stream)
   struct stat sbuf;
   char *s,tmp[MAILTMPLEN];
   int fd;
-  unsigned long i,j,r,old;
+  unsigned long i,j,r;
+  unsigned long old = stream->uid_last;
   long nmsgs = stream->nmsgs;
   long recent = stream->recent;
   int silent = stream->silent;
   if (stat (LOCAL->dir,&sbuf)) {/* directory exists? */
     if (stream->inbox &&	/* no, create if INBOX */
-	dummy_create_path (stream,strcat (mh_file (tmp,"#mhinbox"),"/"),
+	dummy_create_path (stream,strcat (mh_file (tmp,MHINBOX),"/"),
 			   get_dir_protection ("INBOX"))) return T;
     sprintf (tmp,"Can't open mailbox %.80s: no such mailbox",stream->mailbox);
     mm_log (tmp,ERROR);
@@ -855,7 +864,6 @@ long mh_ping (MAILSTREAM *stream)
     struct direct **names = NIL;
     long nfiles = scandir (LOCAL->dir,&names,mh_select,mh_numsort);
     if (nfiles < 0) nfiles = 0;	/* in case error */
-    old = stream->uid_last;
 				/* note scanned now */
     LOCAL->scantime = sbuf.st_ctime;
 				/* scan directory */
@@ -1097,9 +1105,9 @@ long mh_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* make sure valid mailbox */
   if (!mh_isvalid (mailbox,tmp,NIL)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (!((!compare_cstring (mailbox,"#mhinbox") ||
+    if (!((!compare_cstring (mailbox,MHINBOX) ||
 	   !compare_cstring (mailbox,"INBOX")) &&
-	  (mh_file (tmp,"#mhinbox") &&
+	  (mh_file (tmp,MHINBOX) &&
 	   dummy_create_path (stream,strcat (tmp,"/"),
 			      get_dir_protection (mailbox))))) {
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
@@ -1219,8 +1227,8 @@ char *mh_file (char *dst,char *name)
   char *path = mh_path (dst);
   if (!path) fatal ("No mh path in mh_file()!");
 				/* INBOX becomes "inbox" in the MH path */
-  if (!compare_cstring (name,"#MHINBOX") || !compare_cstring (name,"INBOX"))
-    sprintf (dst,"%.900s/inbox",path);
+  if (!compare_cstring (name,MHINBOX) || !compare_cstring (name,"INBOX"))
+    sprintf (dst,"%.900s/%.80s",path,MHINBOXDIR);
 				/* #mh names skip past prefix */
   else if (*name == '#') sprintf (dst,"%.100s/%.900s",path,name + 4);
   else mailboxfile (dst,name);	/* all other names */

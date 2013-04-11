@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	6 October 2006
+ * Last Edited:	27 November 2006
  */
 
 /* Parameter files */
@@ -65,7 +65,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2006c.94";	/* server version */
+char *version = "2006d.96";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -180,7 +180,7 @@ int main (int argc,char *argv[])
 	AUTHENTICATOR *auth;
 	PSOUT ("+OK Capability list follows:\015\012");
 	PSOUT ("TOP\015\012LOGIN-DELAY 180\015\012UIDL\015\012");
-	if (s = ssl_start_tls (NIL)) fs_give ((void *) &s);
+	if (s = ssl_start_tls (NIL)) fs_give ((void **) &s);
 	else PSOUT ("STLS\015\012");
 	if (i = !mail_parameters (NIL,GET_DISABLEPLAINTEXT,NIL))
 	  PSOUT ("USER\015\012");
@@ -729,9 +729,9 @@ int mbxopen (char *mailbox)
       PSOUT (tmp);
       return TRANSACTION;
     }
-    else logout = "-ERR Can't get lock.  Mailbox in use\015\012";
+    else goodbye = "-ERR Can't get lock.  Mailbox in use\015\012";
   }
-  else logout = "-ERR Unable to open user's INBOX\015\012";
+  else goodbye = "-ERR Unable to open user's INBOX\015\012";
   syslog (LOG_INFO,"Error opening or locking INBOX user=%.80s host=%.80s",
 	  user,tcp_clienthost ());
   return UPDATE;

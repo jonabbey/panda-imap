@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	9 September 2006
+ * Last Edited:	6 December 2006
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -37,11 +37,8 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <time.h>
-#include "mail.h"
-#include "osdep.h"
+#include "c-client.h"
 #include "imap4r1.h"
-#include "rfc822.h"
-#include "misc.h"
 
 /* Parameters */
 
@@ -4693,7 +4690,7 @@ ADDRESS *imap_parse_address (MAILSTREAM *stream,unsigned char **txtptr,
 	}
 	else ++ingroup;		/* in a group now */
       }
-      else {			/* good address */
+      if (adr) {		/* good address */
 	if (!ret) ret = adr;	/* if first time note first adr */
 				/* if previous link new block to it */
 	if (prev) prev->next = adr;

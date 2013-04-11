@@ -29,9 +29,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
-#include "mail.h"
-#include "osdep.h"
-#include "misc.h"
+#include "c-client.h"
 #include "newsrc.h"
 
 #ifndef OLDFILESUFFIX
@@ -466,7 +464,7 @@ char *newsrc_state (MAILSTREAM *stream,char *group)
 	  c = getc (f);
 				/* now copy it */
 	s = (char *) fs_get (size + 1);
-	fseek (f,pos,L_SET);
+	fseek (f,pos,SEEK_SET);
 	fread (s,(size_t) 1,size,f);
 	s[size] = '\0';		/* tie off string */
 	fclose (f);		/* all done - close the file */

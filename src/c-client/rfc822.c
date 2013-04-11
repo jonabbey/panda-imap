@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	6 December 2006
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -37,11 +37,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <time.h>
-#include "mail.h"
-#include "osdep.h"
-#include "rfc822.h"
-#include "misc.h"
-#include "utf8.h"
+#include "c-client.h"
 
 
 /* Support for deprecated features in earlier specifications.  Note that this
@@ -448,7 +444,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
 				/* collect text until logical end of line */
 	  for (j = 0,c = ' '; c; ) {
 				/* make sure buffer big enough */
-	    if (j > (k - 10)) fs_resize ((void *) &s1,k += MAILTMPLEN);
+	    if (j > (k - 10)) fs_resize ((void **) &s1,k += MAILTMPLEN);
 	    switch (c1 = SNX (bs)) {
 	    case '\015':	/* return */
 	      if (i && (CHR (bs) == '\012')) {

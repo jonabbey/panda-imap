@@ -23,15 +23,13 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 December 1992
- * Last Edited:	30 August 2006
+ * Last Edited:	6 December 2006
  */
 
 
 #include <stdio.h>
 #include <ctype.h>
-#include "mail.h"
-#include "osdep.h"
-#include "misc.h"
+#include "c-client.h"
 
 /* Subscribe to mailbox
  * Accepts: mailbox name

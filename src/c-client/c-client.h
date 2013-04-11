@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	19 May 2000
- * Last Edited:	30 August 2006
+ * Last Edited:	6 December 2006
  */
 
 #ifndef __CCLIENT_H		/* nobody should include this twice... */
@@ -44,6 +44,7 @@ extern "C" {
 #include "smtp.h"		/* SMTP sending routines */
 #include "nntp.h"		/* NNTP sending routines */
 #include "utf8.h"		/* Unicode and charset routines */
+#include "utf8aux.h"		/* Unicode auxillary routines */
 #include "misc.h"		/* miscellaneous utility routines */
 
 #ifdef __cplusplus		/* undo the C++ mischief */

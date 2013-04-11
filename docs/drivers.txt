@@ -13,7 +13,7 @@
 
 		   c-client Driver Characteristics
 			     Mark Crispin
-			     5 June 1999
+			   11 December 2006
 
 
      Drivers are code modules that support different mailbox storage
@@ -62,7 +62,7 @@ the order given if "black box mode" is not in effect:
  6) mmdf format is selected if the spool directory file exists and is
     in mmdf format.
  7) unix format is selected if the spool directory file exists and is
-    in in unix format.   
+    in unix format.   
  8) the dummy driver is selected if the spool directory file does not
     exist, or exists and is empty.
 

@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	30 August 2006
+ * Last Edited:	7 December 2006
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
@@ -58,11 +58,11 @@ extern char *sys_errlist[];
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
+#define fork vfork
 #define env_init ENV_INIT
 #include "env_unix.c"
 #undef env_init
 #define getpeername Getpeername
-#define fork vfork
 #include "tcp_unix.c"
 #include "gr_waitp.c"
 #include "flocksim.c"

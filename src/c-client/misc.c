@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	6 December 2006
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -35,9 +35,7 @@
 
 
 #include <ctype.h>
-#include "mail.h"
-#include "osdep.h"
-#include "misc.h"
+#include "c-client.h"
 
 /* Convert ASCII string to all uppercase
  * Accepts: string pointer

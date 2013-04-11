@@ -23,18 +23,31 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	30 August 2006
+ * Last Edited:	6 November 2006
  */
 
 
 #include <stdio.h>
 #include <ctype.h>
-#include "mail.h"
-#include "osdep.h"
-#include "misc.h"
-#include "rfc822.h"
-#include "utf8.h"
+#include "c-client.h"
 
+/* Convert charset labelled stringlist to UTF-8 in place
+ * Accepts: string list
+ *	    charset
+ */
+
+static void utf8_stringlist (STRINGLIST *st,char *charset)
+{
+  SIZEDTEXT txt;
+				/* convert entire stringstruct */
+  if (st) do if (utf8_text (&st->text,charset,&txt,U8T_CANONICAL)) {
+    fs_give ((void **) &st->text.data);
+    st->text.data = txt.data; /* transfer this text */
+    st->text.size = txt.size;
+  } while (st = st->next);
+}
+
+
 /* Convert charset labelled searchpgm to UTF-8 in place
  * Accepts: search program
  *	    charset
@@ -80,23 +93,6 @@ void utf8_searchpgm (SEARCHPGM *pgm,char *charset)
     utf8_stringlist (pgm->followup_to,charset);
     utf8_stringlist (pgm->references,charset);
   }
-}
-
-
-/* Convert charset labelled stringlist to UTF-8 in place
- * Accepts: string list
- *	    charset
- */
-
-static void utf8_stringlist (STRINGLIST *st,char *charset)
-{
-  SIZEDTEXT txt;
-				/* convert entire stringstruct */
-  if (st) do if (utf8_text (&st->text,charset,&txt,U8T_CANONICAL)) {
-    fs_give ((void **) &st->text.data);
-    st->text.data = txt.data; /* transfer this text */
-    st->text.size = txt.size;
-  } while (st = st->next);
 }
 
 /* Convert MIME-2 sized text to UTF-8

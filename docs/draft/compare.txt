@@ -1,14 +1,14 @@
 Network Working Group                                          C. Newman
 Internet-Draft                                          Sun Microsystems
-Expires: February 2, 2007                                      M. Duerst
+Expires: March 17, 2007                                        M. Duerst
                                                                      AGU
                                                           A. Gulbrandsen
                                                                     Oryx
-                                                          August 1, 2006
+                                                      September 13, 2006
 
 
             Internet Application Protocol Collation Registry
-                  draft-newman-i18n-comparator-13.txt
+                  draft-newman-i18n-comparator-14.txt
 
 Status of this Memo
 
@@ -33,7 +33,7 @@ Status of this Memo
    The list of Internet-Draft Shadow Directories can be accessed at
    http://www.ietf.org/shadow.html.
 
-   This Internet-Draft will expire on February 2, 2007.
+   This Internet-Draft will expire on March 17, 2007.
 
 Copyright Notice
 
@@ -49,9 +49,9 @@ Abstract
 
 
 
-Newman, et al.          Expires February 2, 2007                [Page 1]
+Newman, et al.           Expires March 17, 2007                 [Page 1]
 
-Internet-Draft             Collation Registry                August 2006
+Internet-Draft             Collation Registry             September 2006
 
 
    large problem, this specification creates an abstraction framework so
@@ -72,51 +72,48 @@ Table of Contents
    3.  Collation Identifier Syntax  . . . . . . . . . . . . . . . . .  6
      3.1.   Basic Syntax  . . . . . . . . . . . . . . . . . . . . . .  6
      3.2.   Wildcards . . . . . . . . . . . . . . . . . . . . . . . .  6
-     3.3.   Ordering Direction  . . . . . . . . . . . . . . . . . . .  6
+     3.3.   Ordering Direction  . . . . . . . . . . . . . . . . . . .  7
      3.4.   URIs  . . . . . . . . . . . . . . . . . . . . . . . . . .  7
      3.5.   Naming Guidelines . . . . . . . . . . . . . . . . . . . .  7
    4.  Collation Specification Requirements . . . . . . . . . . . . .  8
      4.1.   Collation/Server Interface  . . . . . . . . . . . . . . .  8
      4.2.   Operations Supported  . . . . . . . . . . . . . . . . . .  8
-       4.2.1.  Validity . . . . . . . . . . . . . . . . . . . . . . .  8
+       4.2.1.  Validity . . . . . . . . . . . . . . . . . . . . . . .  9
        4.2.2.  Equality . . . . . . . . . . . . . . . . . . . . . . .  9
        4.2.3.  Substring  . . . . . . . . . . . . . . . . . . . . . .  9
        4.2.4.  Ordering . . . . . . . . . . . . . . . . . . . . . . . 10
      4.3.   Sort Keys . . . . . . . . . . . . . . . . . . . . . . . . 10
-     4.4.   Use of Lookup Tables  . . . . . . . . . . . . . . . . . . 10
+     4.4.   Use of Lookup Tables  . . . . . . . . . . . . . . . . . . 11
    5.  Application Protocol Requirements  . . . . . . . . . . . . . . 11
      5.1.   Character Encoding  . . . . . . . . . . . . . . . . . . . 11
      5.2.   Operations  . . . . . . . . . . . . . . . . . . . . . . . 11
      5.3.   Wildcards . . . . . . . . . . . . . . . . . . . . . . . . 12
-     5.4.   Canonicalization Function . . . . . . . . . . . . . . . . 12
+     5.4.   String Comparison . . . . . . . . . . . . . . . . . . . . 12
      5.5.   Disconnected Clients  . . . . . . . . . . . . . . . . . . 12
-     5.6.   Error Codes . . . . . . . . . . . . . . . . . . . . . . . 12
+     5.6.   Error Codes . . . . . . . . . . . . . . . . . . . . . . . 13
      5.7.   Octet Collation . . . . . . . . . . . . . . . . . . . . . 13
    6.  Use by Existing Protocols  . . . . . . . . . . . . . . . . . . 13
-   7.  Collation Registration . . . . . . . . . . . . . . . . . . . . 13
-     7.1.   Collation Registration Procedure  . . . . . . . . . . . . 13
+   7.  Collation Registration . . . . . . . . . . . . . . . . . . . . 14
+     7.1.   Collation Registration Procedure  . . . . . . . . . . . . 14
      7.2.   Collation Registration Format . . . . . . . . . . . . . . 14
-       7.2.1.  Registration Template  . . . . . . . . . . . . . . . . 14
+       7.2.1.  Registration Template  . . . . . . . . . . . . . . . . 15
        7.2.2.  The collation Element  . . . . . . . . . . . . . . . . 15
-       7.2.3.  The identifier Element . . . . . . . . . . . . . . . . 15
-       7.2.4.  The title Element  . . . . . . . . . . . . . . . . . . 15
-       7.2.5.  The operations Element . . . . . . . . . . . . . . . . 15
-       7.2.6.  The specification Element  . . . . . . . . . . . . . . 15
+       7.2.3.  The identifier Element . . . . . . . . . . . . . . . . 16
+       7.2.4.  The title Element  . . . . . . . . . . . . . . . . . . 16
+       7.2.5.  The operations Element . . . . . . . . . . . . . . . . 16
+       7.2.6.  The specification Element  . . . . . . . . . . . . . . 16
 
 
 
-Newman, et al.          Expires February 2, 2007                [Page 2]
+Newman, et al.           Expires March 17, 2007                 [Page 2]
 
-Internet-Draft             Collation Registry                August 2006
+Internet-Draft             Collation Registry             September 2006
 
 
        7.2.7.  The submitter Element  . . . . . . . . . . . . . . . . 16
        7.2.8.  The owner Element  . . . . . . . . . . . . . . . . . . 16
        7.2.9.  The version Element  . . . . . . . . . . . . . . . . . 16
-       7.2.10. The variable Element . . . . . . . . . . . . . . . . . 16
-       7.2.11. The name Element . . . . . . . . . . . . . . . . . . . 16
-       7.2.12. The default Element  . . . . . . . . . . . . . . . . . 16
-       7.2.13. The value Element  . . . . . . . . . . . . . . . . . . 17
+       7.2.10. The variable Element . . . . . . . . . . . . . . . . . 17
      7.3.   Structure of Collation Registry . . . . . . . . . . . . . 17
      7.4.   Example Initial Registry Summary  . . . . . . . . . . . . 18
    8.  Guidelines for Expert Reviewer . . . . . . . . . . . . . . . . 18
@@ -127,31 +124,29 @@ Internet-Draft             Collation Registry                August 2006
      9.2.   ASCII Casemap Collation . . . . . . . . . . . . . . . . . 20
        9.2.1.  ASCII Casemap Collation Description  . . . . . . . . . 20
        9.2.2.  ASCII Casemap Collation Registration . . . . . . . . . 21
-     9.3.   Nameprep Collation  . . . . . . . . . . . . . . . . . . . 21
-       9.3.1.  Nameprep Collation Description . . . . . . . . . . . . 21
-       9.3.2.  Nameprep Collation Registration  . . . . . . . . . . . 22
-     9.4.   Octet Collation . . . . . . . . . . . . . . . . . . . . . 22
-       9.4.1.  Octet Collation Description  . . . . . . . . . . . . . 22
-       9.4.2.  Octet Collation Registration . . . . . . . . . . . . . 23
-   10. IANA Considerations  . . . . . . . . . . . . . . . . . . . . . 23
-   11. Security Considerations  . . . . . . . . . . . . . . . . . . . 23
-   12. Acknowledgements . . . . . . . . . . . . . . . . . . . . . . . 23
+     9.3.   Octet Collation . . . . . . . . . . . . . . . . . . . . . 21
+       9.3.1.  Octet Collation Description  . . . . . . . . . . . . . 21
+       9.3.2.  Octet Collation Registration . . . . . . . . . . . . . 22
+   10. IANA Considerations  . . . . . . . . . . . . . . . . . . . . . 22
+   11. Security Considerations  . . . . . . . . . . . . . . . . . . . 22
+   12. Acknowledgements . . . . . . . . . . . . . . . . . . . . . . . 22
    13. Open Issues  . . . . . . . . . . . . . . . . . . . . . . . . . 23
-   14. Change Log . . . . . . . . . . . . . . . . . . . . . . . . . . 24
-     14.1.  Changes From -12  . . . . . . . . . . . . . . . . . . . . 24
-     14.2.  Changes From -11  . . . . . . . . . . . . . . . . . . . . 24
-     14.3.  Changes From -10  . . . . . . . . . . . . . . . . . . . . 24
-     14.4.  Changes From -09  . . . . . . . . . . . . . . . . . . . . 24
-     14.5.  Changes From -08  . . . . . . . . . . . . . . . . . . . . 25
-     14.6.  Changes From -06  . . . . . . . . . . . . . . . . . . . . 26
-     14.7.  Changes From -05  . . . . . . . . . . . . . . . . . . . . 26
-     14.8.  Changes From -04  . . . . . . . . . . . . . . . . . . . . 26
-     14.9.  Changes From -03  . . . . . . . . . . . . . . . . . . . . 26
-     14.10. Changes From -02  . . . . . . . . . . . . . . . . . . . . 27
-     14.11. Changes From -01  . . . . . . . . . . . . . . . . . . . . 27
-     14.12. Changes From -00  . . . . . . . . . . . . . . . . . . . . 27
-   15. References . . . . . . . . . . . . . . . . . . . . . . . . . . 28
-     15.1.  Normative References  . . . . . . . . . . . . . . . . . . 28
+   14. Change Log . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+     14.1.  Changes From -13  . . . . . . . . . . . . . . . . . . . . 23
+     14.2.  Changes From -12  . . . . . . . . . . . . . . . . . . . . 23
+     14.3.  Changes From -11  . . . . . . . . . . . . . . . . . . . . 23
+     14.4.  Changes From -10  . . . . . . . . . . . . . . . . . . . . 24
+     14.5.  Changes From -09  . . . . . . . . . . . . . . . . . . . . 24
+     14.6.  Changes From -08  . . . . . . . . . . . . . . . . . . . . 25
+     14.7.  Changes From -06  . . . . . . . . . . . . . . . . . . . . 25
+     14.8.  Changes From -05  . . . . . . . . . . . . . . . . . . . . 26
+     14.9.  Changes From -04  . . . . . . . . . . . . . . . . . . . . 26
+     14.10. Changes From -03  . . . . . . . . . . . . . . . . . . . . 26
+     14.11. Changes From -02  . . . . . . . . . . . . . . . . . . . . 26
+     14.12. Changes From -01  . . . . . . . . . . . . . . . . . . . . 27
+     14.13. Changes From -00  . . . . . . . . . . . . . . . . . . . . 27
+   15. References . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+     15.1.  Normative References  . . . . . . . . . . . . . . . . . . 27
      15.2.  Informative References  . . . . . . . . . . . . . . . . . 28
    Authors' Addresses . . . . . . . . . . . . . . . . . . . . . . . . 30
    Intellectual Property and Copyright Statements . . . . . . . . . . 31
@@ -161,17 +156,22 @@ Internet-Draft             Collation Registry                August 2006
 
 
 
-Newman, et al.          Expires February 2, 2007                [Page 3]
+
+
+
+
+
+Newman, et al.           Expires March 17, 2007                 [Page 3]
 
-Internet-Draft             Collation Registry                August 2006
+Internet-Draft             Collation Registry             September 2006
 
 
 1.  Introduction
 
-   The ACAP [12] specification introduced the concept of a comparator
+   The ACAP [11] specification introduced the concept of a comparator
    (which we call collation in this document), but failed to create an
    IANA registry.  With the introduction of stringprep [6] and the
-   Unicode Collation Algorithm [8], it is now time to create that
+   Unicode Collation Algorithm [7], it is now time to create that
    registry and populate it with some initial values appropriate for an
    international community.  This specification replaces and generalizes
    the definition of a comparator in ACAP and creates a collation
@@ -199,15 +199,15 @@ Internet-Draft             Collation Registry                August 2006
 
 2.2.  Purpose
 
-   Collations abstraction layer for comparison functions so that these
+   Collations are an abstraction for comparison functions so that these
    comparison functions can be used in multiple protocols.  The details
    of a particular comparison operation can be specified by someone with
    appropriate expertise independent of the application protocols that
-   use that collation.  This is similar to the way a charset [14]
+   use that collation.  This is similar to the way a charset [13]
    separates the details of octet to character mapping from a protocol
-   specification such as MIME [10] or the way SASL [11] separates the
+   specification such as MIME [9] or the way SASL [10] separates the
    details of an authentication mechanism from a protocol specification
-   such as ACAP [12].
+   such as ACAP [11].
 
 
 
@@ -217,13 +217,13 @@ Internet-Draft             Collation Registry                August 2006
 
 
 
-Newman, et al.          Expires February 2, 2007                [Page 4]
+Newman, et al.           Expires March 17, 2007                 [Page 4]
 
-Internet-Draft             Collation Registry                August 2006
+Internet-Draft             Collation Registry             September 2006
 
 
    Here is a small diagram to help illustrate the value of this
-   abstraction layer:
+   abstraction:
 
    +-------------------+                         +-----------------+
    | IMAP i18n SEARCH  |--+                      | Basic           |
@@ -250,14 +250,15 @@ Internet-Draft             Collation Registry                August 2006
 
    Client means a user, or a program acting directly on behalf of a
    user.  This may be an mail reader acting as an IMAP client, or it may
-   be an interactive shell where the user can type protocol directly, or
-   it may be a script or program written by the user.
+   be an interactive shell where the user can type protocol commands/
+   requests directly, or it may be a script or program written by the
+   user.
 
    Server means a program that performs services requested by the
    client.  This may be a traditional server such as an HTTP server, or
-   it may be a Sieve [15] interpreter running a Sieve script written by
+   it may be a Sieve [14] interpreter running a Sieve script written by
    a user.  A server needs to use the operations provided by collations
-   in order to fulfil the client's requests.
+   in order to fulfill the client's requests.
 
    The protocol describes how the client tells the server what it wants
    done, and (if applicable) how the server tells the client about the
@@ -269,54 +270,70 @@ Internet-Draft             Collation Registry                August 2006
    One component of a collation is a transformation which turns a string
    into a sort key, which is then used while sorting.
 
-   The transformation can range from an identity mapping (e.g., the
 
 
 
-Newman, et al.          Expires February 2, 2007                [Page 5]
+Newman, et al.           Expires March 17, 2007                 [Page 5]
 
-Internet-Draft             Collation Registry                August 2006
+Internet-Draft             Collation Registry             September 2006
 
 
-   i;octet collation Section 9.4) to a mapping which makes the string
+   The transformation can range from an identity mapping (e.g., the
+   i;octet collation Section 9.3) to a mapping which makes the string
    unreadable to a human.
 
    This is an implementation detail of collations or servers.  A
-   protocol SHOULD NOT expose it, since some collations leave the sort
-   key's format up to the implementation, and current conformant
-   implementations are known to use different formats.
+   protocol SHOULD NOT expose it to clients, since some collations leave
+   the sort key's format up to the implementation, and current
+   conformant implementations are known to use different formats.
 
 
 3.  Collation Identifier Syntax
 
 3.1.  Basic Syntax
 
-   The collation identifier itself is a single US-ASCII string beginning
-   with a letter and made up of letters, digits, and one of the
-   following 4 symbols: "-", ";", "=" and ".".  The identifier MUST NOT
-   be longer than 254 characters.
+   The collation identifier itself is a single US-ASCII string.  The
+   identifier MUST NOT be longer than 254 characters, and obeys the
+   following grammar:
 
-     collation-char  =  ALPHA / DIGIT / "-" / ";" / "=" / "."
+     collation-char  = ALPHA / DIGIT / "-" / ";" / "=" / "."
 
-     collation-id    =  ALPHA *253collation-char
+     collation-id    = collation-prefix ";" collation-core-name
+                       *collation-arg
 
-   The identifier "default" is reserved.  For protocol which have a
-   default collation, "default" refers to that collation.  For other
-   protocols, the identifier "default" matches no collations, and
-   servers SHOULD treat it in the same way as they treat nonexistent
+     collation-scope = Language-tag / "vnd-" hostname
+
+     collation-core-name = ALPHA *( ALPHA / DIGIT / "-" )
+
+     collation-arg   = ";" ALPHA *( ALPHA / DIGIT ) "="
+                       1*( ALPHA / DIGIT / "." )
+
+     vendor-tag      =  "vnd-" hostname
+
+   There is a special identifier called "default".  For protocols which
+   have a default collation, "default" refers to that collation.  For
+   other protocols, the identifier "default" MUST match no collations,
+   and servers SHOULD treat it in the same way as they treat nonexistent
    collations.
 
 3.2.  Wildcards
 
    The string a client uses to select a collation MAY contain one or
-   more wildcard ("*") character which matches zero or more collation-
+   more wildcard ("*") characters which match zero or more collation-
    chars.  Wildcard characters MUST NOT be adjacent.  If the wildcard
-   string matches multiple collations, the server SHOULD select the
-   collation with the broadest scope (preferably international scope),
-   the most recent table versions and the greatest number of supported
-   operations.
+   string matches multiple collations, the server SHOULD attempt to
+   select a widely useful collation in preference to a narrowly useful
+   one.
 
      collation-wild  =  ("*" / (ALPHA ["*"])) *(collation-char ["*"])
+
+
+
+Newman, et al.           Expires March 17, 2007                 [Page 6]
+
+Internet-Draft             Collation Registry             September 2006
+
+
                          ; MUST NOT exceed 254 characters total
 
 3.3.  Ordering Direction
@@ -326,14 +343,6 @@ Internet-Draft             Collation Registry                August 2006
    an ordering direction. "+" has no effect on the ordering operation,
    while "-" inverts the result of the ordering operation.  In general,
    collation-order is used when a client requests a collation, and
-
-
-
-Newman, et al.          Expires February 2, 2007                [Page 6]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    collation-selected is used when the server informs the client of the
    selected collation.
 
@@ -344,12 +353,12 @@ Internet-Draft             Collation Registry                August 2006
 3.4.  URIs
 
    Some protocols are designed to use URIs [4] to refer to collations
-   rather than simple tokens.  A special section of the IANA web page is
-   reserved for such usage.  The "collation-uri" form is used to refer
-   to a specific IANA registry entry for a specific named collation (the
-   collation registration may not actually be present if it is
-   experimental).  The "collation-auri" form is an abstract name for an
-   ordering, a collation pattern or a vendor private collator.
+   rather than simple tokens.  A special section of the IANA URL space
+   is reserved for such usage.  The "collation-uri" form is used to
+   refer to a specific named collation (the collation registration may
+   not actually be present).  The "collation-auri" form is an abstract
+   name for an ordering, a collation pattern or a vendor private
+   collator.
 
      collation-uri   =  "http://www.iana.org/assignments/collation/"
                         collation-id ".xml"
@@ -373,6 +382,14 @@ Internet-Draft             Collation Registry                August 2006
    algorithm, followed by a series of algorithm modifications separated
    by the ";" delimiter.  Parameterized modifications will use "=" to
    delimit the parameter from the value.  The version numbers of any
+
+
+
+Newman, et al.           Expires March 17, 2007                 [Page 7]
+
+Internet-Draft             Collation Registry             September 2006
+
+
    lookup tables used by the algorithm SHOULD be present as
    parameterized modifications.
 
@@ -382,14 +399,6 @@ Internet-Draft             Collation Registry                August 2006
    example.com).  Registration of such collations (or the name space as
    a whole) with intended use of "Vendor" is encouraged when a public
    specification or open-source implementation is available, but is not
-
-
-
-Newman, et al.          Expires February 2, 2007                [Page 7]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    required.
 
 
@@ -399,7 +408,7 @@ Internet-Draft             Collation Registry                August 2006
 
    The collation itself defines what it operates on.  Most collations
    are expected to operate on character strings.  The i;octet
-   (Section 9.4) collation operates on octet strings.  The i;ascii-
+   (Section 9.3) collation operates on octet strings.  The i;ascii-
    numeric (Section 9.1) operation operates on numbers.
 
    This specification defines the collation interface in terms of octet
@@ -424,28 +433,27 @@ Internet-Draft             Collation Registry                August 2006
    "substring" operation that would morph IMAP substring SEARCH into
    e.g. a date-range search.
 
-   A nonobvious consequence of the rules for each collation operation is
-   that for any single collation, either none or all of the operations
-   can return "undefined".  For example, it is not possible to have an
-   equality operation that never returns "undefined" and a substring
-   operation that occasionally does.
+   A non-obvious consequence of the rules for each collation operation
+   is that for any single collation, either none or all of the
+   operations can return "undefined".  For example, it is not possible
+   to have an equality operation that never returns "undefined" and a
+   substring operation that occasionally does.
+
+
+
+Newman, et al.           Expires March 17, 2007                 [Page 8]
+
+Internet-Draft             Collation Registry             September 2006
+
 
 4.2.1.  Validity
 
-   The validity test takes one string as argument returns valid if its
-   input string is valid input to collation's other operations, and
+   The validity test takes one string as argument.  It returns valid if
+   its input string is valid input to collation's other operations, and
    invalid if not.  (In other words, a string is valid if it is equal to
    itself according to the collation's equality operation.)
 
    The validity test is provided by all collations.  It MUST NOT be
-
-
-
-Newman, et al.          Expires February 2, 2007                [Page 8]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    listed separately in the collation registration.
 
 4.2.2.  Equality
@@ -461,14 +469,13 @@ Internet-Draft             Collation Registry                August 2006
    MUST also provide an equality test.  The substring and/or ordering
    tests MUST be consistent with the equality test.
 
-   In this specification, the return values of the equality test are
-   called "match", "no-match" and "undefined".  This is not a
-   specification, merely a choice of phrasing.
+   The return values of the equality test are called "match", "no-match"
+   and "undefined" in this document.
 
 4.2.3.  Substring
 
    The substring matching operation determines if the first string is a
-   substring of the second string, ie. if one or more substrings of the
+   substring of the second string, i.e. if one or more substrings of the
    second string is equal to the first, as defined by the collation's
    equality operation.
 
@@ -487,35 +494,35 @@ Internet-Draft             Collation Registry                August 2006
    matches SHOULD be reported (as when "ana" occurs twice within
    "banana") although there are cases where a collation may decide not
    to.  For example, in a collation which treats all whitespace
+
+
+
+Newman, et al.           Expires March 17, 2007                 [Page 9]
+
+Internet-Draft             Collation Registry             September 2006
+
+
    sequences as identical, the substring operation could be defined such
-   that " 1 " (SP "1" SP) is reported just once within " 1 " (SP SP "1"
-   SP SP), not four times (SP SP 1 SP, SP 1 SP, SP 1 SP SP and SP SP 1
-   SP SP).
+   that " 1 " (SP "1" SP) is reported just once within "  1  " (SP SP
+   "1" SP SP), not four times (SP SP 1 SP, SP 1 SP, SP 1 SP SP and SP SP
+   1 SP SP), since the four matches are in a sense the same match.
 
    A string is a substring of itself.  The empty string is a substring
    of all strings.
 
-
-
-Newman, et al.          Expires February 2, 2007                [Page 9]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    Note that the substring operation of some collations can match
    strings of unequal length.  For example, a pre-composed accented
-   character can match a decomposed accented character.  Unicode
-   Collation Algorithm [8] discusses this in more detail.
+   character can match a decomposed accented character.  The Unicode
+   Collation Algorithm [7] discusses this in more detail.
 
-   In this specification, the return values of the substring operation
-   are called "match", "no-match" and "undefined".  This is not a
-   specification, merely a choice of phrasing.
+   The return values of the substring operation are called "match", "no-
+   match" and "undefined" in this document.
 
 4.2.4.  Ordering
 
    The ordering operation determines how two strings are ordered.  It
-   MUST be trichotomous and reflexive.  For valid input, it MUST be
-   transitive.
+   MUST be reflexive.  For valid input, it MUST be transitive and
+   trichotomous.
 
    Ordering returns "less" if the first string is listed before the
    second string according to the collation, "greater" if the second
@@ -529,9 +536,8 @@ Internet-Draft             Collation Registry                August 2006
    "-" prefix, the result of the ordering operation of the collation
    MUST be reversed.
 
-   In this specification, the return values of the ordering operation
-   are called "less", "equal", "greater" and "undefined".  This is not a
-   specification, merely a choice of phrasing.
+   The return values of the ordering operation are called "less",
+   "equal", "greater" and "undefined" in this document.
 
 4.3.  Sort Keys
 
@@ -543,6 +549,15 @@ Internet-Draft             Collation Registry                August 2006
    have no meaning to a human.  The sort key may not be valid input to
    the collation.
 
+
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 10]
+
+Internet-Draft             Collation Registry             September 2006
+
+
 4.4.  Use of Lookup Tables
 
    Some collations use customizable lookup tables, e.g. because the
@@ -550,14 +565,6 @@ Internet-Draft             Collation Registry                August 2006
    software.  Collations which use more than one customizable lookup
    table in a documented format MUST assign numbers to the tables they
    use.  This permits an application protocol command to access the
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 10]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    tables used by a server collation, so that clients and servers use
    the same tables.
 
@@ -599,21 +606,23 @@ Internet-Draft             Collation Registry                August 2006
    after the valid ones, and use i;octet to order the invalid strings.
 
    Although the collation's substring function provides a list of
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 11]
+
+Internet-Draft             Collation Registry             September 2006
+
+
    matches, a protocol need not provide all that to the client.  It may
    provide only the first matching substring, or even just the
-   information that the substring search matched.
+   information that the substring search matched.  In this way,
+   collations can be used with protocols that are defined such that |x
+   is a substring of y" returns true-false.
 
    If the protocol provides positional information for the results of a
    substring match, that positional information SHOULD fully specify the
    substring(s) in the result that matches independent of the length of
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 11]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    the search string.  For example, returning both the starting and
    ending offset of the match would suffice, as would the starting
    offset and a length.  Returning just the starting offset is not
@@ -627,28 +636,43 @@ Internet-Draft             Collation Registry                August 2006
    collation identifiers or not.  If the protocol allows wildcards,
    then:
       The protocol MUST specify how comparisons behave in the absence of
-      explicit collation negotiation or when a collation of "*" is
+      explicit collation negotiation or when a collation of "default" is
       requested.  The protocol MAY specify that the default collation
       used in such circumstances is sensitive to server configuration.
       The protocol SHOULD provide a way to list available collations
       matching a given wildcard pattern or patterns.
 
-5.4.  Canonicalization Function
+5.4.  String Comparison
 
-   If the protocol uses a canonicalization function for strings, then
-   use of collations MAY be appropriate for that function.  As an
-   example, many protocols use case independent strings.  In most cases,
-   a simple ASCII mapping to upper/lower case works well, as i;ascii-
-   casemap offers.  However, in some cases another collation may be
-   better, e.g. to handle Turkish dotted/dotless i.  Protocol designers
-   should consider in each case whether to use a specifiable collation.
+   If a protocol compares strings in any nontrivial way, using a
+   collation may be appropriate.  As an example, many protocols use
+   case-independent strings.  In many cases, a simple ASCII mapping to
+   upper/lower case works well.  In other cases, it may be better to use
+   a specifiable collation, for example so that a server can treat "i"
+   and "I" as equivalent in Italy and different in Turkey (Turkey also
+   has dotted upper-case I and dotless lower-case i).
+
+   Protocol designers should consider in each case whether to use a
+   specifiable collation.  Keywords often have other needs than user
+   variables, and search arguments may be different again.
 
 5.5.  Disconnected Clients
 
-   If the protocol supports disconnected clients, then a mechanism for
-   the client to precisely replicate the server's collation algorithm is
-   likely desirable.  Thus the protocol MAY wish to provide a command to
-   fetch lookup tables used by charset conversions and collations.
+   If the protocol supports disconnected clients and a collation is used
+   which can use configurable tables (e.g. to support locale-specific
+   extensions), then the client may not be able to reproduce the
+   server's collation operations while offline.
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 12]
+
+Internet-Draft             Collation Registry             September 2006
+
+
+   A mechanism to download such tables has been discussed.  Such a
+   mechanism is not included in the present specification, since the
+   problem is not yet well understood.
 
 5.6.  Error Codes
 
@@ -662,21 +686,13 @@ Internet-Draft             Collation Registry                August 2006
    o  The client uses an equality or substring matching collation and
       the result is an error.  It may be appropriate to distinguish
       between the two input strings, particularly when one is supplied
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 12]
-
-Internet-Draft             Collation Registry                August 2006
-
-
       by the client and one is stored by the server.  It might also be
       appropriate to distinguish the specific case of an invalid UTF-8
       string.
 
 5.7.  Octet Collation
 
-   The i;octet (Section 9.4) collation is only usable with protocols
+   The i;octet (Section 9.3) collation is only usable with protocols
    based on octet-strings.  Clients and servers MUST NOT use i;octet
    with other protocols.
 
@@ -687,12 +703,12 @@ Internet-Draft             Collation Registry                August 2006
 
 6.  Use by Existing Protocols
 
-   Both ACAP [12] and Sieve [15] are standards track specifications
+   Both ACAP [11] and Sieve [14] are standards track specifications
    which used collations prior to the creation of this specification and
    registry.  Those standards do not meet all the application protocol
    requirements described in Section 5.
 
-   These protocols allow the use of the i;octet (Section 9.4) collation
+   These protocols allow the use of the i;octet (Section 9.3) collation
    working directly on UTF-8 data as used in these protocols.
 
    In Sieve, all matches are either true and false.  Accordingly, Sieve
@@ -702,15 +718,23 @@ Internet-Draft             Collation Registry                August 2006
    In ACAP and Sieve, there are no invalid strings.  In this document's
    terms, invalid strings sort after valid strings.
 
-   IMAP [16] also collates, although that is explicit only when the
-   COMPARATOR [18] extension is used.  The built-in IMAP substring
-   operation and the ordering provided by the SORT [17] extension may
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 13]
+
+Internet-Draft             Collation Registry             September 2006
+
+
+   IMAP [15] also collates, although that is explicit only when the
+   COMPARATOR [17] extension is used.  The built-in IMAP substring
+   operation and the ordering provided by the SORT [16] extension may
    not meet the requirements made in this document.
 
    Other protocols may be in a similar position.
 
    In IMAP, the default collation is i;ascii-casemap, because its
-   operations most closely resembles IMAP's built-in operations.
+   operations are understood to match's IMAP's built-in operations.
 
 
 7.  Collation Registration
@@ -718,14 +742,6 @@ Internet-Draft             Collation Registry                August 2006
 7.1.  Collation Registration Procedure
 
    The IETF will create a mailing list, collation@ietf.org, which can be
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 13]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    used for public discussion of collation proposals prior to
    registration.  Use of the mailing list is strongly encouraged.  The
    IESG will appoint a designated expert who will monitor the
@@ -748,14 +764,24 @@ Internet-Draft             Collation Registry                August 2006
    Collation registrations in other RFCs are owned by the RFC author(s).
    Other collation registrations are owned by the individual(s) listed
    in the contact field of the registration and IANA will preserve this
-   information.  Changes to a registration MUST be approved by the
-   owner.  In the event the owner cannot be contacted for a period of
-   one month and a change is deemed necessary, the IESG MAY re-assign
-   ownership to an appropriate party.
+   information.
+
+   If the registration is a change of an existing collation, it MUST be
+   approved by the owner.  In the event the owner cannot be contacted
+   for a period of one month and the designated expert deems the change
+   necessary, the IESG MAY re-assign ownership to an appropriate party.
 
 7.2.  Collation Registration Format
 
    Registration of a collation is done by sending a well-formed XML
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 14]
+
+Internet-Draft             Collation Registry             September 2006
+
+
    document to collation@ietf.org and iana@iana.org.
 
 7.2.1.  Registration Template
@@ -764,7 +790,7 @@ Internet-Draft             Collation Registry                August 2006
 
    <?xml version='1.0'?>
    <!DOCTYPE collation SYSTEM 'collationreg.dtd'>
-   <collation rfc="YYYY" scope="i18n" intendedUse="common">
+   <collation rfc="YYYY" scope="global" intendedUse="common">
      <identifier>collation identifier</identifier>
      <title>technical title for collation</title>
      <operations>equality order substring</operations>
@@ -773,14 +799,6 @@ Internet-Draft             Collation Registry                August 2006
      <submitter>email address of submitter</submitter>
      <version>1</version>
    </collation>
-
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 14]
-
-Internet-Draft             Collation Registry                August 2006
-
 
 7.2.2.  The collation Element
 
@@ -795,7 +813,7 @@ Internet-Draft             Collation Registry                August 2006
    as ".txt".
 
    The <collation> element MUST include a "scope=" attribute, which MUST
-   have one of the values "i18n", "local" or "other".
+   have one of the values "global", "local" or "other".
 
    The <collation> element MUST include an "intendedUse=" attribute,
    which must have one of the values "common", "limited", "vendor", or
@@ -809,6 +827,16 @@ Internet-Draft             Collation Registry                August 2006
    values and elements.  Any system which automatically parses these XML
    documents MUST take this into account to preserve future
    compatibility.
+
+
+
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 15]
+
+Internet-Draft             Collation Registry             September 2006
+
 
 7.2.3.  The identifier Element
 
@@ -830,14 +858,6 @@ Internet-Draft             Collation Registry                August 2006
 7.2.6.  The specification Element
 
    The <specification> element describes where to find the
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 15]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    specification.  The <specification> element is mandatory.  It MAY
    have a URI attribute.  There may be more than one <specification>
    elements, in which case they together form the specification.
@@ -848,7 +868,7 @@ Internet-Draft             Collation Registry                August 2006
 
 7.2.7.  The submitter Element
 
-   The <submitter> element provides an RFC 2822 [13] email address for
+   The <submitter> element provides an RFC 2822 [12] email address for
    the person who submitted the registration.  It is optional if the
    <owner> element contains an email address.
 
@@ -863,9 +883,18 @@ Internet-Draft             Collation Registry                August 2006
 
 7.2.9.  The version Element
 
-   The <version> element is included when the registration is likely to
-   be revised or has been revised in such a way that the results change
-   for certain input strings.  The <version> element is optional.
+   The <version> element MUST be included when the registration is
+   likely to be revised or has been revised in such a way that the
+   results change for certain input strings.  The <version> element is
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 16]
+
+Internet-Draft             Collation Registry             September 2006
+
+
+   optional.
 
 7.2.10.  The variable Element
 
@@ -874,27 +903,17 @@ Internet-Draft             Collation Registry                August 2006
    optional.  When it is used, it must contain <name> and <default>
    elements and may contain one or more <value> elements.
 
-7.2.11.  The name Element
+7.2.10.1.  The name Element
 
    The <name> element specifies the name value of a variable.  The
    <name> element is mandatory.
 
-7.2.12.  The default Element
+7.2.10.2.  The default Element
 
    The <default> element specifies the default value of a variable.  The
    <default> element is mandatory.
 
-
-
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 16]
-
-Internet-Draft             Collation Registry                August 2006
-
-
-7.2.13.  The value Element
+7.2.10.3.  The value Element
 
    The <value> element specifies a legal value of a variable.  The
    <value> element is optional.  If one or more <value> elements are
@@ -923,32 +942,17 @@ Internet-Draft             Collation Registry                August 2006
    with an intended use of "common" if the expert believes it should be
    "limited", as it is desirable to keep the number of "common"
    registrations small and high quality.  The second section is reserved
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 17]
+
+Internet-Draft             Collation Registry             September 2006
+
+
    for limited use collations.  The third section is reserved for
    registered vendor specific collations.  The final section is reserved
    for deprecated collations.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 17]
-
-Internet-Draft             Collation Registry                August 2006
-
 
 7.4.  Example Initial Registry Summary
 
@@ -958,7 +962,6 @@ Internet-Draft             Collation Registry                August 2006
      Collation                              Functions Scope Reference
      ---------                              --------- ----- ---------
    Common Use Collations:
-     i;nameprep;v=1;uv=3.2                  e, o, s   i18n  [RFC XXXX]
      i;ascii-casemap                        e, o, s   Local [RFC XXXX]
 
    Limited Use Collations:
@@ -981,10 +984,10 @@ Internet-Draft             Collation Registry                August 2006
 
    The expert reviewer appointed by the IESG has fairly broad latitude
    for this registry.  While a number of collations are expected
-   (particularly customizations of the basic collation for localized
-   use), an explosion of collations (particularly common use collations)
-   is not desirable for widespread interoperability.  However, it is
-   important for the expert reviewer to provide cause when rejecting a
+   (particularly customizations of the UCA for localized use), an
+   explosion of collations (particularly common use collations) is not
+   desirable for widespread interoperability.  However, it is important
+   for the expert reviewer to provide cause when rejecting a
    registration, and when possible to describe corrective action to
    permit the registration to proceed.  The following table includes
    some example reasons to reject a registration with cause:
@@ -995,17 +998,17 @@ Internet-Draft             Collation Registry                August 2006
    o  The registration has an intended use of "common", but it is
       redundant with the functionality of a previously registered
       "common" collation.
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 18]
+
+Internet-Draft             Collation Registry             September 2006
+
+
    o  The registration has an intended use of "common", but the
       specification is not detailed enough to allow interoperable
       implementations by others.
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 18]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    o  The collation identifier fails to precisely identify the version
       numbers of relevant tables to use.
    o  The registration fails to meet one of the "MUST" requirements in
@@ -1023,8 +1026,13 @@ Internet-Draft             Collation Registry                August 2006
 
 9.  Initial Collations
 
-   This section describes an initial set of collations for the collation
-   registry.
+   This section registers the three collations that were originally
+   defined in [RFC2244] and are implemented in most [SIEVE] engines.
+   Some of the behaviour of these collations is perhaps not ideal, such
+   as i;ascii-casemap accepting non-ASCII input.  Compatibility with
+   widely deployed code was judged more important than Some of the
+   perhaps surprising aspects of these collations are necessary to
+   maintain compatibility with widely deployed code.
 
 9.1.  ASCII Numeric Collation
 
@@ -1042,9 +1050,17 @@ Internet-Draft             Collation Registry                August 2006
    the substring operation.
 
    The equality operation returns "match" if the two strings represent
-   the same number (ie. leading zeroes and trailing nondigits are
+   the same number (i.e. leading zeroes and trailing non-digits are
    disregarded) and "no-match" if the two strings represent different
    numbers.
+
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 19]
+
+Internet-Draft             Collation Registry             September 2006
+
 
    The ordering operation returns "less" if the first string represents
    a smaller number than the second, "equal" if they represent the same
@@ -1054,13 +1070,6 @@ Internet-Draft             Collation Registry                August 2006
    Some examples: "0" is less than "1", and "1" is less than
    "4294967298". "4294967298", "04294967298" and "4294967298b" are all
    equal. "04294967298" is less than "". "", "x" and "y" are equal.
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 19]
-
-Internet-Draft             Collation Registry                August 2006
-
 
 9.1.2.  ASCII Numeric Collation Registration
 
@@ -1082,7 +1091,8 @@ Internet-Draft             Collation Registry                August 2006
    The "i;ascii-casemap" collation is a simple collation which operates
    on octet strings and treats US-ASCII letters case-insensitively.  It
    provides equality, substring and ordering operations.  All input is
-   valid.
+   valid.  Note that letters outside ASCII are not treated case-
+   insensitively.
 
    Its equality, ordering and substring operations are as for i;octet,
    except that first, the lower-case letters (octet values 97-122) in
@@ -1094,29 +1104,27 @@ Internet-Draft             Collation Registry                August 2006
    inappropriately map lower-case letters other than a-z to upper case.
 
    The i;ascii-casemap collation is well suited to to use with many
-   internet protocols and computer languages.  Use with natural language
+   Internet protocols and computer languages.  Use with natural language
    is often inappropriate: even though the collation apparently supports
-   languages such as Italian and English, in real-world use it tends to
-   stumble over words such as "naive", names such as "Llwyd", people and
-   place names containing non-ASCII, euro and pound sterling symbols,
-   quotation marks, dashes/hyphens, etc.
+   languages such as Swahili and English, in real-world use it tends to
+   mis-sort a number of types of string:
 
 
 
 
 
-
-
-
-
-
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 20]
+Newman, et al.           Expires March 17, 2007                [Page 20]
 
-Internet-Draft             Collation Registry                August 2006
+Internet-Draft             Collation Registry             September 2006
 
+
+   o  people and place names containing non-ASCII,
+   o  words such as "naive" (if spelled with an accent, the accented
+      character could push the word to the wrong spot in a sorted list),
+   o  names such as "Lloyd" (which in Welsh sorts after "Lyon", unlike
+      in English),
+   o  strings containing euro and pound sterling symbols, quotation
+      marks other than '"', dashes/hyphens, etc.
 
 9.2.2.  ASCII Casemap Collation Registration
 
@@ -1131,66 +1139,9 @@ Internet-Draft             Collation Registry                August 2006
      <submitter>chris.newman@sun.com<submitter>
    </collation>
 
-9.3.  Nameprep Collation
+9.3.  Octet Collation
 
-9.3.1.  Nameprep Collation Description
-
-   The "i;nameprep;v=1;uv=3.2" collation is an implementation of the
-   nameprep [7] specification based on normalization tables from Unicode
-   version 3.2.  This collation applies the nameprep canonicalization
-   function to both input strings and then returns the result of the
-   i;octet collation on the canonicalized strings.  While this collation
-   offers all three operations, the ordering operation it provides is
-   inadequate for use by the majority of the world.
-
-   Version number 1 is applied to nameprep as specified in RFC 3491.  If
-   the nameprep specification is revised without any changes that would
-   produce different results when given the same pair of input octet
-   strings, then the version number need not be changed.
-
-       The table numbers for tables used by nameprep are as follows:
-
-                 +--------------+-----------------------+
-                 | Table Number | Table Name            |
-                 +--------------+-----------------------+
-                 |            1 | UnicodeData-3.2.0.txt |
-                 |            2 | Table B.1             |
-                 |            3 | Table B.2             |
-                 |            4 | Table C.1.2           |
-                 |            5 | Table C.2.2           |
-                 |            6 | Table C.3             |
-                 |            7 | Table C.4             |
-                 |            8 | Table C.5             |
-                 |            9 | Table C.6             |
-                 |           10 | Table C.7             |
-                 |           11 | Table C.8             |
-                 |           12 | Table C.9             |
-                 +--------------+-----------------------+
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 21]
-
-Internet-Draft             Collation Registry                August 2006
-
-
-9.3.2.  Nameprep Collation Registration
-
-   <?xml version='1.0'?>
-   <!DOCTYPE collation SYSTEM 'collationreg.dtd'>
-   <collation rfc="XXXX" scope="i18n" intendedUse="common">
-     <identifier>i;nameprep;v=1;uv=3.2</identifier>
-     <title>Nameprep</title>
-     <operations>equality order substring</operations>
-     <specification>RFC XXXX</specification>
-     <owner>IETF</owner>
-     <submitter>chris.newman@sun.com<submitter>
-     <version>1</version>
-   </collation>
-
-9.4.  Octet Collation
-
-9.4.1.  Octet Collation Description
+9.3.1.  Octet Collation Description
 
    The "i;octet" collation is a simple and fast collation intended for
    use on binary octet strings rather than on character data.  Protocols
@@ -1215,6 +1166,14 @@ Internet-Draft             Collation Registry                August 2006
    This algorithm is roughly equivalent to the C library function memcmp
    with appropriate length checks added.
 
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 21]
+
+Internet-Draft             Collation Registry             September 2006
+
+
    The matching operation returns "match" if the sorting algorithm would
    return "equal".  Otherwise the matching operation returns "no-match".
 
@@ -1222,24 +1181,16 @@ Internet-Draft             Collation Registry                August 2006
    empty string, or if there exists a substring of the second string of
    length equal to the length of the first string which would result in
    a "match" result from the equality function.  Otherwise the substring
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 22]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    operation returns "no-match".
 
-9.4.2.  Octet Collation Registration
+9.3.2.  Octet Collation Registration
 
    This collation is defined with intendedUse="limited" because it can
    only be used by protocols that explicitly allow it.
 
    <?xml version='1.0'?>
    <!DOCTYPE collation SYSTEM 'collationreg.dtd'>
-   <collation rfc="XXXX" scope="i18n" intendedUse="limited">
+   <collation rfc="XXXX" scope="global" intendedUse="limited">
      <identifier>i;octet</identifier>
      <title>Octet</title>
      <operations>equality order substring</operations>
@@ -1260,49 +1211,81 @@ Internet-Draft             Collation Registry                August 2006
 
    Collations will normally be used with UTF-8 strings.  Thus the
    security considerations for UTF-8 [3], stringprep [6] and Unicode
-   TR-36 [9] also apply and are normative to this specification.
+   TR-36 [8] also apply and are normative to this specification.
 
 
 12.  Acknowledgements
 
    The authors want to thank all who have contributed to this document,
-   including at least John Cowan, Dave Cridland, Mark Davis, Lisa
-   Dusseault, Frank Ellermann, Philip Guenther, Tony Hansen, Kjetil
-   Torgrim Homme, Michael Kay, Alexey Melnikov, Jim Melton and Abhijit
-   Menon-Sen.
+   including at least Brian Carpenter, John Cowan, Dave Cridland, Mark
+   Davis, Spencer Dawkins, Lisa Dusseault, Lars Eggert, Frank Ellermann,
+   Philip Guenther, Tony Hansen, Ted Hardie, Sam Hartman, Kjetil Torgrim
+   Homme, Michael Kay, John Klensin, Alexey Melnikov, Jim Melton and
+   Abhijit Menon-Sen.
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 22]
+
+Internet-Draft             Collation Registry             September 2006
 
 
 13.  Open Issues
 
-   When converting this to an RFC, several things must be done: Martin
-   Duerst's name request, checking for unfortunate page breaks, adding a
-   note to the RFC editor to possibly replace the 3066 reference,
-   checking the SP SP "1" SP SP string for correctness.
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 23]
-
-Internet-Draft             Collation Registry                August 2006
-
-
-   Why no comments from anyone in the second half of the alphabet?
+   Dear RFC Editor, please do the following:
+   1.  Move the parenthetical request after Martin Duerst's name to be a
+       separate paragrah between Martin's URI and Arnt's name.
+   2.  Remove section 13 (Open Issues) and section 14 (Change Log).
 
 
 14.  Change Log
 
-14.1.  Changes From -12
+14.1.  Changes From -13
+   1.   Simpler language in the text describing how to select a
+        collation baed on a wildcard.
+   2.   Trichotomy is only required for valid input to the ordering
+        operation.
+   3.   Make it clear that registering a new version of a collation
+        counts as a registration, with the same procedure.  Add a MUST
+        for the version element in that case.
+   4.   Attended to nits and stuff from Lars Eggert
+   5.   Simpler language wrt. the names of return values.
+   6.   Talk about why protocols don't have to return all the
+        information substring returns.
+   7.   Use bullet points rather than rambling text about i;ascii-
+        casemap and natural language.
+   8.   Reworded sections 5.4 and 5.5 after discussion with Sam Hartman.
+        5.4 could mislead into thinking that the server should use the
+        sort key. 5.5 was just plain uninformative text once the rest of
+        table download had been removed.
+   9.   Removed i;nameprep for possible publication as a separate draft/
+        RFC.  It was broken, and it's also out of this document's
+        natural scope (define registry, populate with legacy values).
+   10.  Changed the grammar of collation names to match the textual
+        description better.
+   11.  Refer to RFC 4646, not 3066.
+
+14.2.  Changes From -12
    1.  Remove i;basic, to publish it as a separate RFC.  Many documents
        are held up by this document, and this document is only help up
        by i;basic.
-   2.  Get rid of all the typoes I could find.
+   2.  Get rid of all the typoes I could find.  Added one.
    3.  Specifically note that the "same" substring match need not always
        be returned in each of its guises.
 
-14.2.  Changes From -11
+14.3.  Changes From -11
    1.  Remove the DTD.  Permit well-considered extension of the XML.
        Enable the designated expert to block registrations due to
        inappropriate or overly aggressive extension.
+
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 23]
+
+Internet-Draft             Collation Registry             September 2006
+
+
    2.  Rename collation names to collation identifiers.  Having both
        names and titles wasn't good.
    3.  Removed some open issues after trying to edit, and deciding that
@@ -1311,7 +1294,7 @@ Internet-Draft             Collation Registry                August 2006
    5.  Make i;ascii-numeric as in RFC2244.  The task of this document is
        to establish the registry, not change existing collations.
 
-14.3.  Changes From -10
+14.4.  Changes From -10
    1.  Updated contact details for Martin Duerst.
    2.  Various textual improvements.
    3.  The registration's file name now has a mandatory .xml extension.
@@ -1330,18 +1313,9 @@ Internet-Draft             Collation Registry                August 2006
    9.  The DTD is published where IE can see it while looking at the
        registrations.
 
-14.4.  Changes From -09
+14.5.  Changes From -09
    1.  Rename "error" to "undefined", as suggested by Mark Davis.  The
        new name makes for nicer prose IMO.
-
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 24]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    2.  7b=7 according to i;ascii-numeric.  ACAP/Sieve need it.
    3.  Clarified that even though the collation specification returns a
        list of substrings, the protocol/server need not use all of that
@@ -1359,7 +1333,16 @@ Internet-Draft             Collation Registry                August 2006
        to provide total ordering, if necessary.
    9.  Call the things operations everywhere, not operators/operations.
 
-14.5.  Changes From -08
+
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 24]
+
+Internet-Draft             Collation Registry             September 2006
+
+
+14.6.  Changes From -08
    1.   i;ascii-casemap instead of en;ascii-casemap.
    2.   UCA v 14.  Changing to "latest version of UCA" was suggested,
         but rejected since IETF standards reference stable
@@ -1388,17 +1371,7 @@ Internet-Draft             Collation Registry                August 2006
    11.  Appeals go to the Apps AD before the general AD, as suggested by
         Spencer Dawkins.
 
-
-
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 25]
-
-Internet-Draft             Collation Registry                August 2006
-
-
-14.6.  Changes From -06
+14.7.  Changes From -06
    1.  Clarified equality and identity: equality is as defined by a
        collation, identity is stronger.
    2.  Added reference to
@@ -1415,12 +1388,22 @@ Internet-Draft             Collation Registry                August 2006
        functions.  The definition of collation uses the word function
        about the collation itself.  A function that has three functions?
        Something has to give.
+
+
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 25]
+
+Internet-Draft             Collation Registry             September 2006
+
+
    8.  Strike a requirement that selecting '*' is the same as not
        selecting any collation.  It restricted the protocol's default
        too much.  Existing code wasn't listening.
    9.  Left out the canonicalization/sort keys.
 
-14.7.  Changes From -05
+14.8.  Changes From -05
    1.  Added definitions of client, server and protocol, and prose to
        specify that while the IANA registrations of collations are
        written in terms octet strings, implementations may do it
@@ -1436,24 +1419,14 @@ Internet-Draft             Collation Registry                August 2006
    5.  Gave IMAP/SORT/COMPARATOR the same grandfather treatment as ACAP
        and SIEVE.
 
-14.8.  Changes From -04
+14.9.  Changes From -04
 
    Grammar and clarity changes only.  One (weak) example added.  No
    substantive changes.
 
-14.9.  Changes From -03
+14.10.  Changes From -03
 
    (This does not include all changes made.)
-
-
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 26]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    1.  Checked and resolved most issues marked 'check whether this is
        true' or similar.
    2.  Resolved nameprep issue: No.
@@ -1466,11 +1439,21 @@ Internet-Draft             Collation Registry                August 2006
        should be reminiscent of similar operations on existing
        collations.
 
-14.10.  Changes From -02
+14.11.  Changes From -02
 
    1.  Changed from data being octet sequences (in UTF-8) to data being
        character sequences (with octet collation as an exception).
    2.  Made XML format description much more structured.
+
+
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 26]
+
+Internet-Draft             Collation Registry             September 2006
+
+
    3.  Changed <submittor> to <submitter>, because this spelling is much
        more common.
    4.  Defined 'protocol' to include query languages.
@@ -1482,12 +1465,12 @@ Internet-Draft             Collation Registry                August 2006
    9.  Reduced 'Open issues' section, open issues are now maintained at
        http://www.w3.org/2004/08/ietf-collation.
 
-14.11.  Changes From -01
+14.12.  Changes From -01
 
    Add IANA comment to open issues.  Otherwise this is just a re-publish
    to keep the document alive.
 
-14.12.  Changes From -00
+14.13.  Changes From -00
 
    1.  Replaced the term comparator with collation.  While comparator is
        somewhat more precise because these abstract functions are used
@@ -1500,16 +1483,6 @@ Internet-Draft             Collation Registry                August 2006
        collation.
    3.  Use ";" instead of "-" as delimiter between parameters to make
        names more URL-ish.
-
-
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 27]
-
-Internet-Draft             Collation Registry                August 2006
-
-
    4.  Add URL form for comparator reference.
    5.  Switched registration template to use XML document.
    6.  Added a number of useful registration template elements related
@@ -1529,65 +1502,70 @@ Internet-Draft             Collation Registry                August 2006
         Specifications: ABNF", RFC 4234, October 2005.
 
    [3]  Yergeau, F., "UTF-8, a transformation format of ISO 10646",
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 27]
+
+Internet-Draft             Collation Registry             September 2006
+
+
         STD 63, RFC 3629, November 2003.
 
    [4]  Berners-Lee, T., Fielding, R., and L. Masinter, "Uniform
         Resource Identifier (URI): Generic Syntax", RFC 3986,
         January 2005.
 
-   [5]  Alvestrand, H., "Tags for the Identification of Languages",
-        BCP 47, RFC 3066, January 2001.
+   [5]  Phillips, A. and M. Davis, "Tags for Identifying Languages",
+        BCP 47, RFC 4646, September 2006.
 
    [6]  Hoffman, P. and M. Blanchet, "Preparation of Internationalized
         Strings ("stringprep")", RFC 3454, December 2002.
 
-   [7]  Hoffman, P. and M. Blanchet, "Nameprep: A Stringprep Profile for
-        Internationalized Domain Names (IDN)", RFC 3491, March 2003.
-
-   [8]  Davis, M. and K. Whistler, "Unicode Collation Algorithm version
+   [7]  Davis, M. and K. Whistler, "Unicode Collation Algorithm version
         14", May 2005,
         <http://www.unicode.org/reports/tr10/tr10-14.html>.
 
-   [9]  Davis, M. and M. Suignard, "Unicode Security Considerations",
+   [8]  Davis, M. and M. Suignard, "Unicode Security Considerations",
         February 2006, <http://www.unicode.org/reports/tr36/>.
 
 15.2.  Informative References
 
-   [10]  Freed, N. and N. Borenstein, "Multipurpose Internet Mail
+   [9]   Freed, N. and N. Borenstein, "Multipurpose Internet Mail
          Extensions (MIME) Part One: Format of Internet Message Bodies",
          RFC 2045, November 1996.
 
-   [11]  Myers, J., "Simple Authentication and Security Layer (SASL)",
-
-
-
-Newman, et al.          Expires February 2, 2007               [Page 28]
-
-Internet-Draft             Collation Registry                August 2006
-
-
+   [10]  Myers, J., "Simple Authentication and Security Layer (SASL)",
          RFC 2222, October 1997.
 
-   [12]  Newman, C. and J. Myers, "ACAP -- Application Configuration
+   [11]  Newman, C. and J. Myers, "ACAP -- Application Configuration
          Access Protocol", RFC 2244, November 1997.
 
-   [13]  Resnick, P., "Internet Message Format", RFC 2822, April 2001.
+   [12]  Resnick, P., "Internet Message Format", RFC 2822, April 2001.
 
-   [14]  Freed, N. and J. Postel, "IANA Charset Registration
+   [13]  Freed, N. and J. Postel, "IANA Charset Registration
          Procedures", BCP 19, RFC 2978, October 2000.
 
-   [15]  Showalter, T., "Sieve: A Mail Filtering Language", RFC 3028,
+   [14]  Showalter, T., "Sieve: A Mail Filtering Language", RFC 3028,
          January 2001.
 
-   [16]  Crispin, M., "Internet Message Access Protocol - Version
+   [15]  Crispin, M., "Internet Message Access Protocol - Version
          4rev1", RFC 3501, March 2003.
 
-   [17]  Crispin, M. and K. Murchison, "Internet Message Access Protocol
+   [16]  Crispin, M. and K. Murchison, "Internet Message Access Protocol
          - Sort and Thread Extensions", draft-ietf-imapext-sort-17.txt
          (work in progress), May 2004.
 
-   [18]  Newman, C. and A. Gulbrandsen, "Internet Message Access
+   [17]  Newman, C. and A. Gulbrandsen, "Internet Message Access
          Protocol Internationalization", draft-ietf-imapext-i18n-06.txt
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 28]
+
+Internet-Draft             Collation Registry             September 2006
+
+
          (work in progress), January 2006.
 
 
@@ -1617,9 +1595,31 @@ Internet-Draft             Collation Registry                August 2006
 
 
 
-Newman, et al.          Expires February 2, 2007               [Page 29]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Newman, et al.           Expires March 17, 2007                [Page 29]
 
-Internet-Draft             Collation Registry                August 2006
+Internet-Draft             Collation Registry             September 2006
 
 
 Authors' Addresses
@@ -1651,7 +1651,6 @@ Authors' Addresses
    Munich  81671
    Germany
 
-   Phone: +49 89 4502 9757
    Fax:   +49 89 4502 9758
    Email: mailto:arnt@oryx.com
    URI:   http://www.oryx.com/arnt/
@@ -1673,9 +1672,10 @@ Authors' Addresses
 
 
 
-Newman, et al.          Expires February 2, 2007               [Page 30]
+
+Newman, et al.           Expires March 17, 2007                [Page 30]
 
-Internet-Draft             Collation Registry                August 2006
+Internet-Draft             Collation Registry             September 2006
 
 
 Intellectual Property Statement
@@ -1729,5 +1729,5 @@ Acknowledgment
 
 
 
-Newman, et al.          Expires February 2, 2007               [Page 31]
+Newman, et al.           Expires March 17, 2007                [Page 31]
 

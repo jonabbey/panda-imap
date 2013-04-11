@@ -23,19 +23,16 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	30 August 2006
+ * Last Edited:	6 December 2006
  */
 
 
-#include "mail.h"
-#include "osdep.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <time.h>
-#include "rfc822.h"
-#include "misc.h"
-#include "netmsg.h"
+#include "c-client.h"
 #include "flstring.h"
+#include "netmsg.h"
 
 /* Parameters */
 
@@ -846,7 +843,7 @@ char *pop3_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
     else if (elt->private.msg.header.text.size = pop3_cache (stream,elt))
       f = LOCAL->txt;
     if (f) {			/* got it, make sure at start of file */
-      fseek (f,(unsigned long) 0,L_SET);
+      fseek (f,(unsigned long) 0,SEEK_SET);
 				/* read header from the cache */
       fread (elt->private.msg.header.text.data = (unsigned char *)
 	     fs_get ((size_t) elt->private.msg.header.text.size + 1),

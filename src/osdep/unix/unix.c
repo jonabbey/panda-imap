@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	6 October 2006
+ * Last Edited:	13 November 2006
  */
 
 
@@ -136,6 +136,22 @@ long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp,DOTLOCK *lock,
 long unix_extend (MAILSTREAM *stream,unsigned long size);
 void unix_write (UNIXFILE *f,char *s,unsigned long i);
 void unix_phys_write (UNIXFILE *f,char *buf,size_t size);
+
+/* mbox mail routines */
+
+/* Function prototypes */
+
+DRIVER *mbox_valid (char *name);
+long mbox_create (MAILSTREAM *stream,char *mailbox);
+long mbox_delete (MAILSTREAM *stream,char *mailbox);
+long mbox_rename (MAILSTREAM *stream,char *old,char *newname);
+long mbox_status (MAILSTREAM *stream,char *mbx,long flags);
+MAILSTREAM *mbox_open (MAILSTREAM *stream);
+long mbox_ping (MAILSTREAM *stream);
+void mbox_check (MAILSTREAM *stream);
+long mbox_expunge (MAILSTREAM *stream,char *sequence,long options);
+long mbox_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
+
 
 /* UNIX mail routines */
 
@@ -317,16 +333,15 @@ long unix_create (MAILSTREAM *stream,char *mailbox)
   }
 				/* create underlying file */
   else if (dummy_create_path (stream,s,get_dir_protection (mailbox))) {
-				/* done if made directory */
-    if ((s = strrchr (s,'/')) && !s[1]) return T;
-    if ((fd = open (mbx,O_WRONLY,
+				/* done if dir-only or whiner */
+    if (((s = strrchr (s,'/')) && !s[1]) ||
+	mail_parameters (NIL,GET_USERHASNOLIFE,NIL)) ret = T;
+    else if ((fd = open (mbx,O_WRONLY,
 		    (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
       sprintf (tmp,"Can't reopen mailbox node %.80s: %s",mbx,strerror (errno));
       MM_LOG (tmp,ERROR);
       unlink (mbx);		/* delete the file */
     }
-				/* in case a whiner with no life */
-    else if (mail_parameters (NIL,GET_USERHASNOLIFE,NIL)) ret = T;
     else {			/* initialize header */
       memset (tmp,'\0',MAILTMPLEN);
       sprintf (tmp,"From %s %sDate: ",pseudo_from,ctime (&ti));
@@ -339,20 +354,20 @@ long unix_create (MAILSTREAM *stream,char *mailbox)
       for (i = 0; i < NUSERFLAGS; ++i) if (default_user_flag (i))
 	sprintf (s += strlen (s)," %s",default_user_flag (i));
       sprintf (s += strlen (s),"\nStatus: RO\n\n%s\n\n",pseudo_msg);
-      if ((write (fd,tmp,strlen (tmp)) < 0) || close (fd)) {
+      if (write (fd,tmp,strlen (tmp)) > 0) ret = T;
+      else {
 	sprintf (tmp,"Can't initialize mailbox node %.80s: %s",mbx,
 		 strerror (errno));
 	MM_LOG (tmp,ERROR);
 	unlink (mbx);		/* delete the file */
       }
-      else ret = T;		/* success */
+      close (fd);		/* close file */
     }
-    close (fd);			/* close file, set proper protections */
   }
+				/* set proper protections */
   return ret ? set_mbx_protections (mailbox,mbx) : NIL;
 }
-
-
+
 /* UNIX mail delete mailbox
  * Accepts: MAIL stream
  *	    mailbox name to delete
@@ -363,7 +378,8 @@ long unix_delete (MAILSTREAM *stream,char *mailbox)
 {
   return unix_rename (stream,mailbox,NIL);
 }
-
+
+
 /* UNIX mail rename mailbox
  * Accepts: MAIL stream
  *	    old mailbox name
@@ -877,15 +893,24 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   SEARCHSET *source = cu ? mail_newsearchset () : NIL;
   SEARCHSET *dest = cu ? mail_newsearchset () : NIL;
   MAILSTREAM *tstream = NIL;
+  DRIVER *d;
+  for (d = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL);
+       (d && strcmp (d->name,"mbox") && !(d->flags & DR_DISABLE));
+       d = d->next);		/* see if mbox driver active */
   if (!((options & CP_UID) ? mail_uid_sequence (stream,sequence) :
 	mail_sequence (stream,sequence))) return NIL;
-  if (unix_valid (mailbox)) {	/* make sure valid mailbox */
-				/* try to open rewrite */
+				/* make sure destination is valid */
+  if ((d && mbox_valid (mailbox) && (mailbox = "mbox")) ||
+      unix_valid (mailbox) || !errno) {
+				/* try to open rewrite or at least sniff */
     if (!(tstream = mail_open_work (&unixdriver,NIL,mailbox,
-				    OP_SILENT|OP_NOKOD)))
-				/* failing that, settle for a sniff */
-      tstream = mail_open_work (&unixdriver,NIL,mailbox,
-				OP_READONLY|OP_SILENT|OP_NOKOD|OP_SNIFF);
+				    OP_SILENT|OP_NOKOD)) &&
+	!(tstream = mail_open_work (&unixdriver,NIL,mailbox,
+				    OP_READONLY|OP_SILENT|OP_NOKOD|OP_SNIFF))){
+      sprintf (LOCAL->buf,"Unable to open mailbox for COPY: %.80s",mailbox);
+      MM_LOG (LOCAL->buf,ERROR);
+      return NIL;
+    }
   }
   else switch (errno) {
   case ENOENT:			/* no such file? */
@@ -895,9 +920,6 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     }
     if (pc) return (*pc) (stream,sequence,mailbox,options);
     unix_create (NIL,"INBOX");/* create empty INBOX */
-  case 0:			/* merely empty file? */
-    tstream = &unixproto;
-    break;
   case EINVAL:
     if (pc) return (*pc) (stream,sequence,mailbox,options);
     sprintf (LOCAL->buf,"Invalid UNIX-format mailbox name: %.80s",mailbox);
@@ -921,8 +943,6 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     return NIL;			/* failed */
   }
   fstat (fd,&sbuf);		/* get current file size */
-				/* can't do COPYUID if no UIDVALIDITY */
-  if (!tstream->uid_validity) cu = NIL;
 				/* write all requested messages to mailbox */
   for (i = 1; ret && (i <= stream->nmsgs); i++)
     if ((elt = mail_elt (stream,i))->sequence) {
@@ -955,8 +975,12 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     ftruncate (fd,sbuf.st_size);
     ret = NIL;
   }
+				/* force UIDVALIDITY assignment now */
+  if (!tstream->uid_validity && !tstream->rdonly)
+    tstream->uid_validity = time (0);
 				/* return sets if doing COPYUID */
-  if (cu && ret) (*cu) (stream,mailbox,tstream->uid_validity,source,dest);
+  if (cu && ret && tstream->uid_validity)
+    (*cu) (stream,mailbox,tstream->uid_validity,source,dest);
   else {			/* flush any sets we may have built */
     mail_free_searchset (&source);
     mail_free_searchset (&dest);
@@ -968,7 +992,6 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 	 sbuf.st_atime : tp[1];
   utime (file,tp);		/* set the times */
   unix_unlock (fd,NIL,&lock);	/* unlock and close mailbox */
-  MM_NOCRITICAL (stream);	/* release critical */
 				/* update last UID if we can */
   if (!tstream->rdonly) ((UNIXLOCAL *) tstream->local)->dirty = T;
   tstream = mail_close (tstream);
@@ -978,6 +1001,7 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   else if (options & CP_MOVE) for (i = 1; i <= stream->nmsgs; i++)
     if ((elt = mail_elt (stream,i))->sequence)
       elt->deleted = elt->private.dirty = LOCAL->dirty = T;
+  MM_NOCRITICAL (stream);	/* release critical */
   return ret;
 }
 
@@ -1092,14 +1116,12 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   MM_CRITICAL (stream);		/* go critical */
 				/* try to open readwrite */
   if (!(tstream = mail_open_work (&unixdriver,NIL,mailbox,
-				  OP_SILENT|OP_NOKOD))) {
-				/* damn, someone else has it open */
-    if (!(tstream = mail_open_work (&unixdriver,NIL,mailbox,
-				    OP_READONLY|OP_SILENT|OP_NOKOD|OP_SNIFF))){
-      sprintf (tmp,"Unable to re-sniff mailbox for APPEND: %.80s",mailbox);
-      MM_LOG (tmp,ERROR);
-      return NIL;
-    }
+				  OP_SILENT|OP_NOKOD)) &&
+      !(tstream = mail_open_work (&unixdriver,NIL,mailbox,
+				  OP_READONLY|OP_SILENT|OP_NOKOD|OP_SNIFF))) {
+    sprintf (tmp,"Unable to re-open mailbox for APPEND: %.80s",mailbox);
+    MM_LOG (tmp,ERROR);
+    return NIL;
   }
   if (((fd = unix_lock (dummy_file (file,mailbox),O_WRONLY|O_APPEND,
 		       (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL),
@@ -1111,8 +1133,6 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     return NIL;
   }
   fstat (fd,&sbuf);		/* get current file size */
-				/* can't do APPENDUID if no UIDVALIDITY */
-  if (!tstream->uid_validity) au = NIL;
   rewind (sf);
   tp[1] = time (0);		/* set mtime to now */
 				/* write all messages */
@@ -1129,15 +1149,19 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   else tp[0] = tp[1] - 1;	/* set atime to now-1 if successful copy */
   utime (file,tp);		/* set the times */
   fclose (sf);			/* done with scratch file */
+				/* force UIDVALIDITY assignment now */
+  if (!tstream->uid_validity && !tstream->rdonly)
+    tstream->uid_validity = time (0);
 				/* return sets if doing APPENDUID */
-  if (au && ret) (*au) (mailbox,tstream->uid_validity,dst);
+  if (au && ret && tstream->uid_validity)
+    (*au) (mailbox,tstream->uid_validity,dst);
   else mail_free_searchset (&dst);
   unix_unlock (fd,NIL,&lock);	/* unlock and close mailbox */
   fclose (df);			/* note that unix_unlock() released the fd */
-  MM_NOCRITICAL (stream);	/* release critical */
 				/* update last UID if we can */
   if (!tstream->rdonly) ((UNIXLOCAL *) tstream->local)->dirty = T;
   tstream = mail_close (tstream);
+  MM_NOCRITICAL (stream);	/* release critical */
   return ret;
 }
 
@@ -2333,21 +2357,6 @@ void unix_phys_write (UNIXFILE *f,char *buf,size_t size)
   f->filepos += size;		/* update file position */
 }
 
-/* mbox mail routines */
-
-/* Function prototypes */
-
-DRIVER *mbox_valid (char *name);
-long mbox_create (MAILSTREAM *stream,char *mailbox);
-long mbox_delete (MAILSTREAM *stream,char *mailbox);
-long mbox_rename (MAILSTREAM *stream,char *old,char *newname);
-long mbox_status (MAILSTREAM *stream,char *mbx,long flags);
-MAILSTREAM *mbox_open (MAILSTREAM *stream);
-long mbox_ping (MAILSTREAM *stream);
-void mbox_check (MAILSTREAM *stream);
-long mbox_expunge (MAILSTREAM *stream,char *sequence,long options);
-long mbox_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
-
 /* MBOX mail routines */
 
 
@@ -2418,7 +2427,9 @@ DRIVER *mbox_valid (char *name)
 
 long mbox_create (MAILSTREAM *stream,char *mailbox)
 {
-  return unix_create (NIL,"mbox");
+				/* in case CREATEPROTO same-as-inbox */
+  return unix_create (NIL,compare_cstring (mailbox,"INBOX") ?
+		      mailbox : "mbox");
 }
 
 

@@ -1139,7 +1139,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           involvement. The further you go down this list, the more deeply
           committed you become:
 
-          + The simplest way to create a mbx-format mailbox is to prefer
+          + The simplest way to create a mbx-format mailbox is to prefix
             the name with "#driver.mbx/" when creating a mailbox through
             c-client. For example, if you create "#driver.mbx/foo", the
             mailbox "foo" will be created in mbx format. Only use
@@ -1204,7 +1204,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           You may want to consider the use of a mailbox format which
           permits multiple simultaneous read/write sessions, such as the
-          mbx format. The traditional UNIX format only allows only
+          mbx format. The traditional UNIX format only allows one
           read/write session to a mailbox at a time.
 
           An additional convenience item are three system directories,
@@ -2985,4 +2985,4 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           This book also has an excellent comparison of the UW and Cyrus
           IMAP servers.
 
-   Last Updated: 8 September 2006
+   Last Updated: 11 December 2006

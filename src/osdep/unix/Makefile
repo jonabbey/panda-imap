@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	23 October 2006
+# Last Edited:	5 November 2006
 
 
 # Command line build parameters
@@ -133,7 +133,13 @@ RANLIB=ranlib
 # Standard distribution build parameters
 
 DEFAULTAUTHENTICATORS=ext md5 pla log
-DEFAULTDRIVERS=imap nntp pop3 mx mix mbx tenex mtx mmdf unix news mh phile
+#
+# mh needs to be after any other directory format drivers (such as mx or mix)
+# since otherwise mh will seize any directory that is under the mh path.
+# However, mh needs to be before any sysinbox formats (such as mmdf or unix)
+# since otherwise INBOX won't work correctly when mh_allow_inbox is set.
+#
+DEFAULTDRIVERS=imap nntp pop3 mix mx mbx tenex mtx mh mmdf unix news phile
 CHUNKSIZE=65536
 
 # Normally no need to change any of these
@@ -473,7 +479,7 @@ isc:	# Interactive
 	 RANLIB=true
 
 lnp:	# Linux Pluggable Authentication modules
-	$(BUILD) `$(CAT) SPECIALS` OS=lnx \
+	$(BUILD) `$(CAT) SPECIALS` OS=slx \
 	 SIGTYPE=psx CHECKPW=pam CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \

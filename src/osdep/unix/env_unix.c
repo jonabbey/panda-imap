@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 September 2006
+ * Last Edited:	7 December 2006
  */
 
 #include <grp.h>
@@ -1122,20 +1122,21 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
       if (pipe (po) >= 0) {
 	if (!(j = fork ())) {	/* make inferior process */
 	  if (!fork ()) {	/* make grandchild so it's inherited by init */
-	    char *argv[4];
+	    long cf;		/* don't change caller vars in case vfork() */
+	    char *argv[4],arg[20];
 				/* prepare argument vector */
-	    sprintf (tmp,"%d",fd);
-	    argv[0] = LOCKPGM; argv[1] = tmp;
+	    sprintf (arg,"%d",fd);
+	    argv[0] = LOCKPGM; argv[1] = arg;
 	    argv[2] = file; argv[3] = NIL;
 				/* set parent's I/O to my O/I */
 	    dup2 (pi[1],1); dup2 (pi[1],2); dup2 (po[0],0);
 				/* close all unnecessary descriptors */
-	    for (j = max (20,max (max (pi[0],pi[1]),max(po[0],po[1])));
-		 j >= 3; --j) if (j != fd) close (j);
+	    for (cf = max (20,max (max (pi[0],pi[1]),max(po[0],po[1])));
+		 cf >= 3; --cf) if (cf != fd) close (cf);
 				/* be our own process group */
 	    setpgrp (0,getpid ());
 				/* now run it */
-	    execv (argv[0],argv);
+	    _exit (execv (argv[0],argv));
 	  }
 	  _exit (1);		/* child is done */
 	}
@@ -1161,6 +1162,7 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
       }
       close (pi[0]); close (pi[1]);
     }
+
     MM_NOCRITICAL (NIL);	/* no longer critical */
 				/* find directory/file delimiter */
     if (s = strrchr (base->lock,'/')) {

@@ -11,6 +11,21 @@
  * ========================================================================
  */
 
+Updated: 6 December 2006
+
+imap-2006d is a maintenance release, consisting primarily of bugfixes to
+problems discovered in the release that affected a small number of users.
+
+The decomposition mapping, title-case mapping, and character widths tables
+have been updated to comply with the Unicode 5.0 standard.
+
+Prototypes for the utf8aux.c functions have been moved to a new utf8aux.h.
+
+The general c-client modules now include c-client.h instead of the individual
+files.  Use of c-client.h instead of individual include files insulates
+against future shuffling of include files.
+
+
 Updated: 23 October 2006
 
 imap-2006c is a maintenance release, consisting primarily of bugfixes to

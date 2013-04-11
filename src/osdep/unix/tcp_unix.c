@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	16 September 2006
+ * Last Edited:	7 December 2006
  */
 
 #include "ip_unix.c"
@@ -382,14 +382,15 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   if (!i) {			/* if child */
     alarm (0);			/* never have alarms in children */
     if (!fork ()) {		/* make grandchild so it's inherited by init */
+      int cf;			/* don't alter parent vars in case vfork() */
       int maxfd = max (20,max (max(pipei[0],pipei[1]),max(pipeo[0],pipeo[1])));
       dup2 (pipei[1],1);	/* parent's input is my output */
       dup2 (pipei[1],2);	/* parent's input is my error output too */
       dup2 (pipeo[0],0);	/* parent's output is my input */
 				/* close all unnecessary descriptors */
-      for (i = 3; i <= maxfd; i++) close (i);
+      for (cf = 3; cf <= maxfd; cf++) close (cf);
       setpgrp (0,getpid ());	/* be our own process group */
-      execv (path,argv);	/* now run it */
+      _exit (execv (path,argv));/* now run it */
     }
     _exit (1);			/* child is done */
   }

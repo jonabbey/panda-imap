@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	3 December 2006
  */
 
 static char *myUserName = NIL;	/* user name */
@@ -604,7 +604,7 @@ char *mailboxfile (char *dst,char *name)
   if (dir[0] && isalpha (dir[0]) && (dir[1] == ':')) {
     homedev[0] = dir[0];	/* copy home device */
     homedev[1] = dir[1];
-    homedev[3] = '\0';
+    homedev[2] = '\0';
   }
   else homedev[0] = '\0';	/* ??no home device?? */
   *dst = '\0';			/* default to empty string */

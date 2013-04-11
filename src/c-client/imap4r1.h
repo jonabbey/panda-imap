@@ -23,12 +23,17 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	6 December 2006
  */
-
-/* Protocol levels */
 
-/* As of October 15, 2003, it is believed that:
+
+/* This include file is provided for applications which need to look under
+ * the covers at the IMAP driver and in particular want to do different
+ * operations depending upon the IMAP server's protocol level and
+ * capabilities.  It is NOT included in the normal c-client.h application
+ * export, and most applications do NOT need the definitions in this file.
+ *
+ * As of October 15, 2003, it is believed that:
  *
  * Version	RFC		Status		Known Implementations
  * -------	---		------		---------------------
@@ -43,9 +48,12 @@
  * Most client implementations will only interoperate with an IMAP4rev1
  * server.  c-client based client implementations can interoperate with IMAP2,
  * IMAP2bis, IMAP4, and IMAP4rev1 servers, but only if they are very careful.
+ *
+ * The LEVELxxx() macros in this file enable the client to determine the
+ * server protocol level and capabilities.  This file also contains a few
+ * backdoor calls into the IMAP driver.
  */
-
-
+
 /* Server protocol level and capabilities */
 
 typedef struct imap_cap {

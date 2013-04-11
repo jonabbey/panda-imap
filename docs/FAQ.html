@@ -1906,7 +1906,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
       become:</p>
 
       <ul>
-        <li>The simplest way to create a mbx-format mailbox is to prefer the
+        <li>The simplest way to create a mbx-format mailbox is to prefix the
         name with "#driver.mbx/" when creating a mailbox through c-client.
         For example, if you create "#driver.mbx/foo", the mailbox "foo" will
         be created in mbx format. Only use "#driver.mbx/" when creating the
@@ -1979,7 +1979,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
       <p>You may want to consider the use of a mailbox format which permits
       multiple simultaneous read/write sessions, such as the mbx format. The
-      traditional UNIX format only allows only read/write session to a
+      traditional UNIX format only allows one read/write session to a
       mailbox at a time.</p>
 
       <p>An additional convenience item are three system directories, which
@@ -4213,7 +4213,7 @@ words, it is a protocol syntax error.
 
   <p><a href="#top">Back to top</a></p>
 
-  <p>Last Updated: 8 September 2006</p>
+  <p>Last Updated: 11 December 2006</p>
 
 <!--chtml include "//imap/incs/bottom.inc"-->
 

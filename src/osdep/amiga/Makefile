@@ -22,7 +22,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	30 August 2006
+# Last Edited:	5 November 2006
 
 
 # Command line build parameters
@@ -74,7 +74,7 @@ RM=rm -f
 # Standard distribution build parameters
 
 DEFAULTAUTHENTICATORS=ext md5 pla log
-DEFAULTDRIVERS=imap nntp pop3 mh mx mix mbx tenex mtx mmdf unix news phile
+DEFAULTDRIVERS=imap nntp pop3 mix mx mbx tenex mtx mh mmdf unix news phile
 CHUNKSIZE=65536
 
 

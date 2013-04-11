@@ -13,7 +13,7 @@
 
 		    Mailbox Format Characteristics
 			     Mark Crispin
-			     5 June 1999
+			   11 December 2006
 
 
      When a mailbox storage technology uses local files and
@@ -197,9 +197,9 @@ Esys if you want that format.
      The Maildir format used by qmail has all of the performance
 disadvantages of mh noted above, with the additional problem that the
 files are renamed in order to change their status so you end up having
-to rescan the directory frequently the current names (particularly in
-a shared mailbox scenario).  It doesn't scale, and it represents a
-support nightmare; it will therefore never be supported in the
+to rescan the directory frequently to locate the current names
+(particularly in a shared mailbox scenario).  It doesn't scale, and it
+represents a support nightmare; it is therefore not supported in the
 official distribution.  Maildir support code for c-client is available
 from third parties; but, if you use it, it is entirely at your own
 risk (read: don't complain about how poorly it performs or bugs).
