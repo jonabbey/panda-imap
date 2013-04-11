@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 April 1997
- * Last Edited:	15 April 1997
- *
- * Copyright 1997 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -41,6 +26,10 @@
 #include "flstring.h"
 
 /* String driver for stdio file strings */
+
+static void file_string_init (STRING *s,void *data,unsigned long size);
+static char file_string_next (STRING *s);
+static void file_string_setpos (STRING *s,unsigned long i);
 
 STRINGDRIVER file_string = {
   file_string_init,		/* initialize string structure */
@@ -55,7 +44,7 @@ STRINGDRIVER file_string = {
  *	    size of string
  */
 
-void file_string_init (STRING *s,void *data,unsigned long size)
+static void file_string_init (STRING *s,void *data,unsigned long size)
 {
   s->data = data;		/* note file descriptor */
 				/* big enough for one byte */
@@ -71,7 +60,7 @@ void file_string_init (STRING *s,void *data,unsigned long size)
  * Returns: character, string structure chunk refreshed
  */
 
-char file_string_next (STRING *s)
+static char file_string_next (STRING *s)
 {
   char ret = *s->curpos;
   s->offset++;			/* advance position */
@@ -86,7 +75,7 @@ char file_string_next (STRING *s)
  *	    new position
  */
 
-void file_string_setpos (STRING *s,unsigned long i)
+static void file_string_setpos (STRING *s,unsigned long i)
 {
   s->offset = i;		/* note new offset */
   fseek ((FILE *) s->data,i,L_SET);

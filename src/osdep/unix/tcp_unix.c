@@ -10,29 +10,14 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 October 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made available
- * "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	8 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
-
+
 #undef write			/* don't use redefined write() */
  
 static tcptimeout_t tmoh = NIL;	/* TCP timeout handler routine */
@@ -53,6 +38,8 @@ static long allowreversedns =	/* allow reverse DNS lookup */
 #endif
   ;
 
+extern long maxposint;		/* get this from write.c */
+
 /* Local function prototypes */
 
 int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
@@ -68,83 +55,70 @@ char *tcp_name (struct sockaddr_in *sin,long flag);
 
 void *tcp_parameters (long function,void *value)
 {
+  void *ret = NIL;
   switch ((int) function) {
   case SET_TIMEOUT:
     tmoh = (tcptimeout_t) value;
-    break;
   case GET_TIMEOUT:
-    value = (void *) tmoh;
+    ret = (void *) tmoh;
     break;
   case SET_OPENTIMEOUT:
     ttmo_open = (long) value;
-    break;
   case GET_OPENTIMEOUT:
-    value = (void *) ttmo_open;
+    ret = (void *) ttmo_open;
     break;
   case SET_READTIMEOUT:
     ttmo_read = (long) value;
-    break;
   case GET_READTIMEOUT:
-    value = (void *) ttmo_read;
+    ret = (void *) ttmo_read;
     break;
   case SET_WRITETIMEOUT:
     ttmo_write = (long) value;
-    break;
   case GET_WRITETIMEOUT:
-    value = (void *) ttmo_write;
+    ret = (void *) ttmo_write;
     break;
   case SET_ALLOWREVERSEDNS:
     allowreversedns = (long) value;
-    break;
   case GET_ALLOWREVERSEDNS:
-    value = (void *) allowreversedns;
+    ret = (void *) allowreversedns;
     break;
 
   case SET_RSHTIMEOUT:
     rshtimeout = (long) value;
-    break;
   case GET_RSHTIMEOUT:
-    value = (void *) rshtimeout;
+    ret = (void *) rshtimeout;
     break;
   case SET_RSHCOMMAND:
     if (rshcommand) fs_give ((void **) &rshcommand);
     rshcommand = cpystr ((char *) value);
-    break;
   case GET_RSHCOMMAND:
-    value = (void *) rshcommand;
+    ret = (void *) rshcommand;
     break;
   case SET_RSHPATH:
     if (rshpath) fs_give ((void **) &rshpath);
     rshpath = cpystr ((char *) value);
-    break;
   case GET_RSHPATH:
-    value = (void *) rshpath;
+    ret = (void *) rshpath;
     break;
   case SET_SSHTIMEOUT:
     sshtimeout = (long) value;
-    break;
   case GET_SSHTIMEOUT:
-    value = (void *) sshtimeout;
+    ret = (void *) sshtimeout;
     break;
   case SET_SSHCOMMAND:
     if (sshcommand) fs_give ((void **) &sshcommand);
     sshcommand = cpystr ((char *) value);
-    break;
   case GET_SSHCOMMAND:
-    value = (void *) sshcommand;
+    ret = (void *) sshcommand;
     break;
   case SET_SSHPATH:
     if (sshpath) fs_give ((void **) &sshpath);
     sshpath = cpystr ((char *) value);
-    break;
   case GET_SSHPATH:
-    value = (void *) sshpath;
-    break;
-  default:
-    value = NIL;		/* error case */
+    ret = (void *) sshpath;
     break;
   }
-  return value;
+  return ret;
 }
 
 /* TCP/IP open
@@ -159,7 +133,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   TCPSTREAM *stream = NIL;
   int i,sock;
   int ctr = 0;
-  int silent = (port & 0x80000000) ? T : NIL;
+  int silent = (port & NET_SILENT) ? T : NIL;
   int *ctrp = &ctr;
   char *s;
   struct sockaddr_in sin;
@@ -169,16 +143,12 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   struct servent *sv = NIL;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   void *data;
-  port &= 0x7fffffff;		/* erase silent flag */
-  if (service) {		/* service specified? */
-    if (*service == '*') {	/* yes, special alt driver kludge? */
-      ctrp = NIL;		/* yes, don't do open timeout */
-      sv = getservbyname (service + 1,"tcp");
-    }
-    else sv = getservbyname (service,"tcp");
-  }
-				/* user service name port */
-  if (sv) port = ntohs (sin.sin_port = sv->s_port);
+				/* don't do open timeout if this requested */
+  if (port & NET_NOOPENTIMEOUT) ctrp = NIL;
+  port &= 0xffff;		/* erase flags */
+				/* lookup service */
+  if (service && (sv = getservbyname (service,"tcp")))
+    port = ntohs (sin.sin_port = sv->s_port);
  				/* copy port number in network format */
   else sin.sin_port = htons (port);
   /* The domain literal form is used (rather than simply the dotted decimal
@@ -312,7 +282,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
     FD_SET (sock,&efds);
     do {			/* block under timeout */
       tmo.tv_sec = ti ? ti - now : 0;
-      i = select (sock+1,0,&fds,&efds,ttmo_open ? &tmo : 0);
+      i = select (sock+1,0,&fds,&efds,ti ? &tmo : 0);
       now = time (0);
     } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
     if (i > 0) {		/* success, make sure really connected */
@@ -431,8 +401,7 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   stream->tcpso = pipeo[1];
   stream->ictr = 0;		/* init input counter */
   stream->port = 0xffffffff;	/* no port number */
-  now = time (0);		/* open timeout */
-  if (ti) ti += now;
+  ti += now = time (0);		/* open timeout */
   tmo.tv_usec = 0;		/* initialize usec timeout */
   FD_ZERO (&fds);		/* initialize selection vector */
   FD_ZERO (&efds);		/* handle errors too */
@@ -440,7 +409,7 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   FD_SET (stream->tcpsi,&efds);	/* set bit in error selection vector */
   FD_SET (stream->tcpso,&efds);	/* set bit in error selection vector */
   do {				/* block under timeout */
-    tmo.tv_sec = ti ? ti - now : 0;
+    tmo.tv_sec = ti - now;
     i = select (max (stream->tcpsi,stream->tcpso)+1,&fds,0,&efds,&tmo);
     now = time (0);
   } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
@@ -512,24 +481,57 @@ char *tcp_getline (TCPSTREAM *stream)
  * Returns: T if success, NIL otherwise
  */
 
-long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer)
+long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 {
   unsigned long n;
-  char *bufptr = buffer;
-  while (size > 0) {		/* until request satisfied */
-    if (!tcp_getdata (stream)) return NIL;
-    n = min (size,stream->ictr);/* number of bytes to transfer */
-				/* do the copy */
-    memcpy (bufptr,stream->iptr,n);
-    bufptr += n;		/* update pointer */
+				/* make sure socket still alive */
+  if (stream->tcpsi < 0) return NIL;
+				/* can transfer bytes from buffer? */
+  if (n = min (size,stream->ictr)) {
+    memcpy (s,stream->iptr,n);	/* yes, slurp as much as we can from it */
+    s += n;			/* update pointer */
     stream->iptr +=n;
     size -= n;			/* update # of bytes to do */
     stream->ictr -=n;
   }
-  bufptr[0] = '\0';		/* tie off string */
+  if (size) {
+    int i;
+    fd_set fds,efds;
+    struct timeval tmo;
+    time_t t = time (0);
+    blocknotify_t bn=(blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
+    (*bn) (BLOCK_TCPREAD,NIL);
+    while (size > 0) {		/* until request satisfied */
+      time_t tl = time (0);
+      time_t now = tl;
+      int ti = ttmo_read ? now + ttmo_read : 0;
+      tmo.tv_usec = 0;
+      FD_ZERO (&fds);		/* initialize selection vector */
+      FD_ZERO (&efds);		/* handle errors too */
+      FD_SET (stream->tcpsi,&fds);
+      FD_SET (stream->tcpsi,&efds);
+      errno = NIL;		/* block and read */
+      do {			/* block under timeout */
+	tmo.tv_sec = ti ? ti - now : 0;
+	i = select (stream->tcpsi+1,&fds,0,&efds,ti ? &tmo : 0);
+	now = time (0);
+      } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
+      if (i > 0) {		/* select says there's data to read? */
+	while (((i = read (stream->tcpsi,s,(int) min (maxposint,size))) < 0) &&
+	       (errno == EINTR));
+	if (i < 1) return tcp_abort (stream);
+	s += i;			/* point at new place to write */
+	size -= i;		/* reduce byte count */
+      }
+      else if (i || !tmoh || !(*tmoh) (now - t,now - tl))
+	return tcp_abort (stream);
+    }
+    (*bn) (BLOCK_NONE,NIL);
+  }
+  *s = '\0';			/* tie off string */
   return T;
 }
-
+
 /* TCP/IP receive data
  * Accepts: TCP/IP stream
  * Returns: T if success, NIL otherwise
@@ -556,12 +558,11 @@ long tcp_getdata (TCPSTREAM *stream)
     errno = NIL;		/* block and read */
     do {			/* block under timeout */
       tmo.tv_sec = ti ? ti - now : 0;
-      i = select (stream->tcpsi+1,&fds,0,&efds,ttmo_read ? &tmo : 0);
+      i = select (stream->tcpsi+1,&fds,0,&efds,ti ? &tmo : 0);
       now = time (0);
     } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
     if (!i) {			/* timeout? */
-      time_t tc = time (0);
-      if (tmoh && ((*tmoh) (tc - t,tc - tl))) continue;
+      if (tmoh && ((*tmoh) (now - t,now - tl))) continue;
       else return tcp_abort (stream);
     }
     else if (i < 0) return tcp_abort (stream);
@@ -615,12 +616,11 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
     errno = NIL;		/* block and write */
     do {			/* block under timeout */
       tmo.tv_sec = ti ? ti - now : 0;
-      i = select (stream->tcpso+1,0,&fds,&efds,ttmo_write ? &tmo : 0);
+      i = select (stream->tcpso+1,0,&fds,&efds,ti ? &tmo : 0);
       now = time (0);
     } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
     if (!i) {			/* timeout? */
-      time_t tc = time (0);
-      if (tmoh && ((*tmoh) (tc - t,tc - tl))) continue;
+      if (tmoh && ((*tmoh) (now - t,now - tl))) continue;
       else return tcp_abort (stream);
     }
     else if (i < 0) return tcp_abort (stream);

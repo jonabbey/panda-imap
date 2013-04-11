@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	15 December 1998
- *
- * Copyright 1998 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made available
- * "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 			
@@ -46,30 +31,25 @@ static long ttmo_write = 0;
 
 void *tcp_parameters (long function,void *value)
 {
+  void *ret = NIL;
   switch ((int) function) {
   case SET_TIMEOUT:
     tmoh = (tcptimeout_t) value;
-    break;
   case GET_TIMEOUT:
-    value = (void *) tmoh;
+    ret = (void *) tmoh;
     break;
   case SET_READTIMEOUT:
     ttmo_read = (long) value;
-    break;
   case GET_READTIMEOUT:
-    value = (void *) ttmo_read;
+    ret = (void *) ttmo_read;
     break;
   case SET_WRITETIMEOUT:
     ttmo_write = (long) value;
-    break;
   case GET_WRITETIMEOUT:
-    value = (void *) ttmo_write;
-    break;
-  default:
-    value = NIL;		/* error case */
+    ret = (void *) ttmo_write;
     break;
   }
-  return value;
+  return ret;
 }
  
 /* TCP/IP open
@@ -90,6 +70,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   char tmp[MAILTMPLEN];
   struct protoent *pt = getprotobyname ("ip");
   struct servent *sv = NIL;
+  port &= 0xffff;		/* erase flags */
   if (service) {		/* service specified? */
     if (*service == '*') {	/* yes, special alt driver kludge? */
       sv = getservbyname (service + 1,"tcp");

@@ -9,26 +9,13 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	17 March 1999
+# Last Edited:	24 October 2000
 #
-# Copyright 1999 by the University of Washington
+# The IMAP toolkit provided in this Distribution is
+# Copyright 2000 University of Washington.
 #
-#  Permission to use, copy, modify, and distribute this software and its
-# documentation for any purpose and without fee is hereby granted, provided
-# that the above copyright notice appears in all copies and that both the
-# above copyright notice and this permission notice appear in supporting
-# documentation, and that the name of the University of Washington not be
-# used in advertising or publicity pertaining to distribution of the software
-# without specific, written prior permission.  This software is made
-# available "as is", and
-# THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
-# WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
-# NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
-# INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
-# (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
-# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# The full text of our legal notices is contained in the file called
+# CPYRIGHT, included with this Distribution.
 
 
 OS = wsk
@@ -82,7 +69,7 @@ pop3.obj: mail.h pop3.h rfc822.h misc.h osdep.h pop3.c
 smtp.obj: mail.h smtp.h rfc822.h misc.h osdep.h smtp.c
 
 os_$(OS).obj: mail.h osdep.h env_dos.h fs.h ftl.h nl.h tcp.h \
-	os_$(OS).c fs_dos.c ftl_dos.c nl_dos.c env_dos.c
+	os_$(OS).c fs_dos.c ftl_dos.c nl_dos.c env_dos.c pmatch.c write.c
 
 mtxdos.obj: mail.h mtxdos.h misc.h osdep.h mtxdos.c
 

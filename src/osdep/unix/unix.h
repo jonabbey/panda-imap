@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	4 August 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -173,6 +158,7 @@
 
 typedef struct unix_local {
   unsigned int dirty : 1;	/* disk copy needs updating */
+  unsigned int pseudo : 1;	/* uses a pseudo message */
   int fd;			/* mailbox file descriptor */
   int ld;			/* lock file descriptor */
   char *lname;			/* lock file name */
@@ -226,9 +212,9 @@ void unix_check (MAILSTREAM *stream);
 void unix_check (MAILSTREAM *stream);
 void unix_expunge (MAILSTREAM *stream);
 long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
-long unix_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		  STRING *message);
-long unix_append_putc (int fd,char *s,long *i,char c);
+long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
+int unix_append_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
+		     STRING *msg);
 
 void unix_abort (MAILSTREAM *stream);
 char *unix_file (char *dst,char *name);
@@ -241,19 +227,5 @@ unsigned long unix_xstatus (MAILSTREAM *stream,char *status,MESSAGECACHE *elt,
 			    long flag);
 long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp,DOTLOCK *lock);
 long unix_extend (MAILSTREAM *stream,unsigned long size);
-
-/* New algorithm */
-
-long unix_rewrite_new (MAILSTREAM *stream,unsigned long *nexp,
-		       unsigned long *size,unsigned long *recent);
 void unix_write (UNIXFILE *f,char *s,unsigned long i);
 void unix_phys_write (UNIXFILE *f,char *buf,size_t size);
-
-/* Old algorithm */
-
-long unix_rewrite_old (MAILSTREAM *stream,unsigned long *nexp,
-		       unsigned long *size,unsigned long *recent);
-long unix_write_message (FILE *f,MAILSTREAM *stream,MESSAGECACHE *elt,
-			 unsigned long *size);
-long unix_fwrite (FILE *f,char *s,unsigned long i,unsigned long *size);
-long unix_punt_scratch (FILE *f);

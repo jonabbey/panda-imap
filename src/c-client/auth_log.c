@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 December 1995
- * Last Edited:	1 December 1998
- *
- * Copyright 1998 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made available
- * "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	6 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 long auth_login_client (authchallenge_t challenger,authrespond_t responder,
@@ -74,8 +59,8 @@ long auth_login_client (authchallenge_t challenger,authrespond_t responder,
     mm_login (mb,user,pwd,*trial);
     if (!pwd[0]) {		/* user requested abort */
       (*responder) (stream,NIL,0);
-      *trial = 0;		/* don't retry */
-      return T;			/* will get a NO response back */
+      *trial = 0;		/* cancel subsequent attempts */
+      return T;			/* will get a BAD response back */
     }
 				/* send user name */
     else if ((*responder) (stream,user,strlen (user)) &&
@@ -89,7 +74,7 @@ long auth_login_client (authchallenge_t challenger,authrespond_t responder,
       }
     }
   }
-  *trial = 0;			/* don't retry */
+  *trial = 65535;		/* don't retry */
   return NIL;			/* failed */
 }
 
@@ -104,10 +89,12 @@ long auth_login_client (authchallenge_t challenger,authrespond_t responder,
 char *auth_login_server (authresponse_t responder,int argc,char *argv[])
 {
   char *ret = NIL;
-  char *user,*pass;
+  char *user,*pass,*authuser;
   if (user = (*responder) (PWD_USER,sizeof (PWD_USER),NIL)) {
     if (pass = (*responder) (PWD_PWD,sizeof (PWD_PWD),NIL)) {
-      if (server_login (user,pass,argc,argv)) ret = myusername ();
+				/* delimit user from possible admin */
+      if (authuser = strchr (user,'*')) *authuser++ = '\0';
+      if (server_login (user,pass,authuser,argc,argv)) ret = myusername ();
       fs_give ((void **) &pass);
     }
     fs_give ((void **) &user);

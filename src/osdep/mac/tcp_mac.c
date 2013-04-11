@@ -2,31 +2,20 @@
  * Program:	Macintosh TCP/IP routines
  *
  * Author:	Mark Crispin
- *		6158 Lariat Loop NE
- *		Bainbridge Island, WA  98110-2098
- *		Internet: MRC@Panda.COM
+ *		Networks and Distributed Computing
+ *		Computing & Communications
+ *		University of Washington
+ *		Administration Building, AG-44
+ *		Seattle, WA  98195
+ *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	26 January 1992
- * Last Edited:	16 December 1998
- *
- * Copyright 1998 by Mark Crispin
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notices and this permission notice appear in supporting
- * documentation, and that the name of Mark Crispin not be used in advertising
- * or publicity pertaining to distribution of the software without specific,
- * written prior permission.  This software is made available "as is", and
- * MARK CRISPIN DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, WITH REGARD TO
- * THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN NO EVENT SHALL
- * MARK CRISPIN BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES
- * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER IN AN ACTION OF CONTRACT, TORT (INCLUDING NEGLIGENCE) OR STRICT
- * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
- * THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -50,42 +39,35 @@ static long ttmo_close = 0;
 
 void *tcp_parameters (long function,void *value)
 {
+  void *ret = NIL;
   switch ((int) function) {
   case SET_TIMEOUT:
     tmoh = (tcptimeout_t) value;
-    break;
   case GET_TIMEOUT:
-    value = (void *) tmoh;
+    ret = (void *) tmoh;
     break;
   case SET_OPENTIMEOUT:
     ttmo_open = (long) value;
-    break;
   case GET_OPENTIMEOUT:
-    value = (void *) ttmo_open;
+    ret = (void *) ttmo_open;
     break;
   case SET_READTIMEOUT:
     ttmo_read = (long) value;
-    break;
   case GET_READTIMEOUT:
-    value = (void *) ttmo_read;
+    ret = (void *) ttmo_read;
     break;
   case SET_WRITETIMEOUT:
     ttmo_write = (long) value;
-    break;
   case GET_WRITETIMEOUT:
-    value = (void *) ttmo_write;
+    ret = (void *) ttmo_write;
     break;
   case SET_CLOSETIMEOUT:
     ttmo_close = (long) value;
-    break;
   case GET_CLOSETIMEOUT:
-    value = (void *) ttmo_close;
-    break;
-  default:
-    value = NIL;		/* error case */
+    ret = (void *) ttmo_close;
     break;
   }
-  return value;
+  return ret;
 }
 
 /* TCP/IP open
@@ -104,6 +86,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   char *s;
   unsigned long i,j,k,l;
   char tmp[MAILTMPLEN];
+  port &= 0xffff;		/* erase flags */
 				/* init MacTCP */
   if (!TCPdriver && OpenDriver (TCPDRIVER,&TCPdriver)) {
     mm_log ("Can't init MacTCP",ERROR);

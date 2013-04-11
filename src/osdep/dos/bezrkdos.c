@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	24 August 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	17 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -515,30 +500,25 @@ long bezerk_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 /* Berkeley mail append message from stringstruct
  * Accepts: MAIL stream
  *	    destination mailbox
- *	    stringstruct of messages to append
+ *	    append callback
+ *	    data for callback
  * Returns: T if append successful, else NIL
  */
 
-long bezerk_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		   STRING *message)
+#define BUFLEN MAILTMPLEN
+
+long bezerk_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
   struct stat sbuf;
-  int i,fd,ti;
-  char c,*s,*x,tmp[MAILTMPLEN];
+  int fd;
+  unsigned long i,j;
+  char *flags,*date,buf[BUFLEN],tmp[MAILTMPLEN],file[MAILTMPLEN];
+  FILE *sf,*df;
   MESSAGECACHE elt;
-  long j,n,ok = T;
-  time_t t = time (0);
-  long sz = SIZE (message);
-  long size = 0;
-  unsigned long uf;
-  short f = (short) mail_parse_flags (stream,flags,&uf);
-				/* parse date */
-  if (!date) rfc822_date (date = tmp);
-  if (!mail_parse_date (&elt,date)) {
-    sprintf (tmp,"Bad date in append: %.80ss",date);
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
+  STRING *message;
+  long ret = LONGT;
+				/* default stream to prototype */
+  if (!stream) stream = &bezerkproto;
 				/* make sure valid mailbox */
   if (!bezerk_isvalid (mailbox,tmp) && errno) {
     if (errno == ENOENT) {
@@ -560,83 +540,128 @@ long bezerk_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
     else bezerk_badname (tmp,mailbox);
     return NIL;
   }
+  tzset ();			/* initialize timezone stuff */
+				/* get first message */
+  if (!(*af) (stream,data,&flags,&date,&message)) return NIL;
+  if (!(sf = tmpfile ())) {	/* must have scratch file */
+    sprintf (tmp,"Unable to create scratch file: %.80s",strerror (errno));
+    mm_log (tmp,ERROR);
+  }
+
+  do {				/* parse date */
+    if (!date) rfc822_date (date = tmp);
+    if (!mail_parse_date (&elt,date)) {
+      sprintf (tmp,"Bad date in append: %.80s",date);
+      mm_log (tmp,ERROR);
+    }
+    else {			/* user wants to suppress time zones? */
+      if (mail_parameters (NIL,GET_NOTIMEZONES,NIL)) {
+	time_t when = mail_longdate (&elt);
+	date = ctime (&when);	/* use traditional date */
+      }
+				/* use POSIX-style date */
+      else date = mail_cdate (tmp,&elt);
+      if (!SIZE (message)) mm_log ("Append of zero-length message",ERROR);
+      else if (!bezerk_append_msg (stream,sf,flags,date,message)) {
+	sprintf (tmp,"Error writing scratch file: %.80s",strerror (errno));
+	mm_log (tmp,ERROR);
+      }
+				/* get next message */
+      else if ((*af) (stream,data,&flags,&date,&message)) continue;
+    }
+    fclose (sf);		/* punt scratch file */
+    return NIL;			/* give up */
+  } while (message);		/* until no more messages */
+  if (fflush (sf) || fstat (fileno (sf),&sbuf)) {
+    sprintf (tmp,"Error finishing scratch file: %.80s",strerror (errno));
+    mm_log (tmp,ERROR);
+    fclose (sf);		/* punt scratch file */
+    return NIL;			/* give up */
+  }
+  i = sbuf.st_size;		/* size of scratch file */
+
+  mm_critical (stream);		/* go critical */
 				/* open the destination */
-  if ((fd = open (mailboxfile (tmp,mailbox),
-		  O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE)) < 0) {
+  if (((fd = open (mailboxfile (tmp,mailbox),
+		  O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE)) < 0) ||
+      !(df = fdopen (fd,"ab"))) {
+    mm_nocritical (stream);	/* done with critical */
     sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
   }
-
-  mm_critical (stream);		/* go critical */
-  tzset ();			/* initialize timezone stuff */
-				/* calculate data size w/o CR's */
-  while (sz--) if ((c = SNX (message)) != '\015') size++;
-  SETPOS (message,(long) 0);	/* back to start */
   fstat (fd,&sbuf);		/* get current file size */
-  strcpy (tmp,"From someone ");	/* start header */
-				/* user wants to suppress time zones? */
-  if (mail_parameters (NIL,GET_NOTIMEZONES,NIL)) {
-    time_t when = mail_longdate (elt);
-    strcat (buf,ctime (&when));
+  while (i)			/* until written all bytes */
+    if ((j = fread (buf,1,min ((long) BUFLEN,i),sf)) &&
+	(fwrite (buf,1,j,df) == j)) i -= j;
+  fclose (sf);			/* done with scratch file */
+				/* make sure append wins */
+  if (i || (fflush (df) == EOF)) {
+    chsize (fd,sbuf.st_size);	/* revert file */
+    close (fd);			/* make sure fclose() doesn't corrupt us */
+    sprintf (buf,"Message append failed: %s",strerror (errno));
+    mm_log (buf,ERROR);
+    ret = NIL;			/* return error */
   }
-				/* write the date given */
-  else mail_cdate (buf + strlen (buf),&elt);
-  sprintf (tmp + strlen (tmp),"Status: %sO\nX-Status: %s%s%s\n",
-	   f&fSEEN ? "R" : "",f&fDELETED ? "D" : "",
-	   f&fFLAGGED ? "F" : "",f&fANSWERED ? "A" : "");
-  i = strlen (tmp);		/* initial buffer space used */
-  while (ok && size--) {	/* copy text, tossing out CR's */
-				/* if at start of line */
-    if ((c == '\n') && (size > 5)) {
-      n = GETPOS (message);	/* prepend a broket if needed */
-      if ((SNX (message) == 'F') && (SNX (message) == 'r') &&
-	  (SNX (message) == 'o') && (SNX (message) == 'm') &&
-	  (SNX (message) == ' ')) {
-	for (j = 6; (j < size) && (SNX (message) != '\n'); j++);
-	if (j < size) {		/* copy line */
-	  SETPOS (message,n);	/* restore position */
-	  x = s = (char *) fs_get ((size_t) j + 1);
-	  while (j--) if ((c = SNX (message)) != '\015') *x++ = c;
-	  *x = '\0';		/* tie off line */
-	  if (ti = bezerk_valid_line (s,NIL,NIL))
-	    ok = bezerk_append_putc (fd,tmp,&i,'>');
-	  fs_give ((void **) &s);
-	}
-      }
-      SETPOS (message,n);	/* restore position as needed */
-    }
-				/* copy another character */
-    if ((c = SNX (message)) != '\015') ok = bezerk_append_putc (fd,tmp,&i,c);
-  }
-				/* write trailing newline */
-  if (ok) ok = bezerk_append_putc (fd,tmp,&i,'\n');
-  if (!(ok && (ok = (write (fd,tmp,i) >= 0)))) {
-    sprintf (tmp,"Message append failed: %s",strerror (errno));
-    mm_log (tmp,ERROR);
-    chsize (fd,sbuf.st_size);
-  }  
-  close (fd);			/* close the file */
+  fclose (df);
   mm_nocritical (stream);	/* release critical */
-  return T;			/* return success */
+  return ret;
 }
 
-/* Berkeley mail append character
- * Accepts: file descriptor
- *	    output buffer
- *	    pointer to current size of output buffer
- *	    character to append
- * Returns: T if append successful, else NIL
+/* Write single message to append scratch file
+ * Accepts: MAIL stream
+ *	    scratch file
+ *	    flags
+ *	    message stringstruct
+ * Returns: NIL if write error, else T
  */
 
-long bezerk_append_putc (int fd,char *s,int *i,char c)
+int bezerk_append_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
+		     STRING *msg)
 {
-  s[(*i)++] = c;
-  if (*i == MAILTMPLEN) {	/* dump if buffer filled */
-    if (write (fd,s,*i) < 0) return NIL;
-    *i = 0;			/* reset */
+  int c;
+  unsigned long i,uf;
+  char tmp[MAILTMPLEN];
+  long f = mail_parse_flags (stream,flags,&uf);
+				/* build initial header */
+  if ((fprintf (sf,"From %s@%s %sStatus: ",
+		myusername (),mylocalhost (),date) < 0) ||
+      (f&fSEEN && (putc ('R',sf) == EOF)) ||
+      (fputs ("\nX-Status: ",sf) == EOF) ||
+      (f&fDELETED && (putc ('D',sf) == EOF)) ||
+      (f&fFLAGGED && (putc ('F',sf) == EOF)) ||
+      (f&fANSWERED && (putc ('A',sf) == EOF)) ||
+      (f&fDRAFT && (putc ('T',sf) == EOF)) ||
+      (fputs ("\nX-Keywords:",sf) == EOF)) return NIL;
+  while (uf)			/* write user flags */
+    if (fprintf (sf," %s",stream->user_flags[find_rightmost_bit (&uf)]) < 0)
+      return NIL;
+				/* tie off flags */
+  if (putc ('\n',sf) == EOF) return NIL;
+  while (SIZE (msg)) {		/* copy text to scratch file */
+				/* possible delimiter if line starts with F */
+    if ((c = 0xff & SNX (msg)) == 'F') {
+				/* copy line to buffer */
+      for (i = 1,tmp[0] = c; SIZE (msg) && (c != '\n') && (i < MAILTMPLEN);)
+	if (((c = 0xff & SNX (msg)) != '\r') || !(SIZE (msg)) ||
+	    (CHR (msg) != '\n')) tmp[i++] = c;
+      if ((i > 4) && (tmp[1] == 'r') && (tmp[2] == 'o') && (tmp[3] == 'm') &&
+	  (tmp[4] == ' ')) {	/* possible "From " line? */
+				/* yes, see if need to write a widget */
+	if (((c != '\n') || bezerk_valid_line (tmp,NIL,NIL)) &&
+	    (putc ('>',sf) == EOF)) return NIL;
+      }
+				/* write buffered text */
+      if (fwrite (tmp,1,i,sf) != i) return NIL;
+      if (c == '\n') continue;	/* all done if got a complete line */
+    }
+				/* copy line, toss out CR from CRLF */
+    do if (((c == '\r') && SIZE (msg) && ((c = 0xff & SNX (msg)) != '\n') &&
+	    (putc ('\r',sf) == EOF)) || (putc (c,sf) == EOF)) return NIL;
+    while ((c != '\n') && SIZE (msg) && ((c = 0xff & SNX (msg)) ? c : T));
   }
-  return T;
+				/* write trailing newline and return */
+  return (putc ('\n',sf) == EOF) ? NIL : T;
 }
 
 

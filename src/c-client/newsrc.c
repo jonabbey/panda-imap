@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 September 1994
- * Last Edited:	28 May 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made available
- * "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -84,7 +69,7 @@ long newsrc_write_error (char *name,FILE *f1,FILE *f2)
 
 FILE *newsrc_create (MAILSTREAM *stream,int notify)
 {
-  char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,NIL);
+  char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,stream);
   FILE *f = fopen (newsrc,"wb");
   if (!f) newsrc_error ("Unable to create news state %s",newsrc,ERROR);
   else if (notify) newsrc_error ("Creating news state %s",newsrc,WARN);
@@ -121,26 +106,29 @@ long newsrc_newmessages (FILE *f,MAILSTREAM *stream,char *nl)
   char tmp[MAILTMPLEN];
   MESSAGECACHE *elt;
   int c = ' ';
-  for (i = 1,j = 1,k = 0; i <= stream->nmsgs; ++i) {
+  if (stream->nmsgs) {		/* have any messages? */
+    for (i = 1,j = k = (mail_elt (stream,i)->private.uid > 1) ? 1 : 0;
+	 i <= stream->nmsgs; ++i) {
 				/* deleted message? */
-    if ((elt = mail_elt (stream,i))->deleted) {
-      k = elt->private.uid;	/* this is the top of the current range */
-      if (!j) j = k;		/* if no range in progress, start one */
-    }
-    else if (j) {		/* unread message, ending a range */
-				/* calculate end of range */
-      if (k = elt->private.uid - 1) {
-				/* dump range */
-	sprintf (tmp,(j == k) ? "%c%ld" : "%c%ld-%ld",c,j,k);
-	if (fputs (tmp,f) == EOF) return NIL;
-	c = ',';		/* need a comma after the first time */
+      if ((elt = mail_elt (stream,i))->deleted) {
+	k = elt->private.uid;	/* this is the top of the current range */
+	if (!j) j = k;		/* if no range in progress, start one */
       }
-      j = 0;			/* no more range in progress */
+      else if (j) {		/* unread message, ending a range */
+				/* calculate end of range */
+	if (k = elt->private.uid - 1) {
+				/* dump range */
+	  sprintf (tmp,(j == k) ? "%c%ld" : "%c%ld-%ld",c,j,k);
+	  if (fputs (tmp,f) == EOF) return NIL;
+	  c = ',';		/* need a comma after the first time */
+	}
+	j = 0;			/* no more range in progress */
+      }
     }
-  }
-  if (j) {			/* dump trailing range */
-    sprintf (tmp,(j == k) ? "%c%ld" : "%c%ld-%ld",c,j,k);
-    if (fputs (tmp,f) == EOF) return NIL;
+    if (j) {			/* dump trailing range */
+      sprintf (tmp,(j == k) ? "%c%ld" : "%c%ld-%ld",c,j,k);
+      if (fputs (tmp,f) == EOF) return NIL;
+    }
   }
 				/* write trailing newline, return */
   return (fputs (nl,f) == EOF) ? NIL : LONGT;
@@ -157,7 +145,7 @@ void newsrc_lsub (MAILSTREAM *stream,char *pattern)
   char *s,*t,*lcl,name[MAILTMPLEN];
   int c = ' ';
   int showuppers = pattern[strlen (pattern) - 1] == '%';
-  FILE *f = fopen ((char *) mail_parameters (stream,GET_NEWSRC,NIL),"rb");
+  FILE *f = fopen ((char *) mail_parameters (stream,GET_NEWSRC,stream),"rb");
   if (f) {			/* got file? */
 				/* remote name? */
     if (*(lcl = strcpy (name,pattern)) == '{') lcl = strchr (lcl,'}') + 1;
@@ -192,7 +180,7 @@ void newsrc_lsub (MAILSTREAM *stream,char *pattern)
 long newsrc_update (MAILSTREAM *stream,char *group,char state)
 {
   char tmp[MAILTMPLEN];
-  char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,NIL);
+  char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,stream);
   long ret = NIL;
   FILE *f = fopen (newsrc,"r+b");
   if (f) {			/* update existing file */
@@ -259,7 +247,7 @@ long newsrc_read (char *group,MAILSTREAM *stream)
   unsigned long i,j;
   MESSAGECACHE *elt;
   unsigned long m = 1,recent = 0,unseen = 0;
-  FILE *f = fopen ((char *) mail_parameters (stream,GET_NEWSRC,NIL),"rb");
+  FILE *f = fopen ((char *) mail_parameters (stream,GET_NEWSRC,stream),"rb");
   if (f) do {			/* read newsrc */
     for (s = tmp; (s < (tmp + MAILTMPLEN - 1)) && ((c = getc (f)) != EOF) &&
 	 (c != ':') && (c != '!') && (c != '\015') && (c != '\012'); *s++ = c);
@@ -279,7 +267,8 @@ long newsrc_read (char *group,MAILSTREAM *stream)
 	    if (!unseen && (mail_elt (stream,m)->private.uid < i)) unseen = m;
 				/* skip messages before first value */
 	    while ((m <= stream->nmsgs) &&
-		   (mail_elt (stream,m)->private.uid < i)) m++;
+		   ((elt = mail_elt (stream,m))->private.uid < i) && m++)
+	      elt->valid = T;
 				/* do all messages in range */
 	    while ((m <= stream->nmsgs) && (elt = mail_elt (stream,m)) &&
 		   (j ? ((elt->private.uid >= i) && (elt->private.uid <= j)) :
@@ -338,7 +327,7 @@ long newsrc_read (char *group,MAILSTREAM *stream)
 long newsrc_write (char *group,MAILSTREAM *stream)
 {
   int c = 0,d = EOF;
-  char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,NIL);
+  char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,stream);
   char *s,tmp[MAILTMPLEN],backup[MAILTMPLEN],nl[3];
   FILE *f,*bf;
   nl[0] = nl[1] = nl[2] = '\0';	/* no newline known yet */
@@ -446,7 +435,7 @@ char *newsrc_state (MAILSTREAM *stream,char *group)
   char *s,tmp[MAILTMPLEN];
   long pos;
   size_t size;
-  FILE *f = fopen ((char *) mail_parameters (stream,GET_NEWSRC,NIL),"rb");
+  FILE *f = fopen ((char *) mail_parameters (stream,GET_NEWSRC,stream),"rb");
   if (f) do {			/* read newsrc */
     for (s = tmp; (s < (tmp + MAILTMPLEN - 1)) && ((c = getc (f)) != EOF) &&
 	 (c != ':') && (c != '!') && (c != '\015') && (c != '\012'); *s++ = c);
@@ -493,6 +482,7 @@ void newsrc_check_uid (char *state,unsigned long uid,unsigned long *recent,
     if (*state != '-') j = i;	/* coerce single mesage into range */
     else {			/* have a range */
       for (j = 0; isdigit (*++state); j = j*10 + (*state - '0'));
+      if (!j) j = i;		/* guard against -0 */
       if (j < i) return;	/* bogon if end less than start */
     }
     if (*state == ',') state++;	/* skip past comma */

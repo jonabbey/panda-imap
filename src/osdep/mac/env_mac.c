@@ -2,37 +2,28 @@
  * Program:	Mac environment routines
  *
  * Author:	Mark Crispin
- *		6158 Lariat Loop NE
- *		Bainbridge Island, WA  98110-2098
- *		Internet: MRC@Panda.COM
+ *		Networks and Distributed Computing
+ *		Computing & Communications
+ *		University of Washington
+ *		Administration Building, AG-44
+ *		Seattle, WA  98195
+ *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	26 January 1992
- * Last Edited:	28 September 1998
- *
- * Copyright 1998 by Mark Crispin
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notices and this permission notice appear in supporting
- * documentation, and that the name of Mark Crispin not be used in advertising
- * or publicity pertaining to distribution of the software without specific,
- * written prior permission.  This software is made available "as is", and
- * MARK CRISPIN DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, WITH REGARD TO
- * THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN NO EVENT SHALL
- * MARK CRISPIN BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES
- * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER IN AN ACTION OF CONTRACT, TORT (INCLUDING NEGLIGENCE) OR STRICT
- * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
- * THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
 static char *myHomeDir = NIL;	/* home directory name */
 static char *myLocalHost = NIL;	/* local host name */
 static char *myNewsrc = NIL;	/* newsrc file name */
+
+#include "pmatch.c"		/* include wildcard pattern matcher */
 
 /* Environment manipulate parameters
  * Accepts: function code
@@ -42,40 +33,34 @@ static char *myNewsrc = NIL;	/* newsrc file name */
 
 void *env_parameters (long function,void *value)
 {
+  void *ret = NIL;
   char tmp[MAILTMPLEN];
   switch ((int) function) {
   case SET_HOMEDIR:
     if (myHomeDir) fs_give ((void **) &myHomeDir);
     myHomeDir = cpystr ((char *) value);
-    break;
   case GET_HOMEDIR:
-    if (!myHomeDir) {		/* set home directory if not defined */
-      myHomeDir = cpystr ("");
-    }
-    value = (void *) myHomeDir;
+				/* set home directory if not defined */
+    if (!myHomeDir) myHomeDir = cpystr ("");
+    ret = (void *) myHomeDir;
     break;
   case SET_LOCALHOST:
     myLocalHost = cpystr ((char *) value);
-    break;
   case GET_LOCALHOST:
-    value = (void *) myLocalHost ? myLocalHost : "random-mac";
+    ret = (void *) myLocalHost ? myLocalHost : "random-mac";
     break;
   case SET_NEWSRC:
     if (myNewsrc) fs_give ((void **) &myNewsrc);
     myNewsrc = cpystr ((char *) value);
-    break;
   case GET_NEWSRC:
     if (!myNewsrc) {		/* set news file name if not defined */
       sprintf (tmp,"%s:News State",myhomedir ());
       myNewsrc = cpystr (tmp);
     }
-    value = (void *) myNewsrc;
-    break;
-  default:
-    value = NIL;		/* error case */
+    ret = (void *) myNewsrc;
     break;
   }
-  return value;
+  return ret;
 }
 
 /* Write current time

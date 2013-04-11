@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	28 September 1998
- *
- * Copyright 1998 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.	This software is made available
- * "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -38,6 +23,8 @@ static char *myUserName = NIL;	/* user name */
 static char *myLocalHost = NIL;	/* local host name */
 static char *myHomeDir = NIL;	/* home directory name */
 static char *myNewsrc = NIL;	/* newsrc file name */
+
+#include "pmatch.c"		/* include wildcard pattern matcher */
 
 /* Environment manipulate parameters
  * Accepts: function code
@@ -47,42 +34,36 @@ static char *myNewsrc = NIL;	/* newsrc file name */
 
 void *env_parameters (long function,void *value)
 {
+  void *ret = NIL;
   switch ((int) function) {
   case SET_USERNAME:
     myUserName = cpystr ((char *) value);
-    break;
   case GET_USERNAME:
-    value = (void *) myUserName;
+    ret = (void *) myUserName;
     break;
   case SET_HOMEDIR:
     myHomeDir = cpystr ((char *) value);
-    break;
   case GET_HOMEDIR:
-    value = (void *) myHomeDir;
+    ret = (void *) myHomeDir;
     break;
   case SET_LOCALHOST:
     myLocalHost = cpystr ((char *) value);
-    break;
   case GET_LOCALHOST:
-    value = (void *) myLocalHost;
+    ret = (void *) myLocalHost;
     break;
   case SET_NEWSRC:
     if (myNewsrc) fs_give ((void **) &myNewsrc);
     myNewsrc = cpystr ((char *) value);
-    break;
   case GET_NEWSRC:
     if (!myNewsrc) {		/* set news file name if not defined */
       char tmp[MAILTMPLEN];
       sprintf (tmp,"%s:.newsrc",myhomedir ());
       myNewsrc = cpystr (tmp);
     }
-    value = (void *) myNewsrc;
-    break;
-  default:
-    value = NIL;		/* error case */
+    ret = (void *) myNewsrc;
     break;
   }
-  return value;
+  return ret;
 }
  
 /* Write current time

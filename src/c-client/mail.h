@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	1 November 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	27 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 /* Build parameters */
@@ -40,8 +25,8 @@
 #define MAXMESSAGESIZE 65000	/* MS-DOS: maximum text buffer size
 				 * other:  initial text buffer size */
 #define NUSERFLAGS 30		/* # of user flags (current servers 30 max) */
-#define BASEYEAR 1970		/* the year time began on Unix (note: mx
-				 * driver depends upon this matching Unix) */
+#define MAXUSERFLAG 64		/* maximum length of a user flag */
+#define BASEYEAR 1970		/* the year time began on Unix DON'T CHANGE */
 				/* default for unqualified addresses */
 #define BADHOST ".MISSING-HOST-NAME."
 				/* default for syntax errors in addresses */
@@ -128,6 +113,14 @@
 #define SET_THREADRESULTS (long) 138
 #define GET_PARSELINE (long) 139
 #define SET_PARSELINE (long) 140
+#define GET_NEWSRCQUERY (long) 141
+#define SET_NEWSRCQUERY (long) 142
+#define GET_ALTOPTIONNAME (long) 143
+#define SET_ALTOPTIONNAME (long) 144
+#define GET_FREEENVELOPESPAREP (long) 145
+#define SET_FREEENVELOPESPAREP (long) 146
+#define GET_FREEELTSPAREP (long) 147
+#define SET_FREEELTSPAREP (long) 148
 
 	/* 2xx: environment */
 #define GET_USERNAME (long) 201
@@ -207,6 +200,18 @@
 #define SET_SMTPPORT (long) 437
 #define GET_IMAPEXTRAHEADERS (long) 438
 #define SET_IMAPEXTRAHEADERS (long) 439
+#define GET_ACL (long) 440
+#define SET_ACL (long) 441
+#define GET_LISTRIGHTS (long) 442
+#define SET_LISTRIGHTS (long) 443
+#define GET_MYRIGHTS (long) 444
+#define SET_MYRIGHTS (long) 445
+#define GET_QUOTA (long) 446
+#define SET_QUOTA (long) 447
+#define GET_QUOTAROOT (long) 448
+#define SET_QUOTAROOT (long) 449
+#define GET_IMAPTRYALT (long) 450
+#define SET_IMAPTRYALT (long) 451
 
 	/* 5xx: local file drivers */
 #define GET_MBXPROTECTION (long) 500
@@ -257,6 +262,8 @@
 #define SET_LOCKTIMEOUT (long) 545
 #define GET_NOTIMEZONES (long) 546
 #define SET_NOTIMEZONES (long) 547
+#define GET_HIDEDOTFILES (long) 548
+#define SET_HIDEDOTFILES (long) 549
 
 /* Driver flags */
 
@@ -299,13 +306,23 @@
 #define OP_EXPUNGE (long) 128	/* silently expunge recycle stream */
 #define OP_SECURE (long) 256	/* don't do non-secure authentication */
 #define OP_TRYALT (long) 512	/* try alternate first */
+#define OP_MULNEWSRC (long) 1024/* use multiple newsrc files */
+
+
+/* Net open options */
+
+				/* no error messages */
+#define NET_SILENT ((unsigned long) 0x80000000)
+				/* alternative option */
+#define NET_ALTOPT ((unsigned long) 0x40000000)
+				/* no open timeout */
+#define NET_NOOPENTIMEOUT ((unsigned long) 0x20000000)
 
 
 /* Close options */
 
 #define CL_EXPUNGE (long) 1	/* expunge silently */
-
-
+
 /* Fetch options */
 
 #define FT_UID (long) 1		/* argument is a UID */
@@ -320,7 +337,8 @@
 #define ST_UID (long) 1		/* argument is a UID sequence */
 #define ST_SILENT (long) 2	/* don't return results */
 #define ST_SET (long) 4		/* set vs. clear */
-
+
+
 /* Copy options */
 
 #define CP_UID (long) 1		/* argument is a UID sequence */
@@ -353,6 +371,11 @@
 #define MG_COPY (long) 2	/* must return copy of argument */
 
 
+/* SASL authenticator categories */
+
+#define AU_SECURE (long) 1	/* /secure allowed */
+#define AU_AUTHUSER (long) 2	/* /authuser=xxx allowed */
+
 /* Garbage collection flags */
 
 #define GC_ELT (long) 1		/* message cache elements */
@@ -378,7 +401,8 @@
 #define SORTTO 4		/* to */
 #define SORTCC 5		/* cc */
 #define SORTSIZE 6		/* size */
-
+
+
 /* imapreferral_t codes */
 
 #define REFAUTHFAILED (long) 0	/* authentication referral -- not logged in */
@@ -428,14 +452,15 @@ STRINGLIST {
 
 /* Parse results from mail_valid_net_parse */
 
-#define NETMAXHOST 65
+#define NETMAXHOST 256
 #define NETMAXUSER 65
-#define NETMAXMBX 256
+#define NETMAXMBX (MAILTMPLEN/4)
 #define NETMAXSRV 21
 typedef struct net_mailbox {
   char host[NETMAXHOST];	/* host name (may be canonicalized) */
   char orighost[NETMAXHOST];	/* host name before canonicalization */
   char user[NETMAXUSER];	/* user name */
+  char authuser[NETMAXUSER];	/* authentication user name */
   char mailbox[NETMAXMBX];	/* mailbox name */
   char service[NETMAXSRV];	/* service name */
   unsigned long port;		/* TCP port number */
@@ -444,6 +469,7 @@ typedef struct net_mailbox {
   unsigned int secflag : 1;	/* secure flag */
   unsigned int altflag : 1;	/* alt driver flag */
   unsigned int tryaltflag : 1;	/* (internal) try alt driver first flag */
+  unsigned int altopt : 1;	/* alt option flag */
 } NETMBX;
 
 /* Item in an address list */
@@ -785,15 +811,39 @@ SORTPGM {
 SORTCACHE {
   unsigned int sorted : 1;	/* message has been sorted */
   unsigned int postsorted : 1;	/* message has been postsorted */
+  unsigned int refwd : 1;	/* subject is a re or fwd */
   SORTPGM *pgm;			/* sort program */
   unsigned long num;		/* message number (sequence or UID) */
-  unsigned long date;		/* delivery date */
+  unsigned long date;		/* sent date */
   unsigned long arrival;	/* arrival date */
   unsigned long size;		/* message size */
   char *from;			/* from string */
   char *to;			/* to string */
   char *cc;			/* cc string */
   char *subject;		/* subject string */
+  char *message_id;		/* message-id string */
+  STRINGLIST *references;	/* references string */
+};
+
+/* ACL list */
+
+#define ACLLIST struct acl_list
+
+ACLLIST {
+  char *identifier;		/* authentication identifier */
+  char *rights;			/* access rights */
+  ACLLIST *next;
+};
+
+/* Quota resource list */
+
+#define QUOTALIST struct quota_list
+
+QUOTALIST {
+  char *name;			/* resource name */
+  unsigned long usage;		/* resource usage */
+  unsigned long limit;		/* resource limit */
+  QUOTALIST *next;		/* next resource */
 };
 
 /* Mail Access I/O stream */
@@ -822,6 +872,7 @@ typedef struct mail_stream {
   unsigned int halfopen : 1;	/* stream half-open flag */
   unsigned int secure : 1;	/* stream secure flag */
   unsigned int tryalt : 1;	/* stream tryalt flag */
+  unsigned int mulnewsrc : 1;	/* stream use multiple newsrc files */
   unsigned int perm_seen : 1;	/* permanent Seen flag */
   unsigned int perm_deleted : 1;/* permanent Deleted flag */
   unsigned int perm_flagged : 1;/* permanent Flagged flag */
@@ -1005,9 +1056,21 @@ typedef unsigned long *(*sorter_t) (MAILSTREAM *stream,char *charset,
 typedef void (*parseline_t) (ENVELOPE *env,char *hdr,char *data,char *host);
 typedef ADDRESS *(*parsephrase_t) (char *phrase,char *end,char *host);
 typedef void *(*blocknotify_t) (int reason,void *data);
+typedef void (*getacl_t) (MAILSTREAM *stream,char *mailbox,ACLLIST *acl);
+typedef void (*listrights_t) (MAILSTREAM *stream,char *mailbox,char *id,
+			      char *alwaysrights,STRINGLIST *possiblerights);
+typedef void (*myrights_t) (MAILSTREAM *stream,char *mailbox,char *rights);
+typedef void (*quota_t) (MAILSTREAM *stream,char *qroot,QUOTALIST *qlist);
+typedef void (*quotaroot_t) (MAILSTREAM *stream,char *mbx,STRINGLIST *qroot);
 typedef void (*sortresults_t) (MAILSTREAM *stream,unsigned long *list,
 			       unsigned long size);
+typedef char *(*newsrcquery_t) (MAILSTREAM *stream,char *mulname,char *name);
 typedef char *(*userprompt_t) (void);
+typedef long (*append_t) (MAILSTREAM *stream,void *data,char **flags,
+			  char **date,STRING **message);
+typedef void (*freeenvelopesparep_t) (void **sparep);
+typedef void (*freeeltsparep_t) (void **sparep);
+
 
 /* Globals */
 
@@ -1044,6 +1107,10 @@ THREADER {
 };
 
 
+/* Container for references threading */
+
+typedef void ** container_t;
+
 /* Namespaces */
 
 #define NAMESPACE struct mail_namespace
@@ -1061,7 +1128,7 @@ NAMESPACE {
 #define AUTHENTICATOR struct mail_authenticator
 
 AUTHENTICATOR {
-  unsigned int secflag : 1;	/* secure authenticator */
+  long flags;			/* authenticator flags */
   char *name;			/* name of this authenticator */
   authcheck_t valid;		/* authenticator valid on this system */
   authclient_t client;		/* client function that supports it */
@@ -1150,8 +1217,7 @@ DRIVER {
 				/* copy messages to another mailbox */
   long (*copy) (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 				/* append string message to mailbox */
-  long (*append) (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		  STRING *message);
+  long (*append) (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 				/* garbage collect stream */
   void (*gc) (MAILSTREAM *stream,long gcflags);
 };
@@ -1221,9 +1287,6 @@ void mm_fatal (char *string);
 void *mm_cache (MAILSTREAM *stream,unsigned long msgno,long op);
 
 extern STRINGDRIVER mail_string;
-void mail_string_init (STRING *s,void *data,unsigned long size);
-char mail_string_next (STRING *s);
-void mail_string_setpos (STRING *s,unsigned long i);
 void mail_link (DRIVER *driver);
 void *mail_parameters (MAILSTREAM *stream,long function,void *value);
 DRIVER *mail_valid (MAILSTREAM *stream,char *mailbox,char *purpose);
@@ -1275,7 +1338,6 @@ void mail_fetchfrom (char *s,MAILSTREAM *stream,unsigned long msgno,
 void mail_fetchsubject (char *s,MAILSTREAM *stream,unsigned long msgno,
 			long length);
 MESSAGECACHE *mail_elt (MAILSTREAM *stream,unsigned long msgno);
-
 void mail_flag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
 void mail_search_full (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,
 		       long flags);
@@ -1288,10 +1350,12 @@ long mail_copy_full (MAILSTREAM *stream,char *sequence,char *mailbox,
 		     long options);
 long mail_append_full (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		       STRING *message);
+long mail_append_multiple (MAILSTREAM *stream,char *mailbox,append_t af,
+			   void *data);
 void mail_gc (MAILSTREAM *stream,long gcflags);
 void mail_gc_msg (MESSAGE *msg,long gcflags);
 void mail_gc_body (BODY *body);
-
+
 BODY *mail_body (MAILSTREAM *stream,unsigned long msgno,char *section);
 char *mail_date (char *string,MESSAGECACHE *elt);
 char *mail_cdate (char *string,MESSAGECACHE *elt);
@@ -1329,7 +1393,8 @@ unsigned long *mail_sort_cache (MAILSTREAM *stream,SORTPGM *pgm,SORTCACHE **sc,
 unsigned long *mail_sort_msgs (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 			       SORTPGM *pgm,long flags);
 SORTCACHE **mail_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm);
-char *mail_strip_subject (char *t);
+unsigned int mail_strip_subject (char *t,char **ret);
+unsigned int mail_strip_subject_aux (char *t,char **ret);
 int mail_sort_compare (const void *a1,const void *a2);
 int mail_compare_ulong (unsigned long l1,unsigned long l2);
 int mail_compare_cstring (char *s1,char *s2);
@@ -1341,6 +1406,17 @@ THREADNODE *mail_thread_msgs (MAILSTREAM *stream,char *type,char *charset,
 THREADNODE *mail_thread_orderedsubject (MAILSTREAM *stream,char *charset,
 					SEARCHPGM *spg,long flags,
 					sorter_t sorter);
+THREADNODE *mail_thread_references (MAILSTREAM *stream,char *charset,
+				    SEARCHPGM *spg,long flags,
+				    sorter_t sorter);
+void mail_thread_loadcache (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov);
+char *mail_thread_parse_msgid (char *s,char **ss);
+STRINGLIST *mail_thread_parse_references (char *s,long flag);
+long mail_thread_check_child (container_t mother,container_t daughter);
+container_t mail_thread_prune_dummy (container_t msg,container_t ane);
+container_t mail_thread_prune_dummy_work (container_t msg,container_t ane);
+THREADNODE *mail_thread_c2node (MAILSTREAM *stream,container_t con,long flags);
+THREADNODE *mail_thread_sort (THREADNODE *thr,THREADNODE **tc);
 int mail_thread_compare_date (const void *a1,const void *a2);
 long mail_sequence (MAILSTREAM *stream,char *sequence);
 long mail_uid_sequence (MAILSTREAM *stream,char *sequence);
@@ -1363,6 +1439,8 @@ SEARCHOR *mail_newsearchor (void);
 SEARCHPGMLIST *mail_newsearchpgmlist (void);
 SORTPGM *mail_newsortpgm (void);
 THREADNODE *mail_newthreadnode (SORTCACHE *sc);
+ACLLIST *mail_newacllist (void);
+QUOTALIST *mail_newquotalist (void);
 void mail_free_body (BODY **body);
 void mail_free_body_data (BODY *body);
 void mail_free_body_parameter (PARAMETER **parameter);
@@ -1380,16 +1458,18 @@ void mail_free_searchpgmlist (SEARCHPGMLIST **pgl);
 void mail_free_namespace (NAMESPACE **n);
 void mail_free_sortpgm (SORTPGM **pgm);
 void mail_free_threadnode (THREADNODE **thr);
+void mail_free_acllist (ACLLIST **al);
+void mail_free_quotalist (QUOTALIST **ql);
 void auth_link (AUTHENTICATOR *auth);
 char *mail_auth (char *mechanism,authresponse_t resp,int argc,char *argv[]);
 AUTHENTICATOR *mail_lookup_auth (unsigned long i);
-unsigned int mail_lookup_auth_name (char *mechanism,long secflag);
+unsigned int mail_lookup_auth_name (char *mechanism,long flags);
 
 NETSTREAM *net_open (NETMBX *mb,NETDRIVER *dv,unsigned long port,
 		     NETDRIVER *altd,char *alts,unsigned long altp);
 NETSTREAM *net_open_work (NETDRIVER *dv,char *host,char *service,
 			  unsigned long port,unsigned long portoverride,
-			  long flags);
+			  unsigned long flags);
 NETSTREAM *net_aopen (NETDRIVER *dv,NETMBX *mb,char *service,char *usrbuf);
 char *net_getline (NETSTREAM *stream);
 				/* stream must be void* for use as readfn_t */

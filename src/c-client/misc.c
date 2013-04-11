@@ -10,35 +10,19 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	13 January 1999
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  *
- * Sponsorship:	The original version of this work was developed in the
- *		Symbolic Systems Resources Group of the Knowledge Systems
- *		Laboratory at Stanford University in 1987-88, and was funded
- *		by the Biomedical Research Technology Program of the National
- *		Institutes of Health under grant number RR-00785.
- *
- * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notices appear in all copies and that both the
- * above copyright notices and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington or The
- * Leland Stanford Junior University not be used in advertising or publicity
- * pertaining to distribution of the software without specific, written prior
- * permission.  This software is made available "as is", and
- * THE UNIVERSITY OF WASHINGTON AND THE LELAND STANFORD JUNIOR UNIVERSITY
- * DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, WITH REGARD TO THIS SOFTWARE,
- * INCLUDING WITHOUT LIMITATION ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
- * FITNESS FOR A PARTICULAR PURPOSE, AND IN NO EVENT SHALL THE UNIVERSITY OF
- * WASHINGTON OR THE LELAND STANFORD JUNIOR UNIVERSITY BE LIABLE FOR ANY
- * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
- * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
- * CONTRACT, TORT (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * This original version of this file is
+ * Copyright 1988 Stanford University
+ * and was developed in the Symbolic Systems Resources Group of the Knowledge
+ * Systems Laboratory at Stanford University in 1987-88, and was funded by the
+ * Biomedical Research Technology Program of the NationalInstitutes of Health
+ * under grant number RR-00785.
  */
 
 
@@ -259,64 +243,121 @@ long search (unsigned char *base,long basec,unsigned char *pat,long patc)
   return NIL;			/* pattern not found */
 }
 
-/* Wildcard pattern match
- * Accepts: base string
- *	    pattern string
- *	    delimiter character
- * Returns: T if pattern matches base, else NIL
+/* Create a hash table
+ * Accepts: size of new table (note: should be a prime)
+ * Returns: hash table
  */
 
-long pmatch_full (char *s,char *pat,char delim)
+HASHTAB *hash_create (size_t size)
 {
-  switch (*pat) {
-  case '%':			/* non-recursive */
-				/* % at end, OK if no inferiors */
-    if (!pat[1]) return (delim && strchr (s,delim)) ? NIL : T;
-                                /* scan remainder of string until delimiter */
-    do if (pmatch_full (s,pat+1,delim)) return T;
-    while ((*s != delim) && *s++);
-    break;
-  case '*':			/* match 0 or more characters */
-    if (!pat[1]) return T;	/* * at end, unconditional match */
-				/* scan remainder of string */
-    do if (pmatch_full (s,pat+1,delim)) return T;
-    while (*s++);
-    break;
-  case '\0':			/* end of pattern */
-    return *s ? NIL : T;	/* success if also end of base */
-  default:			/* match this character */
-    return (*pat == *s) ? pmatch_full (s+1,pat+1,delim) : NIL;
+  size_t i = sizeof (size_t) + size * sizeof (HASHENT *);
+  HASHTAB *ret = (HASHTAB *) memset (fs_get (i),0,i);
+  ret->size = size;
+  return ret;
+}
+
+
+/* Destroy hash table
+ * Accepts: hash table
+ */
+
+void hash_destroy (HASHTAB **hashtab)
+{
+  if (*hashtab) {
+    hash_reset (*hashtab);	/* reset hash table */
+    fs_give ((void **) hashtab);
   }
+}
+
+
+/* Reset hash table
+ * Accepts: hash table
+ */
+
+void hash_reset (HASHTAB *hashtab)
+{
+  size_t i;
+  HASHENT *ent,*nxt;
+				/* free each hash entry */
+  for (i = 0; i < hashtab->size; i++) if (ent = hashtab->table[i])
+    for (hashtab->table[i] = NIL; ent; ent = nxt) {
+      nxt = ent->next;		/* get successor */
+      fs_give ((void **) &ent);	/* flush this entry */
+    }
+}
+
+/* Calculate index into hash table
+ * Accepts: hash table
+ *	    entry name
+ * Returns: index
+ */
+
+size_t hash_index (HASHTAB *hashtab,char *key)
+{
+  size_t ret = 0;
+  unsigned int i;
+				/* polynomial of letters of the word */
+  while (i = (unsigned int) *key++) {
+    ret *= HASHMULT;		/* multiply by some strange constant */
+    ret += i;			/* add character to result */
+  }
+  return ret % hashtab->size;
+}
+
+
+/* Look up name in hash table
+ * Accepts: hash table
+ *	    key
+ * Returns: associated data
+ */
+
+void **hash_lookup (HASHTAB *hashtab,char *key)
+{
+  HASHENT *ret;
+  for (ret = hashtab->table[hash_index (hashtab,key)]; ret; ret = ret->next)
+    if (!strcmp (key,ret->name)) return ret->data;
   return NIL;
 }
 
-/* Directory pattern match
- * Accepts: base string
- *	    pattern string
- *	    delimiter character
- * Returns: T if base is a matching directory of pattern, else NIL
+/* Add entry to hash table
+ * Accepts: hash table
+ *	    key
+ *	    associated data
+ *	    number of extra data slots
+ * Returns: hash entry
+ * Caller is responsible for ensuring that entry isn't already in table
  */
 
-long dmatch (char *s,char *pat,char delim)
+HASHENT *hash_add (HASHTAB *hashtab,char *key,void *data,long extra)
 {
-  switch (*pat) {
-  case '%':			/* non-recursive */
-    if (!*s) return T;		/* end of base means have a subset match */
-    if (!*++pat) return NIL;	/* % at end, no inferiors permitted */
-				/* scan remainder of string until delimiter */
-    do if (dmatch (s,pat,delim)) return T;
-    while ((*s != delim) && *s++);
-    if (*s && !s[1]) return T;	/* ends with delimiter, must be subset */
-    return dmatch (s,pat,delim);/* do new scan */
-  case '*':			/* match 0 or more characters */
-    return T;			/* unconditional match */
-  case '\0':			/* end of pattern */
-    break;
-  default:			/* match this character */
-    if (*s) return (*pat == *s) ? dmatch (s+1,pat+1,delim) : NIL;
-				/* end of base, return if at delimiter */
-    else if (*pat == delim) return T;
-    break;
-  }
-  return NIL;
+  size_t i = hash_index (hashtab,key);
+  size_t j = sizeof (HASHENT) + (extra * sizeof (void *));
+  HASHENT *ret = (HASHENT *) memset (fs_get (j),0,j);
+  ret->next = hashtab->table[i];/* insert as new head in this index */
+  ret->name = key;		/* set up hash key */
+  ret->data[0] = data;		/* and first data */
+  return hashtab->table[i] = ret;
+}
+
+
+/* Look up name in hash table
+ * Accepts: hash table
+ *	    key
+ *	    associated data
+ *	    number of extra data slots
+ * Returns: associated data
+ */
+
+void **hash_lookup_and_add (HASHTAB *hashtab,char *key,void *data,long extra)
+{
+  HASHENT *ret;
+  size_t i = hash_index (hashtab,key);
+  size_t j = sizeof (HASHENT) + (extra * sizeof (void *));
+  for (ret = hashtab->table[i]; ret; ret = ret->next)
+    if (!strcmp (key,ret->name)) return ret->data;
+  ret = (HASHENT *) memset (fs_get (j),0,j);
+  ret->next = hashtab->table[i];/* insert as new head in this index */
+  ret->name = key;		/* set up hash key */
+  ret->data[0] = data;		/* and first data */
+  return (hashtab->table[i] = ret)->data;
 }

@@ -9,35 +9,29 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	15 November 1999
+# Last Edited:	2 November 2000
 #
-# Copyright 1999 by the University of Washington
+# The IMAP toolkit provided in this Distribution is
+# Copyright 2000 University of Washington.
 #
-#  Permission to use, copy, modify, and distribute this software and its
-# documentation for any purpose and without fee is hereby granted, provided
-# that the above copyright notice appears in all copies and that both the
-# above copyright notice and this permission notice appear in supporting
-# documentation, and that the name of the University of Washington not be
-# used in advertising or publicity pertaining to distribution of the software
-# without specific, written prior permission.  This software is made
-# available "as is", and
-# THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
-# WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
-# NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
-# INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
-# (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
-# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# The full text of our legal notices is contained in the file called
+# CPYRIGHT, included with this Distribution.
 
 
-#  The following ports are defined.  These refer to the *standard* compiler
-# on the given system.  This means, for example, that the sol port is for SUN's
-# compiler and not for a non-standard compiler such as gcc.
-#  If you are using gcc and it is not the standard compiler on your system, try
+# Normal command to build IMAP toolkit:
+#  make <port> [EXTRAAUTHENTICATORS=xxx] [SPECIALAUTHENTICATORS=ssl] \
+#    [EXTRADRIVERS=xxx] [PASSWDTYPE=xxx]
+
+
+# Port name.  These refer to the *standard* compiler on the given system.
+# This means, for example, that the hpx port is for HP's compiler and not for
+# a non-standard compiler such as gcc.
+#
+# If you are using gcc and it is not the standard compiler on your system, try
 # using an ANSI port that is close to what you have.  For example, if your
 # system is SVR4ish, try a32 or lnx; if it's more BSDish, try nxt, mct, or bsi.
 #
+# The following ports are bundled:
 # a32	AIX 3.2 for RS/6000
 # a41	AIX 4.1 for RS/6000
 # aix	AIX/370 (not RS/6000!!)
@@ -65,7 +59,8 @@
 # gas	GCC Altos SVR4
 # gh9   GCC HP-UX 9.x
 # ghp	GCC HP-UX 10.x
-# gs5	GCC 2.7.1 (95q4 from Skunkware _not_ 98q2!) SCO Open Server 5.0.x
+# go5	GCC 2.7.1 (95q4 from Skunkware _not_ 98q2!) SCO Open Server 5.0.x
+# gsg	GCC SGI
 # gso	GCC Solaris
 # gsu	GCC SUN-OS
 # gul	GCC RISC Ultrix (DEC-5000)
@@ -80,16 +75,18 @@
 # mct	MachTen
 # mnt	Atari ST Mint (not MacMint)
 # neb	NetBSD/FreeBSD
+# nec	NEC UX
 # nxt	NEXTSTEP
 # nx3	NEXTSTEP 3.x
 # osf	OSF/1 (see sos, os4)
 # os4	OSF/1 (Digital UNIX) 4
+# osx	Mac OS X
 # ptx	PTX
 # pyr	Pyramid
 # qnx	QNX 4
 # s40	SUN-OS 4.0 (*not* Solaris)
-# sc5	SCO Open Server 5.0.x (see gs5)
-# sco	Santa Cruz Operation (see sc5, gs5)
+# sc5	SCO Open Server 5.0.x (see go5)
+# sco	Santa Cruz Operation (see sc5, go5)
 # shp	HP-UX with Trusted Computer Base
 # sgi	Silicon Graphics IRIX
 # sg6	Silicon Graphics IRIX 6.5
@@ -109,32 +106,43 @@
 # vu2	VAX Ultrix 2.3 (e.g. for VAXstation-2000 or similar old version)
 
 
-# *** TEMPORARY FOR PINE 4.10 BUILD ***
-GSSDIR=/usr/local
-# *** TEMPORARY FOR PINE 4.10 BUILD ***
-
-# Normal command to build IMAP toolkit:
-#  make <port> [EXTRAAUTHENTICATORS=xxx] [EXTRADRIVERS=xxx] [PASSWDTYPE=xxx]
-
-
 # Extra authenticators (e.g. OTP, Kerberos, etc.).  Adds linkage for
 # auth_xxx.c and executes Makefile.xxx, where xxx is the name of the
 # authenticator.  Some authenticators are only available from third parties.
+# Do not use this for SSL; use SPECIALAUTHENTICATORS instead.
+#
+# The following extra authenticators are bundled:
+# gss	Kerberos V
 
 EXTRAAUTHENTICATORS=
+
+
+# Special authenticators.  If you build with SSL support, set SSL as a
+# special authenticator instead of an extra authenticator.  This will guarantee
+# that the PLAIN SASL mechanism is ordered after more secure SASL mechanisms
+# (between the built-in CRAM-MD5 and LOGIN mechanisms).
+
 SPECIALAUTHENTICATORS=
 
 
-# The following extra drivers are defined:
+# Additional mailbox drivers.  Add linkage for xxxdriver.  Some drivers are
+# only available from third parties.
+#
+# The following extra drivers are bundled:
 # mbox	if file "mbox" exists on the home directory, automatically moves mail
 #	 from the spool directory to "mbox" and uses "mbox" as INBOX.
 
 EXTRADRIVERS=mbox
 
 
-# The following plaintext login types are defined:
+# Plaintext password type.  Defines how plaintext password authentication is
+# done on this system.
+#
+# The following plaintext login types are bundled:
 # afs	AFS authentication database
 # dce	DCE authentication database
+# gss	Kerberos V
+# krb	Kerberos IV
 # nul	no plaintext authentication (note: this will break some secure
 #	 authenticators -- don't use without checking first!!)
 # pam	PAM authentication (note: for Linux, you should use the "lnp" port
@@ -143,20 +151,41 @@ EXTRADRIVERS=mbox
 # pmb	PAM authentication for broken implementations such as Solaris.
 #	 you may have to modify PAMLDFLAGS
 # std	system standard (typically passwd file), determined by port
+# two	try alternative (defined by CHECKPWALT), then std
 
 PASSWDTYPE=std
 
 
 # The following extra compilation flags are defined.  None of these flags are
-# recommended.
+# recommended.  If you use these, include them in the EXTRACFLAGS.
 #
-# -DDISABLE_POP_PROXY=1
+# -DCHROOT_SERVER
+#	This option is for closed server systems only.  If defined, a chroot()
+#	call to the user's home directory is done as part of the login
+#	process.  This has the effect of preventing access to any files
+#	outside of the user's home directory (including shared mailboxes).
+#
+#	Shared mailboxes with other users can't possibly work with this
+#	option, because there is no way to export lock information to other
+#	users.
+#
+#	This should be done ONLY on systems which do not permit users to
+#	have shell access
+#
+#	This option should NEVER(!!) be set if users are allowed shell access.
+#	Doing so actually makes the system *less* secure, since the user could
+#	create an etc subdirectory which would be treated as real /etc by such
+#	programs as /bin/su.
+#
+#	This option is strongly *NOT* recommended.
+#
+# -DDISABLE_POP_PROXY
 #	By default, the ipop[23]d servers offer POP->IMAP proxy access,
 #	which allow a POP client to access mail on an IMAP server by using the
 #	POP server as a go-between.  Setting this option disables this
 #	facility.
 #
-# -DDISABLE_REVERSE_DNS_LOOKUP=1
+# -DDISABLE_REVERSE_DNS_LOOKUP
 #	Never do gethostbyaddr() calls on sockets in the client and server.
 #	By default, the servers (ipop[23]d and imapd) will do gethostbyaddr()
 #	on the local and remote sockets so that imapd can identify itself
@@ -176,67 +205,66 @@ PASSWDTYPE=std
 #	problems due to a misconfigured DNS, e.g. long startup delays or
 #	client timeouts.
 #
-# -DIGNORE_LOCK_EACCES_ERRORS=1
-#	Disable the "Mailbox vulnerable -- directory must have 1777 protection"
-#	warning which occurs if an attempt to create a mailbox lock file
-#	fails due to an EACCES error.
+# -DDISABLE_AUTOMATIC_SHARED_NAMESPACES
+#	Never look up the "ftp", "imappublic", and "imapshared" users as
+#	posssible home directories for the #ftp, #public, and #shared
+#	namespaces.  On some systems (reportedly including AIX 4.3.3)
+#	getpwnam() of an unknown user name is horrendously slow.
 #
-#	WARNING: If the mail delivery program uses mailbox lock files and the
-#	mail spool directory is not protected 1777, there is no protection
-#	against mail being delivered while the mailbox is being rewritten in a
-#	checkpoint or an expunge.  The result is a corrupted mailbox file
-#	and/or lost mail.  The warning message is the *ONLY* indication that
-#	the user will receive that this could be happening.  Disabling the
-#	warning just sweeps the problem under the rug.
+#	Note that this does not remove the #ftp, #public, and #shared
+#	namespaces, and they can still be set up by other means.
 #
-#	There are only a small minority of BSD-style systems in which the mail
-#	delivery program does not use mailbox lock files.  Linux is *NOT* one
-#	of these systems.  Do *NOT* set this option on Linux or SVR4.
+# -DMAILSUBDIR=\\\"xxx\\\"
+#	Change the default connected directory from the user's home directory
+#	to the named subdirectory of the user's home directory.  For example,
+#	setting MAILSUBDIR="mail" will cause the POP2 and IMAP servers to
+#	connect to the user's ~/mail subdirectory.  This is equivalent to
+#	the env_unix.c edit described in Example 2 of the CONFIG file.
 #
-# -DSVR4_DISABLE_FLOCK=1
-#	Disable emulation of the BSD flock() system call on SVR4 systems in all
-#	unconditionally.  By default, this only happens for NFS files (to avoid
-#	problems with the broken "statd" and "lockd" daemons).
+#	Note that if the subdirectory does not exist, the result is undefined.
+#	It is probably an extremely bad idea to set this unless you can
+#	guarantee that the subdirectory exists for all users.  If you can not
+#	guarantee this, then you should leave the default as the user's home
+#	directory and allow them to configure a personal default in their IMAP
+#	client.
 #
-#	WARNING: This disables protection against two processes accessing the
-#	same mailbox file simultaneously, and can result in corrupted
-#	mailboxes, aborted sessions, and core dumps.
+# -DADVERTISE_THE_WORLD
+#	Include the UNIX root as a shared namespace.  This is generally a bad
+#	idea, since certain IMAP clients (names withheld to protect the guilty)
+#	will take this as license to download the entire filesystem tree.
 #
-#	There should be no reason ever to do this, since the flock() emulation
-#	checks for NFS files.
-#
-# -DOLDFILESUFFIX="xxx"
+# -DOLDFILESUFFIX=\\\"xxx\\\"
 #	Change the default suffix appended to the backup .newsrc file from
 #	"old".
 #
-# -DSTRICT_RFC822_TIMEZONES=1
-#	Disable recognition of the UTC (0000), MET (+0100), EET (+0200),
-#	JST (+0900), ADT (-0300), AST (-0400), YDT (-0800), YST (-0900), and
-#	HST (-1000) symbolic timezones.
+# -DSTRICT_RFC822_TIMEZONES
+#	Disable recognition of the non-standard UTC (0000), MET (+0100),
+#	EET (+0200), JST (+0900), ADT (-0300), AST (-0400), YDT (-0800),
+#	YST (-0900), and HST (-1000) symbolic timezones.
 #
-# -DBRITISH_SUMMER_TIME=1
+# -DBRITISH_SUMMER_TIME
 #	Enables recognition of non-standard symbolic timezone BST as +0100.
 #
-# -DBERING_STANDARD_TIME=1
+# -DBERING_STANDARD_TIME
 #	Enables recognition of non-standard symbolic timezone BST as -1100.
 #
-# -DNEWFOUNDLAND_STANDARD_TIME=1
+# -DNEWFOUNDLAND_STANDARD_TIME
 #	Enables recognition of non-standard symbolic timezone NST as -0330.
 #
-# -DNOME_STANDARD_TIME=1
+# -DNOME_STANDARD_TIME
 #	Enables recognition of non-standard symbolic timezone NST as -1100.
 #
-# -DSAMOA_STANDARD_TIME=1
+# -DSAMOA_STANDARD_TIME
 #	Enables recognition of non-standard symbolic timezone SST as -1100.
 #				
-# -DY4KBUGFIX=1
+# -DY4KBUGFIX
 #	Turn on the Y4K bugfix (yes, that's year 4000).  It isn't well-known,
 #	but century years evenly divisible by 4000 are *not* leap years in the
 #	Gregorian calendar.  A lot of "Y2K compilant" software does not know
 #	about this rule.  Remember to turn this on sometime in the next 2000
 #	years.
 #
-# -DUSEORTHODOXCALENDAR=1
+# -DUSEORTHODOXCALENDAR
 #	Use the more accurate Eastern Orthodox calendar instead of the
 #	Gregorian calendar.  The century years which are leap years happen
 #	at alternating 400 and 500 year intervals without shifts every 4000
@@ -254,7 +282,13 @@ EXTRALDFLAGS=
 
 # Special make flags (e.g. to override make environment variables)
 
+#SPECIALS=
 EXTRASPECIALS=
+# *** TEMPORARY FOR PINE BUILD ***
+GSSDIR=/usr/local
+SPECIALS=GSSDIR=$(GSSDIR)
+# *** TEMPORARY FOR PINE BUILD ***
+
 
 # Normal commands
 
@@ -275,10 +309,7 @@ TOUCH=touch
 BUILDOPTIONS= EXTRACFLAGS='$(EXTRACFLAGS)' EXTRALDFLAGS='$(EXTRALDFLAGS)'\
  EXTRADRIVERS='$(EXTRADRIVERS)' EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
  PASSWDTYPE=$(PASSWDTYPE) SPECIALAUTHENTICATORS='$(SPECIALAUTHENTICATORS)'
-#BUILD=$(MAKE) build $(BUILDOPTIONS)
-# *** TEMPORARY FOR PINE 4.10 BUILD ***
-BUILD=$(MAKE) build $(BUILDOPTIONS) GSSDIR=$(GSSDIR)
-# *** TEMPORARY FOR PINE 4.10 BUILD ***
+BUILD=$(MAKE) build $(BUILDOPTIONS) EXTRASPECIALS='$(EXTRASPECIALS)'
 
 
 # Make the IMAP Toolkit
@@ -293,7 +324,7 @@ c-client:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp gs5 gso gsu gul hpp hpx lnp lyn mct mnt neb nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
+a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp go5 gsg gso gsu gul hpp hpx lnp lyn mct mnt neb nec nxt nx3 osf os4 osx ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
 	$(BUILD) OS=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
@@ -366,7 +397,7 @@ ami am2 ama amn:
 	$(BUILD) OS=$@ LN=cp
 
 
-# Courtesy entry for NT
+# Courtesy entries for Microsoft systems
 
 nt:
 	nmake /nologo /f makefile.nt
@@ -374,7 +405,8 @@ nt:
 ntk:
 	nmake /nologo /f makefile.ntk
 
-# Courtesy entry for WCE
+w2k:
+	nmake /nologo /f makefile.w2k
 
 wce:
 	nmake /nologo /f makefile.wce
@@ -398,18 +430,17 @@ build:	OSTYPE rebuild rebuildclean bundled
 
 OSTYPE:
 	@echo Building c-client for $(OS)...
-	echo $(EXTRASPECIALS) > c-client/EXTRASPECIALS
-# *** TEMPORARY FOR PINE 4.10 BUILD ***
-	echo GSSDIR=$(GSSDIR) >> c-client/EXTRASPECIALS
-# *** TEMPORARY FOR PINE 4.10 BUILD ***
-	$(CD) c-client;$(MAKE) $(OS) BUILDOPTIONS="$(BUILDOPTIONS)" $(EXTRASPECIALS)
+	echo $(SPECIALS) $(EXTRASPECIALS) > c-client/SPECIALS
+	$(CD) c-client;$(MAKE) $(OS) BUILDOPTIONS="$(BUILDOPTIONS)" \
+	 $(SPECIALS) $(EXTRASPECIALS)
 	echo $(OS) > OSTYPE
 	$(TOUCH) rebuild
 
 rebuild:
-	@echo Rebuilding c-client for `cat OSTYPE`...
-	$(TOUCH) c-client/EXTRASPECIALS
-	$(CD) c-client;$(MAKE) all CC=`cat CCTYPE` CFLAGS="`cat CFLAGS`" `cat EXTRASPECIALS`
+	@echo Rebuilding c-client for `$(CAT) OSTYPE`...
+	$(TOUCH) c-client/SPECIALS
+	$(CD) c-client;$(MAKE) all CC=`$(CAT) CCTYPE` \
+	 CFLAGS="`$(CAT) CFLAGS`" `$(CAT) SPECIALS`
 
 rebuildclean:
 	sh -c '$(RM) rebuild || true'

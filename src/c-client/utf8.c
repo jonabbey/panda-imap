@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	4 October 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notices appear in all copies and that both the
- * above copyright notices and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN
- * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -60,6 +45,7 @@
 #include "koi8_u.c"		/* Cyrillic - Ukraine */
 #include "tis_620.c"		/* Thai */
 #include "viscii.c"		/* Vietnamese */
+#include "windows.c"		/* Windows */
 #include "gb_2312.c"		/* Chinese (PRC) - simplified */
 #include "gb_12345.c"		/* Chinese (PRC) - traditional */
 #include "jis_0208.c"		/* Japanese - basic */
@@ -134,7 +120,7 @@ static const struct utf8_csent utf8_csvalid[] = {
   {"ISO-8859-9",utf8_text_1byte,(void *) iso8859_9tab,SC_LATIN_5,NIL},
   {"ISO-8859-10",utf8_text_1byte,(void *) iso8859_10tab,SC_LATIN_6,NIL},
   {"ISO-8859-11",utf8_text_1byte,(void *) iso8859_11tab,SC_THAI,NIL},
-#if 0				/* ISO 8859-12 reserved */
+#if 0				/* ISO 8859-12 reserved for ISCII(?) */
   {"ISO-8859-12",utf8_text_1byte,(void *) iso8859_12tab,NIL,NIL},
 #endif
   {"ISO-8859-13",utf8_text_1byte,(void *) iso8859_13tab,SC_LATIN_7,NIL},
@@ -188,7 +174,20 @@ static const struct utf8_csent utf8_csvalid[] = {
 #ifdef KSCTOUNICODE
   {"ISO-2022-KR",utf8_text_2022,NIL,SC_KOREAN,NIL},
   {"EUC-KR",utf8_text_dbyte,(void *) &ksc_param,SC_KOREAN,NIL},
+  {"KS_C_5601-1987",utf8_text_dbyte,(void *) &ksc_param,SC_KOREAN,NIL},
+  {"KS_C_5601-1992",utf8_text_dbyte,(void *) &ksc_param,SC_KOREAN,NIL},
 #endif
+				/* deep sigh */
+  {"WINDOWS-874",utf8_text_1byte,(void *) windows_874tab,SC_THAI,NIL},
+  {"WINDOWS-1250",utf8_text_1byte,(void *) windows_1250tab,SC_LATIN_2,NIL},
+  {"WINDOWS-1251",utf8_text_1byte,(void *) windows_1251tab,SC_CYRILLIC,NIL},
+  {"WINDOWS-1252",utf8_text_1byte,(void *) windows_1252tab,SC_LATIN_1,NIL},
+  {"WINDOWS-1253",utf8_text_1byte,(void *) windows_1253tab,SC_GREEK,NIL},
+  {"WINDOWS-1254",utf8_text_1byte,(void *) windows_1254tab,SC_LATIN_5,NIL},
+  {"WINDOWS-1255",utf8_text_1byte,(void *) windows_1255tab,SC_HEBREW,NIL},
+  {"WINDOWS-1256",utf8_text_1byte,(void *) windows_1256tab,SC_ARABIC,NIL},
+  {"WINDOWS-1257",utf8_text_1byte,(void *) windows_1257tab,SC_LATIN_7,NIL},
+  {"WINDOWS-1258",utf8_text_1byte,(void *) windows_1258tab,SC_VIETNAMESE,NIL},
   NIL
 };
 
@@ -223,13 +222,14 @@ long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags)
     }
     return LONGT;
   }
-				/* otherwise look for charset */
-  for (i = 0, ucase (strcpy (tmp,charset)); utf8_csvalid[i].name; i++)
-    if (!strcmp (tmp,utf8_csvalid[i].name)) {
-      if (ret && utf8_csvalid[i].dsp)
-	(*utf8_csvalid[i].dsp) (text,ret,utf8_csvalid[i].tab);
-      return LONGT;		/* success */
-    }
+			
+  if (strlen (charset) < 128)	/* otherwise look for charset */
+    for (i = 0, ucase (strcpy (tmp,charset)); utf8_csvalid[i].name; i++)
+      if (!strcmp (tmp,utf8_csvalid[i].name)) {
+	if (ret && utf8_csvalid[i].dsp)
+	  (*utf8_csvalid[i].dsp) (text,ret,utf8_csvalid[i].tab);
+	return LONGT;		/* success */
+      }
   if (flags) {			/* charset not found */
     strcpy (tmp,"[BADCHARSET (");
     for (i = 0, t = tmp + strlen (tmp); utf8_csvalid[i].name;

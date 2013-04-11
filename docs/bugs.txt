@@ -1,6 +1,7 @@
-Updated: 27 October 1999
+	   KNOWN BUGS/MISFEATURES/DEFICIENCIES IN THE IMAP TOOLKIT
+			 Last Updated: 9 October 2000
 
-The following are known problems/deficiencies in the IMAP 4.7 toolkit:
+The following are known problems/deficiencies in the imap-2000 toolkit:
  . Possible problems for some installations:
    . In some versions of Redhat Linux, SVR4-style timezone name lookup
       doesn't work properly due to a bug in glibc.  The workaround is to
@@ -22,7 +23,27 @@ The following are known problems/deficiencies in the IMAP 4.7 toolkit:
       DNS and/or the server's host table.  A workaround exists (see the
       top-level Makefile for details) but is not recommended and can not
       be used at all with Kerberos.
+   . At the insistance of the security gurus, SSL certification validation
+      is now on by default.  This means that you must now use the new
+      /novalidate-cert switch if establishing an SSL connection to a server
+      with a self-signed certificate; i.e. if "imap.blurdybloop.com" has a
+      self-signed certificate, you must use a mailbox name such as
+       {imap.blurdybloop.com/ssl/novalidate-cert}INBOX
+      to get an SSL session instead of just
+       {imap.blurdybloop.com/ssl}INBOX
  . Bugs:
+   . By default, the UNIX SSL build assumes that RSAREF is not needed, because
+      RSA Security Inc. released the RSA public key encryption algorithm into
+      the public domain on September 6, 2000.  There is no longer any need to
+      use RSAREF, and since RSAREF is slower than OpenSSL's RSA routines
+      there's good reason not to.  If for some reason you still want to use
+      RSAREF, you will need to edit imap-2000/src/osdep/unix/Makefile.ssl to
+      change SSLRSA to load libRSAglue and librsaref.
+   . By default, the UNIX SSL build assumes that a name conflict exists
+      between OpenSSL and Kerberos 5, consequently it loads the OpenSSL
+      libcrypto library explicitly as libcrypto.a.  If you use shared
+      libraries, you may need to edit imap-2000/src/osdep/unix/Makefile.ssl
+      to change SSLCRYPTO to use the more normal -lcrypto.
    . It doesn't work to have a "}" character as a user name in /user= in a
       mailbox name, even if the user name is quoted.  In other words,
       {blurdybloop.com/user="foo}bar"}zap won't work; foo will be interpreted
@@ -32,6 +53,12 @@ The following are known problems/deficiencies in the IMAP 4.7 toolkit:
       not for any other characters
    . The experimental mx driver has performance problems and shouldn't be used
    . docs/internal.txt is out of date (again)
+   . SSL certificate validation doesn't check the host name on UNIX, and
+      doesn't work at all on Win9x, Windows Millenium, and NT.  It works on
+      Windows 2000.
+   . Friendly host names (e.g. "server" instead of "server.foo.com") can't be
+      used in a mailbox name with SSL certificate validation; you have to enter
+      the fully-qualified domain name.
  . IMAP client limitations:
    . No SASL protection mechanisms (SASL authentication mechanisms are
       supported)
@@ -55,6 +82,7 @@ The following are known problems/deficiencies in the IMAP 4.7 toolkit:
    . Creation of keywords is not supported in the mh, mtx, and tenex drivers
    . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
       mailboxes to have inferior names
+   . SSL temporary key should be seeded better than it is.
  . Amiga limitations:
    . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
       unix
@@ -63,7 +91,7 @@ The following are known problems/deficiencies in the IMAP 4.7 toolkit:
    . Creation of keywords is not supported in the mh, mtx, and tenex drivers
    . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
       mailboxes to have inferior names
- . NT limitations:
+ . NT/Windows 2000 limitations:
    . Supported local file formats: mbx, mtx, tenex, unix
    . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS, GSSAPI
    . Sticky UIDs are not supported in the mtxnt and tenexnt drivers

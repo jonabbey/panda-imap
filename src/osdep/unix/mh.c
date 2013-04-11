@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	19 October 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	17 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 #include <stdio.h>
@@ -179,26 +164,22 @@ int mh_isvalid (char *name,char *tmp,long synonly)
 
 void *mh_parameters (long function,void *value)
 {
+  void *ret = NIL;
   switch ((int) function) {
   case SET_MHPROFILE:
     if (mh_profile) fs_give ((void **) &mh_profile);
     mh_profile = cpystr ((char *) value);
-    break;
   case GET_MHPROFILE:
-    value = (void *) mh_profile;
+    ret = (void *) mh_profile;
     break;
   case SET_MHPATH:
     if (mh_path) fs_give ((void **) &mh_path);
     mh_path = cpystr ((char *) value);
-    break;
   case GET_MHPATH:
-    value = (void *) mh_path;
-    break;
-  default:
-    value = NIL;		/* error case */
+    ret = (void *) mh_path;
     break;
   }
-  return NIL;
+  return ret;
 }
 
 /* MH scan mailboxes
@@ -299,7 +280,7 @@ void mh_list_work (MAILSTREAM *stream,char *dir,char *pat,long level)
     while (d = readdir (dp))	/* scan, ignore . and numeric names */
       if ((d->d_name[0] != '.') && !mh_select (d)) {
 	strcpy (cp,d->d_name);	/* make directory name */
-	if (!stat (curdir,&sbuf) && ((sbuf.st_mode &= S_IFMT) == S_IFDIR)) {
+	if (!stat (curdir,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR)) {
 	  strcpy (np,d->d_name);/* make mh name of directory name */
 				/* yes, an MH name if full match */
 	  if (pmatch_full (name,pat,'/')) mm_list (stream,'/',name,NIL);
@@ -864,31 +845,22 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 /* MH mail append message from stringstruct
  * Accepts: MAIL stream
  *	    destination mailbox
- *	    stringstruct of messages to append
+ *	    append callback
+ *	    data for callback
  * Returns: T if append successful, else NIL
  */
 
-long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		STRING *message)
+long mh_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
   struct direct **names;
   int fd;
-  char c,*s,tmp[MAILTMPLEN];
+  char c,*flags,*date,*s,tmp[MAILTMPLEN];
+  STRING *message;
   MESSAGECACHE elt;
-  long i,last,nfiles;
-  long size = 0;
+  long i,size,last,nfiles;
   long ret = LONGT;
-  unsigned long uf;
-  /* short f = */ mail_parse_flags (stream ? stream : &mhproto,flags,&uf);
-  if (date) {			/* want to preserve date? */
-				/* yes, parse date into an elt */
-    if (!mail_parse_date (&elt,date)) {
-      sprintf (tmp,"Bad date in append: %.80s",date);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-  }
-				/* N.B.: can't use LOCAL->buf for tmp */
+				/* default stream to prototype */
+  if (!stream) stream = &mhproto;
 				/* make sure valid mailbox */
   if (!mh_isvalid (mailbox,tmp,NIL)) switch (errno) {
   case ENOENT:			/* no such file? */
@@ -916,7 +888,8 @@ long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
     mm_log (tmp,ERROR);
     return NIL;
   }
-  mh_file (tmp,mailbox);	/* build file name we will use */
+				/* get first message */
+  if (!(*af) (stream,data,&flags,&date,&message)) return NIL;
   if ((nfiles = scandir (tmp,&names,mh_select,mh_numsort)) > 0) {
 				/* largest number */
     last = atoi (names[nfiles-1]->d_name);    
@@ -926,30 +899,49 @@ long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   else last = 0;		/* no messages here yet */
   if (s = (void *) names) fs_give ((void **) &s);
 
-  sprintf (tmp + strlen (tmp),"/%ld",++last);
-  if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
-    sprintf (tmp,"Can't open append message: %s",strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  i = SIZE (message);		/* get size of message */
-  s = (char *) fs_get (i + 1);	/* get space for the data */
-				/* copy the data w/o CR's */
-  while (i--) if ((c = SNX (message)) != '\015') s[size++] = c;
   mm_critical (stream);		/* go critical */
+  do {
+    if (!SIZE (message)) {	/* guard against zero-length */
+      mm_log ("Append of zero-length message",ERROR);
+      ret = NIL;
+      break;
+    }
+    if (date) {			/* want to preserve date? */
+				/* yes, parse date into an elt */
+      if (!mail_parse_date (&elt,date)) {
+	sprintf (tmp,"Bad date in append: %.80s",date);
+	mm_log (tmp,ERROR);
+	ret = NIL;
+	break;
+      }
+    }
+    mh_file (tmp,mailbox);	/* build file name we will use */
+    sprintf (tmp + strlen (tmp),"/%ld",++last);
+    if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
+      sprintf (tmp,"Can't open append message: %s",strerror (errno));
+      mm_log (tmp,ERROR);
+      ret = NIL;
+      break;
+    }
+				/* copy the data w/o CR's */
+    for (size = 0,i = SIZE (message),s = (char *) fs_get (i + 1); i; --i)
+      if ((c = SNX (message)) != '\015') s[size++] = c;
 				/* write the data */
-  if ((write (fd,s,size) < 0) || fsync (fd)) {
-    unlink (tmp);		/* delete message */
-    sprintf (tmp,"Message append failed: %s",strerror (errno));
-    mm_log (tmp,ERROR);
-    ret = NIL;
-  }
-  close (fd);			/* close the file */
-				/* set the date for this message */
-  if (date) mh_setdate (tmp,&elt);
-
+    if ((write (fd,s,size) < 0) || fsync (fd)) {
+      unlink (tmp);		/* delete message */
+      sprintf (tmp,"Message append failed: %s",strerror (errno));
+      mm_log (tmp,ERROR);
+      ret = NIL;
+    }
+    fs_give ((void **) &s);	/* flush the buffer */
+    close (fd);			/* close the file */
+    if (ret) {			/* set the date for this message */
+      if (date) mh_setdate (tmp,&elt);
+				/* get next message */
+      if (!(*af) (stream,data,&flags,&date,&message)) ret = NIL;
+    }
+  } while (ret && message);
   mm_nocritical (stream);	/* release critical */
-  fs_give ((void **) &s);	/* flush the buffer */
   return ret;
 }
 

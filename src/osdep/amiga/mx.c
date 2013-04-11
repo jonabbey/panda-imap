@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	12 November 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	17 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 #include <stdio.h>
@@ -793,30 +778,23 @@ long mx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 /* MX mail append message from stringstruct
  * Accepts: MAIL stream
  *	    destination mailbox
- *	    stringstruct of messages to append
+ *	    append callback
+ *	    data for callback
  * Returns: T if append successful, else NIL
  */
 
-long mx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		STRING *message)
+long mx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
   MESSAGECACHE *elt,selt;
   MAILSTREAM *astream;
   int fd;
-  char *s,tmp[MAILTMPLEN];
-  long f;
-  long i = 0;
-  long size = SIZE (message);
-  long ret = LONGT;
+  char *flags,*date,*s,tmp[MAILTMPLEN];
+  STRING *message;
+  long f,i,size;
   unsigned long uf;
-  if (date) {			/* want to preserve date? */
-				/* yes, parse date into an elt */
-    if (!mail_parse_date (&selt,date)) {
-      sprintf (tmp,"Bad date in append: %.80s",date);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-  }
+  long ret = LONGT;
+				/* default stream to prototype */
+  if (!stream) stream = user_flags (&mxproto);
 				/* N.B.: can't use LOCAL->buf for tmp */
 				/* make sure valid mailbox */
   if (!mx_isvalid (mailbox,tmp)) switch (errno) {
@@ -843,25 +821,44 @@ long mx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
     mm_log (tmp,ERROR);
     return NIL;
   }
+				/* get first message */
+  if (!(*af) (stream,data,&flags,&date,&message)) return NIL;
   if (!(astream = mail_open (NIL,mailbox,OP_SILENT))) {
     sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
   }
-				/* parse flags */
-  f = mail_parse_flags (astream,flags,&uf);
+  mm_critical (stream);		/* go critical */
 
-  if (mx_lockindex (astream)) {	/* lock the index */
+				/* lock the index */
+  if (mx_lockindex (astream)) do {
+    if (!SIZE (message)) {	/* guard against zero-length */
+      mm_log ("Append of zero-length message",ERROR);
+      ret = NIL;
+      break;
+    }
+				/* parse flags */
+    f = mail_parse_flags (astream,flags,&uf);
+    if (date) {			/* want to preserve date? */
+				/* yes, parse date into an elt */
+      if (!mail_parse_date (&selt,date)) {
+	sprintf (tmp,"Bad date in append: %.80s",date);
+	mm_log (tmp,ERROR);
+	ret = NIL;
+	break;
+      }
+    }
     mx_file (tmp,mailbox);	/* make message name */
     sprintf (tmp + strlen (tmp),"/%lu",++astream->uid_last);
     if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
       sprintf (tmp,"Can't create append message: %s",strerror (errno));
       mm_log (tmp,ERROR);
-      return NIL;
+      ret = NIL;
+      break;
     }
-    s = (char *) fs_get (size);	/* copy message */
+				/* copy message */
+    s = (char *) fs_get (size = SIZE (message));
     for (i = 0; i < size; s[i++] = SNX (message));
-    mm_critical (stream);	/* go critical */
 				/* write the data */
     if ((write (fd,s,size) < 0) || fsync (fd)) {
       unlink (tmp);		/* delete mailbox */
@@ -869,27 +866,30 @@ long mx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
       mm_log (tmp,ERROR);
       ret = NIL;
     }
+    fs_give ((void **) &s);	/* flush the buffer */
     close (fd);			/* close the file */
-				/* set the date for this message */
-    if (date) mx_setdate (tmp,&selt);
+    if (ret) {			/* set the date for this message */
+      if (date) mx_setdate (tmp,&selt);
 				/* swell the cache */
-    mail_exists (astream,++astream->nmsgs);
+      mail_exists (astream,++astream->nmsgs);
 				/* copy flags */
-    (elt = mail_elt (astream,astream->nmsgs))->private.uid = astream->uid_last;
-    if (f&fSEEN) elt->seen = T;
-    if (f&fDELETED) elt->deleted = T;
-    if (f&fFLAGGED) elt->flagged = T;
-    if (f&fANSWERED) elt->answered = T;
-    if (f&fDRAFT) elt->draft = T;
-    elt->user_flags |= uf;
-    mx_unlockindex (astream);	/* unlock index */
-  }
+      (elt = mail_elt (astream,astream->nmsgs))->private.uid=astream->uid_last;
+      if (f&fSEEN) elt->seen = T;
+      if (f&fDELETED) elt->deleted = T;
+      if (f&fFLAGGED) elt->flagged = T;
+      if (f&fANSWERED) elt->answered = T;
+      if (f&fDRAFT) elt->draft = T;
+      elt->user_flags |= uf;
+				/* get next message */
+      if (!(*af) (stream,data,&flags,&date,&message)) ret = NIL;
+    }
+  } while (ret && message);
   else {
     mm_log ("Message append failed: unable to lock index",ERROR);
     ret = NIL;
   }
+  mx_unlockindex (astream);	/* unlock index */
   mm_nocritical (stream);	/* release critical */
-  fs_give ((void **) &s);	/* flush the buffer */
   mail_close (astream);
   return ret;
 }
@@ -976,8 +976,8 @@ long mx_lockindex (MAILSTREAM *stream)
       if (s = strchr (t = ++s,'\n')) {
 	*s++ = '\0';		/* tie off keyword */
 				/* copy keyword */
-	if ((k < NUSERFLAGS) && !stream->user_flags[k])
-	  stream->user_flags[k] = cpystr (t);
+	if ((k < NUSERFLAGS) && !stream->user_flags[k] &&
+	    (strlen (t) <= MAXUSERFLAG)) stream->user_flags[k] = cpystr (t);
 	k++;			/* one more keyword */
       }
       break;

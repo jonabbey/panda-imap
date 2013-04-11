@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	30 September 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 #include <stdio.h>
@@ -355,7 +340,7 @@ MAILSTREAM *news_open (MAILSTREAM *stream)
 	atoi (names[i]->d_name);
       fs_give ((void **) &names[i]);
     }
-    s = (void *) &names;	/* stupid language */
+    s = (void *) names;		/* stupid language */
     fs_give ((void **) &s);	/* free directory */
     LOCAL->cachedtexts = 0;	/* no cached texts */
     stream->sequence++;		/* bump sequence number */
@@ -619,13 +604,13 @@ long news_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 /* News append message from stringstruct
  * Accepts: MAIL stream
  *	    destination mailbox
- *	    stringstruct of messages to append
+ *	    append callback function
+ *	    data for callback
  * Returns: T if append successful, else NIL
  */
 
-long news_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		  STRING *message)
+long news_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
-  mm_log ("Append not valid for News",ERROR);
+  mm_log ("Append not valid for news",ERROR);
   return NIL;
 }

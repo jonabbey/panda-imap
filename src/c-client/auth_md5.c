@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	21 October 1998
- * Last Edited:	14 September 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made available
- * "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	6 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 /* MD5 context */
@@ -67,7 +52,7 @@ static void md5_decode (unsigned long *dst,unsigned char *src,int len);
 /* Authenticator linkage */
 
 AUTHENTICATOR auth_md5 = {
-  T,				/* secure authenticator */
+  AU_SECURE,			/* secure authenticator */
   "CRAM-MD5",			/* authenticator name */
   auth_md5_valid,		/* check if valid */
   auth_md5_client,		/* client method */
@@ -115,12 +100,15 @@ long auth_md5_client (authchallenge_t challenger,authrespond_t responder,
       if ((*responder) (stream,resp,strlen (resp)) &&
 	  !(chal = (*challenger) (stream,&cl))) return (long) ++*trial;
     }
-				/* user requested abort */
-    else (*responder) (stream,NIL,0);
+    else {			/* user requested abort */
+      (*responder) (stream,NIL,0);
+      *trial = 0;		/* cancel subsequent attempts */
+      return T;			/* will get a BAD response back */
+    }
   }
 				/* flush any challenge left behind */
   if (chal) fs_give ((void **) &chal);
-  *trial = 0;			/* retries not permitted */
+  *trial = 65535;		/* never retry */
   return NIL;			/* return failure */
 }
 
@@ -137,7 +125,7 @@ long auth_md5_client (authchallenge_t challenger,authrespond_t responder,
 char *auth_md5_server (authresponse_t responder,int argc,char *argv[])
 {
   char *ret = NIL;
-  char *p,*u,*user,*hash,chal[MAILTMPLEN];
+  char *p,*u,*user,*authuser,*hash,chal[MAILTMPLEN];
   unsigned long cl,pl;
 				/* generate challenge */
   sprintf (chal,"<%lu.%lu@%s>",(unsigned long) getpid (),
@@ -147,18 +135,24 @@ char *auth_md5_server (authresponse_t responder,int argc,char *argv[])
 				/* got user, locate hash */
     if (hash = strrchr (user,' ')) {
       *hash++ = '\0';		/* tie off user */
-      if ((p = auth_md5_pwd (user)) || (p = auth_md5_pwd (lcase (user)))) {
-				/* quickly verify password */
+				/* see if authentication user */
+      if (authuser = strchr (user,'*')) *authuser++ = '\0';
+      if (authuser && *authuser) {
+	if (!(p = auth_md5_pwd (authuser)))
+	  p = auth_md5_pwd (lcase (authuser));
+	}
+      else if (!(p = auth_md5_pwd (user))) p = auth_md5_pwd (lcase (user));
+      if (p) {			/* quickly verify password */
 	u = strcmp (hash,hmac_md5 (chal,cl,p,pl = strlen (p))) ? NIL : user;
 	memset (p,0,pl);	/* erase sensitive information */
 	fs_give ((void **) &p);	/* flush erased password */
 				/* now log in for real */
-	if (u && authserver_login (u,argc,argv)) ret = myusername ();
+	if (u && authserver_login (u,authuser,argc,argv)) ret = myusername ();
       }
     }
     fs_give ((void **) &user);
   }
-  if (!ret) sleep (3);		/* slow down poassible cracker */
+  if (!ret) sleep (3);		/* slow down possible cracker */
   return ret;
 }
 
@@ -208,11 +202,17 @@ char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[])
 {
   int i,j;
   char *ret = NIL;
-  char *s,tmp[MAILTMPLEN];
+  char *s,*authuser,tmp[MAILTMPLEN];
   unsigned char digest[MD5DIGLEN];
   MD5CONTEXT ctx;
   char *hex = "0123456789abcdef";
-  if ((s = auth_md5_pwd (user)) || (s = auth_md5_pwd (lcase (user)))) {
+				/* see if authentication user */
+  if (authuser = strchr (user,'*')) *authuser++ = '\0';
+  if (authuser && *authuser) {
+    if (!(s = auth_md5_pwd (authuser))) s = auth_md5_pwd (lcase (authuser));
+  }
+  else if (!(s = auth_md5_pwd (user))) s = auth_md5_pwd (lcase (user));
+  if (s) {			/* only if found password */
     md5_init (&ctx);		/* initialize MD5 context */
 				/* build string to get MD5 digest */
     sprintf (tmp,"%.128s%.128s",chal,s);
@@ -228,7 +228,7 @@ char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[])
     }
     *s = '\0';			/* tie off hash text */
     memset (digest,0,MD5DIGLEN);/* erase sensitive information */
-    if (!strcmp (md5,tmp) && authserver_login (user,argc,argv))
+    if (!strcmp (md5,tmp) && authserver_login (user,authuser,argc,argv))
       ret = cpystr (myusername ());
     memset (tmp,0,MAILTMPLEN);	/* erase sensitive information */
   }

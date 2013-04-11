@@ -9,26 +9,13 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	16 November 1999
+# Last Edited:	31 October 2000
 #
-# Copyright 1999 by the University of Washington
+# The IMAP toolkit provided in this Distribution is
+# Copyright 2000 University of Washington.
 #
-#  Permission to use, copy, modify, and distribute this software and its
-# documentation for any purpose and without fee is hereby granted, provided
-# that the above copyright notice appears in all copies and that both the
-# above copyright notice and this permission notice appear in supporting
-# documentation, and that the name of the University of Washington not be
-# used in advertising or publicity pertaining to distribution of the software
-# without specific, written prior permission.  This software is made
-# available "as is", and
-# THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
-# WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
-# NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
-# INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
-# (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
-# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# The full text of our legal notices is contained in the file called
+# CPYRIGHT, included with this Distribution.
 
 
 # Command line build parameters
@@ -58,6 +45,7 @@ PAMLDFLAGS= -lpam -ldl
 CHECKPW=std
 LOGINPW=std
 SIGTYPE=bsd
+CRXTYPE=std
 ACTIVEFILE=/usr/lib/news/active
 SPOOLDIR=/usr/spool
 MAILSPOOL=$(SPOOLDIR)/mail
@@ -105,6 +93,8 @@ BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o utf8.o siglocal.o \
  rfc822.o nntp.o smtp.o imap4r1.o pop3.o \
  unix.o mbox.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
 CFLAGS=$(BASECFLAGS) $(EXTRACFLAGS)
+
+CAT=cat
 MAKE=make
 MV=mv
 RM=rm -rf
@@ -113,16 +103,16 @@ SH=sh
 
 # Primary build command
 
-BUILDOPTIONS= EXTRACFLAGS="$(EXTRACFLAGS)"\
- EXTRALDFLAGS="$(EXTRALDFLAGS)"\
- EXTRADRIVERS="$(EXTRADRIVERS)" EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS)"\
- PASSWDTYPE=$(PASSWDTYPE) SPECIALAUTHENTICATORS="$(SPECIALAUTHENTICATORS)"
+BUILDOPTIONS= EXTRACFLAGS='$(EXTRACFLAGS)'\
+ EXTRALDFLAGS='$(EXTRALDFLAGS)'\
+ EXTRADRIVERS='$(EXTRADRIVERS)' EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
+ PASSWDTYPE=$(PASSWDTYPE) SPECIALAUTHENTICATORS='$(SPECIALAUTHENTICATORS)'
 BUILD=$(MAKE) build $(BUILDOPTIONS)
 
 # Here if no make argument established
 
 missing: osdep.h
-	$(MAKE) all CC=`cat CCTYPE` CFLAGS="`cat CFLAGS`" `cat EXTRASPECIALS`
+	$(MAKE) all CC=`$(CAT) CCTYPE` CFLAGS="`$(CAT) CFLAGS`" `$(CAT) SPECIALS`
 
 osdep.h:
 	@echo You must specify what type of system
@@ -132,32 +122,37 @@ osdep.h:
 # Current ports
 
 a32:	# AIX 3.2 for RS/6000
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -Dunix=1 -D_BSD -DNFSKLUDGE" \
+	 BASECFLAGS="-g -Dunix=1 -D_BSD" \
 	 BASELDFLAGS="-lbsd"
 
 a41:	# AIX 4.1 for RS/6000
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=a41 \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CHECKPW=a41 CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -Dunix=1 -D_BSD -DNFSKLUDGE" \
+	 BASECFLAGS="-g -Dunix=1 -D_BSD" \
 	 BASELDFLAGS="-lbsd -ls"
 
 aix:	# AIX/370
 	@echo You are building for AIX on an S/370 class machine
 	@echo If you want AIX on an RS/6000 you need to use a32 or a41 instead!
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-g -DNFSKLUDGE" \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-g" \
 	 BASELDFLAGS="-lbsd"
 
 aos:	# AOS for RT
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE"
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-g -Dconst="
 
 art:	# AIX 2.2.1 for RT
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=sv4 \
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/usr/local/news/control/active \
 	 RSHPATH=/bin/rsh \
@@ -165,7 +160,8 @@ art:	# AIX 2.2.1 for RT
 	 RANLIB=true 
 
 asv:	# Altos SVR4
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 LOGINPW=old \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=sv4 LOGINPW=old \
 	 ACTIVEFILE=/usr/spool/news/active \
 	 RSHPATH=/usr/bin/rcmd \
 	 BASECFLAGS="-Dconst= -DSIGSTOP=SIGKILL" \
@@ -173,93 +169,107 @@ asv:	# Altos SVR4
 	 RANLIB=true
 
 aux:	# A/UX
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
-	 BASECFLAGS="-g -B/usr/lib/big/ -Dvoid=char -Dconst= -DNFSKLUDGE" \
+	 BASECFLAGS="-g -B/usr/lib/big/ -Dvoid=char -Dconst=" \
 	 RANLIB=true ARRC="ar -rc"
 
 bs3:	# BSD/i386 3.0 or higher
-	$(BUILD) `cat EXTRASPECIALS` OS=bsi CHECKPW=bsi LOGINPW=bsi \
+	$(BUILD) `$(CAT) SPECIALS` OS=bsi \
+	 CHECKPW=bsi LOGINPW=bsi CRXTYPE=nfs \
 	 SPOOLDIR=/var NEWSSPOOL=/var/news/spool \
 	 ACTIVEFILE=/var/news/etc/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O2 -pipe -DNFSKLUDGE" CC=shlicc
+	 BASECFLAGS="-g -O2 -pipe" CC=shlicc
 
 bsd:	# BSD UNIX
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE"
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-g -Dconst="
 
 bsf:	# FreeBSD
-	$(BUILD) `cat EXTRASPECIALS` OS=bsi SIGTYPE=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=bsi \
+	 SIGTYPE=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/usr/local/news/lib/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE" \
+	 BASECFLAGS="-g -O -pipe" \
 	 BASELDFLAGS="-lcrypt"
 
 bsi:	# BSD/i386
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
 	 SPOOLDIR=/var NEWSSPOOL=/var/news/spool \
 	 ACTIVEFILE=/var/news/etc/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O2 -pipe -DNFSKLUDGE"
+	 BASECFLAGS="-g -O2 -pipe"
 
 bso:	# OpenBSD
-	$(BUILD) `cat EXTRASPECIALS` OS=bsi SIGTYPE=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=bsi \
+	 SIGTYPE=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/usr/local/news/lib/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-O2 -pipe -DNFSKLUDGE"
+	 BASECFLAGS="-O2 -pipe"
 
 cvx:	# Convex
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-O -ext -Dconst= -DNFDKLUDGE"
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-O -ext -Dconst="
 
 d-g:	# Data General DG/UX
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=sv4 CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/local/news/active \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE" \
+	 BASECFLAGS="-g -Dconst=" \
 	 BASELDFLAGS="-lnsl -lsocket" \
 	 RANLIB=true
 
 d54:	# Data General DG/UX 5.4
-	$(BUILD) `cat EXTRASPECIALS` OS=d-g SIGTYPE=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=d-g \
+	 SIGTYPE=sv4 CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/local/news/active \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE" \
+	 BASECFLAGS="-g -Dconst=" \
 	 BASELDFLAGS="-lnsl -lsocket" \
 	 RANLIB=true
 
 dpx:	# Bull DPX/2
-	$(BUILD) `cat EXTRASPECIALS` OS=sv4 SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=sv4 \
+	 SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
 	 RSHPATH=/usr/bin/remsh \
 	 BASECFLAGS="-Dconst= -DSYSTEM5 -DSHORT_IDENT" \
 	 BASELDFLAGS="-linet" \
 	 RANLIB=true LN=ln
 
 drs:	# ICL DRS/NX
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-O -DNFSKLUDGE" \
+	 BASECFLAGS="-O" \
 	 BASELDFLAGS="-lsocket -lgen" \
 	 RANLIB=true
 
 do4:	# Apollo Domain/OS sr10.4
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-DNFSKLUDGE -A systype,bsd4.3 -D_APOLLO_SOURCE" \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-A systype,bsd4.3 -D_APOLLO_SOURCE" \
 	 RANLIB=true
 
 dyn:	# Dynix
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE"
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-g -Dconst="
 
 epx:	# EP/IX
-	$(BUILD) `cat EXTRASPECIALS` OS=sv4 SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=sv4 \
+	 SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/usr/share/news/active \
 	 RSHPATH=/usr/net/rsh \
@@ -268,7 +278,8 @@ epx:	# EP/IX
 	 RANLIB=true
 
 gas:	# GCC Altos SVR4
-	$(BUILD) `cat EXTRASPECIALS` OS=asv SIGTYPE=sv4 LOGINPW=old \
+	$(BUILD) `$(CAT) SPECIALS` OS=asv \
+	 SIGTYPE=sv4 LOGINPW=old \
 	 ACTIVEFILE=/usr/spool/news/active \
 	 RSHPATH=/usr/bin/rcmd \
 	 BASECFLAGS="-g -O -DALTOS_SYSTEM_V -DSIGSTOP=SIGKILL" \
@@ -276,70 +287,87 @@ gas:	# GCC Altos SVR4
 	 RANLIB=true CC=gcc
 
 gh9:	# GCC HP-UX9.x
-	$(BUILD) `cat EXTRASPECIALS` OS=hpp SIGTYPE=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=hpp \
+	 SIGTYPE=psx CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-O2 -DNFSKLUDGE" \
+	 BASECFLAGS="-g -O2" \
 	 RANLIB=true CC=gcc
 
 ghp:	# GCC HP-UX
-	$(BUILD) `cat EXTRASPECIALS` OS=hpp SIGTYPE=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=hpp \
+	 SIGTYPE=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/var/news/active \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-O2 -DNFSKLUDGE" \
+	 BASECFLAGS="-g -O2" \
 	 RANLIB=true CC=gcc
 
-gs5:	# GCC 2.7.1 (95q4) SCO Open Server 5.0.x
-	$(BUILD) `cat EXTRASPECIALS` OS=sc5 SIGTYPE=psx CHECKPW=sec LOGINPW=sec \
+go5:	# GCC 2.7.1 (95q4) SCO Open Server 5.0.x
+	$(BUILD) `$(CAT) SPECIALS` OS=sc5 \
+	 SIGTYPE=psx CHECKPW=sec LOGINPW=sec \
 	 CREATEPROTO=mmdfproto EMPTYPROTO=mmdfproto \
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rcmd \
 	 BASECFLAGS="-O3 -belf -I/usr/include -L/lib" \
-	 BASELDFLAGS="-lsocket -lcrypt -lprot -lx -ltinfo -lm" \
-	 RANLIB=true
+	 BASELDFLAGS="-lsocket -lprot -lx -ltinfo -lm" \
+	 RANLIB=true CC=gcc
+
+gsg:	# GCC Silicon Graphics
+	$(BUILD) `$(CAT) SPECIALS` OS=sgi \
+	 SIGTYPE=sv4 CRXTYPE=nfs \
+	 MAILSPOOL=/usr/mail \
+	 RSHPATH=/usr/bsd/rsh \
+	 BASECFLAGS="-g -O2" \
+	 RANLIB=true CC=gcc
 
 gso:	# GCC Solaris
-	$(BUILD) `cat EXTRASPECIALS` OS=sol SIGTYPE=psx CHECKPW=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=sol \
+	 SIGTYPE=psx CHECKPW=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/usr/share/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O2 -DNFSKLUDGE" \
+	 BASECFLAGS="-g -O2" \
 	 BASELDFLAGS="-lsocket -lnsl -lgen" \
 	 RANLIB=true CC=gcc
 
 gsu:	# GCC SUN-OS
-	$(BUILD) `cat EXTRASPECIALS` OS=sun \
-	 BASECFLAGS="-O2 -DNFSKLUDGE" \
+	$(BUILD) `$(CAT) SPECIALS` OS=sun \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-g -O2" \
 	 BASELDFLAGS="-ldl" \
 	 CC=gcc
 
 gul:	# GCC Ultrix
-	$(BUILD) `cat EXTRASPECIALS` OS=ult SIGTYPE=psx CHECKPW=ult \
-	 BASECFLAGS="-g -O -DNFSKLUDGE" \
+	$(BUILD) `$(CAT) SPECIALS` OS=ult \
+	 SIGTYPE=psx CHECKPW=ult CRXTYPE=nfs \
+	 BASECFLAGS="-g -O" \
 	 BASELDFLAGS="-lauth -lc" \
 	 CC=gcc
 
 hpp:	# HP-UX 9.x
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g -Aa -D_HPUX_SOURCE -DNFSKLUDGE" \
+	 BASECFLAGS="-g -Aa -D_HPUX_SOURCE" \
 	 BASELDFLAGS="-lnet -lV3" \
 	 RANLIB=true
 
 hpx:	# HP-UX 10.x
-	$(BUILD) `cat EXTRASPECIALS` OS=hpp SIGTYPE=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=hpp \
+	 SIGTYPE=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/var/news/active \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g -Ae -DNFSKLUDGE" \
+	 BASECFLAGS="-g -Ae" \
 	 BASELDFLAGS="-lnet -lV3" \
 	 RANLIB=true
 
 isc:	# Interactive
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/var/spool/news/active \
 	 BASECFLAGS="-Xp -D_SYSV3" \
@@ -347,11 +375,12 @@ isc:	# Interactive
 	 RANLIB=true
 
 lnp:	# Linux Pluggable Authentication modules
-	$(BUILD) `cat EXTRASPECIALS` OS=lnx SIGTYPE=psx CHECKPW=pam \
+	$(BUILD) `$(CAT) SPECIALS` OS=lnx \
+	 SIGTYPE=psx CHECKPW=pam CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE" \
+	 BASECFLAGS="-g -fno-omit-frame-pointer -O6" \
 	 BASELDFLAGS="-lpam -ldl"
 
 lnx:	# Linux non-shadow passwords
@@ -359,127 +388,159 @@ lnx:	# Linux non-shadow passwords
 	@echo passwords and with the crypt function in the C library.
 	@echo If your system has shadow passwords, or if crypt is not
 	@echo in the C library, you must use slx, sl4, or sl5 instead!
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O -DNFSKLUDGE"
+	 BASECFLAGS="-g -O"
 
 lyn:	# LynxOS
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
 	 RSHPATH=/bin/rsh \
-	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE" \
+	 BASECFLAGS="-g -O -pipe" \
 	 BASELDFLAGS=-lbsd \
 	 CC=gcc
 
-mct:	# MachTen - NFSKLUDGE doesn't work (at least not on 2.2)
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
+mct:	# MachTen - CRXTYPE=nfs doesn't work (at least not on 2.2)
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
 	 SPOOLDIR=/var/spool \
 	 BASECFLAGS="-g -O -pipe"
 
 mnt:	# Mint
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O -DNFSKLUDGE"
+	 BASECFLAGS="-g -O"
 
 neb:	# NetBSD
-	$(BUILD) `cat EXTRASPECIALS` OS=bsi \
+	$(BUILD) `$(CAT) SPECIALS` OS=bsi \
+	 CRXTYPE=nfs \
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/var/db/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE" \
+	 BASECFLAGS="-g -O -pipe" \
 	 BASELDFLAGS="-lcrypt"
 
+nec:	# NEC UX
+	$(BUILD) `$(CAT) SPECIALS` OS=sv4 \
+	 SIGTYPE=sv4 CHECKPW=sv4 \
+	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
+	 ACTIVEFILE=/var/news/lib/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -Kopt=2 -KOlimit=2000" \
+	 BASELDFLAGS="-lsocket -lnsl -lgen" \
+	 RANLIB=true CC=/usr/abiccs/bin/cc
+
 nxt:	# NEXTSTEP
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE"
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-g -O -pipe"
 
 nx3:	# NEXTSTEP 3.0 single threaded
-	$(BUILD) `cat EXTRASPECIALS` OS=nxt \
-	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE -Wall"
+	$(BUILD) `$(CAT) SPECIALS` OS=nxt \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-g -O -pipe -Wall"
 	echo "void malloc_singlethreaded (void);" >> linkage.h
 	echo "  malloc_singlethreaded ();" >> linkage.c
 
 osf:	# OSF/1
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx \
-	 BASECFLAGS="-g3 -O2 -Olimit 1500 -DNFSKLUDGE"
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CRXTYPE=nfs \
+	 SPOOLDIR=/var/spool \
+	 BASECFLAGS="-g3 -O2 -Olimit 1500"
 
 # Note: sia_become_user() used by LOGINPW=os4 doesn't seem to work right.  The
 # user doesn't get proper file access, and the process can't be killed.
 
 os4:	# OSF/1 (Digital UNIX) 4
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=os4 LOGINPW=os4 \
-	 BASECFLAGS="-g3 -O2 -Olimit 1500 -DNFSKLUDGE"
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CHECKPW=os4 LOGINPW=os4 CRXTYPE=nfs \
+	 SPOOLDIR=/var/spool \
+	 BASECFLAGS="-g3 -std0 -O2"
+
+osx:	# Mac OS X
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
+	 BASECFLAGS="-g -O"
 
 ptx:	# PTX
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=svo LOGINPW=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CHECKPW=svo LOGINPW=sv4 CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bin/resh \
-	 BASECFLAGS="-Wc,-O3 -Wc,-seq -Dprivate=PRIVATE -DNFSKLUDGE" \
+	 BASECFLAGS="-Wc,-O3 -Wc,-seq -Dprivate=PRIVATE" \
 	 BASELDFLAGS="-lseq -lsec -lsocket -linet -lnsl -lgen" \
 	 RANLIB=true
 
 pyr:	# Pyramid
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE"
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-g -Dconst="
 
 qnx:	# QNX
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ CHECKPW=psx LOGINPW=old \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CHECKPW=psx LOGINPW=old \
 	 RSHPATH=/usr/ucb/rsh \
 	 BASECFLAGS="-Otax -g -Dunix=1 -D_POSIX_SOURCE" \
 	 BASELDFLAGS="-g -N128k -llogin -lsocket -lunix"
 
 s40:	# SUN-OS 4.0
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE"
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-g -Dconst="
 
 sc5:	# SCO Open Server 5.0
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=sec LOGINPW=sec \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CHECKPW=sec LOGINPW=sec \
 	 CREATEPROTO=mmdfproto EMPTYPROTO=mmdfproto \
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rcmd \
 	 BASECFLAGS="-O3 -s" \
-	 BASELDFLAGS="-lsocket -lcrypt -lprot -lx -ltinfo -lm" \
+	 BASELDFLAGS="-lsocket -lprot -lx -ltinfo -lm" \
 	 RANLIB=true
 
 sco:	# Santa Cruz Operation
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 CHECKPW=sec LOGINPW=sec \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=sv4 CHECKPW=sec LOGINPW=sec \
 	 CREATEPROTO=mmdfproto EMPTYPROTO=mmdfproto \
 	 RSHPATH=/usr/bin/rcmd \
 	 BASECFLAGS="-O3" \
 	 BASELDFLAGS="-lsocket -lprot -lcrypt_i -lx -los" \
 	 RANLIB=true LN=ln
 
-# Notes:
-# 1) setting _POSIX_SOURCE doesn't seem to build it as of SGI IRIX 5.3
-# 2) SGI make wouldn't build for Steve unless that bizarre "MAKEFLAGS="
-#    was inserted in the beginning.
+# Note: setting _POSIX_SOURCE doesn't seem to build it as of SGI IRIX 5.3
 
 sgi:	# Silicon Graphics
-	MAKEFLAGS= $(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=sv4 CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bsd/rsh \
-	 BASECFLAGS="-g3 -O2 -Olimit 8192 -DNFSKLUDGE" \
+	 BASECFLAGS="-g3 -O2 -Olimit 8192" \
 	 RANLIB=true
 
 sg6:	# Silicon Graphics, IRIX 6.5
-	MAKEFLAGS= $(BUILD) `cat EXTRASPECIALS` OS=sgi SIGTYPE=sv4 \
+	MAKEFLAGS= $(BUILD) `$(CAT) SPECIALS` OS=sgi \
+	 SIGTYPE=sv4 CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bsd/rsh \
-	 BASECFLAGS="-g3 -O2 -DNFSKLUDGE -woff 1048,1110,1116" \
+	 BASECFLAGS="-g3 -O2 -woff 1048,1110,1116" \
 	 RANLIB=true
 
 # Note: Mark Kaesling says that setluid() isn't in HP-UX with SecureWare.
 
 shp:	# HP-UX with Trusted Computer Base
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=sec LOGINPW=std \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CHECKPW=sec LOGINPW=std CRXTYPE=nfs \
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/var/news/active \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g -Ae -DNFSKLUDGE" \
+	 BASECFLAGS="-g -Ae" \
 	 BASELDFLAGS="-lnet -lV3 -lsec" \
 	 RANLIB=true
 
@@ -487,36 +548,40 @@ slx:	# Secure Linux
 	@echo You are building for libc6/glibc versions of Secure Linux
 	@echo If you want libc5 versions you must use sl5 instead!
 	@echo If you want libc4 versions you must use sl4 instead!
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CHECKPW=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE" \
+	 BASECFLAGS="-g -fno-omit-frame-pointer -O6" \
 	 BASELDFLAGS="-lcrypt"
 
 sl4:	# Secure Linux using libc4
 	@echo You are building for libc4 versions of Secure Linux
 	@echo If you want libc6/glibc versions you must use slx instead!
 	@echo If you want libc5 versions you must use sl5 instead!
-	$(BUILD) `cat EXTRASPECIALS` OS=slx SIGTYPE=psx CHECKPW=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=slx \
+	 SIGTYPE=psx CHECKPW=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE" \
+	 BASECFLAGS="-g -fno-omit-frame-pointer -O6" \
 	 BASELDFLAGS="-lshadow"
 
 sl5:	# Secure Linux using libc5
 	@echo You are building for libc5 versions of Secure Linux
 	@echo If you want libc6/glibc versions you must use slx instead!
 	@echo If you want libc4 versions you must use sl4 instead!
-	$(BUILD) `cat EXTRASPECIALS` OS=slx SIGTYPE=psx CHECKPW=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=slx \
+	 SIGTYPE=psx CHECKPW=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE"
+	 BASECFLAGS="-g -fno-omit-frame-pointer -O6"
 
 snx:	# Siemens Nixdorf SINIX and Reliant UNIX
-	$(BUILD) `cat EXTRASPECIALS` OS=sv4 SIGTYPE=psx CHECKPW=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=sv4 \
+	 SIGTYPE=psx CHECKPW=sv4 \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/usr/share/news/active \
 	 RSHPATH=/usr/bin/rsh \
@@ -560,32 +625,37 @@ snx:	# Siemens Nixdorf SINIX and Reliant UNIX
 #    you got this compiler and not the UCB compiler using BSD libraries.
 
 sol:	# Solaris
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=psx \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CHECKPW=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/usr/share/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O2 -DNFSKLUDGE" \
+	 BASECFLAGS="-g -O2" \
 	 BASELDFLAGS="-lsocket -lnsl -lgen" \
 	 RANLIB=true CC=ucbcc
 
 sos:	# Secure OSF/1
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=sec LOGINPW=sec \
-	 BASECFLAGS="-g3 -O2 -Olimit 1500 -DNFSKLUDGE" \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CHECKPW=sec LOGINPW=sec CRXTYPE=nfs \
+	 BASECFLAGS="-g3 -O2 -Olimit 1500" \
 	 BASELDFLAGS="-lsecurity -laud"
 
 ssn:	# Secure SUN-OS
-	$(BUILD) `cat EXTRASPECIALS` OS=sun CHECKPW=ssn \
-	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE" \
+	$(BUILD) `$(CAT) SPECIALS` OS=sun \
+	 CHECKPW=ssn CRXTYPE=nfs \
+	 BASECFLAGS="-g -Dconst=" \
 	 BASELDFLAGS="-ldl"
 
 sun:	# SUN-OS
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE" \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-g -Dconst=" \
 	 BASELDFLAGS="-ldl"
 
 sv2:	# SVR2
 	@echo You are being *very* optimistic!
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 LOGINPW=old \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=sv4 LOGINPW=old \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bin/remsh \
 	 BASECFLAGS="-Dconst= -DSYSTEM5 -DSHORT_IDENT -I/usr/ethernet/include" \
@@ -593,7 +663,8 @@ sv2:	# SVR2
 	 RANLIB=true LN=ln
 
 sv4:	# SVR4
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/usr/share/news/active \
 	 RSHPATH=/usr/bin/resh \
@@ -602,12 +673,14 @@ sv4:	# SVR4
 	 RANLIB=true
 
 ult:	# Ultrix
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ SIGTYPE=psx CHECKPW=ult \
-	 BASECFLAGS="-g3 -O2 -Olimit 1500 -Dconst= -DNFSKLUDGE" \
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 SIGTYPE=psx CHECKPW=ult CRXTYPE=nfs \
+	 BASECFLAGS="-g3 -O2 -Olimit 1500 -Dconst=" \
 	 BASELDFLAGS="-lauth -lc"
 
 uw2:	# UnixWare SVR4.2
-	$(BUILD) `cat EXTRASPECIALS` OS=sv4 SIGTYPE=sv4 CHECKPW=sv4 \
+	$(BUILD) `$(CAT) SPECIALS` OS=sv4 \
+	 SIGTYPE=sv4 CHECKPW=sv4 \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/var/news/lib/active \
 	 RSHPATH=/usr/bin/rsh \
@@ -616,13 +689,15 @@ uw2:	# UnixWare SVR4.2
 	 RANLIB=true
 
 vul:	# VAX Ultrix
-	$(BUILD) `cat EXTRASPECIALS` OS=ult SIGTYPE=psx CHECKPW=ult \
-	 BASECFLAGS="-O2 -Dconst= -DNFSKLUDGE" \
+	$(BUILD) `$(CAT) SPECIALS` OS=ult \
+	 SIGTYPE=psx CHECKPW=ult CRXTYPE=nfs \
+	 BASECFLAGS="-O2 -Dconst=" \
 	 BASELDFLAGS="-lauth -lc"
 
 vu2:	# VAX Ultrix 2.3, etc.
-	$(BUILD) `cat EXTRASPECIALS` OS=$@ \
-	 BASECFLAGS="-O2 -Dconst= -Dvoid=char -DNFSKLUDGE"
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 BASECFLAGS="-O2 -Dconst= -Dvoid=char"
 
 
 # Build it!
@@ -633,13 +708,13 @@ all:	$(ARCHIVE)
 
 $(ARCHIVE): $(BINARIES)
 	sh -c '$(RM) $(ARCHIVE) || true'
-	@cat ARCHIVE
+	@$(CAT) ARCHIVE
 	@$(SH) ARCHIVE
 
 # Cleanup
 
 clean:
-	sh -c '$(RM) auths.c flockbsd.c linkage.[ch] siglocal.c osdep*.[ch] *.o ARCHIVE *FLAGS *TYPE $(ARCHIVE) || true'
+	sh -c '$(RM) auths.c crexcl.c flockbsd.c linkage.[ch] siglocal.c osdep*.[ch] *.o ARCHIVE *FLAGS *TYPE $(ARCHIVE) || true'
 
 
 # Dependencies
@@ -676,24 +751,43 @@ utf8.o: mail.h misc.h osdep.h utf8.h
 osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	osdep.h env_unix.h tcp_unix.h \
 	osdep.c env_unix.c fs_unix.c ftl_unix.c nl_unix.c tcp_unix.c \
-	auths.c flock.c flockbsd.c flcksafe.c fsync.c gethstid.c \
+	auths.c crexcl.c flock.c flockbsd.c flcksafe.c fsync.c gethstid.c \
 	gr_wait.c gr_wait4.c gr_waitp.c \
-	auth_log.c auth_md5.c \
-	scandir.c setpgrp.c strerror.c truncate.c write.c \
+	auth_gss.c auth_log.c auth_md5.c auth_ssl.c \
+	pmatch.c scandir.c setpgrp.c strerror.c truncate.c write.c \
 	memmove.c memmove2.c memset.c \
 	tz_bsd.c tz_nul.c tz_sv4.c \
 	write.c \
 	strerror.c strpbrk.c strstr.c strtok.c strtoul.c \
 	OSCFLAGS
-	$(CC) $(CFLAGS) `cat OSCFLAGS` -c osdep.c
+	$(CC) $(CFLAGS) `$(CAT) OSCFLAGS` -c osdep.c
 
 osdep.c: osdepbas.c osdepckp.c osdeplog.c
-	cat osdepbas.c osdepckp.c osdeplog.c > osdep.c
+	$(CAT) osdepbas.c osdepckp.c osdeplog.c > osdep.c
 
-flockbsd.c:	# cretin Linux
+osdepbas.c:
+	@echo osdepbas.c not found...try make clean and new make
+	@false
 
-siglocal.c:	# cretin Linux
+osdepckp.c:
+	@echo osdepckp.c not found...try make clean and new make
+	@false
 
+osdeplog.c:
+	@echo osdeplog.c not found...try make clean and new make
+	@false
+
+flockbsd.c:
+	@echo flockbsd.c not found...try make clean and new make
+	@false
+
+siglocal.c:
+	@echo siglocal.c not found...try make clean and new make
+	@false
+
+crexcl.c:
+	@echo crexcl.c not found...do make clean and new make
+	@false
 
 # Once-only environment setup
 
@@ -716,19 +810,26 @@ onceenv:
 	$(LN) os_$(OS).c osdepbas.c
 	$(LN) log_$(LOGINPW).c osdeplog.c
 	$(LN) sig_$(SIGTYPE).c siglocal.c
+	$(LN) crx_$(CRXTYPE).c crexcl.c
 	sh -c '(test -f /usr/include/sys/statvfs.h -a $(OS) != sc5 -a $(OS) != sco) && $(LN) flocksun.c flockbsd.c || $(LN) flocksv4.c flockbsd.c'
 
 # Password checkers
 
 ckpafs:	# AFS
 	echo $(AFSCFLAGS) >> OSCFLAGS
-	echo $(AFSLDFLAGS) >> LDFLAGS
+#	echo $(AFSLDFLAGS) >> LDFLAGS
+# Note: Steve Roseman says that AFS libraries have to be lunk before SSL
+	echo $(AFSLDFLAGS) `$(CAT) LDFLAGS` > LDFLAGS.tmp
+	mv LDFLAGS.tmp LDFLAGS
 	$(LN) ckp_afs.c osdepckp.c
 
 ckpdce:	# DCE
 	echo $(DCECFLAGS) >> OSCFLAGS
 	echo $(DCELDFLAGS) >> LDFLAGS
 	$(LN) ckp_dce.c osdepckp.c
+
+ckpgss:	# Kerberos V (must have gss EXTRAAUTHENTICATOR as well)
+	$(LN) ckp_gss.c osdepckp.c
 
 ckpkrb:	# Kerberos IV (must have krb EXTRAAUTHENTICATOR as well)
 	$(LN) ckp_krb.c osdepckp.c
@@ -737,7 +838,7 @@ ckpmd5:	# MD5 database (must have md5 AUTHENTICATOR as well)
 	$(LN) ckp_md5.c osdepckp.c
 
 ckpnul:	# NUL authenticator (disables all plaintext authentication)
-	echo -DPLAINTEXT_DISABLED >> OSCFLAGS
+	echo -DPLAINTEXT_DISABLED >> CFLAGS
 	$(LN) ckp_nul.c osdepckp.c
 
 ckppam:	# Pluggable Authentication Modules authenticator
@@ -751,6 +852,9 @@ ckppmb:	# Broken (e.g. SUN) Pluggable Authentication Modules authenticator
 ckpstd:	# Port standard
 	$(LN) ckp_$(CHECKPW).c osdepckp.c
 
+ckptwo:	# Something plus standard
+	$(CAT) ckp_1st.c ckp_$(CHECKPWALT).c ckp_2nd.c ckp_$(CHECKPW).c \
+	 ckp_3rd.c > osdepckp.c
 
 # A monument to a hack of long ago and far away...
 

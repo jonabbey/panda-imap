@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	10 June 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	17 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -360,7 +345,7 @@ long mtx_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 void mtx_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt)
 {
 				/* recalculate status */
-  mtx_update_status (stream,elt->msgno,NIL);
+  mtx_update_status (stream,elt->msgno);
 }
 
 
@@ -529,29 +514,25 @@ long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 /* MTX mail append message from stringstruct
  * Accepts: MAIL stream
  *	    destination mailbox
- *	    stringstruct of messages to append
+ *	    append callback
+ *	    data for callback
  * Returns: T if append successful, else NIL
  */
 
-long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		  STRING *message)
+long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
   struct stat sbuf;
-  int fd,zone;
-  char tmp[MAILTMPLEN];
+  int fd,ld,c;
+  char *flags,*date,tmp[MAILTMPLEN],file[MAILTMPLEN];
+  FILE *df;
   MESSAGECACHE elt;
-  long i;
-  long size = SIZE (message);
-  unsigned long uf;
-  short f = (short) mail_parse_flags (stream,flags,&uf);
-  if (date) {			/* want to preserve date? */
-				/* yes, parse date into an elt */
-    if (!mail_parse_date (&elt,date)) {
-      sprintf (tmp,"Bad date in append: %.80s",date);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-  }
+  long f;
+  unsigned long i,uf;
+  STRING *message;
+  long ret = LONGT;
+				/* default stream to prototype */
+  if (!stream) stream = &mtxproto;
+				/* make sure valid mailbox */
   if (!mtx_isvalid (mailbox,tmp)) switch (errno) {
   case ENOENT:			/* no such file? */
     if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
@@ -559,7 +540,7 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
 	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
 	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5])
-      mtx_create (NIL,"INBOX");
+      dummy_create (NIL,"INBOX.MTX");
     else {
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
       return NIL;
@@ -567,49 +548,65 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 				/* falls through */
   case 0:			/* merely empty file? */
     break;
-  case EINVAL:			/* name is bogus */
+  case EINVAL:
     return mtx_badname (tmp,mailbox);
-  default:			/* file exists, but not valid format */
-    sprintf (tmp,"Not a Mtx-format mailbox: %.80s",mailbox);
+  default:
+    sprintf (tmp,"Not a MTX-format mailbox: %.80s",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
-				/* open the destination */
-  if ((fd = open (mailboxfile (tmp,mailbox),
-		  O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE)) < 0) {
+				/* get first message */
+  if (!(*af) (stream,data,&flags,&date,&message)) return NIL;
+				/* open destination mailbox */
+  if (((fd = open(mailboxfile(file,mailbox),O_BINARY|O_WRONLY|O_APPEND|O_CREAT,
+		   S_IREAD|S_IWRITE)) < 0) || !(df = fdopen (fd,"ab"))) {
     sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
   }
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
-  zone = -(((int)timezone)/ 60);/* get timezone from TZ environment stuff */
-  if (date) mail_date(tmp,&elt);/* use date if given */
-  else internal_date (tmp);	/* else use time now */
-				/* add remainder of header */
-  sprintf (tmp + strlen (tmp),",%ld;0000000000%02o\015\012",size,f);
 
-				/* write header */
-  if (write (fd,tmp,strlen (tmp)) < 0) {
-    sprintf (tmp,"Header write failed: %s",strerror (errno));
-    mm_log (tmp,ERROR);
-    chsize (fd,sbuf.st_size);
-  }  
-  else while (size) {		/* while there is more data to write */
-    if (write (fd,message->curpos,i = min (size,message->cursize)) < 0) {
-      sprintf (tmp,"Message append failed: %s",strerror (errno));
-      mm_log (tmp,ERROR);
-      chsize (fd,sbuf.st_size);
+  do {				/* parse flags */
+    if (!SIZE (message)) {	/* guard against zero-length */
+      mm_log ("Append of zero-length message",ERROR);
+      ret = NIL;
       break;
     }
-    size -= i;			/* note that we wrote out this much */
-    message->curpos += i;
-    message->cursize -= i;
-    (message->dtb->next) (message);
+    f = mail_parse_flags (stream,flags,&i);
+				/* reverse bits (dontcha wish we had CIRC?) */
+    for (uf = 0; i; uf |= 1 << (29 - find_rightmost_bit (&i)));
+    if (date) {			/* parse date if given */
+      if (!mail_parse_date (&elt,date)) {
+	sprintf (tmp,"Bad date in append: %.80s",date);
+	mm_log (tmp,ERROR);
+	ret = NIL;		/* mark failure */
+	break;
+      }
+      mail_date (tmp,&elt);	/* write preseved date */
+    }
+    else internal_date (tmp);	/* get current date in IMAP format */
+				/* write header */
+    if (fprintf (df,"%s,%lu;%010lo%02lo\015\012",tmp,i = SIZE (message),uf,
+		 (unsigned long) f) < 0) ret = NIL;
+    else {			/* write message */
+      if (i) do c = 0xff & SNX (message);
+      while ((putc (c,df) != EOF) && --i);
+				/* get next message */
+      if (i || !(*af) (stream,data,&flags,&date,&message)) ret = NIL;
+    }
+  } while (ret && message);
+				/* revert file if failure */
+  if (!ret || (fflush (df) == EOF)) {
+    chsize (fd,sbuf.st_size);	/* revert file */
+    close (fd);			/* make sure fclose() doesn't corrupt us */
+    sprintf (tmp,"Message append failed: %s",strerror (errno));
+    mm_log (tmp,ERROR);
+    ret = NIL;
   }
-  close (fd);			/* close the file */
+  fclose (df);			/* close the file */ 
   mm_nocritical (stream);	/* release critical */
-  return T;			/* return success */
+  return ret;
 }
 
 

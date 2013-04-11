@@ -1,79 +1,124 @@
-Updated: 27 October 1999
+Updated: 9 November 2000
 
-imap-4.7 is a maintenace update, with minor bugfixes to imap-4.6.
-
-This version supports IMAP4rev1 (RFC 2060).  There are major internal and
-external changes from the IMAP2bis version (e.g. imap-3.6, distributed with
-Pine 3.9x).  It is extremely unlikely that a program written for the IMAP2bis
-verion will build with this version without modifications.  Drivers written
-for the IMAP2bis version will definitely need to be rewritten.
-
-Most notable operational changes from earlier versions:
- . New, faster mailbox update logic is now available for the unix driver
-    on UNIX and Amiga.  The old way is still being done for MMDF and the
-    unixnt driver on NT.
- . External file locking is now available via a setgid mail program named
-    /etc/mlock (this is defined by LOCKPGM in the c-client Makefile).  If
-    c-client is unable to create a <mailbox>.lock file in the directory
-    by itself, it will try to call mlock to do it.  A sample mlock program
-    is part of the imap-utils.  This is primarily for the benefit of those
-    paranoid souls who have their mail spool directories protected 775
-    instead of the recommended 1777.
- . SASL authentication is supported in the IMAP and POP3 servers, and in
-    the IMAP, POP3, and SMTP client code.  There is no support for NNTP
-    SASL yet
- . CRAM-MD5 is supported by default for IMAP and POP3 clients.  To enable
-    server support, read file imap-4.7/docs/md5.txt
- . Kerberos V5 is supported through the GSSAPI on UNIX and NT.  To enable
-    Kerberos V5 on UNIX, add "gss" to the EXTRAAUTHENTICATORS list in the
-    top-level Makefile and rebuild.  You may also need to edit the GSSAPI
-    directory paths in the ../src/osdep/unix/Makefile.gss
- . Kerberos V4 client-only contributed code is available as:
-	ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
-   This is a patchkit which must be applied to the IMAP toolkit according
-   to the instructions in the patchkit's README.
- . The mbox driver is now enabled by default.  If the file "mbox" exists on
-    the user's home directory and is in UNIX mailbox format, then when INBOX
-    is opened this file will be selected as INBOX instead of the mail spool
-    file.  Messages will be automatically transferred from the mail spool file
-    into the mbox file
-   To disable this behavior, delete "mbox" from the EXTRADRIVERS list in the
-    top-level Makefile and rebuild
- . IMAP4rev1 protocol is now supported.  The UNIX format support now maintains
-    unique identifiers (UIDs) and keyword flags for each message, and keeps an
-    invisible message at the start of the file which contains the UID base
-    information and a list of assigned keywords.  There is no way to disable
-    this behavior, since it would disable IMAP4rev1 support.  This message may
-    show up if you access the mailbox as a file using older mail software (e.g.
-    Pine 3.9x).  It is invisible with IMAP or POP access, or with access as a
-    file using Pine 4.0x.
- . Support for additional mailbox formats
- . No longer keeps entire mailbox in memory for UNIX format files
- . Multilingual searching of the following charsets are supported:
-	US-ASCII, UTF-8, ISO-8859-1, ISO-8859-2, ISO-8859-3, ISO-8859-4,
-	ISO-8859-5, ISO-8859-6, ISO-8859-7, ISO-8859-8, ISO-8859-9,
-	ISO-8859-10, ISO-8859-11, ISO-8859-13, ISO-8859-14, ISO-8859-15,
-	KOI8-R, KOI8-U (alias KOI8-RU), TIS-620, VISCII,
-	ISO-2022-JP, ISO-2022-KR, ISO-2022-CN, ISO-2022-JP-1, ISO-2022-JP-2,
-	GB2312 (alias CN-GB), CN-GB-12345, BIG5 (alias CN-BIG5),
-	EUC-JP, EUC-KR, Shift_JIS
-   All ISO-2022-?? charsets are treated identically, and support ASCII,
-    JIS Roman, hankaku katakana, ISO-8859-[1 - 10], TIS, GB 2312, JIS X 0208,
-    JIS X 0212, KSC 5601, and planes 1 and 2 of CNS 11643.
-   EUC-JP includes support for JIS X 0212 and hankaku katakana
- . Fast sorting including IMAP server-based sort
- . Fast ordered-subject threading including IMAP server-based threading
+imap-2000a is a maintenance release, consisting primarily of bugfixes.
 
 
-Most notable programmer/external changes from earlier versions:
- . Additional ports
- . New directory orientation, no separate non-ANSI sources
- . New local file formats mbx and mx
- . The bezerk driver has been retired, and replaced with the new unix driver
-    which does not keep a snapshot in memory
- . Many new added ports including NT (Win32 client, NT server)
- . Many new data access functions
- . Numerous interface changes; look at the .h files for details
- . There are no known security problems in this version
- . If you ignored the warnings and used the evil configuration file, its name
-    and contents have changed incompatibly
+Updated: 19 September 2000
+
+imap-2000 is a major release.  There are major internal and external changes
+from earlier versions (imap-4.x and imap-3.x series).  Programs written for
+imap-4.x will probably build with this version without modification.  It is
+extremely unlikely that a program written for imap-3.x or earlier series will
+build with this version without modifications.  Drivers written for earlier
+versions will definitely need to be rewritten.
+
+In addition to the usual bugfixes, the following features are new in
+imap-2000:
+
+SSL support is now available.  For UNIX, it is necessary to install some
+version of OpenSSL; see imap-2000/docs/SSLBUILD for more information.  SSL
+support is now automatic for the NT, NTK, and W2K ports.  SSL use is indicated
+by the /ssl switch in the mailbox name.
+
+With SSL connections, the server certificate is validated by the client code
+on UNIX, and Windows 2000 unless /novalidate-cert is specified.  Server
+certificates are currently is not validated on Windows 9x, Windows Millenium,
+or Windows NT 4; this is an artifact of the operating system and not the port
+(e.g. client code using the NT port will validate certificates if running on
+Windows 2000).  On UNIX, the server certificate must be signed by a trusted
+certificate authority.  On Windows 2000, the certificate must be signed by a
+trusted certificate authority and the match the user's entry for the server
+host name; this means that the user must enter a fully-qualified host name.
+
+Calendar reclama for the benefit of old broken non-Y2K compliant software.
+Two digit years from 00 to 69 will be interpreted as 2000 through 2069.  In
+addition, three digit years from 100 to 105 will be interpreted as 2000
+through 2005.
+
+Support for REFERENCES threading (in addition to the previously-existing
+ORDEREDSUBJECT threading).
+
+Support for the IMAP MULTIAPPEND extension.  This allows much faster uploading
+of multiple messages to an IMAP server.
+
+Support for the LOGINDISABLED IMAP capability.  If the IMAP server sends
+LOGINDISABLED as a capability, the client code will never attempt to send an
+IMAP LOGIN command.
+
+Support for SASL authentication identity vs. authorization identity.  If the
+authentication method does not support this concept (e.g. AUTH=CRAM-MD5,
+AUTH=LOGIN, LOGIN command), the "*" character in the user name may be used to
+indicate a separate authentication identity; for example, "fred*joe" indicates
+authorization identity "fred", authentication identity "joe".
+
+
+UNIX-specific Changes:
+
+Support for SASL authentication identity vs. authorization identity in the
+IMAP and POP3 servers.  If the user indicated by the authentication identity
+is in the "mailadm" group, he may specify any authorization identity and get
+logged in as the authorization identity user.
+
+If the IMAP and POP3 servers are build with PASSWDTYPE=nul, it will send
+LOGINDISABLED as a capability and also disable the AUTH=LOGIN and AUTH=PLAIN
+SASL authenticators.
+
+New MAILSUBDIR build option to change the default mailbox directory from the
+user's home directory to a subdirectory of the user's home directory.  See
+imap-2000/Makefile for more information.
+
+New CHROOT_SERVER build option for closed server systems only.  If defined, a
+chroot() call to the user's home directory is done as part of the login
+process.  See imap-2000/Makefile for more information.
+
+New ADVERTISE_THE_WORLD build option which will add an IMAP namespace that
+points to the root.  Not for the faint of heart.
+
+UNIX format mailboxes no longer require the pseudo-message, nor will a
+pseudo-message be added to a mailbox that does not have one.  A new
+X-IMAPbase: header will be written in the first message.  This is rather less
+efficient and robust than the pseudo-message (which remains the encouraged
+mechanism; UNIX format mailboxes will always be created with it), but perhaps
+will pacify some people who get upset by the pseudo-message.
+
+When building with MIT Kerberos it will try to detect and use libk5crypto.a
+instead of libcrypto.a.
+
+The mbx driver is more aggressive about cleaning up expunged messages that
+couldn't be purged because of shared access to the mailbox at the time of
+expunge.  Now, every checkpoint will try to purge such messages; and a
+checkpoint is attempted at close time.
+
+
+Windows-specific Changes:
+
+New W2K port for Windows 2000.  In addition to supporting SSL using the
+official SSPI interface (the NT and NTK ports invoke SChannel.DLL directly),
+the W2K port also supports Microsoft Kerberos.  Note that the NT and NTK ports
+will work on Windows 2000, but the W2K port will not work on NT4, Windows
+9x, or Windows Millenium.
+
+There is now a #user namespace, equivalent to the "~" namespace on UNIX.
+
+
+
+Changes for Developers:
+
+New c-client.h file which acts as a master include.  c-client based
+applications should now include c-client.h instead of the individual c-client
+files (mail.h, misc.h, etc.).  It is believed that c-client.h will work in C++
+applications.
+
+New GET_FREEENVELOPESPAREP/SET_FREEENVELOPESPAREP and
+GET_FREEELTSPAREP/SET_FREEELTSPAREP function callbacks to free the "sparep"
+member of the envelope and cache elements, respectively.
+
+New OP_MULNEWSRC flag to mail_open() to use multiple newsrc files, and new
+GET_NEWSRCQUERY/SET_NEWSRCQUERY function callbacks to get the name of the
+newsrc file for news access.
+
+New "secret" nntp_article() function to do the NNTP ARTICLE command; this is
+generally useful only when chasing news URLs.
+
+New GET_HIDEDOTFILES/SET_HIDEDOTFILES feature to suppress file names that
+start with "." in mail_list() results.

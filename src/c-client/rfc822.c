@@ -10,35 +10,19 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	13 July 1999
+ * Last Edited:	9 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  *
- * Sponsorship:	The original version of this work was developed in the
- *		Symbolic Systems Resources Group of the Knowledge Systems
- *		Laboratory at Stanford University in 1987-88, and was funded
- *		by the Biomedical Research Technology Program of the National
- *		Institutes of Health under grant number RR-00785.
- *
- * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notices appear in all copies and that both the
- * above copyright notices and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington or The
- * Leland Stanford Junior University not be used in advertising or publicity
- * pertaining to distribution of the software without specific, written prior
- * permission.  This software is made available "as is", and
- * THE UNIVERSITY OF WASHINGTON AND THE LELAND STANFORD JUNIOR UNIVERSITY
- * DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, WITH REGARD TO THIS SOFTWARE,
- * INCLUDING WITHOUT LIMITATION ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
- * FITNESS FOR A PARTICULAR PURPOSE, AND IN NO EVENT SHALL THE UNIVERSITY OF
- * WASHINGTON OR THE LELAND STANFORD JUNIOR UNIVERSITY BE LIABLE FOR ANY
- * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
- * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
- * CONTRACT, TORT (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * This original version of this file is
+ * Copyright 1988 Stanford University
+ * and was developed in the Symbolic Systems Resources Group of the Knowledge
+ * Systems Laboratory at Stanford University in 1987-88, and was funded by the
+ * Biomedical Research Technology Program of the NationalInstitutes of Health
+ * under grant number RR-00785.
  */
 
 
@@ -1113,29 +1097,47 @@ ADDRESS *rfc822_parse_routeaddr (char *string,char **ret,char *defaulthost)
 {
   char tmp[MAILTMPLEN];
   ADDRESS *adr;
+  char *s,*t;
   char *adl = NIL;
-  char *routeend = NIL;
+  size_t adllen = 0;
+  size_t i;
   if (!string) return NIL;
   rfc822_skipws (&string);	/* flush leading whitespace */
 				/* must start with open broket */
   if (*string != '<') return NIL;
-  if (string[1] == '@') {	/* have an A-D-L? */
-    adl = ++string;		/* yes, remember that fact */
-    while (*string != ':') {	/* search for end of A-D-L */
-				/* punt if never found */
-      if (!*string) return NIL;
-      ++string;			/* try next character */
+  t = ++string;			/* see if A-D-L there */
+  rfc822_skipws (&t);		/* flush leading whitespace */
+				/* have an A-D-L? */
+  while ((*t == '@') && (s = rfc822_parse_domain (t+1,&t))) {
+    if (adl) {			/* have existing A-D-L? */
+      fs_resize ((void **) &adl,adllen + (i = strlen (s) + 2));
+      sprintf (adl + adllen,",@%s",s);
+      fs_give ((void **) &s);
     }
-    *string = '\0';		/* tie off A-D-L */
-    routeend = string;		/* remember in case need to put back */
+    else {			/* write initial A-D-L */
+      fs_resize ((void **) &s,(adllen = strlen (s)) + 2);
+      memmove (s+1,adl = s,adllen++);
+      adl[0] = '@';
+    }
+    rfc822_skipws (&t);		/* skip WS */
+    if (*t != ',') break;	/* put if not comma */
+    t++;			/* skip the comma */
+    rfc822_skipws (&t);		/* skip WS */
   }
+  if (adl) {			/* got an A-D-L? */
+    if (*t != ':') {		/* make sure syntax good */
+      sprintf (tmp,"Unterminated at-domain-list: %.80s%.80s",adl,t);
+      mm_log (tmp,PARSE);
+    }
+    else string = ++t;		/* continue parse from this point */
+  }
+
 				/* parse address spec */
-  if (!(adr = rfc822_parse_addrspec (++string,ret,defaulthost))) {
-    if (adl) *routeend = ':';	/* put colon back since parse barfed */
+  if (!(adr = rfc822_parse_addrspec (string,ret,defaulthost))) {
+    if (adl) fs_give ((void **) &adl);
     return NIL;
   }
-				/* have an A-D-L? */
-  if (adl) adr->adl = cpystr (adl);
+  if (adl) adr->adl = adl;	/* have an A-D-L? */
   if (*ret) if (**ret == '>') {	/* make sure terminated OK */
     ++*ret;			/* skip past the broket */
     rfc822_skipws (ret);	/* flush trailing WS */
@@ -1163,50 +1165,49 @@ ADDRESS *rfc822_parse_routeaddr (char *string,char **ret,char *defaulthost)
 ADDRESS *rfc822_parse_addrspec (char *string,char **ret,char *defaulthost)
 {
   ADDRESS *adr;
-  char *end;
-  char c,*s,*t;
+  char c,*s,*t,*v,*end;
   if (!string) return NIL;	/* no string */
   rfc822_skipws (&string);	/* flush leading whitespace */
   if (!*string) return NIL;	/* empty string */
 				/* find end of mailbox */
-  if (!(end = rfc822_parse_word (string,NIL))) return NIL;
+  if (!(t = rfc822_parse_word (string,NIL))) return NIL;
   adr = mail_newaddr ();	/* create address block */
-  c = *end;			/* remember delimiter */
-  *end = '\0';			/* tie off mailbox */
+  c = *t;			/* remember delimiter */
+  *t = '\0';			/* tie off mailbox */
 				/* copy mailbox */
   adr->mailbox = rfc822_cpy (string);
-  *end = c;			/* restore delimiter */
-  t = end;			/* remember end of mailbox for no host case */
-  rfc822_skipws (&end);		/* skip whitespace */
-  if (*end == '@') {		/* have host name? */
-    ++end;			/* skip delimiter */
-    rfc822_skipws (&end);	/* skip whitespace */
-    if (*end == '[') {		/* domain literal? */
-      string = end;		/* start of domain literal */
-      if (end = rfc822_parse_word (string + 1,"]\\")) {
-	size_t len = ++end - string;
-	strncpy (adr->host = (char *) fs_get (len + 1),string,len);
-	adr->host[len] = '\0';	/* tie off literal */
-      }
-      else {
-	mm_log ("Invalid domain literal after @",PARSE);
-	adr->host = cpystr (errhst);
-      }
+  *t = c;			/* restore delimiter */
+  end = t;			/* remember end of mailbox */
+  rfc822_skipws (&t);		/* skip whitespace */
+  while (*t == '.') {		/* some cretin taking RFC 822 too seriously? */
+    string = ++t;		/* skip past the dot and any WS */
+    rfc822_skipws (&string);
+				/* get next word of mailbox */
+    if (t = rfc822_parse_word (string,NIL)) {
+      end = t;			/* remember new end of mailbox */
+      c = *t;			/* remember delimiter */
+      *t = '\0';		/* tie off word */
+      s = rfc822_cpy (string);	/* copy successor part */
+      *t = c;			/* restore delimiter */
+				/* build new mailbox */
+      sprintf (v = (char *) fs_get (strlen (adr->mailbox) + strlen (s) + 2),
+	       "%s.%s",adr->mailbox,s);
+      fs_give ((void **) &adr->mailbox);
+      adr->mailbox = v;		/* new host name */
+      rfc822_skipws (&t);	/* skip WS after mailbox */
     }
-    				/* search for end of host */
-    else if (end = rfc822_parse_word ((string = end),wspecials)) {
-      c = *end;			/* remember delimiter */
-      *end = '\0';		/* tie off host */
-				/* copy host */
-      adr->host = rfc822_cpy (string);
-      *end = c;			/* restore delimiter */
-    }
-    else {
-      mm_log ("Missing or invalid host name after @",PARSE);
-      adr->host = cpystr (errhst);
+    else {			/* barf */
+      mm_log ("Invalid mailbox part after .",PARSE);
+      break;
     }
   }
-  else end = t;			/* make person name default start after mbx */
+  t = end;			/* remember delimiter in case no host */
+
+  rfc822_skipws (&end);		/* sniff ahead at what follows */
+  if (*end != '@') end = t;	/* host name missing */
+				/* otherwise parse host name */
+  else if (!(adr->host = rfc822_parse_domain (++end,&end)))
+    adr->host = cpystr (errhst);
 				/* default host if missing */
   if (!adr->host) adr->host = cpystr (defaulthost);
   if (end && !adr->personal) {	/* try person name in comments if missing */
@@ -1218,6 +1219,59 @@ ADDRESS *rfc822_parse_addrspec (char *string,char **ret,char *defaulthost)
 				/* set return to end pointer */
   *ret = (end && *end) ? end : NIL;
   return adr;			/* return the address we got */
+}
+
+/* Parse RFC822 domain
+ * Accepts: string pointer
+ *	    pointer to return end of domain
+ * Returns: domain name or NIL if failure
+ */
+
+char *rfc822_parse_domain (char *string,char **end)
+{
+  char *ret = NIL;
+  char c,*s,*t,*v;
+  rfc822_skipws (&string);	/* skip whitespace */
+  if (*string == '[') {		/* domain literal? */
+    if (*end = rfc822_parse_word (string + 1,"]\\")) {
+      size_t len = ++*end - string;
+      strncpy (ret = (char *) fs_get (len + 1),string,len);
+      ret[len] = '\0';		/* tie off literal */
+    }
+    else mm_log ("Invalid domain literal after @",PARSE);
+  }
+    				/* search for end of host */
+  else if (t = rfc822_parse_word (string,wspecials)) {
+    c = *t;			/* remember delimiter */
+    *t = '\0';			/* tie off host */
+    ret = rfc822_cpy (string);	/* copy host */
+    *t = c;			/* restore delimiter */
+    *end = t;			/* remember end of domain */
+    rfc822_skipws (&t);		/* skip WS after host */
+    while (*t == '.') {		/* some cretin taking RFC 822 too seriously? */
+      string = ++t;		/* skip past the dot and any WS */
+      rfc822_skipws (&string);
+      if (string = rfc822_parse_domain (string,&t)) {
+	*end = t;		/* remember new end of domain */
+	c = *t;			/* remember delimiter */
+	*t = '\0';		/* tie off host */
+	s = rfc822_cpy (string);/* copy successor part */
+	*t = c;			/* restore delimiter */
+				/* build new domain */
+	sprintf (v = (char *) fs_get (strlen (ret) + strlen (s) + 2),
+		 "%s.%s",ret,s);
+	fs_give ((void **) &ret);
+	ret = v;		/* new host name */
+	rfc822_skipws (&t);	/* skip WS after domain */
+      }
+      else {			/* barf */
+	mm_log ("Invalid domain part after .",PARSE);
+	break;
+      }
+    }
+  }
+  else mm_log ("Missing or invalid host name after @",PARSE);
+  return ret;
 }
 
 /* Parse RFC822 phrase

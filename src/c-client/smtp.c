@@ -10,35 +10,19 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	28 October 1999
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  *
- * Sponsorship:	The original version of this work was developed in the
- *		Symbolic Systems Resources Group of the Knowledge Systems
- *		Laboratory at Stanford University in 1987-88, and was funded
- *		by the Biomedical Research Technology Program of the National
- *		Institutes of Health under grant number RR-00785.
- *
- * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1998 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notices appear in all copies and that both the
- * above copyright notices and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington or The
- * Leland Stanford Junior University not be used in advertising or publicity
- * pertaining to distribution of the software without specific, written prior
- * permission.  This software is made available "as is", and
- * THE UNIVERSITY OF WASHINGTON AND THE LELAND STANFORD JUNIOR UNIVERSITY
- * DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, WITH REGARD TO THIS SOFTWARE,
- * INCLUDING WITHOUT LIMITATION ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
- * FITNESS FOR A PARTICULAR PURPOSE, AND IN NO EVENT SHALL THE UNIVERSITY OF
- * WASHINGTON OR THE LELAND STANFORD JUNIOR UNIVERSITY BE LIABLE FOR ANY
- * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
- * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
- * CONTRACT, TORT (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * This original version of this file is
+ * Copyright 1988 Stanford University
+ * and was developed in the Symbolic Systems Resources Group of the Knowledge
+ * Systems Laboratory at Stanford University in 1987-88, and was funded by the
+ * Biomedical Research Technology Program of the NationalInstitutes of Health
+ * under grant number RR-00785.
  */
 
 #include <ctype.h>
@@ -225,16 +209,21 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
       mm_log (tmp,NIL);
       fs_give ((void **) &lsterr);
     }
-    for (trial = 1,tmp[0] = '\0';
-	 stream->netstream && trial && (trial <= smtp_maxlogintrials); ) {
+    trial = 0;			/* initial trial count */
+    tmp[0] = '\0';		/* empty buffer */
+    if (stream->netstream) do {
       if (tmp[0]) mm_log (tmp,WARN);
-      if (smtp_send_work (stream,"AUTH",at->name)) {
-	if ((*at->client) (smtp_challenge,smtp_response,mb,stream,&trial,usr)&&
-	    (stream->replycode == SMTPAUTHED)) return LONGT;
-	lsterr = cpystr (stream->reply);
-	sprintf (tmp,"Retrying %s authentication after %s",at->name,lsterr);
+      if (smtp_send_work (stream,"AUTH",at->name) &&
+	  (*at->client) (smtp_challenge,smtp_response,mb,stream,&trial,usr)) {
+	if (stream->replycode == SMTPAUTHED) return LONGT;
+	if (!trial) {		/* if main program requested cancellation */
+	  mm_log ("SMTP Authentication cancelled",ERROR);
+	  return NIL;
+	}
       }
-    }
+      lsterr = cpystr (stream->reply);
+      sprintf (tmp,"Retrying %s authentication after %s",at->name,lsterr);
+    } while (stream->netstream && trial && (trial < smtp_maxlogintrials));
   }
   if (lsterr) {			/* previous authenticator failed? */
     sprintf (tmp,"Can not authenticate to SMTP server: %s",lsterr);
@@ -440,18 +429,24 @@ long smtp_send (SENDSTREAM *stream,char *command,char *args)
 
 long smtp_send_work (SENDSTREAM *stream,char *command,char *args)
 {
-  char tmp[MAILTMPLEN+64];
+  long ret;
+  char *s = (char *) fs_get (strlen (command) + (args ? strlen (args) + 1 : 0)
+			     + 3);
 				/* build the complete command */
-  if (args) sprintf (tmp,"%s %s",command,args);
-  else strcpy (tmp,command);
-  if (stream->debug) mm_dlog (tmp);
-  strcat (tmp,"\015\012");
+  if (args) sprintf (s,"%s %s",command,args);
+  else strcpy (s,command);
+  if (stream->debug) mm_dlog (s);
+  strcat (s,"\015\012");
 				/* send the command */
-  if (!net_soutr (stream->netstream,tmp))
-    return smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection broken (command)");
-  do stream->replycode = smtp_reply (stream);
-  while ((stream->replycode < 100) || (stream->reply[3] == '-'));
-  return stream->replycode;
+  if (!net_soutr (stream->netstream,s))
+    ret = smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection broken (command)");
+  else {
+    do stream->replycode = smtp_reply (stream);
+    while ((stream->replycode < 100) || (stream->reply[3] == '-'));
+    ret = stream->replycode;
+  }
+  fs_give ((void **) &s);
+  return ret;
 }
 
 
@@ -467,7 +462,12 @@ long smtp_send_auth (SENDSTREAM *stream,long code)
   char tmp[MAILTMPLEN];
   switch (code) {
   case SMTPWANTAUTH: case SMTPWANTAUTH2:
-    sprintf (tmp,"{%s/smtp}<none>",net_host (stream->netstream));
+    sprintf (tmp,"{%.200s/smtp",net_host (stream->netstream));
+    if (stream->netstream->dtb ==
+	(NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL))
+      sprintf (tmp + strlen (tmp),"/%.200s",
+	       (char *) mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
+    strcat (tmp,"}<none>");
     mail_valid_net_parse (tmp,&mb);
     return smtp_auth (stream,&mb,tmp);
   }
@@ -505,6 +505,8 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
 {
   unsigned long i;
   unsigned int j;
+  long flags = (mb->secflag ? AU_SECURE : NIL) |
+    (mb->authuser[0] ? AU_AUTHUSER : NIL);
   char *s,tmp[MAILTMPLEN];
   sprintf (tmp,"EHLO %s",host);	/* build the complete command */
   if (stream->debug) mm_dlog (tmp);
@@ -528,7 +530,7 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
     else if ((tmp[0] == 'A') && (tmp[1] == 'U') && (tmp[2] == 'T') &&
 	     (tmp[3] == 'H') && ((tmp[4] == ' ') || (tmp[4] == '='))) {
       for (s = strtok (tmp+5," "); s && *s; s = strtok (NIL," "))
-	if ((j = mail_lookup_auth_name (s,mb->secflag)) &&
+	if ((j = mail_lookup_auth_name (s,flags)) &&
 	    (--j < (8 * sizeof (ESMTP.auth)))) ESMTP.auth |= (1 << j);
     }
     else if ((tmp[0] == 'D') && (tmp[1] == 'S') && (tmp[2] == 'N') && !tmp[3])
@@ -595,13 +597,13 @@ long smtp_soutr (void *stream,char *s)
 {
   char c,*t;
 				/* "." on first line */
-  if (s[0] == '.') net_soutr (stream,".");
+  if (s[0] == '.') net_sout (stream,".",1);
 				/* find lines beginning with a "." */
   while (t = strstr (s,"\015\012.")) {
     c = *(t += 3);		/* remember next character after "." */
     *t = '\0';			/* tie off string */
 				/* output prefix */
-    if (!net_soutr (stream,s)) return NIL;
+    if (!net_sout (stream,s,t-s)) return NIL;
     *t = c;			/* restore delimiter */
     s = t - 1;			/* push pointer up to the "." */
   }

@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	16 November 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	17 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 /* Primary I/O calls */
@@ -49,16 +34,14 @@
 
 /* Parameter files */
 
-#include "mail.h"
-#include "osdep.h"
-#include "rfc822.h"
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
 extern int errno;		/* just in case */
-#include <sys/stat.h>
 #include <signal.h>
-#include "misc.h"
+#include <time.h>
+#include "c-client.h"
+#include <sys/stat.h>
 
 
 /* Timeouts and timers */
@@ -95,11 +78,25 @@ typedef struct text_args {
 } TEXTARGS;
 
 
+/* Append data */
+
+typedef struct append_data {
+  char *arg;			/* append argument pointer */
+  char *flags;			/* message flags */
+  char *date;			/* message date */
+  char *msg;			/* message text */
+  STRING *message;		/* message stringstruct */
+} APPENDDATA;
+
+
 /* Message pointer */
 
 typedef struct msg_data {
   MAILSTREAM *stream;		/* stream */
   unsigned long msgno;		/* message number */
+  char *flags;			/* current flags */
+  char *date;			/* current date */
+  STRING *message;		/* strintstruct of message */
 } MSGDATA;
 
 /* Function prototypes */
@@ -170,21 +167,27 @@ void pstringlist (STRINGLIST *s);
 void psizedtext (SIZEDTEXT *s);
 void ptext (SIZEDTEXT *s);
 void pthread (THREADNODE *thr);
+void pcapability (long flag);
 long nameok (char *ref,char *name);
 char *bboardname (char *cmd,char *name);
 char *imap_responder (void *challenge,unsigned long clen,unsigned long *rlen);
 long proxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
+long proxy_append (MAILSTREAM *stream,void *data,char **flags,char **date,
+		   STRING **message);
+long append_msg (MAILSTREAM *stream,void *data,char **flags,char **date,
+		 STRING **message);
 void mm_list_work (char *what,int delimiter,char *name,long attributes);
 char *lasterror (void);
 
 /* Global storage */
 
-char *version = "12.264";	/* version number of this server */
+char *version = "2000.284";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
 time_t lastcheck = 0;		/* time of last checkpoint */
 int state = LOGIN;		/* server state */
+int cancelled = NIL;		/* authenticate cancelled */
 int trycreate = 0;		/* saw a trycreate */
 int finding = NIL;		/* doing old FIND command */
 int anonymous = 0;		/* non-zero if anonymous */
@@ -243,8 +246,10 @@ int main (int argc,char *argv[])
   struct stat sbuf;
   time_t autologouttime = 0;
 #include "linkage.c"
+  rfc822_date (tmp);		/* get date/time at startup */
 				/* initialize server */
-  server_init (argv[0],"imap","imaps","imap",clkint,kodint,hupint,trmint);
+  server_init ((s = strrchr (argv[0],'/')) ? s + 1 : argv[0],
+		"imap","imaps","imap",clkint,kodint,hupint,trmint);
 				/* forbid automatic untagged expunge */
   mail_parameters (NIL,SET_EXPUNGEATPING,NIL);
 				/* arm proxy copy callback */
@@ -252,13 +257,15 @@ int main (int argc,char *argv[])
   s = myusername_full (&i);	/* get user name and flags */
   switch (i) {
   case MU_NOTLOGGEDIN:
-    t = "OK";			/* not logged in, ordinary startup */
+    PSOUT ("* OK [");		/* not logged in, ordinary startup */
+    pcapability (-1);
     break;
   case MU_ANONYMOUS:
     anonymous = T;		/* anonymous user, fall into default */
     s = "ANONYMOUS";
   case MU_LOGGEDIN:
-    t = "PREAUTH";		/* already logged in, pre-authorized */
+    PSOUT ("* PREAUTH [");	/* already logged in, pre-authorized */
+    pcapability (1);
     user = cpystr (s);		/* copy user name */
     pass = cpystr ("*");	/* set fake password */
     state = SELECT;		/* enter select state */
@@ -266,13 +273,13 @@ int main (int argc,char *argv[])
   default:
     fatal ("Unknown state from myusername_full()");
   }
-  PSOUT ("* ");
-  PSOUT (t);
-  PBOUT (' ');
+  PSOUT ("] ");
   PSOUT (tcp_serverhost ());
-  PSOUT (" IMAP4rev1 v");
+  PSOUT (" IMAP4rev1 ");
   PSOUT (version);
-  PSOUT (" server ready\015\012");
+  PSOUT (" at ");
+  PSOUT (tmp);
+  CRLF;
   PFLUSH;			/* dump output buffer */
   switch (state) {		/* do this after the banner */
   case LOGIN:
@@ -350,45 +357,13 @@ int main (int argc,char *argv[])
       else if (!strcmp (cmd,"CAPABILITY")) {
 	if (arg) response = badarg;
 	else {
-	  AUTHENTICATOR *auth = mail_lookup_auth (1);
-	  THREADER *thr = (THREADER *) mail_parameters (NIL,GET_THREADERS,NIL);
-	  PSOUT ("* CAPABILITY IMAP4 IMAP4REV1 NAMESPACE IDLE SCAN SORT MAILBOX-REFERRALS LOGIN-REFERRALS");
-#ifdef NETSCAPE_BRAIN_DAMAGE
-	  PSOUT (" X-NETSCAPE");
-#endif
-#ifdef PLAINTEXT_DISABLED
-	  PSOUT (" LOGINDISABLED");
-#endif
-	  while (auth) {
-#ifdef PLAINTEXT_DISABLED
-				/* disable insecure authenticators */
-	    if (!auth->secflag) auth->server = NIL;
-#endif
-	    if (auth->server) {
-	      PSOUT (" AUTH=");
-	      PSOUT (auth->name);
-	    }
-	    auth = auth->next;
-	  }
-	  if (!stat (ANOFILE,&sbuf)) PSOUT (" AUTH=ANONYMOUS");
-	  while (thr) {
-	    PSOUT (" THREAD=");
-	    PSOUT (thr->name);
-	    thr = thr->next;
-	  }
+	  PSOUT ("* ");
+	  pcapability (0);	/* print capabilities */
 	  CRLF;
 	}
 	if (stream)		/* allow untagged EXPUNGE */
 	  mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,(void *) stream);
       }
-#ifdef NETSCAPE_BRAIN_DAMAGE
-      else if (!strcmp (cmd,"NETSCAPE")) {
-	PSOUT ("* OK [NETSCAPE]\015\012* VERSION 1.0 UNIX\015\012* ACCOUNT-URL \"");
-	PSOUT (NETSCAPE_BRAIN_DAMAGE);
-	PBOUT ('"');
-	CRLF;
-      }
-#endif
 
       else switch (state) {	/* dispatch depending upon state */
       case LOGIN:		/* waiting to get logged in */
@@ -396,29 +371,40 @@ int main (int argc,char *argv[])
 	if (!strcmp (cmd,"AUTHENTICATE")) {
 	  if (user) fs_give ((void **) &user);
 	  if (pass) fs_give ((void **) &pass);
+	  cancelled = NIL;
 				/* single argument */
 	  if (!(s = snarf (&arg))) response = misarg;
 	  else if (arg) response = badarg;
 	  else if (!strcmp (ucase (s),"ANONYMOUS") && !stat (ANOFILE,&sbuf)) {
-	    if ((s = imap_responder ("",0,NIL)) &&
-		anonymous_login (argc,argv)) {
+	    if (!(s = imap_responder ("",0,NIL)))
+	      response ="%.80s BAD AUTHENTICATE ANONYMOUS cancelled\015\012";
+	    else if (anonymous_login (argc,argv)) {
 	      anonymous = T;	/* note we are anonymous */
 	      user = cpystr ("ANONYMOUS");
 	      state = SELECT;	/* make select */
+	      alerttime = 0;	/* force alert */
+	      PSOUT ("* ");
+	      pcapability (1);	/* print logged-in capabilities */
+	      CRLF;
 	      syslog (LOG_INFO,"Authenticated anonymous=%.80s host=%.80s",s,
 		      tcp_clienthost ());
 	      fs_give ((void **) &s);
 	    }
-	    else response ="%.80s NO AUTHENTICATE ANONYMOUS cancelled\015\012";
+	    else response ="%.80s NO AUTHENTICATE ANONYMOUS failed\015\012";
 	  }
 	  else if (user = cpystr (mail_auth (s,imap_responder,argc,argv))) {
-	    state = SELECT;
+	    state = SELECT;	/* make select */
+	    alerttime = 0;	/* force alert */
+	    PSOUT ("* ");
+	    pcapability (1);	/* print logged-in capabilities */
+	    CRLF;
 	    syslog (LOG_INFO,"Authenticated user=%.80s host=%.80s",
 		    user,tcp_clienthost ());
 	  }
 	  else {
 	    lsterr = cpystr (s);
-	    response = "%.80s NO %.80s %.80s failed\015\012";
+	    response = cancelled ? "%.80s BAD %.80s %.80s cancelled\015\012" :
+	      "%.80s NO %.80s %.80s failed\015\012";
 	    syslog (LOG_INFO,"AUTHENTICATE %.80s failure host=%.80s",s,
 		    tcp_clienthost ());
 	  }
@@ -446,17 +432,34 @@ int main (int argc,char *argv[])
 	    anonymous = T;	/* note we are anonymous */
 	    ucase (user);	/* make all uppercase for consistency */
 	    state = SELECT;	/* make select */
+	    alerttime = 0;	/* force alert */
+	    PSOUT ("* ");
+	    pcapability (1);	/* print logged-in capabilities */
+	    CRLF;
 	    syslog (LOG_INFO,"Login anonymous=%.80s host=%.80s",pass,
 		    tcp_clienthost ());
 	  }
+	  else {		/* delimit user from possible admin */
+	    if (s = strchr (user,'*')) *s++ ='\0';
 				/* see if username and password are OK */
-	  else if (server_login (user,pass,argc,argv)) {
-	    state = SELECT;
-	    syslog (LOG_INFO,"Login user=%.80s host=%.80s",user,
-		    tcp_clienthost ());
+	    if (server_login (user,pass,s,argc,argv)) {
+	      state = SELECT;	/* make select */
+	      alerttime = 0;	/* force alert */
+	      PSOUT ("* ");
+	      pcapability (1);	/* print logged-in capabilities */
+	      CRLF;
+	      syslog (LOG_INFO,"Login user=%.80s host=%.80s",user,
+		      tcp_clienthost ());
+	    }
+	    else response = "%.80s NO %.80s failed\015\012";
 	  }
-	  else response = "%.80s NO %.80s failed\015\012";
 	}
+#ifdef IMAPSPECIALCAP
+	else if (!strcmp (cmd,IMAPSPECIALCAP)) {
+	  if (arg) response = badarg;
+	  else if (lsterr = SPECIALCAP (argv[0])) response = lose;
+	}
+#endif
 	else response =
 	  "%.80s BAD Command unrecognized/login please: %.80s\015\012";
 	break;
@@ -499,10 +502,9 @@ int main (int argc,char *argv[])
 				/* any new keywords appeared? */
 	    if (i < NUSERFLAGS && stream->user_flags[i]) new_flags (stream);
 				/* return flags if silence not wanted */
-	    if (!(f & ST_SILENT) &&
-		(uid ? mail_uid_sequence (stream,s) : mail_sequence(stream,s)))
+	    if (uid ? mail_uid_sequence (stream,s) : mail_sequence (stream,s))
 	      for (i = 1; i <= nmsgs; i++) if (mail_elt(stream,i)->sequence)
-		mail_elt (stream,i)->spare2 = T;
+		mail_elt (stream,i)->spare2 = (f & ST_SILENT) ? NIL : T;
 	  }
 	  else response = misarg;
 	}
@@ -606,7 +608,7 @@ int main (int argc,char *argv[])
 	  else if (arg) response = badarg;
 	  else if (!nmsgs) response = "%.80s NO Mailbox is empty\015\012";
 				/* try copy */
-	  if (!(stream->dtb->copy) (stream,s,t,uid ? CP_UID : NIL)) {
+	  else if (!(stream->dtb->copy) (stream,s,t,uid ? CP_UID : NIL)) {
 	    response = trycreate ? losetry : lose;
 	    if (!lsterr) lsterr = cpystr ("No such destination mailbox");
 	  }
@@ -679,12 +681,15 @@ int main (int argc,char *argv[])
 				    nmsgs ? mail_uid (stream,nmsgs) : 0,0))
 	      response = badatt;/* bad thread attribute */
 	  else if (arg && *arg) response = badarg;
-	  else if (thr = mail_thread (stream,ucase (s),cs,spg,
+	  else {
+	    if (thr = mail_thread (stream,ucase (s),cs,spg,
 				      uid ? SE_UID : NIL)) {
-	    PSOUT ("* THREAD ");
-	    pthread (thr);
+	      PSOUT ("* THREAD ");
+	      pthread (thr);
+	      mail_free_threadnode (&thr);
+	    }
+	    else PSOUT ("* THREAD");
 	    CRLF;
-	    mail_free_threadnode (&thr);
 	  }
 	  if (spg) mail_free_searchpgm (&spg);
 	  if (cs) fs_give ((void **) &cs);
@@ -803,57 +808,29 @@ int main (int argc,char *argv[])
 
 				/* APPEND message to mailbox */
 	else if (!(anonymous || strcmp (cmd,"APPEND"))) {
-	  u = v = NIL;		/* init flags/date */
 				/* parse mailbox name */
 	  if ((s = snarf (&arg)) && arg) {
-	    if (*arg == '(') {	/* parse optional flag list */
-	      u = ++arg;	/* pointer to flag list contents */
-	      while (*arg && (*arg != ')')) arg++;
-	      if (*arg) *arg++ = '\0';
-	      if (*arg == ' ') arg++;
+	    STRING st;		/* message stringstruct */
+	    APPENDDATA ad;
+	    ad.arg = arg;	/* command arguments */
+				/* no message yet */
+	    ad.flags = ad.date = ad.msg = NIL;
+	    ad.message = &st;	/* pointer to stringstruct to use */
+	    trycreate = NIL;	/* no trycreate status */
+	    if (!mail_append_multiple (NIL,s,append_msg,(void *) &ad)) {
+	      if (response == win || response == altwin)
+		response = trycreate ? losetry : lose;
+	      if (!lsterr) lsterr = cpystr ("Unexpected APPEND failure");
 	    }
-				/* parse optional date */
-	    if (*arg == '"') v = snarf (&arg);
-				/* parse message */
-	    if (!arg || (*arg != '{'))
-	      response = "%.80s BAD Missing literal in %.80s\015\012";
-	    else if (!isdigit (arg[1]))
-	      response = "%.80s BAD Missing message to %.80s\015\012";
-	    else if (!(i = strtoul (arg+1,&t,10)))
-	      response = "%.80s No Empty message to %.80s\015\012";
-	    else if ((*t != '}') || t[1]) response = badarg;
-	    else {		/* append the data */
-	      STRING st;
-	      PSOUT (argrdy);	/* tell client ready for argument */
-	      PFLUSH;		/* dump output buffer */
-				/* get a literal buffer */
-	      t = (char *) fs_get (i+1);
-	      alarm (TIMEOUT);	/* get data under timeout */
-	      for (j = 0; j < i; j++) t[j] = inchar ();
-	      alarm (0);	/* stop timeout */
-	      t[i] = '\0';	/* make sure tied off */
-    				/* get new command tail */
-	      if ((j = inchar ()) == '\015') j = inchar ();
-	      if (j == '\012') {/* must be end of command */
-		INIT (&st,mail_string,(void *) t,i);
-		trycreate = NIL;	/* no trycreate status */
-		if (!mail_append_full (NIL,s,u,v,&st)) {
-		  response = trycreate ? losetry : lose;
-		  if (!lsterr) lsterr = cpystr ("Unexpected APPEND failure");
-		}
-	      }
-	      else {		/* junk after literal */
-		while (inchar () != '\012');
-		response = badarg;
-	      }
-	      fs_give ((void **) &t);
-	    }
+				/* clean up any message text left behind */
+	    if (ad.flags) fs_give ((void **) &ad.flags);
+	    if (ad.date) fs_give ((void **) &ad.date);
+	    if (ad.msg) fs_give ((void **) &ad.msg);
 	  }
 	  else response = misarg;
 	  if (stream)		/* allow untagged EXPUNGE */
 	    mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,(void *) stream);
 	}
-
 				/* list mailboxes */
 	else if (!strcmp (cmd,"LIST") || !strcmp (cmd,"RLIST")) {
 				/* get reference and mailbox argument */
@@ -1002,11 +979,14 @@ int main (int argc,char *argv[])
 		    PBOUT ('"');
 		    break;
 		  }
+				/* NAMESPACE extensions are hairy */
 		  if (p = n->param) do {
 		    PBOUT (' ');
 		    pstring (p->attribute);
-		    PBOUT (' ');
-		    pstring (p->value);
+		    PSOUT (" (");
+		    do pstring (p->value);
+		    while (p->next && !p->next->attribute && (p = p->next));
+		    PBOUT (')');
 		  } while (p = p->next);
 		  PBOUT (')');
 		} while (n = n->next);
@@ -1219,7 +1199,8 @@ void ping_mailbox (unsigned long uid)
   if (time (0) > alerttime + ALERTTIMER) {
     alerttime = time (0);	/* output any new alerts */
     sysalerttime = palert (ALERTFILE,sysalerttime);
-    useralerttime = palert (mailboxfile (tmp,USERALERTFILE),useralerttime);
+    if (state != LOGIN)		/* do user alert if logged in */
+      useralerttime = palert (mailboxfile (tmp,USERALERTFILE),useralerttime);
   }
 }
 
@@ -3002,20 +2983,70 @@ void pthread (THREADNODE *thr)
   THREADNODE *t;
   while (thr) {			/* for each branch */
     PBOUT ('(');		/* open branch */
-    pnum (thr->num);		/* first first node message number */
-    for (t = thr->next; t;) {	/* any subsequent nodes? */
-      PBOUT (' ');		/* yes, delimit */
-      if (t->branch) {		/* branches? */
-	pthread (t);		/* yes, recurse to do branch */
-	t = NIL;		/* done */
-      }
-      else {			/* just output this number */
-	pnum (t->num);
-	t = t->next;		/* and do next message */
+    if (thr->num) {		/* first node message number */
+      pnum (thr->num);
+      if (t = thr->next) {	/* any subsequent nodes? */
+	PBOUT (' ');
+	while (t) {		/* for each subsequent node */
+	  if (t->branch) {	/* branches? */
+	    pthread (t);	/* yes, recurse to do branch */
+	    t = NIL;		/* done */
+	  }
+	  else {		/* just output this number */
+	    pnum (t->num);
+	    t = t->next;	/* and do next message */
+	  }
+	  if (t) PBOUT (' ');	/* delimit if more to come */
+	}
       }
     }
+    else pthread (thr->next);	/* nest for dummy */
     PBOUT (')');		/* done with this branch */
     thr = thr->branch;		/* do next branch */
+  }
+}
+
+/* Print capabilities
+ * Accepts: option flag
+ */
+
+void pcapability (long flag)
+{
+  struct stat sbuf;
+  AUTHENTICATOR *auth = mail_lookup_auth (1);
+  THREADER *thr = (THREADER *) mail_parameters (NIL,GET_THREADERS,NIL);
+				/* always output protocol level */
+  PSOUT ("CAPABILITY IMAP4 IMAP4REV1");
+#ifdef IMAPSPECIALCAP
+  PBOUT (' ');
+  PSOUT (IMAPSPECIALCAP);
+#endif
+  if (flag >= 0) {		/* want post-authentication capabilities? */
+    PSOUT (" NAMESPACE IDLE MAILBOX-REFERRALS SCAN SORT");
+    while (thr) {		/* threaders */
+      PSOUT (" THREAD=");
+      PSOUT (thr->name);
+      thr = thr->next;
+    }
+    if (!anonymous) PSOUT (" MULTIAPPEND");
+  }
+  if (flag <= 0) {		/* want pre-authentication capabilities? */
+    PSOUT (" LOGIN-REFERRALS");
+#ifdef PLAINTEXT_DISABLED
+    PSOUT (" LOGINDISABLED");
+#endif
+    while (auth) {
+#ifdef PLAINTEXT_DISABLED
+				/* disable insecure authenticators */
+      if (!auth->secflag) auth->server = NIL;
+#endif
+      if (auth->server) {
+	PSOUT (" AUTH=");
+	PSOUT (auth->name);
+      }
+      auth = auth->next;
+    }
+    if (!stat (ANOFILE,&sbuf)) PSOUT (" AUTH=ANONYMOUS");
   }
 }
 
@@ -3097,8 +3128,11 @@ char *imap_responder (void *challenge,unsigned long clen,unsigned long *rlen)
   if (!(t = (unsigned char *) strchr ((char *) resp,'\012'))) return flush ();
   if (t[-1] == '\015') --t;	/* remove CR */
   *t = '\0';			/* tie off buffer */
-  return (resp[0] != '*') ?
-    (char *) rfc822_base64 (resp,t-resp,rlen ? rlen : &i) : NIL;
+  if (resp[0] == '*') {
+    cancelled = T;
+    return NIL;
+  }
+  return (char *) rfc822_base64 (resp,t-resp,rlen ? rlen : &i);
 }
 
 /* Proxy copy across mailbox formats
@@ -3112,24 +3146,62 @@ char *imap_responder (void *challenge,unsigned long clen,unsigned long *rlen)
 long proxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 {
   MAILSTREAM *ts;
-  MESSAGECACHE *elt;
   STRING st;
   MSGDATA md;
+  char tmp[MAILTMPLEN];
   unsigned long i,j;
-  char *s,*t,tmp[MAILTMPLEN],date[MAILTMPLEN];
   md.stream = stream;
+  md.msgno = 0;
+  md.flags = md.date = NIL;
+  md.message = &st;
   if (!((options & CP_UID) ?	/* validate sequence */
 	mail_uid_sequence (stream,sequence) : mail_sequence (stream,sequence)))
     return NIL;
   response = win;		/* cancel previous errors */
   if (lsterr) fs_give ((void **) &lsterr);
-  for (i = 1; i <= nmsgs; i++)	/* c-client clobbers sequence, use spare */
-    mail_elt (stream,i)->spare = mail_elt (stream,i)->sequence;
-  for (j = 0,md.msgno = 1; md.msgno <= nmsgs; j++,md.msgno++)
-    if ((elt = mail_elt (stream,md.msgno))->spare) {
+				/* c-client clobbers sequence, use spare */
+  for (i = 1,j = 0; i <= nmsgs; i++)
+    if ((mail_elt (stream,i)->spare = mail_elt (stream,i)->sequence) && !j)
+      md.msgno = (j = i) - 1;
+				/* only if at least one message to copy */
+  if (j && !mail_append_multiple (NIL,mailbox,proxy_append,(void *) &md)) {
+    response = lose;		/* set failure */
+    return NIL;
+  }
+  response = win;		/* stomp any previous babble */
+  if (md.msgno) {		/* get new driver name if was dummy */
+    sprintf (tmp,"Cross-format (%.80s -> %.80s) COPY completed",
+	     stream->dtb->name,(ts = mail_open (NIL,mailbox,OP_PROTOTYPE)) ?
+	     ts->dtb->name : "unknown");
+    mm_log (tmp,NIL);
+  }
+  return LONGT;
+}
+
+/* Proxy append message callback
+ * Accepts: MAIL stream
+ *	    append data package
+ *	    pointer to return initial flags
+ *	    pointer to return message internal date
+ *	    pointer to return stringstruct of message or NIL to stop
+ * Returns: T if success (have message or stop), NIL if error
+ */
+
+long proxy_append (MAILSTREAM *stream,void *data,char **flags,char **date,
+		   STRING **message)
+{
+  MESSAGECACHE *elt;
+  unsigned long i;
+  char *s,*t,tmp[MAILTMPLEN];
+  MSGDATA *md = (MSGDATA *) data;
+  if (md->flags) fs_give ((void **) &md->flags);
+  if (md->date) fs_give ((void **) &md->date);
+  *message = NIL;		/* assume all done */
+  while (++md->msgno <= nmsgs)
+    if ((elt = mail_elt (md->stream,md->msgno))->spare) {
       if (!(elt->valid && elt->day)) {
-	sprintf (tmp,"%lu",md.msgno);
-	mail_fetch_fast (stream,tmp,NIL);
+	sprintf (tmp,"%lu",md->msgno);
+	mail_fetch_fast (md->stream,tmp,NIL);
       }
       memset (s = tmp,0,MAILTMPLEN);
 				/* copy flags */
@@ -3139,29 +3211,90 @@ long proxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
       if (elt->answered) strcat (s," \\Answered");
       if (elt->draft) strcat (s," \\Draft");
       if (i = elt->user_flags) do 
-	if ((t = stream->user_flags[find_rightmost_bit (&i)]) && *t &&
+	if ((t = md->stream->user_flags[find_rightmost_bit (&i)]) && *t &&
 	    (strlen (t) < ((size_t) (MAILTMPLEN-((s += strlen (s))+2-tmp))))) {
 	*s++ = ' ';		/* space delimiter */
 	strcpy (s,t);
       } while (i);		/* until no more user flags */
-      INIT (&st,msg_string,(void *) &md,elt->rfc822_size);
-      if (!mail_append_full (NIL,mailbox,tmp+1,mail_date (date,elt),&st)) {
-	s = lsterr ? lsterr : "Unexpected APPEND failure";
-	if (j) {
-	  sprintf (tmp,"%.80s after %lu messages",s,j);
-	  mm_log (tmp,ERROR);
-	}
-	else mm_log (s,ERROR);
-	return NIL;
-      }
+      *message = md->message;	/* set up return values */
+      *flags = md->flags = cpystr (tmp + 1);
+      *date = md->date = cpystr (mail_date (tmp,elt));
+      INIT (md->message,msg_string,(void *) md,elt->rfc822_size);
+      break;			/* process this message */
     }
-  response = win;		/* stomp any previous babble */
-				/* get new driver name if was dummy */
-  sprintf (tmp,"Cross-format (%.80s -> %.80s) COPY completed",
-	   stream->dtb->name,(ts = mail_open (NIL,mailbox,OP_PROTOTYPE)) ?
-	   ts->dtb->name : "unknown");
-  mm_log (tmp,NIL);
-  return T;
+  return LONGT;
+}
+
+/* Append message callback
+ * Accepts: MAIL stream
+ *	    append data package
+ *	    pointer to return initial flags
+ *	    pointer to return message internal date
+ *	    pointer to return stringstruct of message or NIL to stop
+ * Returns: T if success (have message or stop), NIL if error
+ */
+
+long append_msg (MAILSTREAM *stream,void *data,char **flags,char **date,
+		 STRING **message)
+{
+  unsigned long i,j;
+  char *t;
+  APPENDDATA *ad = (APPENDDATA *) data;
+  char *arg = ad->arg;
+				/* flush text of previous message */
+  if (t = ad->flags) fs_give ((void **) &ad->flags);
+  if (t = ad->date) fs_give ((void **) &ad->date);
+  if (t = ad->msg) fs_give ((void **) &ad->msg);
+  *flags = *date = NIL;		/* assume no flags or date */
+  if (t) {			/* have previous message? */
+    if (!*arg) {		/* if least one message, and no more coming */
+      *message = NIL;		/* set stop */
+      return LONGT;		/* return success */
+    }
+    else if (*arg++ != ' ') {	/* must have a delimiter to next argument */
+      response = misarg;	/* oops */
+      return NIL;
+    }
+  }
+  *message = ad->message;	/* return pointer to message stringstruct */
+  if (*arg == '(') {		/* parse optional flag list */
+    t = ++arg;			/* pointer to flag list contents */
+    while (*arg && (*arg != ')')) arg++;
+    if (*arg) *arg++ = '\0';
+    if (*arg == ' ') arg++;
+    *flags = ad->flags = cpystr (t);
+  }
+				/* parse optional date */
+  if (*arg == '"') *date = ad->date = cpystr (snarf (&arg));
+  if (!arg || (*arg != '{'))	/* parse message */
+    response = "%.80s BAD Missing literal in %.80s\015\012";
+  else if (!isdigit (arg[1]))
+    response = "%.80s BAD Missing message to %.80s\015\012";
+  else if (!(i = strtoul (arg+1,&t,10)))
+    response = "%.80s NO Empty message to %.80s\015\012";
+  else if ((*t != '}') || t[1]) response = badarg;
+  else {			/* append the data */
+    PSOUT (argrdy);		/* tell client ready for argument */
+    PFLUSH;			/* dump output buffer */
+				/* get a literal buffer */
+    ad->msg = (char *) fs_get (i+1);
+    alarm (TIMEOUT);		/* get data under timeout */
+    for (j = 0,t = ad->msg; j < i; j++) *t++ = inchar ();
+    alarm (0);			/* stop timeout */
+    *t = '\0';			/* make sure tied off */
+    				/* get new command tail */
+    slurp (ad->arg,TMPLEN - (ad->arg - cmdbuf));
+    if (strchr (ad->arg,'\012')) {
+				/* reset strtok mechanism, tie off if done */
+      if (!strtok (ad->arg,"\015\012")) *ad->arg = '\0';
+				/* initialize stringstruct */
+      INIT (ad->message,mail_string,(void *) ad->msg,i);
+      return LONGT;		/* ready to go */
+    }
+    flush ();			/* didn't find end of line? */
+    fs_give ((void **) &ad->msg);
+  }
+  return NIL;			/* error */
 }
 
 /* Co-routines from MAIL library */

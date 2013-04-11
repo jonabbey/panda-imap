@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	16 November 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 #define PBIN getchar
@@ -42,21 +27,19 @@
 
 /* Parameter files */
 
-#include "mail.h"
-#include "osdep.h"
-#include "rfc822.h"
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
 extern int errno;		/* just in case */
 #include <signal.h>
-#include "misc.h"
+#include <time.h>
+#include "c-client.h"
 
 
 /* Autologout timer */
 #define KODTIMEOUT 60*5
 #define LOGINTIMEOUT 60*3
-#define TIMEOUT 60*30
+#define TIMEOUT 60*10
 
 
 /* Size of temporary buffers */
@@ -78,7 +61,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "7.64";		/* server version */
+char *version = "2000.69";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -88,9 +71,7 @@ unsigned long ndele = 0;	/* number of deletes */
 unsigned long last = 0;		/* highest message accessed */
 unsigned long il = 0;		/* initial last message */
 char challenge[128];		/* challenge */
-#ifndef DISABLE_POP_PROXY
 char *host = NIL;		/* remote host name */
-#endif
 char *user = NIL;		/* user name */
 char *pass = NIL;		/* password */
 char *initial = NIL;		/* initial response */
@@ -122,7 +103,8 @@ int main (int argc,char *argv[])
   time_t autologouttime;
 #include "linkage.c"
 				/* initialize server */
-  server_init (argv[0],"pop3","pop3s","pop",clkint,kodint,hupint,trmint);
+  server_init ((s = strrchr (argv[0],'/')) ? s + 1 : argv[0],
+	       "pop3","pop3s","pop",clkint,kodint,hupint,trmint);
   challenge[0] = '\0';		/* find the CRAM-MD5 authenticator */
   if (i = mail_lookup_auth_name ("CRAM-MD5",NIL)) {
     AUTHENTICATOR *a = mail_lookup_auth (i);
@@ -184,18 +166,42 @@ int main (int argc,char *argv[])
       t = strtok (NIL,"\015\012");
 				/* QUIT command always valid */
       if (!strcmp (s,"QUIT")) state = UPDATE;
+      else if (!strcmp (s,"CAPA")) {
+	AUTHENTICATOR *auth = mail_lookup_auth (1);
+	PSOUT ("+OK Capability list follows:\015\012");
+	PSOUT ("TOP\015\012LOGIN-DELAY 180\015\012UIDL\015\012");
+#ifdef POP3SPECIALCAP
+	PSOUT (POP3SPECIALCAP);
+	CRLF;
+#endif
+#ifndef PLAINTEXT_DISABLED
+	PSOUT ("USER\015\012");
+#endif
+	PSOUT ("SASL");
+	while (auth) {
+#ifdef PLAINTEXT_DISABLED
+				/* disable insecure authenticators */
+	  if (!auth->secflag) auth->server = NIL;
+#endif
+	  if (auth->server) {
+	    PBOUT (' ');
+	    PSOUT (auth->name);
+	  }
+	  auth = auth->next;
+	}
+	CRLF;
+	PSOUT (".\015\012");
+      }
+
       else switch (state) {	/* else dispatch based on state */
       case AUTHORIZATION:	/* waiting to get logged in */
 	if (!strcmp (s,"USER")) {
-#ifndef DISABLE_POP_PROXY
 	  if (host) fs_give ((void **) &host);
-#endif
 	  if (user) fs_give ((void **) &user);
 	  if (pass) fs_give ((void **) &pass);
 	  if (t && *t) {	/* if user name given */
 				/* skip leading whitespace (bogus clients!) */
 	    while (*t == ' ') ++t;
-#ifndef DISABLE_POP_PROXY
 				/* remote user name? */
 	    if (s = strchr (t,':')) {
 	      *s++ = '\0';	/* tie off host name */
@@ -204,24 +210,15 @@ int main (int argc,char *argv[])
 	    }
 				/* local user name */
 	    else user = cpystr (t);
-#else
-	    user = cpystr (t);	/* local user name */
-#endif
 	    PSOUT ("+OK User name accepted, password please\015\012");
 	  }
 	  else PSOUT ("-ERR Missing username argument\015\012");
 	}
-	else if (user && *user && !strcmp (s,"PASS")) {
-	  if ((state = login (t,argc,argv)) == TRANSACTION)
-	    syslog (LOG_INFO,"Login user=%.80s host=%.80s nmsgs=%ld/%ld",
-		    user,tcp_clienthost (),nmsgs,stream->nmsgs);
-	}
-
+	else if (user && *user && !strcmp (s,"PASS"))
+	  state = login (t,argc,argv);
 	else if (!strcmp (s,"AUTH")) {
 	  if (t && *t) {	/* mechanism given? */
-#ifndef DISABLE_POP_PROXY
 	    if (host) fs_give ((void **) &host);
-#endif
 	    if (user) fs_give ((void **) &user);
 	    if (pass) fs_give ((void **) &pass);
 	    s = strtok (t," ");	/* get mechanism name */
@@ -235,6 +232,8 @@ int main (int argc,char *argv[])
 	    else if ((state = mbxopen ("INBOX")) == TRANSACTION)
 	      syslog (LOG_INFO,"Auth user=%.80s host=%.80s nmsgs=%ld/%ld",
 		      user,tcp_clienthost (),nmsgs,stream->nmsgs);
+	    else syslog (LOG_INFO,"Auth user=%.80s host=%.80s no mailbox",
+			 user,tcp_clienthost ());
 	  }
 	  else {
 	    AUTHENTICATOR *auth = mail_lookup_auth (1);
@@ -254,11 +253,10 @@ int main (int argc,char *argv[])
 	    CRLF;
 	  }
 	}
+
 	else if (!strcmp (s,"APOP")) {
 	  if (challenge[0]) {	/* can do it if have an MD5 challenge */
-#ifndef DISABLE_POP_PROXY
 	    if (host) fs_give ((void **) &host);
-#endif
 	    if (user) fs_give ((void **) &user);
 	    if (pass) fs_give ((void **) &pass);
 				/* get user name */
@@ -269,12 +267,23 @@ int main (int argc,char *argv[])
 	    else if ((state = mbxopen ("INBOX")) == TRANSACTION)
 	      syslog (LOG_INFO,"APOP user=%.80s host=%.80s nmsgs=%ld/%ld",
 		      user,tcp_clienthost (),nmsgs,stream->nmsgs);
+	    else syslog (LOG_INFO,"APOP user=%.80s host=%.80s no mailbox",
+			 user,tcp_clienthost ());
 	  }
 	  else PSOUT ("-ERR Not supported\015\012");
 	}
 				/* (chuckle) */
 	else if (!strcmp (s,"RPOP"))
 	  PSOUT ("-ERR Nice try, bunkie\015\012");
+#ifdef IMAPSPECIALCAP
+	else if (!strcmp (s,POP3SPECIALCAP)) {
+	  char rsp[TMPLEN];
+	  if (t = SPECIALCAP (argv[0]))
+	    sprintf (rsp,"-ERR %s failed: %.100s\015\012",POP3SPECIALCAP,t);
+	  else sprintf (rsp,"+OK %s completed\015\012",POP3SPECIALCAP);
+	  PSOUT (rsp);
+	}
+#endif
 	else PSOUT ("-ERR Unknown AUTHORIZATION state command\015\012");
 	break;
 
@@ -558,25 +567,34 @@ int login (char *t,int argc,char *argv[])
     return AUTHORIZATION;
   }
   pass = cpystr (t);		/* copy password argument */
+  if (!host) {			/* want remote mailbox? */
+				/* no, delimit user from possible admin */
+    if (t = strchr (user,'*')) *t++ ='\0';
+				/* attempt the login */
+    if (server_login (user,pass,t,argc,argv)) {
+      int ret = mbxopen ("INBOX");
+      if (ret == TRANSACTION)	/* mailbox opened OK? */
+	syslog (LOG_INFO,"%sLogin user=%.80s host=%.80s nmsgs=%ld/%ld",
+		t ? "Admin " : "",user,tcp_clienthost (),nmsgs,stream->nmsgs);
+      else syslog (LOG_INFO,"%sLogin user=%.80s host=%.80s no mailbox",
+		   t ? "Admin " : "",user,tcp_clienthost ());
+      return ret;
+    }
+  }
 #ifndef DISABLE_POP_PROXY
 				/* remote; build remote INBOX */
-  if (host && anonymous_login (argc,argv)) {
+  else if (anonymous_login (argc,argv)) {
     syslog (LOG_INFO,"IMAP login to host=%.80s user=%.80s host=%.80s",host,
 	    user,tcp_clienthost ());
     sprintf (tmp,"{%.128s/user=%.128s}INBOX",host,user);
 				/* disable rimap just in case */
     mail_parameters (NIL,SET_RSHTIMEOUT,0);
+    return mbxopen (tmp);
   }
-				/* local; attempt login, select INBOX */
-  else if (!host && server_login (user,pass,argc,argv)) strcpy (tmp,"INBOX");
-#else
-  if (server_login (user,pass,argc,argv)) strcpy (tmp,"INBOX");
 #endif
-  else {			/* vague error message to confuse crackers */
-    PSOUT ("-ERR Bad login\015\012");
-    return AUTHORIZATION;
-  }
-  return mbxopen (tmp);
+				/* vague error message to confuse crackers */
+  PSOUT ("-ERR Bad login\015\012");
+  return AUTHORIZATION;
 }
 
 /* Authentication responder
@@ -597,7 +615,7 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
 				/* set up response */
     t = (unsigned char *) initial;
     initial = NIL;		/* no more initial response */
-    return (char *) rfc822_base64 (t,strlen (t),rlen ? rlen : &i);
+    return (char *) rfc822_base64 (t,strlen ((char *) t),rlen ? rlen : &i);
   }
   PSOUT ("+ ");
   for (t = rfc822_binary (challenge,clen,&i),j = 0; j < i; j++)

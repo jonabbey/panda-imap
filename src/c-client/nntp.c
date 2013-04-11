@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	20 September 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notices appear in all copies and that both the
- * above copyright notices and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN
- * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -121,14 +106,16 @@ DRIVER *nntp_valid (char *name)
 
 DRIVER *nntp_isvalid (char *name,char *mbx)
 {
-  DRIVER *ret = mail_valid_net (name,&nntpdriver,NIL,mbx);
-  if (ret && (mbx[0] == '#')) {	/* namespace format name? */
-    if ((mbx[1] == 'n') && (mbx[2] == 'e') && (mbx[3] == 'w') &&
-	(mbx[4] == 's') && (mbx[5] == '.'))
-      memmove (mbx,mbx+6,strlen (mbx+6) + 1);
-    else ret = NIL;		/* bogus name */
-  }
-  return ret;
+  NETMBX mb;
+  if (!mail_valid_net_parse (name,&mb) || strcmp (mb.service,nntpdriver.name)||
+      mb.authuser[0] || mb.anoflag || mb.secflag) return NIL;
+  if (mb.mailbox[0] != '#') strcpy (mbx,mb.mailbox);
+			/* namespace format name */
+  else if ((mb.mailbox[1] == 'n') && (mb.mailbox[2] == 'e') &&
+	   (mb.mailbox[3] == 'w') && (mb.mailbox[4] == 's') &&
+	   (mb.mailbox[5] == '.')) strcpy (mbx,mb.mailbox+6);
+  else return NIL;		/* bogus name */
+  return &nntpdriver;
 }
 
 /* News manipulate driver parameters
@@ -163,6 +150,12 @@ void *nntp_parameters (long function,void *value)
     break;
   case GET_ALTNNTPNAME:
     value = (void *) nntp_altname;
+    break;
+  case SET_NEWSRC:
+    fatal ("SET_NEWSRC not permitted");
+  case GET_NEWSRC:
+    if (value)
+      value = (void *) ((NNTPLOCAL *) ((MAILSTREAM *) value)->local)->newsrc;
     break;
   default:
     value = NIL;		/* error case */
@@ -438,19 +431,12 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   unsigned long i,j,k,nmsgs;
   char *s,*mbx,tmp[MAILTMPLEN];
   NETMBX mb;
+  char *newsrc = (char *) mail_parameters (NIL,GET_NEWSRC,NIL);
+  newsrcquery_t nq = (newsrcquery_t) mail_parameters (NIL,GET_NEWSRCQUERY,NIL);
   SENDSTREAM *nstream = NIL;
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &nntpproto;
-  if (!(mail_valid_net_parse (stream->mailbox,&mb) &&
-	(stream->halfopen ||	/* insist upon valid name */
-	 (*mb.mailbox && ((mb.mailbox[0] != '#') ||
-			  ((mb.mailbox[1] == 'n') && (mb.mailbox[2] == 'e') &&
-			   (mb.mailbox[3] == 'w') && (mb.mailbox[4] == 's') &&
-			   (mb.mailbox[5] == '.'))))))) {
-    sprintf (tmp,"Invalid NNTP name %s",stream->mailbox);
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
+  mail_valid_net_parse (stream->mailbox,&mb);
 				/* note mailbox anme */
   mbx = (*mb.mailbox == '#') ? mb.mailbox+6 : mb.mailbox;
   if (LOCAL) {			/* recycle stream */
@@ -460,10 +446,6 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     LOCAL->nntpstream = NIL;	/* keep nntp_mclose() from punting it */
     nntp_mclose (stream,NIL);	/* do close action */
     stream->dtb = &nntpdriver;	/* reattach this driver */
-  }
-  if (mb.secflag) {		/* in case /secure switch given */
-    mm_log ("Secure NNTP login not available",ERROR);
-    return NIL;
   }
 				/* in case /debug switch given */
   if (mb.dbgflag) stream->debug = T;
@@ -475,6 +457,8 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
       sprintf (tmp + strlen (tmp),":%lu",mb.port ? mb.port : nntp_port);
     if (mb.altflag) sprintf (tmp + strlen (tmp),"/%s",(char *)
 			     mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
+    if (mb.altopt) sprintf (tmp + strlen (tmp),"/%s",(char *)
+			    mail_parameters (NIL,GET_ALTOPTIONNAME,NIL));
     if (mb.user[0]) sprintf (tmp + strlen (tmp),"/user=\"%s\"",mb.user);
     hostlist[1] = NIL;
     nstream = nntp_open (hostlist,OP_READONLY+(stream->debug ? OP_DEBUG:NIL));
@@ -499,17 +483,26 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   stream->local = memset (fs_get (sizeof (NNTPLOCAL)),0,sizeof (NNTPLOCAL));
   LOCAL->nntpstream = nstream;
   LOCAL->name = cpystr (mbx);	/* copy newsgroup name */
+				/* copy host name */
+  LOCAL->host = cpystr (net_host (nstream->netstream));
+  if (stream->mulnewsrc) {	/* want to use multiple .newsrc files? */
+    strcpy (tmp,newsrc);
+    s = tmp + strlen (tmp);	/* end of string */
+    *s++ = '-';			/* hyphen delimiter and host */
+    lcase (strcpy (s,LOCAL->host));
+    LOCAL->newsrc = cpystr (nq ? (*nq) (stream,tmp,newsrc) : newsrc);
+  }
+  else LOCAL->newsrc = cpystr (newsrc);
   if (mb.user[0]) LOCAL->user = cpystr (mb.user);
   stream->sequence++;		/* bump sequence number */
   stream->rdonly = stream->perm_deleted = T;
 				/* UIDs are always valid */
   stream->uid_validity = 0xbeefface;
-				/* copy host name */
-  LOCAL->host = cpystr (net_host (nstream->netstream));
   sprintf (tmp,"{%s:%lu/nntp",LOCAL->host,net_port (nstream->netstream));
   if (mb.altflag) sprintf (tmp + strlen (tmp),"/%s",(char *)
 			   mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
-  if (mb.secflag) strcat (tmp,"/secure");
+  if (mb.altopt) sprintf (tmp + strlen (tmp),"/%s",(char *)
+			  mail_parameters (NIL,GET_ALTOPTIONNAME,NIL));
   if (LOCAL->user) sprintf (tmp + strlen (tmp),"/user=\"%s\"",LOCAL->user);
   if (stream->halfopen) strcat (tmp,"}<no_mailbox>");
   else sprintf (tmp + strlen (tmp),"}#news.%s",mbx);
@@ -565,6 +558,7 @@ void nntp_mclose (MAILSTREAM *stream,long options)
     if (LOCAL->name) fs_give ((void **) &LOCAL->name);
     if (LOCAL->host) fs_give ((void **) &LOCAL->host);
     if (LOCAL->user) fs_give ((void **) &LOCAL->user);
+    if (LOCAL->newsrc) fs_give ((void **) &LOCAL->newsrc);
     if (LOCAL->txt) fclose (LOCAL->txt);
 				/* close NNTP connection */
     if (LOCAL->nntpstream) nntp_close (LOCAL->nntpstream);
@@ -849,6 +843,22 @@ long nntp_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
   return T;
 }
 
+/* NNTP fetch article from message ID (for news: URL support)
+ * Accepts: mail stream
+ *	    message ID
+ *	    pointer to return total message size
+ *	    pointer to return file size
+ * Returns: FILE * to message if successful, else NIL
+ */
+
+FILE *nntp_article (MAILSTREAM *stream,char *msgid,unsigned long *size,
+		    unsigned long *hsiz)
+{
+  return (nntp_send (LOCAL->nntpstream,"ARTICLE",msgid) == NNTPARTICLE) ?
+    netmsg_slurp (LOCAL->nntpstream->netstream,size,hsiz) : NIL;
+}
+
+
 /* NNTP per-message modify flag
  * Accepts: MAIL stream
  *	    message cache element
@@ -1175,7 +1185,7 @@ SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,
     if (start != last) sprintf (tmp,"%lu-%lu",start,last);
     else sprintf (tmp,"%lu",start);
 				/* get it from the NNTP server */
-    if (!nntp_send (LOCAL->nntpstream,"XOVER",tmp) == NNTPOVER)
+    if (!(nntp_send (LOCAL->nntpstream,"XOVER",tmp) == NNTPOVER))
 				/* ugh, have to get it the slow way */
       return mail_sort_loadcache (stream,pgm);
     while ((s = net_getline (LOCAL->nntpstream->netstream)) && strcmp (s,".")){
@@ -1187,8 +1197,8 @@ SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,
 	  (t = strchr (s,'\t')) && (v = strchr (++t,'\t'))) {
 	*v++ = '\0';		/* tie off subject */
 				/* put stripped subject in sortcache */
-	(r = (SORTCACHE *) (*mailcache) (stream,i,CH_SORTCACHE))->subject =
-	  mail_strip_subject (t);
+	r = (SORTCACHE *) (*mailcache) (stream,i,CH_SORTCACHE);
+	  r->refwd = mail_strip_subject (t,&r->subject);
 	if (t = strchr (v,'\t')) {
 	  *t++ = '\0';		/* tie off from */
 	  if (adr = rfc822_parse_address (&adr,adr,&v,BADHOST,0)) {
@@ -1300,12 +1310,12 @@ long nntp_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 /* NNTP append message from stringstruct
  * Accepts: MAIL stream
  *	    destination mailbox
- *	    stringstruct of messages to append
+ *	    append callback
+ *	    data for callback
  * Returns: T if append successful, else NIL
  */
 
-long nntp_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		  STRING *message)
+long nntp_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
   mm_log ("Append not valid for NNTP",ERROR);
   return NIL;
@@ -1327,11 +1337,11 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
   NETSTREAM *netstream;
   NETMBX mb;
   char tmp[MAILTMPLEN];
-  long reply;
   if (!(hostlist && *hostlist)) mm_log ("Missing NNTP service host",ERROR);
   else do {			/* try to open connection */
-    sprintf (tmp,"{%.1000s/%.20s}",*hostlist,service ? service : "nntp");
-    if (!mail_valid_net_parse (tmp,&mb) || mb.anoflag || mb.secflag) {
+    sprintf (tmp,"{%.200s/%.20s}",*hostlist,service ? service : "nntp");
+    if (!mail_valid_net_parse (tmp,&mb) || mb.anoflag || mb.secflag ||
+	mb.authuser[0]) {
       sprintf (tmp,"Invalid host specifier: %.80s",*hostlist);
       mm_log (tmp,ERROR);
     }
@@ -1349,7 +1359,7 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	stream->netstream = netstream;
 	stream->debug = (mb.dbgflag || (options & OP_DEBUG)) ? T : NIL;
 				/* get server greeting */
-	switch ((int) (reply = nntp_reply (stream))) {
+	switch ((int) nntp_reply (stream)) {
 	case NNTPGREET:		/* allow posting */
 	  NNTP.post = T;
 	  mm_notify (NIL,stream->reply + 4,(long) NIL);
@@ -1453,7 +1463,13 @@ long nntp_mail (SENDSTREAM *stream,ENVELOPE *env,BODY *body)
   while (((ret == NNTPWANTAUTH) || (ret == NNTPWANTAUTH2)) &&
 	 nntp_send_auth (stream));
   if (s) *s = ' ';		/* put the comment in the date back */
-  return ret;
+  if (ret == NNTPOK) return LONGT;
+  else if (ret < 400) {		/* if not an error reply */
+    sprintf (tmp,"Unexpected NNTP posting reply code %ld",ret);
+    mm_log (tmp,WARN);		/* so someone looks at this eventually */
+    if ((ret >= 200) && (ret < 300)) return LONGT;
+  }
+  return NIL;
 }
 
 /* NNTP send command
@@ -1490,15 +1506,19 @@ long nntp_send (SENDSTREAM *stream,char *command,char *args)
 
 long nntp_send_work (SENDSTREAM *stream,char *command,char *args)
 {
-  char tmp[MAILTMPLEN];
+  long ret;
+  char *s = (char *) fs_get (strlen (command) + (args ? strlen (args) + 1 : 0)
+			     + 3);
 				/* build the complete command */
-  if (args) sprintf (tmp,"%s %s",command,args);
-  else strcpy (tmp,command);
-  if (stream->debug) mm_dlog (tmp);
-  strcat (tmp,"\015\012");
+  if (args) sprintf (s,"%s %s",command,args);
+  else strcpy (s,command);
+  if (stream->debug) mm_dlog (s);
+  strcat (s,"\015\012");
 				/* send the command */
-  return net_soutr (stream->netstream,tmp) ? nntp_reply (stream) :
+  ret = net_soutr (stream->netstream,s) ? nntp_reply (stream) :
     nntp_fake (stream,NNTPSOFTFATAL,"NNTP connection broken (command)");
+  fs_give ((void **) &s);
+  return ret;
 }
 
 /* NNTP send authentication if needed
@@ -1510,7 +1530,12 @@ long nntp_send_auth (SENDSTREAM *stream)
 {
   NETMBX mb;
   char tmp[MAILTMPLEN];
-  sprintf (tmp,"{%s/nntp}<none>",net_host (stream->netstream));
+  sprintf (tmp,"{%.200s/nntp",net_host (stream->netstream));
+  if (stream->netstream->dtb ==
+      (NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL))
+    sprintf (tmp + strlen (tmp),"/%.200s",
+	     (char *) mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
+  strcat (tmp,"}<none>");
   mail_valid_net_parse (tmp,&mb);
   return nntp_send_auth_work (stream,&mb,tmp);
 }

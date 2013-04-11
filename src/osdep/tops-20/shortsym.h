@@ -2,31 +2,20 @@
  * Program:	Definitions for compilers with 6-letter symbol limits
  *
  * Author:	Mark Crispin
- *		6158 Lariat Loop NE
- *		Bainbridge Island, WA  98110-2098
- *		Internet: MRC@Panda.COM
+ *		Networks and Distributed Computing
+ *		Computing & Communications
+ *		University of Washington
+ *		Administration Building, AG-44
+ *		Seattle, WA  98195
+ *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	8 September 1999
- *
- * Copyright 1999 by Mark Crispin
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notices appear in all copies and that both the
- * above copyright notices and this permission notice appear in supporting
- * documentation, and that the name of Mark Crispin not be used in advertising
- * or publicity pertaining to distribution of the software without specific,
- * written prior permission.  This software is made available "as is", and
- * MARK CRISPIN DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, WITH REGARD TO
- * THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN NO EVENT SHALL
- * MARK CRISPIN BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES
- * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER IN AN ACTION OF CONTRACT, TORT (INCLUDING NEGLIGENCE) OR STRICT
- * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
- * THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 #define auth_link a_link
@@ -72,9 +61,18 @@
 #define file_string_setpos fl_sps
 #define fs_get f_get
 #define fs_give f_give
-#define fs_resize f_resize
+#define fs_resize f_rsiz
+#define hash_create h_crea
+#define hash_destory h_dest
+#define hash_index h_indx
+#define hash_lookup h_lkup
+#define hash_add h_add
+#define hash_lookup_and_add h_lad
 #define imap_OK i_OK
+#define imap_acl_work i_aclw
 #define imap_append i_appn
+#define imap_append_single i_apps
+#define imap_anon i_anon
 #define imap_auth i_auth
 #define imap_cache i_cach
 #define imap_challenge i_chln
@@ -83,6 +81,7 @@
 #define imap_copy i_copy
 #define imap_create i_crea
 #define imap_delete i_del
+#define imap_deleteacl i_dacl
 #define imap_expunge i_expn
 #define imap_fake i_fake
 #define imap_fast i_fast
@@ -90,20 +89,28 @@
 #define imap_flags i_flgs
 #define imap_gc i_gc
 #define imap_gc_body ig_bdy
+#define imap_getacl i_gacl
+#define imap_getquota i_gqot
+#define imap_getquotaroot i_gqtr
 #define imap_host i_host
 #define imap_list i_list
+#define imap_listrights i_lrgh
 #define imap_list_work il_wrk
+#define imap_login i_logn
 #define imap_lsub i_lsub
 #define imap_manage i_man
 #define imap_msgdata i_msgd
 #define imap_msgno i_msgn
+#define imap_myrights i_mrgh
 #define imap_open i_open
 #define imap_parameters i_parm
 #define imap_parse_address ip_adr
 #define imap_parse_adrlist ip_adl
+#define imap_parse_astring ip_ast
 #define imap_parse_body ip_bdy
 #define imap_parse_body_parameter ipb_pa
 #define imap_parse_body_structure ipb_st
+#define imap_parse_capabilities ip_cap
 #define imap_parse_disposition ip_dsp
 #define imap_parse_envelope ip_env
 #define imap_parse_extension ip_ext
@@ -131,6 +138,8 @@
 #define imap_send_slist iss_sl
 #define imap_send_spgm iss_pg
 #define imap_send_sset iss_st
+#define imap_setacl i_sacl
+#define imap_setquota i_sqot
 #define imap_sort i_sort
 #define imap_sout i_sout
 #define imap_soutr i_sotr
@@ -180,6 +189,7 @@
 #define mail_fetchsubject mf_sub
 #define mail_filter m_filt
 #define mail_flag m_flag
+#define mail_free_acl mr_acl
 #define mail_free_address mr_add
 #define mail_free_body mr_bdy
 #define mail_free_body_data mrb_da
@@ -190,6 +200,7 @@
 #define mail_free_envelope mr_env
 #define mail_free_handle mr_han
 #define mail_free_namespace mr_nsp
+#define mail_free_quotalist mr_qtl
 #define mail_free_searchheader mrs_hd
 #define mail_free_searchor mrs_or
 #define mail_free_searchpgm mrs_pg
@@ -212,6 +223,7 @@
 #define mail_makehandle m_mhdl
 #define mail_match_lines m_mlns
 #define mail_msgno m_msgn
+#define mail_newacl mn_acl
 #define mail_newaddr mn_add
 #define mail_newbody mn_bdy
 #define mail_newbody_parameter mnb_pr
@@ -220,6 +232,7 @@
 #define mail_new_cache_elt mn_elt
 #define mail_newenvelope mn_env
 #define mail_newmsg mn_msg
+#define mail_newquotalist mn_qtl
 #define mail_newsearchheader mns_hd
 #define mail_newsearchor mns_or
 #define mail_newsearchpgm mns_pg
@@ -242,6 +255,7 @@
 #define mail_scan m_scan
 #define mail_search_addr ms_adr
 #define mail_search_body ms_bdy
+#define mail_search_default ms_def
 #define mail_search_full m_srch
 #define mail_search_gets ms_gts
 #define mail_search_header ms_hdr
@@ -266,12 +280,21 @@
 #define mail_string_next mt_nxt
 #define mail_string_setpos mt_sps
 #define mail_strip_subject mst_sb
+#define mail_strip_subject_aux mst_sx
 #define mail_subscribe m_sub
 #define mail_thread m_thr
 #define mail_threadlist mt_lst
-#define mail_thread_msgs mt_mgs
+#define mail_thread_c2node mt_c2n
+#define mail_thread_check_child mt_ckc
 #define mail_thread_compare_date mtc_da
+#define mail_thread_loadcache mt_ldc
+#define mail_thread_msgs mt_mgs
 #define mail_thread_orderedsubject mt_osb
+#define mail_thread_parse_msgid mtp_mi
+#define mail_thread_parse_references mtp_rf
+#define mail_thread_prune_dummy mt_prd
+#define mail_thread_references mt_ref
+#define mail_thread_sort mt_srt
 #define mail_uid m_uid
 #define mail_uid_sequence mu_seq
 #define mail_unlock m_unl

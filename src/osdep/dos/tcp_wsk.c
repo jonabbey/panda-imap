@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	2 November 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	8 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -63,30 +48,25 @@ static long allowreversedns =	/* allow reverse DNS lookup */
 
 void *tcp_parameters (long function,void *value)
 {
+  void *ret = NIL;
   switch ((int) function) {
   case SET_TIMEOUT:
     tmoh = (tcptimeout_t) value;
-    break;
   case GET_TIMEOUT:
-    value = (void *) tmoh;
+    ret = (void *) tmoh;
     break;
   case SET_READTIMEOUT:
     ttmo_read = (long) value;
-    break;
   case GET_READTIMEOUT:
-    value = (void *) ttmo_read;
+    ret = (void *) ttmo_read;
     break;
   case SET_WRITETIMEOUT:
     ttmo_write = (long) value;
-    break;
   case GET_WRITETIMEOUT:
-    value = (void *) ttmo_write;
-    break;
-  default:
-    value = NIL;		/* error case */
+    ret = (void *) ttmo_write;
     break;
   }
-  return value;
+  return ret;
 }
 
 /* TCP/IP open
@@ -106,8 +86,8 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   char tmp[MAILTMPLEN];
   char *hostname = NIL;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
-  int silent = (port & 0x80000000) ? T : NIL;
-  port &= 0x7fffffff;		/* erase silent flag */
+  int silent = (port & NET_SILENT) ? T : NIL;
+  port &= 0xffff;		/* erase flags */
   if (!wsa_initted++) {		/* init Windows Sockets */
     WSADATA wsock;
     int i = (int) WSAStartup (WSA_VERSION,&wsock);
@@ -190,7 +170,8 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 				 sizeof (TCPSTREAM));
   stream->host = hostname;	/* official host name */
   stream->port = port;		/* port number */
-  stream->tcps = sock;		/* init socket */
+				/* init socket */
+  stream->tcpsi = stream->tcpso = sock;
   stream->ictr = 0;		/* init input counter */
   return stream;		/* return success */
 }
@@ -262,25 +243,65 @@ char *tcp_getline (TCPSTREAM *stream)
  * Returns: T if success, NIL otherwise
  */
 
-long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer)
+long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 {
   unsigned long n;
-  char *bufptr = buffer;
-  while (size > 0) {		/* until request satisfied */
-    if (!tcp_getdata (stream)) return NIL;
-    n = min (size,stream->ictr);/* number of bytes to transfer */
-				/* do the copy */
-    memcpy (bufptr,stream->iptr,(size_t) n);
-    bufptr += n;		/* update pointer */
+				/* make sure socket still alive */
+  if (stream->tcpsi == INVALID_SOCKET) return NIL;
+				/* can transfer bytes from buffer? */
+  if (n = min (size,stream->ictr)) {
+    memcpy (s,stream->iptr,n);	/* yes, slurp as much as we can from it */
+    s += n;			/* update pointer */
     stream->iptr +=n;
     size -= n;			/* update # of bytes to do */
     stream->ictr -=n;
   }
-  bufptr[0] = '\0';		/* tie off string */
+  if (size) {
+    int i;
+    fd_set fds;
+    struct timeval tmo;
+    time_t tc,t = time (0);
+    blocknotify_t bn=(blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
+    if (bn) (*bn) (BLOCK_TCPREAD,NIL);
+    while (size > 0) {		/* until request satisfied */
+      time_t tl = time (0);
+      FD_ZERO (&fds);		/* initialize selection vector */
+      FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
+      tmo.tv_sec = ttmo_read;
+      tmo.tv_usec = 0;
+				/* block and read */
+      switch ((stream->tcpsi == stream->tcpso) ?
+	      select (stream->tcpsi+1,&fds,0,0,
+		      ttmo_read ? &tmo : (struct timeval *) 0) : 1) {
+      case SOCKET_ERROR:		/* error */
+	if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcpsi);
+	break;
+      case 0:			/* timeout */
+	tc = time (0);
+	if (tmoh && ((*tmoh) (tc - t,tc - tl))) break;
+	return tcp_abort (&stream->tcpsi);
+      default:
+	if (stream->tcpsi == stream->tcpso)
+	  while (((i = recv (stream->tcpsi,s,(int) min (maxposint,size),0)) ==
+		  SOCKET_ERROR) && (WSAGetLastError () == WSAEINTR));
+	else while (((i = read (stream->tcpsi,s,(int) min (maxposint,size))) <
+		     0) && (errno == EINTR));
+	switch (i) {
+	case SOCKET_ERROR:	/* error */
+	case 0:			/* no data read */
+	  return tcp_abort (&stream->tcpsi);
+	default:
+	  s += i;		/* point at new place to write */
+	  size -= i;		/* reduce byte count */
+	}
+      }
+    }
+    if (bn) (*bn) (BLOCK_NONE,NIL);
+  }
+  *s = '\0';			/* tie off string */
   return T;
 }
-
-
+
 /* TCP/IP receive data
  * Accepts: TCP/IP stream
  * Returns: T if success, NIL otherwise
@@ -294,30 +315,34 @@ long tcp_getdata (TCPSTREAM *stream)
   time_t tc,t = time (0);
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   FD_ZERO (&fds);		/* initialize selection vector */
-  if (stream->tcps == INVALID_SOCKET) return NIL;
+  if (stream->tcpsi == INVALID_SOCKET) return NIL;
   if (bn) (*bn) (BLOCK_TCPREAD,NIL);
   tmo.tv_sec = ttmo_read;
   tmo.tv_usec = 0;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     time_t tl = time (0);
-    FD_SET (stream->tcps,&fds);	/* set bit in selection vector */
+    FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
 				/* block and read */
-    switch (select (stream->tcps+1,&fds,0,0,
-		    ttmo_read ? &tmo : (struct timeval *) 0)) {
+    switch ((stream->tcpsi == stream->tcpso) ?
+	    select (stream->tcpsi+1,&fds,0,0,
+		    ttmo_read ? &tmo : (struct timeval *) 0) : 1) {
     case SOCKET_ERROR:		/* error */
-      if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcps);
+      if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcpsi);
       break;
     case 0:			/* timeout */
       tc = time (0);
       if (tmoh && ((*tmoh) (tc - t,tc - tl))) break;
-      return tcp_abort (&stream->tcps);
+      return tcp_abort (&stream->tcpsi);
     default:
-      while (((i = recv (stream->tcps,stream->ibuf,BUFLEN,0)) == SOCKET_ERROR)
-	     && (WSAGetLastError () == WSAEINTR));
+      if (stream->tcpsi == stream->tcpso)
+	while (((i = recv (stream->tcpsi,stream->ibuf,BUFLEN,0)) ==
+		SOCKET_ERROR) && (WSAGetLastError () == WSAEINTR));
+      else while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
+		  (errno == EINTR));
       switch (i) {
       case SOCKET_ERROR:	/* error */
       case 0:			/* no data read */
-	return tcp_abort (&stream->tcps);
+	return tcp_abort (&stream->tcpsi);
       default:
 	stream->ictr = i;	/* set new byte count */
 				/* point at TCP buffer */
@@ -358,25 +383,29 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   tmo.tv_sec = ttmo_write;
   tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
-  if (stream->tcps == INVALID_SOCKET) return NIL;
+  if (stream->tcpso == INVALID_SOCKET) return NIL;
   if (bn) (*bn) (BLOCK_TCPWRITE,NIL);
   while (size > 0) {		/* until request satisfied */
     time_t tl = time (0);
-    FD_SET (stream->tcps,&fds);	/* set bit in selection vector */
+    FD_SET (stream->tcpso,&fds);/* set bit in selection vector */
 				/* block and write */
-    switch (select (stream->tcps+1,NULL,&fds,NULL,
-		    tmo.tv_sec ? &tmo : (struct timeval *) 0)) {
+    switch ((stream->tcpsi == stream->tcpso) ?
+	    select (stream->tcpso+1,NULL,&fds,NULL,
+		    tmo.tv_sec ? &tmo : (struct timeval *) 0) : 1) {
     case SOCKET_ERROR:		/* error */
-      if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcps);
+      if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcpsi);
       break;
     case 0:			/* timeout */
       tc = time (0);
       if (tmoh && ((*tmoh) (tc - t,tc - tl))) break;
-      return tcp_abort (&stream->tcps);
+      return tcp_abort (&stream->tcpsi);
     default:
-      while (((i = send (stream->tcps,string,(int) size,0)) == SOCKET_ERROR) &&
-	     (WSAGetLastError () == WSAEINTR));
-      if (i == SOCKET_ERROR) return tcp_abort (&stream->tcps);
+      if (stream->tcpsi == stream->tcpso)
+	while (((i = send (stream->tcpso,string,(int) size,0)) ==
+		SOCKET_ERROR) && (WSAGetLastError () == WSAEINTR));
+      else while (((i = write (stream->tcpso,string,size)) < 0) &&
+		  (errno == EINTR));
+      if (i == SOCKET_ERROR) return tcp_abort (&stream->tcpsi);
       size -= i;		/* count this size */
       string += i;
     }
@@ -392,9 +421,10 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 
 void tcp_close (TCPSTREAM *stream)
 {
-  tcp_abort (&stream->tcps);	/* nuke the socket */
+  tcp_abort (&stream->tcpsi);	/* nuke the socket */
 				/* flush host names */
   if (stream->host) fs_give ((void **) &stream->host);
+  if (stream->remotehost) fs_give ((void **) &stream->remotehost);
   if (stream->localhost) fs_give ((void **) &stream->localhost);
   fs_give ((void **) &stream);	/* flush the stream */
 }
@@ -445,7 +475,7 @@ char *tcp_remotehost (TCPSTREAM *stream)
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
     stream->remotehost =	/* get socket's peer name */
-      ((getpeername (stream->tcps,(struct sockaddr *) &sin,&sinlen) ==
+      ((getpeername (stream->tcpsi,(struct sockaddr *) &sin,&sinlen) ==
 	SOCKET_ERROR) || (sinlen <= 0)) ?
 	  cpystr (stream->host) : tcp_name (&sin,NIL);
   }
@@ -476,7 +506,7 @@ char *tcp_localhost (TCPSTREAM *stream)
     int sinlen = sizeof (struct sockaddr_in);
     stream->localhost =		/* get socket's name */
       ((stream->port & 0xffff000) ||
-       ((getsockname (stream->tcps,(struct sockaddr *) &sin,&sinlen) ==
+       ((getsockname (stream->tcpsi,(struct sockaddr *) &sin,&sinlen) ==
 	 SOCKET_ERROR) || (sinlen <= 0))) ?
 	   cpystr (mylocalhost ()) : tcp_name (&sin,NIL);
   }

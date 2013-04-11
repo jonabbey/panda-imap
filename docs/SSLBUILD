@@ -1,0 +1,166 @@
+		  SSL BUILD AND INSTALLATION NOTES FOR UNIX
+			 Last Updated: 16 October 2000
+
+PREREQUISITES BEFORE STARTING:
+ 1) Make sure that you understand how to do a non-SSL build of the IMAP
+    toolkit.   If necessary, review the information in imap-2000/docs/BUILD.
+ 2) Obtain a copy of OpenSSL.  OpenSSL is available from third parties.  We
+    do not provide OpenSSL.
+ 3) Make sure that you know how to build OpenSSL properly on the standard
+    /usr/local/ssl directory.  In particular, /usr/local/ssl/include (and
+    /usr/local/ssl/include/openssl) and /usr/local/ssl/lib must be set up
+    from the OpenSSL build.  If you have a non-standard installation, then
+    you must modify the imap-2000/src/osdep/unixMakefile.ssl file to point
+    to the appropriate locations.
+ 4) Make sure that you know how to obtain appropriate certificates on your
+    system.
+
+NOTE: We can NOT provide you with support in building/installing OpenSSL, or
+in obtaining certificates.  If you need help in doing this, try the contacts
+mentioned in the OpenSSL README.
+
+
+SSL BUILD:
+
+     To build with SSL, add "SPECIALAUTHENTICATORS=ssl" to the make command
+line.  For example, on Red Hat Linux, the appropriate command would be:
+	make lnp SPECIALAUTHENTICATORS=ssl
+
+     There are other make options, described in
+ imap-2000/src/osdep/unix/Makefile.ssl.
+The most important of these are SSLCRYPTO and SSLRSA.
+
+     SSLCRYPTO gives a fixed patch to libcrypto instead of using -lcrypto to
+avoid a library name conflict with some versions of MIT Kerberos.  If you have
+a newer version of Kerberos or don't use Kerberos, you may want to change it
+to -lcrypto, especially if you use shared libraries.
+
+     SSLRSA specifies the RSAREF libraries, which you must use with OpenSSL to
+use RSA algorithms with OpenSSL legally if you are in the USA, due to patent
+issues.  If you are outside of the USA, and have built OpenSSL without RSAREF,
+you should set this to be empty.
+
+
+SSL INSTALLATION:
+
+     Binaries from the build are:
+	imap-2000/mtest/mtest		c-client testbed program
+	imap-2000/ipopd/ipop2d		POP2 daemon
+	imap-2000/ipopd/ipop3d		POP3 daemon
+	imap-2000/imapd/imapd		IMAP4rev1 daemon
+
+     mtest is normally not used except by c-client developers.
+
+STEP 1:	inetd setup
+
+     The ipop2d, ipop3d, and imapd daemons should be installed in a system
+daemon directory (in the following examples, /usr/local/etc is used), and
+invoked by your /etc/inetd.conf file with lines such as:
+
+pop	stream	tcp	nowait	root	/usr/local/etc/ipop2d	ipop2d
+pop3	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
+imap	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
+pop3s	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
+imaps	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
+
+     Please refer to imap-2000/docs/BUILD for an important note about inetd's
+limit on the number of new connections.  If that note applies to you, and you
+can configure the number of connection in /etc/inetd.conf as described in
+imap-2000/docs/build, here is the sample /etc/inetd.conf entry with SSL:
+
+pop3	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d
+pop3s	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d
+imap	stream	tcp	nowait.100	root	/usr/local/etc/imapd	imapd
+imaps	stream	tcp	nowait.100	root	/usr/local/etc/imapd	imapd
+ (or, if you use TCP wrappers)
+pop3	stream	tcp	nowait.100	root	/usr/local/etc/tcpd	ipop3d
+imap	stream	tcp	nowait.100	root	/usr/local/etc/tcpd	imapd
+pop3s	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d
+imaps	stream	tcp	nowait.100	root	/usr/local/etc/imapd	imapd
+
+NOTE: do *NOT* use TCP wrappers (tcpd) for the imaps and pop3s services!  I
+don't know why, but it doesn't work with TCP wrappers.
+
+
+STEP 2:	services setup
+
+     You may also have to edit your /etc/services (or Yellow Pages,
+NetInfo, etc. equivalent) to register these services, such as:
+
+pop		109/tcp
+pop3		110/tcp
+imap		143/tcp
+imaps		993/tcp
+pop3s		995/tcp
+
+NOTE: The SSL IMAP service *MUST* be called "imaps", and the SSL POP3 service
+*MUST* be called "pop3s".
+
+
+STEP 3:	certificates setup
+
+NOTE: We can NOT provide you with support in obtaining certificates.  If you
+need help in doing this, try the contacts mentioned in the OpenSSL README.
+
+     You must set up certificates on /usr/local/ssl/certs.  You should install
+both the certificate authority certificates from the SSL sources, plus your
+own certificates.  These should have been purchased from a certificate
+authority, although self-signed certificates are permissible.  A sample
+certificate file is at the end of this document.
+
+     Install the IMAP certificate on /usr/local/ssl/certs/imapd.pem and the
+POP3 certificate on /usr/local/ssl/certs/ipop3d.pem.  These files should be
+protected against random people accessing them.  It is permissible for
+imapd.pem and ipop3d.pem to be links to the same file.
+
+     If you have a multihomed system with multiple domain names (and hence
+separate certifications for each domain name), you can append the IP address
+to the service name.  For example, the IMAP certificate for [12.34.56.78]
+would be /usr/local/ssl/certs/imapd-12.34.56.78.pem and so on.  You only need
+to use this feature if you need to use multiple certificates.
+
+
+SAMPLE CERTIFICATE FILE
+
+     Here is a sample certificate file.  Do *NOT* use this on your own
+machine; it is simply an example of what one would look like.
+
+-----BEGIN RSA PRIVATE KEY-----
+MIICXQIBAAKBgQDHkqs4YDbakYxRkYXIpY7xLXDQwULR5LW7xWVzuWmmZJOtzwlP
+7mN87g+aaiQzwXUVndaCw3Zm6cOG4mytf20jPZq0tvWnjEB3763sorpfpOe/4Vsn
+VBFjyQY6YdqYXNmjmzff5gTAecEXOcJ8CrPsaK+nkhw7bHUHX2X+97oMNQIDAQAB
+AoGBAMd3YkZAc9LUsig8iDhYsJuAzUb4Qi7Cppj73EBjyqKR18BaM3Z+T1VoIpQ1
+DeXkr39heCrN7aNCdTh1SiXGPG6+fkGj9HVw7LmjwXclp4UZwWp3fVbSAWfe3VRe
+LM/6p65qogEYuBRMhbSmsn9rBgz3tYVU0lDMZvWxQmUWWg7BAkEA6EbMJeCVdAYu
+nQsjwf4vhsHJTChKv/He6kT93Yr/rvq5ihIAPQK/hwcmWf05P9F6bdrA6JTOm3xu
+TvJsT/rIvQJBANv0yczI5pUQszw4s+LTzH+kZSb6asWp316BAMDedX+7ID4HaeKk
+e4JnBK//xHKVP7xmHuioKYtRlsnuHpWVtNkCQQDPru2+OE6pTRXEqT8xp3sLPJ4m
+ECi18yfjxAhRXIU9CUV4ZJv98UUbEJOEBtx3aW/UZbHyw4rwj5N511xtLsjpAkA9
+p1XRYxbO/clfvf0ePYP621fHHzZChaUo1jwh07lXvloBSQ6zCqvcF4hG1Qh5ncAp
+zO4pBMnwVURRAb/s6fOxAkADv2Tilu1asafmqVzpnRsdfBZx2Xt4oPtquR9IN0Q1
+ewRxOC13KZwoAWtkS7l0mY19WD27onF6iAaF7beuK/Va
+-----END RSA PRIVATE KEY-----
+-----BEGIN CERTIFICATE-----
+MIIECTCCA3KgAwIBAgIBADANBgkqhkiG9w0BAQQFADCBujELMAkGA1UEBhMCVVMx
+EzARBgNVBAgTCldhc2hpbmd0b24xEDAOBgNVBAcTB1NlYXR0bGUxHzAdBgNVBAoT
+FkJsdXJkeWJsb29wIEluZHVzdHJpZXMxFjAUBgNVBAsTDUlTIERlcGFydG1lbnQx
+ITAfBgNVBAMTGEJvbWJhc3RpYyBULiBCbHVyZHlibG9vcDEoMCYGCSqGSIb3DQEJ
+ARYZYm9tYmFzdGljQGJsdXJkeWJsb29wLmNvbTAeFw0wMDA2MDYwMDUxMTRaFw0x
+MDA2MDQwMDUxMTRaMIG6MQswCQYDVQQGEwJVUzETMBEGA1UECBMKV2FzaGluZ3Rv
+bjEQMA4GA1UEBxMHU2VhdHRsZTEfMB0GA1UEChMWQmx1cmR5Ymxvb3AgSW5kdXN0
+cmllczEWMBQGA1UECxMNSVMgRGVwYXJ0bWVudDEhMB8GA1UEAxMYQm9tYmFzdGlj
+IFQuIEJsdXJkeWJsb29wMSgwJgYJKoZIhvcNAQkBFhlib21iYXN0aWNAYmx1cmR5
+Ymxvb3AuY29tMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDHkqs4YDbakYxR
+kYXIpY7xLXDQwULR5LW7xWVzuWmmZJOtzwlP7mN87g+aaiQzwXUVndaCw3Zm6cOG
+4mytf20jPZq0tvWnjEB3763sorpfpOe/4VsnVBFjyQY6YdqYXNmjmzff5gTAecEX
+OcJ8CrPsaK+nkhw7bHUHX2X+97oMNQIDAQABo4IBGzCCARcwHQYDVR0OBBYEFD+g
+lcPrnpsSvIdkm/eol4sYYg09MIHnBgNVHSMEgd8wgdyAFD+glcPrnpsSvIdkm/eo
+l4sYYg09oYHApIG9MIG6MQswCQYDVQQGEwJVUzETMBEGA1UECBMKV2FzaGluZ3Rv
+bjEQMA4GA1UEBxMHU2VhdHRsZTEfMB0GA1UEChMWQmx1cmR5Ymxvb3AgSW5kdXN0
+cmllczEWMBQGA1UECxMNSVMgRGVwYXJ0bWVudDEhMB8GA1UEAxMYQm9tYmFzdGlj
+IFQuIEJsdXJkeWJsb29wMSgwJgYJKoZIhvcNAQkBFhlib21iYXN0aWNAYmx1cmR5
+Ymxvb3AuY29tggEAMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQEEBQADgYEAwEEk
+JXpVXVaFTuG2VJGIzPOxQ+X3V1Cl86y4gM1bDbqlilOUdByUEG4YfSb8ILIn+eXk
+WzMAw63Ww5t0/jkO5JRs6i1SUt0Oy80DryNRJYLBVBi499WEduro8GCVD8HuSkDC
+yL1Rdq8qlNhWPsggcbhuhvpbEz4pAfzPkrWMBn4=
+-----END CERTIFICATE-----

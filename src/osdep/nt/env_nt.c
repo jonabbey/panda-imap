@@ -10,30 +10,14 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	10 October 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made available
- * "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	7 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
-
-
+
 static char *myUserName = NIL;	/* user name */
 static char *myLocalHost = NIL;	/* local host name */
 static char *myClientHost = NIL;/* client host name */
@@ -44,8 +28,10 @@ static char *sysInbox = NIL;	/* system inbox name */
 static long list_max_level = 5;	/* maximum level of list recursion */
 				/* home namespace */
 static NAMESPACE nshome = {"",'\\',NIL,NIL};
+				/* UNIX other user namespace */
+static NAMESPACE nsother = {"#user.",'\\',NIL,NIL};
 				/* namespace list */
-static NAMESPACE *nslist[3] = {&nshome,NIL,NIL};
+static NAMESPACE *nslist[3] = {&nshome,&nsother,NIL};
 static long alarm_countdown = 0;/* alarm count down */
 static void (*alarm_rang) ();	/* alarm interrupt function */
 static unsigned int rndm = 0;	/* initial `random' number */
@@ -56,8 +42,12 @@ static blocknotify_t mailblocknotify = mm_blocknotify;
 				/* callback to get username */
 static userprompt_t mailusername = NIL;
 static long is_nt = -1;		/* T if NT, NIL if not NT, -1 unknown */
+static HINSTANCE netapi = NIL;
+typedef NET_API_STATUS (CALLBACK *GETINFO) (LPCWSTR,LPCWSTR,DWORD,LPBYTE *);
+static GETINFO getinfo = NIL;
 
 #include "write.c"		/* include safe writing routines */
+#include "pmatch.c"		/* include wildcard pattern matcher */
 
 
 /* Get all authenticators */
@@ -72,67 +62,59 @@ static long is_nt = -1;		/* T if NT, NIL if not NT, -1 unknown */
 
 void *env_parameters (long function,void *value)
 {
+  void *ret = NIL;
   switch ((int) function) {
   case SET_NAMESPACE:
     fatal ("SET_NAMESPACE not permitted");
   case GET_NAMESPACE:
-    value = (void *) nslist;
+    ret = (void *) nslist;
     break;
   case SET_USERPROMPT :
     mailusername = (userprompt_t) value;
-    break;
   case GET_USERPROMPT :
-    value = (void *) mailusername;
+    ret = (void *) mailusername;
     break;
   case SET_HOMEDIR:
     if (myHomeDir) fs_give ((void **) &myHomeDir);
     myHomeDir = cpystr ((char *) value);
-    break;
   case GET_HOMEDIR:
-    value = (void *) myHomeDir;
+    ret = (void *) myHomeDir;
     break;
   case SET_LOCALHOST:
     myLocalHost = cpystr ((char *) value);
-    break;
   case GET_LOCALHOST:
     if (myLocalHost) fs_give ((void **) &myLocalHost);
-    value = (void *) myLocalHost;
+    ret = (void *) myLocalHost;
     break;
   case SET_NEWSRC:
     if (myNewsrc) fs_give ((void **) &myNewsrc);
     myNewsrc = cpystr ((char *) value);
-    break;
   case GET_NEWSRC:
     if (!myNewsrc) {		/* set news file name if not defined */
       char tmp[MAILTMPLEN];
       sprintf (tmp,"%s\\NEWSRC",myhomedir ());
       myNewsrc = cpystr (tmp);
     }
-    value = (void *) myNewsrc;
+    ret = (void *) myNewsrc;
     break;
   case SET_SYSINBOX:
     if (sysInbox) fs_give ((void **) &sysInbox);
     sysInbox = cpystr ((char *) value);
-    break;
   case GET_SYSINBOX:
-    value = (void *) sysInbox;
+    ret = (void *) sysInbox;
     break;
   case SET_LISTMAXLEVEL:
     list_max_level = (long) value;
-    break;
   case GET_LISTMAXLEVEL:
-    value = (void *) list_max_level;
+    ret = (void *) list_max_level;
     break;
   case SET_BLOCKNOTIFY:
     mailblocknotify = (blocknotify_t) value;
   case GET_BLOCKNOTIFY:
-    value = (void *) mailblocknotify;
-    break;
-  default:
-    value = NIL;		/* error case */
+    ret = (void *) mailblocknotify;
     break;
   }
-  return value;
+  return ret;
 }
 
 /* Write current time
@@ -171,7 +153,7 @@ static void do_date (char *date,char *prefix,char *fmt,int suffix)
     char *tz;
     tzset ();			/* get timezone from TZ environment stuff */
     tz = tzname[daylight ? (((struct tm *) t)->tm_isdst > 0) : 0];
-    if (tz && tz[0]) sprintf (date + strlen (date)," (%s)",tz);
+    if (tz && tz[0]) sprintf (date + strlen (date)," (%.50s)",tz);
   }
 }
 
@@ -183,6 +165,16 @@ static void do_date (char *date,char *prefix,char *fmt,int suffix)
 void rfc822_date (char *date)
 {
   do_date (date,"%s, ","%d %s %d %02d:%02d:%02d %+03d%02d",T);
+}
+
+
+/* Write current time in fixed-width RFC 822 format
+ * Accepts: destination string
+ */
+
+void rfc822_fixed_date (char *date)
+{
+  do_date (date,NIL,"%02d %s %4d %02d:%02d:%02d %+03d%02d",NIL);
 }
 
 
@@ -241,9 +233,10 @@ void CALLBACK clock_ticked (UINT IDEvent,UINT uReserved,DWORD dwUser,
 void server_init (char *server,char *service,char *altservice,char *sasl,
 		  void *clkint,void *kodint,void *hupint,void *trmint)
 {
-  if (!auth_md5.server && !check_nt ())
-    fatal ("Can't run on Windows without MD5 database");
-  else server_nli = T;		/* Windows server not logged in */
+  if (!check_nt ()) {
+    if (!auth_md5.server) fatal ("Can't run on Windows without MD5 database");
+    server_nli = T;		/* Windows server not logged in */
+  }
   if (server) {			/* set server name in syslog */
     openlog (server,LOG_PID,LOG_MAIL);
     fclose (stderr);		/* possibly save a process ID */
@@ -280,6 +273,7 @@ long server_input_wait (long seconds)
 /* Server log in
  * Accepts: user name string
  *	    password string
+ *	    authenticating user name string
  *	    argument count
  *	    argument vector
  * Returns: T if password validated, NIL otherwise
@@ -287,7 +281,7 @@ long server_input_wait (long seconds)
 
 static int gotprivs = NIL;	/* once-only flag to grab privileges */
 
-long server_login (char *user,char *pass,int argc,char *argv[])
+long server_login (char *user,char *pass,char *authuser,int argc,char *argv[])
 {
   HANDLE hdl;
   LUID tcbpriv;
@@ -311,27 +305,38 @@ long server_login (char *user,char *pass,int argc,char *argv[])
 				/* make sure it won */
     if (GetLastError() != ERROR_SUCCESS) return NIL;
   }
+
 				/* cretins still haven't given up */
-  if (strlen (user) >= MAILTMPLEN)
-    syslog (LOG_ALERT,"System break-in attempt, host=%.80s",tcp_clienthost ());
+  if ((strlen (user) >= MAILTMPLEN) ||
+      (authuser && (strlen (authuser) >= MAILTMPLEN)))
+    syslog (LOG_ALERT,"SYSTEM BREAK-IN ATTEMPT, host=%.80s",tcp_clienthost ());
   else if (logtry > 0) {	/* still have available logins? */
-    if (check_nt ()) {		/* NT: try to login and impersonate the guy */
-      /* ??? how to do it if pass==NIL (from authserver_login()) ??? */
-      if (pass && (LogonUser (user,".",pass,LOGON32_LOGON_INTERACTIVE,
-			      LOGON32_PROVIDER_DEFAULT,&hdl) ||
-		   LogonUser (user,".",pass,LOGON32_LOGON_BATCH,
-			      LOGON32_PROVIDER_DEFAULT,&hdl) ||
-		   LogonUser (user,".",pass,LOGON32_LOGON_SERVICE,
-			      LOGON32_PROVIDER_DEFAULT,&hdl)) &&
-	  ImpersonateLoggedOnUser (hdl)) return env_init (user,NIL);
+    if (check_nt ()) {		/* NT: authentication user not supported yet */
+      if (authuser && *authuser);
+      else if (!pass);		/* ditto pass==NIL */
+				/* try to login and impersonate the guy */
+      else if ((
+#ifdef LOGIN32_LOGON_NETWORK
+		LogonUser (user,".",pass,LOGON32_LOGON_NETWORK,
+			   LOGON32_PROVIDER_DEFAULT,&hdl) ||
+#endif
+		LogonUser (user,".",pass,LOGON32_LOGON_INTERACTIVE,
+			   LOGON32_PROVIDER_DEFAULT,&hdl) ||
+		LogonUser (user,".",pass,LOGON32_LOGON_BATCH,
+			   LOGON32_PROVIDER_DEFAULT,&hdl) ||
+		LogonUser (user,".",pass,LOGON32_LOGON_SERVICE,
+			   LOGON32_PROVIDER_DEFAULT,&hdl)) &&
+	       ImpersonateLoggedOnUser (hdl)) return env_init (user,NIL);
     }
-    else {			/* Windows: done if from authserver_login() */
-      if (!pass) server_nli = NIL;
+    else {			/* Win9x: authentication user not supported */
+      if (authuser && *authuser);
+				/* done if from authserver_login() */
+      else if (!pass) server_nli = NIL;
 				/* otherwise check MD5 database */
       else if (s = auth_md5_pwd (user)) {
 				/* change NLI state based on pwd match */
 	server_nli = strcmp (s,pass);
-	memset (s,0,strlen (s));	/* erase sensitive information */
+	memset (s,0,strlen (s));/* erase sensitive information */
 	fs_give ((void **) &s);	/* flush erased password */
       }
 				/* success if no longer NLI */
@@ -347,14 +352,15 @@ long server_login (char *user,char *pass,int argc,char *argv[])
 
 /* Authenticated server log in
  * Accepts: user name string
+ *	    authentication user name string
  *	    argument count
  *	    argument vector
  * Returns: T if password validated, NIL otherwise
  */
 
-long authserver_login (char *user,int argc,char *argv[])
+long authserver_login (char *user,char *authuser,int argc,char *argv[])
 {
-  return server_login (user,NIL,argc,argv);
+  return server_login (user,NIL,authuser,argc,argv);
 }
 
 
@@ -366,49 +372,25 @@ long authserver_login (char *user,int argc,char *argv[])
 
 long anonymous_login (int argc,char *argv[])
 {
-  return server_login ("Guest",NIL,argc,argv);
+  return server_login ("Guest",NIL,NIL,argc,argv);
 }
-
+
+
 /* Initialize environment
  * Accepts: user name
  *          home directory, or NIL to use default
  * Returns: T, always
  */
 
-typedef NET_API_STATUS (CALLBACK *NUGI) (LPCWSTR,LPCWSTR,DWORD,LPBYTE *);
-
 long env_init (char *user,char *home)
 {
-  char *s,tmp[MAILTMPLEN];
-  PUSER_INFO_1 ui;
-  NUGI nugi;
-  HINSTANCE nah;
   if (myUserName) fatal ("env_init called twice!");
   myUserName = cpystr (user);	/* remember user name */
-  if (!myHomeDir) {		/* only if home directory not set up yet */
-    if (!(home && *home)) {	/* were we given a home directory? */
-				/* Win9x default */
-      if (!check_nt ()) sprintf (tmp,"%s%s",defaultDrive (),"\\My Documents");
-				/* get from user info on NT */
-      else if (!((nah = LoadLibrary ("netapi32.dll")) &&
-		 (nugi = (NUGI) GetProcAddress (nah,"NetUserGetInfo")) &&
-		 MultiByteToWideChar (CP_ACP,0,user,strlen (user) + 1,
-				      (WCHAR *) tmp,MAILTMPLEN) &&
-		 !(*nugi) (NIL,(LPWSTR) &tmp,1,(LPBYTE *) &ui) &&
-		 WideCharToMultiByte (CP_ACP,0,ui->usri1_home_dir,-1,
-				      tmp,MAILTMPLEN,NIL,NIL) && tmp[0]))
-				/* NT default */
-	sprintf (tmp,"%s%s",defaultDrive (),"\\users\\default");
-      home = tmp;		/* home directory is in tmp buffer */
-    }
-    myHomeDir = cpystr (home);	/* remember home directory */
-    if ((*(s = myHomeDir + strlen (myHomeDir) - 1) == '\\') || (*s == '/'))
-      *s = '\0';		/* slice off trailing hierarchy delimiter */
-  }
+  if (!myHomeDir)		/* only if home directory not set up yet */
+    myHomeDir = (home && *home) ? cpystr (home) : win_homedir (user);
   return T;
 }
-
-
+
 /* Check if NT
  * Returns: T if NT, NIL if Win9x
  */
@@ -423,7 +405,42 @@ int check_nt (void)
   }
   return is_nt;
 }
-
+
+
+/* Return Windows home directory
+ * Accepts: user name
+ * Returns: home directory
+ */
+
+char *win_homedir (char *user)
+{
+  char *s,*t,tmp[MAILTMPLEN];
+  PUSER_INFO_1 ui;
+				/* Win9x default */
+  if (!check_nt ()) sprintf (tmp,"%s\\My Documents",defaultDrive ());
+				/* get from user info on NT */
+  else if ((netapi || (netapi = LoadLibrary ("netapi32.dll"))) &&
+	   (getinfo ||
+	    (getinfo = (GETINFO) GetProcAddress (netapi,"NetUserGetInfo"))) &&
+	   MultiByteToWideChar (CP_ACP,0,user,strlen (user) + 1,
+				(WCHAR *) tmp,MAILTMPLEN) &&
+	   !(*getinfo) (NIL,(LPWSTR) &tmp,1,(LPBYTE *) &ui) &&
+	   WideCharToMultiByte (CP_ACP,0,ui->usri1_home_dir,-1,
+				tmp,MAILTMPLEN,NIL,NIL) && tmp[0]) {
+				/* make sure doesn't end with delimiter */
+    if ((*(s = tmp + strlen (tmp) - 1) == '\\') || (*s == '/')) *s = '\0';
+  }
+				/* no home dir, found Win2K user profile? */
+  else if ((s = getenv ("USERPROFILE")) && (t = strrchr (s,'\\'))) {      
+    strncpy (tmp,s,t-s);	/* copy up to user name */
+    sprintf (tmp+(t-s),"\\%.100s\\My Documents",user);
+  }
+				/* last resort NT default */
+  else sprintf (tmp,"%s\\users\\default",defaultDrive ());
+  return cpystr (tmp);
+}
+
+
 /* Return default drive
  * Returns: default drive
  */
@@ -433,8 +450,7 @@ static char *defaultDrive (void)
   char *s = getenv ("SystemDrive");
   return (s && *s) ? s : "C:";
 }
-
-
+
 /* Return my user name
  * Accepts: pointer to optional flags
  * Returns: my user name
@@ -455,7 +471,10 @@ char *myusername_full (unsigned long *flags)
     if (p = getenv ("HOMEPATH"))
       sprintf (path = pth,"%s%s",
 	       (d = getenv ("HOMEDRIVE")) ? d : defaultDrive (),p);
-    else path = getenv ("HOME");
+    else if (!(path = getenv ("HOME")))
+      sprintf (path = pth,"%s\\My Documents",defaultDrive ());
+				/* make sure doesn't end with delimiter */
+    if ((*(p = path + strlen (path) -1) == '\\') || (*p == '/')) *p = '\0';
     env_init (user,path);	/* initialize environment */
   }
   if (myUserName) {		/* logged in? */
@@ -494,24 +513,67 @@ char *sysinbox ()
 }
 
 
+/* Return mailbox directory name
+ * Accepts: destination buffer
+ *	    directory prefix
+ *	    name in directory
+ * Returns: file name or NIL if error
+ */
+
+char *mailboxdir (char *dst,char *dir,char *name)
+{
+  char tmp[MAILTMPLEN];
+  if (dir || name) {		/* if either argument provided */
+    if (dir) {
+      if (strlen (dir) > NETMAXMBX) return NIL;
+      strcpy (tmp,dir);		/* write directory prefix */
+    }
+    else tmp[0] = '\0';		/* otherwise null string */
+    if (name) {
+      if (strlen (name) > NETMAXMBX) return NIL;
+      strcat (tmp,name);	/* write name in directory */
+    }
+				/* validate name, return its name */
+    if (!mailboxfile (dst,tmp)) return NIL;
+  }
+  else strcpy (dst,myhomedir());/* no arguments, wants home directory */
+  return dst;			/* return the name */
+}
+
 /* Return mailbox file name
  * Accepts: destination buffer
  *	    mailbox name
- * Returns: file name
+ * Returns: file name or empty string for driver-selected INBOX or NIL if error
  */
 
 char *mailboxfile (char *dst,char *name)
 {
   char *dir = myhomedir ();
   *dst = '\0';			/* default to empty string */
+				/* check for INBOX */
   if (((name[0] == 'I') || (name[0] == 'i')) &&
       ((name[1] == 'N') || (name[1] == 'n')) &&
       ((name[2] == 'B') || (name[2] == 'b')) &&
       ((name[3] == 'O') || (name[3] == 'o')) &&
-      ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) name = NIL;
-				/* reject namespace names or names with / */
-  if (name && ((*name == '#') || strchr (name,'/'))) return NIL;
-  else if (!name) return dst;	/* driver selects the INBOX name */
+      ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) return dst;
+				/* reject names with / */
+  if (strchr (name,'/')) return NIL;
+  else if (*name == '#') {	/* namespace names */
+    if (((name[1] == 'u') || (name[1] == 'U')) &&
+	((name[2] == 's') || (name[2] == 'S')) &&
+	((name[3] == 'e') || (name[3] == 'E')) &&
+	((name[4] == 'r') || (name[4] == 'R')) && (name[5] == '.')) {
+				/* copy user name */
+      for (dir = dst,name += 6; *name && (*name != '\\'); *dir++ = *name++);
+      *dir++ = '\0';		/* tie off user name */
+      if (!(dir = win_homedir (dst))) return NIL;
+				/* build resulting name */
+      sprintf (dst,"%s\\%s",dir,name);
+      fs_give ((void **) &dir);	/* clean up other user's home dir */
+      return dst;
+    }
+    else return NIL;		/* unknown namespace name */
+  }
 				/* absolute path name? */
   else if ((*name == '\\') || (name[1] == ':')) return strcpy (dst,name);
 				/* build resulting name */
@@ -530,25 +592,63 @@ int lockname (char *lock,char *fname,int op)
 {
   int ld;
   char c,*s;
-  if (((s = getenv ("TEMP")) && *s) || ((s = getenv ("TMPDIR")) && *s))
-    strcpy (lock,s);
-  else sprintf (lock,"%s\\TEMP\\",defaultDrive ());
-  if ((s = lock + strlen (lock))[-1] != '\\') *s++ ='\\';
+				/* Win2K and Win98 have TEMP under windir */
+  if (!((s = lockdir (lock,getenv ("windir"),"TEMP")) ||
+				/* NT4, NT3.x and Win95 use one of these */
+	(s = lockdir (lock,getenv ("TEMP"),NIL)) ||
+	(s = lockdir (lock,getenv ("TMP"),NIL)) ||
+	(s = lockdir (lock,getenv ("TMPDIR"),NIL)) ||
+				/* try one of these */
+	(s = lockdir (lock,defaultDrive (),"WINNT\\TEMP")) ||
+	(s = lockdir (lock,defaultDrive (),"WINDOWS\\TEMP")) ||
+				/* C:\TEMP is last resort */
+	(s = lockdir (lock,defaultDrive (),"TEMP")))) {
+    mm_log ("Unable to find temporary directory",ERROR);
+    return -1;
+  }
+				/* generate file name */
   while (c = *fname++) switch (c) {
-  case '/':
-  case '\\':
-  case ':':
-    *s++ = '!';
+  case '/': case '\\': case ':':
+    *s++ = '!';			/* convert bad chars to ! */
     break;
   default:
     *s++ = c;
     break;
   }
-  *s++ = c;
+  *s++ = c;			/* tie off name */
 				/* get the lock */
   if (((ld = open (lock,O_BINARY|O_RDWR|O_CREAT,S_IREAD|S_IWRITE)) >= 0) && op)
     flock (ld,op);		/* apply locking function */
   return ld;			/* return locking file descriptor */
+}
+
+/* Build lock directory, check to see if it exists
+ * Accepts: return buffer for lock directory
+ *	    first part of possible name
+ *	    optional second part
+ * Returns: pointer to end of buffer if buffer has a good name, else NIL
+ */
+
+char *lockdir (char *lock,char *first,char *last)
+{
+  struct stat sbuf;
+  char c,*s;
+  if (first && *first) {	/* first part must be non-NIL */
+				/* copy first part */
+    for (s = lock; c = *first++; *s++ = (c == '/') ? '\\' : c);
+    if (last && *last) {	/* copy last part if specified */
+				/* write trailing \ in case not in first */
+      if (s[-1] != '\\') *s++ = '\\';
+      while (c = *last++) *s++ = (c == '/') ? '\\' : c;
+    }
+    if (s[-1] == '\\') --s;	/* delete trailing \ if any */
+    *s = s[1] = '\0';		/* tie off name at this point */
+    if (!stat (lock,&sbuf)) {	/* does the name exist? */
+      *s++ = '\\';		/* yes, reinstall trailing \ */
+      return s;			/* return the name */
+    }
+  }
+  return NIL;			/* failed */
 }
 
 
@@ -586,7 +686,7 @@ void *mm_blocknotify (int reason,void *data)
   void *ret = data;
   switch (reason) {
   case BLOCK_SENSITIVE:		/* entering sensitive code */
-    data = (void *) max (alarm (0),1);
+    ret = (void *) alarm (0);
     break;
   case BLOCK_NONSENSITIVE:	/* exiting sensitive code */
     if ((unsigned int) data) alarm ((unsigned int) data);

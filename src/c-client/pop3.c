@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	28 October 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notices appear in all copies and that both the
- * above copyright notices and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN
- * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -109,10 +94,12 @@ static char *pop3_altname = NIL;
 
 DRIVER *pop3_valid (char *name)
 {
-  DRIVER *drv;
+  NETMBX mb;
   char mbx[MAILTMPLEN];
-  return ((drv = mail_valid_net (name,&pop3driver,NIL,mbx)) &&
-	  !strcmp (ucase (mbx),"INBOX")) ? drv : NIL;
+  return (mail_valid_net_parse (name,&mb) &&
+	  !strcmp (mb.service,pop3driver.name) && !mb.authuser[0] &&
+	  !strcmp (ucase (strcpy (mbx,mb.mailbox)),"INBOX")) ?
+	    &pop3driver : NIL;
 }
 
 
@@ -298,7 +285,7 @@ long pop3_status (MAILSTREAM *stream,char *mbx,long flags)
     status.messages = tstream->nmsgs;
     status.recent = tstream->recent;
     if (flags & SA_UNSEEN)	/* must search to get unseen messages */
-      for (i = 1,status.unseen = 0; i < tstream->nmsgs; i++)
+      for (i = 1,status.unseen = 0; i <= tstream->nmsgs; i++)
 	if (!mail_elt (tstream,i)->seen) status.unseen++;
     status.uidnext = tstream->uid_last + 1;
     status.uidvalidity = tstream->uid_validity;
@@ -324,6 +311,7 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &pop3proto;
   mail_valid_net_parse (stream->mailbox,&mb);
+  usr[0] = '\0';		/* initially no user name */
   if (stream->local) fatal ("pop3 recycle stream");
 				/* /anonymous not supported */
   if (mb.anoflag || stream->anonymous) {
@@ -353,12 +341,14 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
     else if (pop3_send (stream,"STAT",NIL)) {
       int silent = stream->silent;
       stream->silent = T;
-      sprintf (tmp,"{%s:%lu/pop3",net_host (LOCAL->netstream),
+      sprintf (tmp,"{%.200s:%lu/pop3",net_host (LOCAL->netstream),
 	       net_port (LOCAL->netstream));
-      if (mb.altflag) sprintf (tmp + strlen (tmp),"/%s",(char *)
+      if (mb.altflag) sprintf (tmp + strlen (tmp),"/%.200s",(char *)
 			       mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
+      if (mb.altopt) sprintf (tmp + strlen (tmp),"/%.200s",(char *)
+			      mail_parameters (NIL,GET_ALTOPTIONNAME,NIL));
       if (mb.secflag) strcat (tmp,"/secure");
-      sprintf (tmp + strlen (tmp),"/user=\"%s\"}INBOX",usr);
+      sprintf (tmp + strlen (tmp),"/user=\"%s\"}%s",usr,mb.mailbox);
       stream->inbox = T;	/* always INBOX */
       fs_give ((void **) &stream->mailbox);
       stream->mailbox = cpystr (tmp);
@@ -398,14 +388,16 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
 
 long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
 {
-  unsigned long i,auths = 0;
+  unsigned long i,trial,auths = 0;
   char *t;
   AUTHENTICATOR *at;
+  long flags = (stream->secure ? AU_SECURE : NIL) |
+    (mb->authuser[0] ? AU_AUTHUSER : NIL);
 				/* get list of authenticators */
   if (pop3_send (stream,"AUTH",NIL)) {
     while ((t = net_getline (LOCAL->netstream)) && (t[1] || (*t != '.'))) {
       if (stream->debug) mm_dlog (t);
-      if ((i = mail_lookup_auth_name (t,stream->secure)) &&
+      if ((i = mail_lookup_auth_name (t,flags)) &&
 	  (--i < (8*sizeof (unsigned long)))) auths |= (1 << i);
       fs_give ((void **) &t);
     }
@@ -424,15 +416,22 @@ long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
 	mm_log (tmp,NIL);
 	fs_give ((void **) &t);
       }
-      for (i = 1,tmp[0] = '\0';	/* until run out of trials */
-	   LOCAL->netstream && i && (i <= pop3_maxlogintrials); ) {
+      trial = 0;		/* initial trial count */
+      tmp[0] = '\0';		/* empty buffer */
+      if (LOCAL->netstream) do {
 	if (tmp[0]) mm_log (tmp,WARN);
 	if (pop3_send (stream,"AUTH",at->name) &&
-	    (*at->client) (pop3_challenge,pop3_response,mb,stream,&i,usr) &&
-	    LOCAL->response && (*LOCAL->response == '+')) return LONGT;
+	    (*at->client) (pop3_challenge,pop3_response,mb,stream,&trial,usr)&&
+	    LOCAL->response) {
+	  if (*LOCAL->response == '+') return LONGT;
+	  if (!trial) {		/* if main program requested cancellation */
+	    mm_log ("POP3 Authentication cancelled",ERROR);
+	    return NIL;
+	  }
+	}
 	t = cpystr (LOCAL->reply);
 	sprintf (tmp,"Retrying %s authentication after %s",at->name,t);
-      }
+      } while (LOCAL->netstream && trial && (trial < pop3_maxlogintrials));
     }
     if (t) {			/* previous authenticator failed? */
       sprintf (tmp,"Can not authenticate to POP3 server: %.80s",t);
@@ -442,6 +441,8 @@ long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
   }
   else if (stream->secure)
     mm_log ("Can't do secure authentication with this server",ERROR);
+  else if (mb->authuser[0])
+    mm_log ("Can't do /authuser with this server",ERROR);
   else {			/* traditional login */
     for (i = 0; LOCAL->netstream && (i < pop3_maxlogintrials); ++i) {
       tmp[0] = '\0';		/* prompt user for password */
@@ -503,7 +504,8 @@ long pop3_response (void *s,char *response,unsigned long size)
   }
 				/* abort requested */
   else ret = net_sout (LOCAL->netstream,"*\015\012",3);
-  pop3_reply (stream);		/* set up response */
+				/* get response */
+  if (!pop3_reply (stream)) ret = NIL;
   return ret;
 }
 
@@ -722,12 +724,12 @@ long pop3_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 /* POP3 mail append message from stringstruct
  * Accepts: MAIL stream
  *	    destination mailbox
- *	    stringstruct of messages to append
+ *	    append callback
+ *	    data for callback
  * Returns: T if append successful, else NIL
  */
 
-long pop3_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		  STRING *message)
+long pop3_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
   mm_log ("Append not valid for POP3",ERROR);
   return NIL;
@@ -760,19 +762,21 @@ long pop3_send_num (MAILSTREAM *stream,char *command,unsigned long n)
 
 long pop3_send (MAILSTREAM *stream,char *command,char *args)
 {
-  char tmp[8*MAILTMPLEN];
   long ret;
+  char *s = (char *) fs_get (strlen (command) + (args ? strlen (args) + 1: 0)
+			     + 3);
   mail_lock (stream);		/* lock up the stream */
   if (!LOCAL->netstream) ret = pop3_fake (stream,"No-op dead stream");
   else {			/* build the complete command */
-    if (args) sprintf (tmp,"%s %s",command,args);
-    else strcpy (tmp,command);
-    if (stream->debug) mm_dlog (tmp);
-    strcat (tmp,"\015\012");
+    if (args) sprintf (s,"%s %s",command,args);
+    else strcpy (s,command);
+    if (stream->debug) mm_dlog (s);
+    strcat (s,"\015\012");
 				/* send the command */
-    ret = net_soutr (LOCAL->netstream,tmp) ? pop3_reply (stream) :
+    ret = net_soutr (LOCAL->netstream,s) ? pop3_reply (stream) :
       pop3_fake (stream,"POP3 connection broken in command");
   }
+  fs_give ((void **) &s);
   mail_unlock (stream);		/* unlock stream */
   return ret;
 }

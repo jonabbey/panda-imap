@@ -1,6 +1,6 @@
 		       Mailbox Name Conventions
 			     Mark Crispin
-			     19 May 1998
+			   28 November 2000
 
 
 Please refer to the file drivers.txt for related information.
@@ -53,7 +53,7 @@ available to anonymous IMAP logins.
 
 II.d. #public/ (UNIX only)
 
-The prefix #publis/ is special and refers to the public files
+The prefix #public/ is special and refers to the public files
 filesystem named with the suffix.  For example, #public/foo/bar refers
 to the file /foo/bar in the public filesystem.  Public files are
 available to anonymous IMAP logins.
@@ -78,6 +78,9 @@ where:
  flags			optional flags, one of the following:
   "/service=" service	mailbox access service, default is "imap"
   "/user=" user		remote user name for login on the server
+  "/authuser=" user	remote authentication user; if specified this
+			 is the user name whose password is used (e.g.
+			 administrator)
   "/anonymous"		remote access as anonymous user
   "/debug"		record protocol telemetry in application's
 			 debug log
@@ -87,6 +90,11 @@ where:
 			equivalent to /service=imap
   "/pop3"		equivalent to /service=pop3
   "/nntp"		equivalent to /service=nntp
+  "/ssl"		use the Secure Socket Layer to encrypt the session
+  "/validate-cert"	validate certificates from SSL server (this is the
+			 default behavior)
+  "/novalidate-cert"	do not validate certificates from SSL server, needed
+			 if server uses self-signed certificates
  mailbox_name		remote mailbox name, default is INBOX
 
 For example:

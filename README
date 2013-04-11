@@ -1,11 +1,11 @@
 			   IMAP Toolkit Environment
-			       27 October 1999
+			       24 October 2000
 				 Mark Crispin
 
 
 			    UNIX QUICK BUILD NOTES
 
-1) Look in imap-4.7/Makefile and find your system type code, e.g. slx for
+1) Look in imap-2000/Makefile and find your system type code, e.g. slx for
    glibc Linux and/or Linux with shadow password security.
 
 2) Type "make" followed by the system type, e.g. "make slx".

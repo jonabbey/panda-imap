@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	10 June 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made available
- * "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -39,6 +24,12 @@ static char *myHomeDir = NIL;	/* home directory name */
 static char *myNewsrc = NIL;	/* newsrc file name */
 
 #include "write.c"		/* include safe writing routines */
+#include "pmatch.c"		/* include wildcard pattern matcher */
+
+
+/* Get all authenticators */
+
+#include "auths.c"
 
 /* Environment manipulate parameters
  * Accepts: function code
@@ -48,36 +39,31 @@ static char *myNewsrc = NIL;	/* newsrc file name */
 
 void *env_parameters (long function,void *value)
 {
+  void *ret = NIL;
   switch ((int) function) {
   case SET_HOMEDIR:
     myHomeDir = cpystr ((char *) value);
-    break;
   case GET_HOMEDIR:
-    value = (void *) myHomeDir;
+    ret = (void *) myHomeDir;
     break;
   case SET_LOCALHOST:
     myLocalHost = cpystr ((char *) value);
-    break;
   case GET_LOCALHOST:
-    value = (void *) myLocalHost;
+    ret = (void *) myLocalHost;
     break;
   case SET_NEWSRC:
     if (myNewsrc) fs_give ((void **) &myNewsrc);
     myNewsrc = cpystr ((char *) value);
-    break;
   case GET_NEWSRC:
     if (!myNewsrc) {		/* set news file name if not defined */
       char tmp[MAILTMPLEN];
       sprintf (tmp,"%s\\newsrc",myhomedir ());
       myNewsrc = cpystr (tmp);
     }
-    value = (void *) myNewsrc;
-    break;
-  default:
-    value = NIL;		/* error case */
+    ret = (void *) myNewsrc;
     break;
   }
-  return value;
+  return ret;
 }
 
 /* Write current time
@@ -114,7 +100,7 @@ static void do_date (char *date,char *prefix,char *fmt,int suffix)
 	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60);
   if (suffix) {			/* append timezone suffix if desired */
     tzset ();			/* get timezone from TZ environment stuff */
-    sprintf (date + strlen (date)," (%s)",
+    sprintf (date + strlen (date)," (%.50s)",
 	     tzname[daylight ? (((struct tm *) t)->tm_isdst > 0) : 0]);
   }
 }
@@ -127,6 +113,16 @@ static void do_date (char *date,char *prefix,char *fmt,int suffix)
 void rfc822_date (char *date)
 {
   do_date (date,"%s, ","%d %s %d %02d:%02d:%02d %+03d%02d",T);
+}
+
+
+/* Write current time in fixed-width RFC 822 format
+ * Accepts: destination string
+ */
+
+void rfc822_fixed_date (char *date)
+{
+  do_date (date,NIL,"%02d %s %4d %02d:%02d:%02d %+03d%02d",NIL);
 }
 
 
@@ -178,6 +174,79 @@ char *mailboxfile (char *dst,char *name)
   else sprintf (dst,"%s\\%s",myhomedir (),name);
   if (ext) sprintf (dst + strlen (dst),".%s",ext);
   return dst;
+}
+
+/* Lock file name
+ * Accepts: return buffer for file name
+ *	    file name
+ *	    locking to be placed on file if non-NIL
+ * Returns: file descriptor of lock or -1 if error
+ */
+
+int lockname (char *lock,char *fname,int op)
+{
+  int ld;
+  char c,*s;
+  if (!((s = lockdir (lock,getenv ("TEMP"),NIL)) ||
+	(s = lockdir (lock,getenv ("TMP"),NIL)) ||
+	(s = lockdir (lock,getenv ("TMPDIR"),NIL)) ||
+				/* C:\TEMP is last resort */
+	(s = lockdir (lock,defaultDrive (),"TEMP")))) {
+    mm_log ("Unable to find temporary directory",ERROR);
+    return -1;
+  }
+				/* generate file name */
+  while (c = *fname++) switch (c) {
+  case '/': case '\\': case ':':
+    *s++ = '!';			/* convert bad chars to ! */
+    break;
+  default:
+    *s++ = c;
+    break;
+  }
+  *s++ = c;			/* tie off name */
+				/* get the lock */
+  if (((ld = open (lock,O_BINARY|O_RDWR|O_CREAT,S_IREAD|S_IWRITE)) >= 0) && op)
+    flock (ld,op);		/* apply locking function */
+  return ld;			/* return locking file descriptor */
+}
+
+/* Build lock directory, check to see if it exists
+ * Accepts: return buffer for lock directory
+ *	    first part of possible name
+ *	    optional second part
+ * Returns: pointer to end of buffer if buffer has a good name, else NIL
+ */
+
+char *lockdir (char *lock,char *first,char *last)
+{
+  struct stat sbuf;
+  char c,*s;
+  if (first && *first) {	/* first part must be non-NIL */
+				/* copy first part */
+    for (s = lock; *first; c = *s++ = *first++);
+    if (last && *last) {	/* copy last part if specified */
+				/* write trailing \ in case not in first */
+      if (c != '\\') *s++ = '\\';
+      while (*last) c = *s++ = *last++;
+    }
+    if (c == '\\') --s;		/* delete trailing \ if any */
+    *s = '\0';			/* tie off name at this point */
+    return stat (lock,&sbuf) ? NIL : s;
+  }
+  return NIL;			/* failed */
+}
+
+
+/* Unlock file descriptor
+ * Accepts: file descriptor
+ *	    lock file name from lockfd()
+ */
+
+void unlockfd (int fd,char *lock)
+{
+  flock (fd,LOCK_UN);		/* unlock it */
+  close (fd);			/* close it */
 }
 
 

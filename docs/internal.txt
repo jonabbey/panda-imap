@@ -784,7 +784,7 @@ fetch an operational parameter and SET_xxx to set the parameter:
 	recognize that it should get the text from there instead of
 	from the results from mail_fetch....().
 	 This is only supported on DOS and Win16; on other platforms it
-	is inconsistant whether or not it works.
+	is inconsistent whether or not it works.
 
  GET_CACHE / SET_CACHE
 	 Points to the c-client cache manager function.  Defaults to

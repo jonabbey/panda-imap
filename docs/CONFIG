@@ -32,14 +32,21 @@ line that reads:
 to be:
     sprintf (tmp,"%s/.mailbox",myhomedir ());
 
-     Example 2: suppose you want the default directory to be the
-"mail" subdirectory of the user's home directory instead of the user's
-home directory.  You will want to change routine env_init(), changing
-the line that reads:
-      myHomeDir = cpystr (home);/* use real home directory */
+     Example 2: suppose you want to change c-client's idea of the
+user's home directory to be the "mail" subdirectory of the user's home
+directory instead of the user's home directory.  You will want to
+change routine env_init(), changing the line that reads:
+                                /* use real home directory */
+  myHomeDir = cpystr (home ? home : ANONYMOUSHOME);
 to be:
-      sprintf (tmp,"%s/mail",home);
-      myHomeDir = cpystr (tmp);
+  if (home) {			/* use "mail" subdirectory of home directory */
+    sprintf (tmp,"%s/mail",home);
+    myHomeDir = cpystr (tmp);
+  }
+  else myHomeDir = cpystr (ANONYMOUSHOME);
+Note, however, that a better way is to use the -DMAILSUBDIR make option,
+as described in the top-level Makefile.
+
 
      Ignore all references in env_unix.c to a configuration file; that
 code is for UW-internal use only.  It is extremely unlikely that that

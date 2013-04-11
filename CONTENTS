@@ -2,22 +2,32 @@
 
 Documentation:
  . CONTENTS		this file
+ . CPYRIGHT		copyright notice
  . README		read this file first
+ . WARNING		export notice and warning
  . docs/BUILD		build and installation instructions
  . docs/CONFIG		detailed configuration notes
  . docs/FAQ		frequently asked questions and answers
  . docs/RELNOTES	release notes
+ . docs/SSLBUILD	build and installation instructions using SSL
+ . docs/Y2K		information relating to Y2K issues
  . docs/bugs.txt	known bugs and deficiencies in this software
+ . docs/calendar.txt	information relating to the calendar
  . docs/drivers.txt	how various mailbox format drivers interact, and
 			 comparable features and performance
- . docs/internal.doc	programming interfaces
+ . docs/formats.txt	mailbox formats
+ . docs/internal.txt	programming interfaces
  . docs/locking.txt	how file locking works
+ . docs/md5.txt		CRAM-MD5 authentication setup instructions
+ . docs/naming.txt	mailbox naming conventions
  . docs/rfc		Internet protocol documentation
 
 Sources:
  . Makefile		master makefile for UNIX
  . makefile.nt		master makefile for NT/Win32
  . makefile.ntk		master makefile for NT/Win32 using Kerberos V
+ . makefile.os2		master makefile for OS/2
+ . makefile.w2k		master makefile for Windows 2000
  . makefile.wce		master makefile for Windows CE
  . src/ansilib		pre-processed ANSI library routines
  . src/c-client		pre-processed c-client sources

@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	4 September 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 /* Thanks to Nicholas Sheppard for the original version*/
@@ -109,10 +94,18 @@ DRIVER *dummy_valid (char *name)
   char *s,tmp[MAILTMPLEN];
   struct stat sbuf;
 				/* must be valid local mailbox */
-  if (!(name && *name && (*name != '{'))) return NIL;
-				/* no trailing \ */
-  if ((s = strrchr (mailboxfile (tmp,name),'\\')) && !s[1]) *s = '\0';
-  return (!tmp[0] || !stat (tmp,&sbuf)) ? &dummydriver : NIL;
+  if (name && *name && (*name != '{') && (s = mailboxfile (tmp,name))) {
+				/* indeterminate INBOX */
+    if (!*s) return &dummydriver;
+				/* remove trailing \ */
+    if ((s = strrchr (s,'\\')) && !s[1]) *s = '\0';
+    else if (!stat (s,&sbuf)) switch (sbuf.st_mode & S_IFMT) {
+    case S_IFREG:		/* file */
+    case S_IFDIR:		/* future use */
+      return &dummydriver;
+    }
+  }
+  return NIL;
 }
 
 
@@ -190,19 +183,18 @@ void dummy_list (MAILSTREAM *stream,char *ref,char *pat)
 void dummy_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
   void *sdb = NIL;
-  char *s,*t,test[MAILTMPLEN],tmp[MAILTMPLEN];
+  char *s,*t,test[MAILTMPLEN];
   int showuppers = pat[strlen (pat) - 1] == '%';
 				/* get canonical form of name */
   if (dummy_canonicalize (test,ref,pat) && (s = sm_read (&sdb))) do
     if (*s != '{') {
-      if (pmatch_full (ucase (strcpy (tmp,s)),test,'\\')) {
-	if (pmatch (tmp,"INBOX")) mm_lsub (stream,NIL,s,LATT_NOINFERIORS);
+      if (pmatch_full (s,test,'\\')) {
+	if (pmatch (s,"INBOX")) mm_lsub (stream,NIL,s,LATT_NOINFERIORS);
 	else mm_lsub (stream,'\\',s,NIL);
       }
       else while (showuppers && (t = strrchr (s,'\\'))) {
 	*t = '\0';		/* tie off the name */
-	if (pmatch_full (ucase (strcpy (tmp,s)),test,'\\'))
-	  mm_lsub (stream,'\\',s,LATT_NOSELECT);
+	if (pmatch_full (s,test,'\\')) mm_lsub (stream,'\\',s,LATT_NOSELECT);
       }
     }
   while (s = sm_read (&sdb));	/* until no more subscriptions */
@@ -242,7 +234,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
   FILEFINDBUF3 f;
   HDIR hd = HDIR_CREATE;
   struct stat sbuf;
-  char *s,tmp[MAILTMPLEN],tmpx[MAILTMPLEN],tmpy[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN],tmpx[MAILTMPLEN];
   char *base = (dir && ((dir[0] == '\\') || (dir[1] == ':'))) ?
     NIL : myhomedir ();
 				/* build name */
@@ -257,7 +249,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 				/* do nothing if can't open directory */
   if (!DosFindFirst (tmp,&hd,FILE_NORMAL,&f,sizeof (f),&i,FIL_STANDARD)) do {
 				/* list it if not at top-level */
-    if (!level && dir && pmatch_full (ucase (strcpy (tmpy,dir)),pat,'\\'))
+    if (!level && dir && pmatch_full (dir,pat,'\\'))
       dummy_listed (stream,'\\',dir,LATT_NOSELECT,contents);
 				/* scan directory */
     if (tmpx[strlen (tmpx) - 1] == '\\') do
@@ -272,33 +264,28 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 	if (dir) sprintf (tmp,"%s%s",dir,f.name);
 	else strcpy (tmp,f.name);
 				/* make sure useful and can get info */
-	if ((pmatch_full (ucase (tmp),pat,'\\') ||
+	if ((pmatch_full (tmp,pat,'\\') ||
 	     pmatch_full (strcat (tmp,"\\"),pat,'\\') || dmatch (tmp,pat,'\\'))
 	    && !stat (mailboxfile (tmp,tmpx),&sbuf)) {
 				/* now make name we'd return */
 	  if (dir) sprintf (tmp,"%s%s",dir,f.name);
 	  else strcpy (tmp,f.name);
 				/* only interested in file type */
-	  switch (sbuf.st_mode &= S_IFMT) {
+	  switch (sbuf.st_mode & S_IFMT) {
 	  case S_IFDIR:		/* directory? */
-	    if (pmatch_full (ucase (strcpy (tmpy,tmp)),pat,'\\')) {
+	    if (pmatch_full (tmp,pat,'\\')) {
 	      dummy_listed (stream,'\\',tmp,LATT_NOSELECT,contents);
 	      strcat (tmp,"\\");/* set up for dmatch call */
-	      strcat (tmpy,"\\");
 	    }
-	    else {		/* try again with trailing / */
-	      strcat (tmp,"\\");
-	      strcat (tmpy,"\\");
-	      if (pmatch_full (tmpy,pat,'\\'))
-		dummy_listed (stream,'\\',tmp,LATT_NOSELECT,contents);
-	    }
-	    if (dmatch (tmpy,pat,'\\') &&
+				/* try again with trailing \ */
+	    else if (pmatch_full (strcat (tmp,"\\"),pat,'\\'))
+	      dummy_listed (stream,'\\',tmp,LATT_NOSELECT,contents);
+	    if (dmatch (tmp,pat,'\\') &&
 		(level < (long) mail_parameters (NIL,GET_LISTMAXLEVEL,NIL)))
 	      dummy_list_work (stream,tmp,pat,contents,level+1);
 	    break;
 	  case S_IFREG:		/* ordinary name */
-	    if (pmatch_full (ucase (strcpy (tmpy,tmp)),pat,'\\') &&
-		!pmatch ("INBOX",tmpy))
+	    if (pmatch_full (tmp,pat,'\\') && !pmatch ("INBOX",tmp))
 	      dummy_listed (stream,'\\',tmp,LATT_NOINFERIORS,contents);
 	    break;
 	  }
@@ -588,14 +575,12 @@ long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 /* Dummy append message string
  * Accepts: mail stream
  *	    destination mailbox
- *	    optional flags
- *	    optional date
- *	    stringstruct of message to append
+ *	    append callback function
+ *	    data for callback
  * Returns: T on success, NIL on failure
  */
 
-long dummy_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		   STRING *message)
+long dummy_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
   struct stat sbuf;
   int fd = -1;
@@ -616,7 +601,7 @@ long dummy_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
     close (fd);			/* toss out the fd */
     if (sbuf.st_size) ts = NIL;	/* non-empty file? */
   }
-  if (ts) return (*ts->dtb->append) (stream,mailbox,flags,date,message);
+  if (ts) return (*ts->dtb->append) (stream,mailbox,af,data);
   sprintf (tmp,"Indeterminate mailbox format: %s",mailbox);
   mm_log (tmp,ERROR);
   return NIL;

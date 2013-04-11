@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	21 September 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 /* Build parameters */
@@ -83,6 +68,7 @@ long mbx_rename (MAILSTREAM *stream,char *old,char *newname);
 long mbx_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *mbx_open (MAILSTREAM *stream);
 void mbx_close (MAILSTREAM *stream,long options);
+void mbx_abort (MAILSTREAM *stream);
 void mbx_flags (MAILSTREAM *stream,char *sequence,long flags);
 char *mbx_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
 		  long flags);
@@ -91,11 +77,10 @@ void mbx_flag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
 void mbx_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
 long mbx_ping (MAILSTREAM *stream);
 void mbx_check (MAILSTREAM *stream);
-void mbx_snarf (MAILSTREAM *stream);
 void mbx_expunge (MAILSTREAM *stream);
+void mbx_snarf (MAILSTREAM *stream);
 long mbx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
-long mbx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		 STRING *message);
+long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
 char *mbx_file (char *dst,char *name);
 long mbx_parse (MAILSTREAM *stream);
@@ -104,4 +89,6 @@ unsigned long mbx_read_flags (MAILSTREAM *stream,MESSAGECACHE *elt);
 void mbx_update_header (MAILSTREAM *stream);
 void mbx_update_status (MAILSTREAM *stream,unsigned long msgno,long flags);
 unsigned long mbx_hdrpos (MAILSTREAM *stream,unsigned long msgno,
-			  unsigned long *size);
+			  unsigned long *size,char **hdr);
+unsigned long mbx_rewrite (MAILSTREAM *stream,unsigned long *reclaimed,
+			   long flags);

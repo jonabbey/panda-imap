@@ -10,40 +10,24 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	16 November 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
 /* Parameter files */
 
-#include "mail.h"
-#include "osdep.h"
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
 extern int errno;		/* just in case */
 #include <signal.h>
-#include "misc.h"
+#include <time.h>
+#include "c-client.h"
 
 
 /* Autologout timer */
@@ -67,7 +51,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "4.55";		/* server version */
+char *version = "2000.59";	/* server version */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -109,7 +93,8 @@ int main (int argc,char *argv[])
 #endif
 #include "linkage.c"
 				/* initialize server */
-  server_init (argv[0],"pop",NIL,"pop",clkint,kodint,hupint,trmint);
+  server_init ((s = strrchr (argv[0],'/')) ? s + 1 : argv[0],
+	       "pop",NIL,"pop",clkint,kodint,hupint,trmint);
   /* There are reports of POP2 clients which get upset if anything appears
    * between the "+" and the "POP2" in the greeting.
    */
@@ -286,9 +271,18 @@ short c_helo (char *t,int argc,char *argv[])
   for (s = tmp; *p; p++) *s++ = (*p == '\\') ? *++p : *p;
   *s = '\0';			/* tie off string */
   pass = cpystr (tmp);
+  if (!(s = strchr (u,':'))) {	/* want remote mailbox? */
+				/* no, delimit user from possible admin */
+    if (s = strchr (u,'*')) *s++ = '\0';
+    if (server_login (user = cpystr (u),pass,s,argc,argv)) {
+      syslog (LOG_INFO,"%sLogin user=%.80s host=%.80s",s ? "Admin " : "",
+	      user,tcp_clienthost ());
+      return c_fold ("INBOX");	/* local; select INBOX */
+    }
+  }
 #ifndef DISABLE_POP_PROXY
-				/* want remote mailbox? */
-  if ((s = strchr (u,':')) && anonymous_login (argc,argv)) {
+				/* can't do if can't log in as anonymous */
+  else if (anonymous_login (argc,argv)) {
     *s++ = '\0';		/* separate host name from user name */
     user = cpystr (s);		/* note user name */
     syslog (LOG_INFO,"IMAP login to host=%.80s user=%.80s host=%.80s",u,user,
@@ -297,18 +291,11 @@ short c_helo (char *t,int argc,char *argv[])
     sprintf (tmp,"{%.128s/user=%.128s}INBOX",u,user);
 				/* disable rimap just in case */
     mail_parameters (NIL,SET_RSHTIMEOUT,0);
+    return c_fold (tmp);
   }
-  else
 #endif
-  if (!s && server_login (user = cpystr (u),pass,argc,argv)) {
-    syslog (LOG_INFO,"Login user=%.80s host=%.80s",user,tcp_clienthost ());
-    strcpy (tmp,"INBOX");	/* local; attempt login, select INBOX */
-  }
-  else {
-    fputs ("- Bad login\015\012",stdout);
-    return DONE;
-  }
-  return c_fold (tmp);		/* open default mailbox */
+  fputs ("- Bad login\015\012",stdout);
+  return DONE;
 }
 
 /* Parse FOLD command

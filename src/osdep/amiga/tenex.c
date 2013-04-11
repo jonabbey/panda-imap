@@ -10,27 +10,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	21 September 1999
- *
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notice appears in all copies and that both the
- * above copyright notice and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington not be
- * used in advertising or publicity pertaining to distribution of the software
- * without specific, written prior permission.  This software is made
- * available "as is", and
- * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
- * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
- * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
- * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * Last Edited:	17 November 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  */
 
 
@@ -353,6 +338,7 @@ MAILSTREAM *tenex_open (MAILSTREAM *stream)
 
 				/* note if an INBOX or not */
   stream->inbox = !strcmp(ucase (strcpy (LOCAL->buf,stream->mailbox)),"INBOX");
+  LOCAL->fd = fd;		/* bind the file */
 				/* flush old name */
   fs_give ((void **) &stream->mailbox);
 				/* save canonical name */
@@ -363,7 +349,7 @@ MAILSTREAM *tenex_open (MAILSTREAM *stream)
     return NIL;
   }
   (*bn) (BLOCK_FILELOCK,NIL);
-  flock(LOCAL->fd = fd,LOCK_SH);/* bind and lock the file */
+  flock (LOCAL->fd,LOCK_SH);	/* lock the file */
   (*bn) (BLOCK_NONE,NIL);
   unlockfd (ld,tmp);		/* release shared parse permission */
   LOCAL->filesize = 0;		/* initialize parsed file size */
@@ -453,13 +439,12 @@ void tenex_fast (MAILSTREAM *stream,char *sequence,long flags)
 
 void tenex_flags (MAILSTREAM *stream,char *sequence,long flags)
 {
-  MESSAGECACHE *elt;
   unsigned long i;
   if (stream && LOCAL &&
       ((flags & FT_UID) ? mail_uid_sequence (stream,sequence) :
        mail_sequence (stream,sequence)))
     for (i = 1; i <= stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i))->sequence) tenex_elt (stream,i);
+      if (mail_elt (stream,i)->sequence) tenex_elt (stream,i);
 }
 
 /* TENEX mail fetch message header
@@ -928,35 +913,25 @@ long tenex_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 /* Tenex mail append message from stringstruct
  * Accepts: MAIL stream
  *	    destination mailbox
- *	    stringstruct of messages to append
+ *	    append callback
+ *	    data for callback
  * Returns: T if append successful, else NIL
  */
 
-long tenex_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		   STRING *message)
+long tenex_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
   struct stat sbuf;
-  int fd,ld;
-  char c,*s,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN];
+  int fd,ld,c;
+  char *flags,*date,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN];
   time_t tp[2];
+  FILE *df;
   MESSAGECACHE elt;
-  long i = SIZE (message);
-  long size = 0;
+  long f;
+  unsigned long i,j,uf,size;
+  STRING *message;
   long ret = LONGT;
-  unsigned long uf = 0,j;
-  short f = (short) mail_parse_flags (stream ? stream :
-				      user_flags (&tenexproto),flags,&j);
-				/* reverse bits (dontcha wish we had CIRC?) */
-  while (j) uf |= 1 << (29 - find_rightmost_bit (&j));
-  if (date) {			/* want to preserve date? */
-				/* yes, parse date into an elt */
-    if (!mail_parse_date (&elt,date)) {
-      sprintf (tmp,"Bad date in append: %.80s",date);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-  }
-				/* N.B.: can't use LOCAL->buf for tmp */
+				/* default stream to prototype */
+  if (!stream) stream = user_flags (&tenexproto);
 				/* make sure valid mailbox */
   if (!tenex_isvalid (mailbox,tmp)) switch (errno) {
   case ENOENT:			/* no such file? */
@@ -974,55 +949,81 @@ long tenex_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   case 0:			/* merely empty file? */
     break;
   case EINVAL:
-    sprintf (tmp,"Invalid Tenex-format mailbox name: %.80s",mailbox);
+    sprintf (tmp,"Invalid TENEX-format mailbox name: %.80s",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   default:
-    sprintf (tmp,"Not a Tenex-format mailbox: %.80s",mailbox);
+    sprintf (tmp,"Not a TENEX-format mailbox: %.80s",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
-  if ((fd = open (tenex_file (file,mailbox),O_RDWR|O_CREAT,
-		  S_IREAD|S_IWRITE)) < 0) {
+				/* get first message */
+  if (!(*af) (stream,data,&flags,&date,&message)) return NIL;
+
+				/* open destination mailbox */
+  if (((fd = open (tenex_file (file,mailbox),O_WRONLY|O_APPEND|O_CREAT,
+		   S_IREAD|S_IWRITE)) < 0) || !(df = fdopen (fd,"ab"))) {
     sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
   }
-				/* get exclusive parse/append permission */
+				/* get parse/append permission */
   if ((ld = lockfd (fd,lock,LOCK_EX)) < 0) {
     mm_log ("Unable to lock append mailbox",ERROR);
+    close (fd);
     return NIL;
   }
-  j = GETPOS (message);		/* remember current position */
-  while (i--) if ((c = SNX (message)) != '\015') size++;
-  SETPOS (message,j);		/* restore current position */
-
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
-  lseek (fd,sbuf.st_size,L_SET);/* move to end of file */
-				/* write preseved date */
-  if (date) mail_date (tmp,&elt);
-  else internal_date (tmp);	/* get current date in IMAP format */
-				/* add remainder of header */
-  sprintf (tmp+26,",%ld;%010lo%02o\n",size,uf,(unsigned) f);
-  size += (i = strlen (tmp));	/* size of buffer */
-  s = (char *) fs_get (size);	/* get buffer for message */
-  strncpy (s,tmp,i);		/* copy message */
-  while (i < size) if ((c = SNX (message)) != '\015') s[i++] = c;
-				/* write message */
-  if ((write (fd,s,size) < 0) || fsync (fd)) {
+  do {				/* parse flags */ 
+    if (!SIZE (message)) {	/* guard against zero-length */
+      mm_log ("Append of zero-length message",ERROR);
+      ret = NIL;
+      break;
+    }
+    f = mail_parse_flags (stream,flags,&i);
+				/* reverse bits (dontcha wish we had CIRC?) */
+    for (uf = 0; i; uf |= 1 << (29 - find_rightmost_bit (&i)));
+    if (date) {			/* parse date if given */
+      if (!mail_parse_date (&elt,date)) {
+	sprintf (tmp,"Bad date in append: %.80s",date);
+	mm_log (tmp,ERROR);
+	ret = NIL;		/* mark failure */
+	break;
+      }
+      mail_date (tmp,&elt);	/* write preseved date */
+    }
+    else internal_date (tmp);	/* get current date in IMAP format */
+    i = GETPOS (message);	/* remember current position */
+    for (j = SIZE (message), size = 0; j; --j)
+      if (SNX (message) != '\015') ++size;
+    SETPOS (message,i);		/* restore position */
+				/* write header */
+    if (fprintf (df,"%s,%lu;%010lo%02lo\n",tmp,size,uf,(unsigned long) f) < 0)
+      ret = NIL;
+    else {			/* write message */
+      while (size) if ((c = 0xff & SNX (message)) != '\015') {
+	if (putc (c,df) != EOF) --size;
+	else break;
+      }
+				/* get next message */
+      if (size || !(*af) (stream,data,&flags,&date,&message)) ret = NIL;
+    }
+  } while (ret && message);
+				/* if error... */
+  if (!ret || (fflush (df) == EOF)) {
+    ftruncate (fd,sbuf.st_size);/* revert file */
+    close (fd);			/* make sure fclose() doesn't corrupt us */
     sprintf (tmp,"Message append failed: %s",strerror (errno));
     mm_log (tmp,ERROR);
-    ftruncate (fd,sbuf.st_size);
     ret = NIL;
   }
   tp[0] = sbuf.st_atime;	/* preserve atime and mtime */
   tp[1] = sbuf.st_mtime;
   utime (file,tp);		/* set the times */
-  close (fd);			/* close the file */
+  fclose (df);			/* close the file */
   unlockfd (ld,lock);		/* release exclusive parse/append permission */
   mm_nocritical (stream);	/* release critical */
-  fs_give ((void **) &s);	/* flush the buffer */
   return ret;
 }
 
@@ -1078,7 +1079,8 @@ long tenex_parse (MAILSTREAM *stream)
   short silent = stream->silent;
   fstat (LOCAL->fd,&sbuf);	/* get status */
   if (sbuf.st_size < curpos) {	/* sanity check */
-    sprintf (tmp,"Mailbox shrank from %ld to %ld!",curpos,sbuf.st_size);
+    sprintf (tmp,"Mailbox shrank from %lu to %lu!",
+	     (unsigned long) curpos,(unsigned long) sbuf.st_size);
     mm_log (tmp,ERROR);
     tenex_close (stream,NIL);
     return NIL;

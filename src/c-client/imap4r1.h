@@ -10,35 +10,19 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	27 July 1999
+ * Last Edited:	24 October 2000
+ * 
+ * The IMAP toolkit provided in this Distribution is
+ * Copyright 2000 University of Washington.
+ * The full text of our legal notices is contained in the file called
+ * CPYRIGHT, included with this Distribution.
  *
- * Sponsorship:	The original version of this work was developed in the
- *		Symbolic Systems Resources Group of the Knowledge Systems
- *		Laboratory at Stanford University in 1987-88, and was funded
- *		by the Biomedical Research Technology Program of the National
- *		Institutes of Health under grant number RR-00785.
- *
- * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1999 by the University of Washington
- *
- *  Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose and without fee is hereby granted, provided
- * that the above copyright notices appear in all copies and that both the
- * above copyright notices and this permission notice appear in supporting
- * documentation, and that the name of the University of Washington or The
- * Leland Stanford Junior University not be used in advertising or publicity
- * pertaining to distribution of the software without specific, written prior
- * permission.  This software is made available "as is", and
- * THE UNIVERSITY OF WASHINGTON AND THE LELAND STANFORD JUNIOR UNIVERSITY
- * DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, WITH REGARD TO THIS SOFTWARE,
- * INCLUDING WITHOUT LIMITATION ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
- * FITNESS FOR A PARTICULAR PURPOSE, AND IN NO EVENT SHALL THE UNIVERSITY OF
- * WASHINGTON OR THE LELAND STANFORD JUNIOR UNIVERSITY BE LIABLE FOR ANY
- * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
- * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
- * CONTRACT, TORT (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
+ * This original version of this file is
+ * Copyright 1988 Stanford University
+ * and was developed in the Symbolic Systems Resources Group of the Knowledge
+ * Systems Laboratory at Stanford University in 1987-88, and was funded by the
+ * Biomedical Research Technology Program of the NationalInstitutes of Health
+ * under grant number RR-00785.
  */
 
 /* Parameters */
@@ -72,16 +56,28 @@ typedef struct imap_local {
   unsigned int imap4 : 1;	/* server is IMAP4 */
   unsigned int imap2bis : 1;	/* server is IMAP2bis */
   unsigned int rfc1176 : 1;	/* server is RFC-1176 IMAP2 */
-  unsigned int use_status : 1;	/* server has STATUS */
-  unsigned int use_namespace :1;/* server has NAMESPACE */
-  unsigned int use_mbx_ref : 1;	/* server has mailbox referrals */
-  unsigned int use_log_ref : 1;	/* server has login referrals */
-  unsigned int use_scan : 1;	/* server has SCAN */
-  unsigned int use_sort : 1;	/* server has SORT */
-  unsigned int use_authanon : 1;/* server has anonymous authentication */
+  struct {
+    unsigned int status : 1;	/* server has STATUS */
+    unsigned int acl : 1;	/* server has ACL */
+    unsigned int quota : 1;	/* server has QUOTA */
+    unsigned int namespace :1;	/* server has NAMESPACE */
+    unsigned int mbx_ref : 1;	/* server has mailbox referrals */
+    unsigned int log_ref : 1;	/* server has login referrals */
+				/* server has multi-APPEND */
+    unsigned int multiappend : 1;
+    unsigned int scan : 1;	/* server has SCAN */
+    unsigned int sort : 1;	/* server has SORT */
+    unsigned int authanon : 1;	/* server has anonymous authentication */
+				/* supported authenticators */
+    unsigned int auth : MAXAUTHENTICATORS;
+  } use;
   unsigned int uidsearch : 1;	/* UID searching */
   unsigned int byeseen : 1;	/* saw a BYE response */
-  unsigned int use_auth : MAXAUTHENTICATORS;
+				/* don't do LOGIN command */
+  unsigned int logindisabled : 1;
+  unsigned int gotcapability : 1;
+				/* got implicit capabilities */
+  long authflags;		/* required flags for authenticators */
   unsigned long sortsize;	/* sort return data size */
   unsigned long *sortdata;	/* sort return data */
   NAMESPACE **namespace;	/* namespace return data */
@@ -98,6 +94,11 @@ typedef struct imap_local {
 
 #define LOCAL ((IMAPLOCAL *) stream->local)
 
+/* Has MULTIAPPEND extension (else done in client) */
+
+#define LEVELMULTIAPPEND(stream) ((IMAPLOCAL *) stream->local)->use.multiappend
+
+
 /* Has THREAD extension (else done in client) */
 
 #define LEVELTHREAD(stream) (((IMAPLOCAL *) stream->local)->threader ? T : NIL)
@@ -105,7 +106,22 @@ typedef struct imap_local {
 
 /* Has SORT extension (else done in client) */
 
-#define LEVELSORT(stream) ((IMAPLOCAL *) stream->local)->use_sort
+#define LEVELSORT(stream) ((IMAPLOCAL *) stream->local)->use.sort
+
+
+/* Has SCAN extension */
+
+#define LEVELSCAN(stream) ((IMAPLOCAL *) stream->local)->use.scan
+
+
+/* Has QUOTA extension */
+
+#define LEVELQUOTA(stream) ((IMAPLOCAL *) stream->local)->use.quota
+
+
+/* Has ACL extension */
+
+#define LEVELACL(stream) ((IMAPLOCAL *) stream->local)->use.acl
 
 
 /* IMAP4rev1 level or better */
@@ -116,7 +132,7 @@ typedef struct imap_local {
 /* IMAP4 w/ STATUS level or better */
 
 #define LEVELSTATUS(stream) (((IMAPLOCAL *) stream->local)->imap4rev1 || \
-			     ((IMAPLOCAL *) stream->local)->use_status)
+			     ((IMAPLOCAL *) stream->local)->use.status)
 
 
 /* IMAP4 level or better */
@@ -162,6 +178,8 @@ typedef struct imap_argument {
 #define BODYCLOSE 10
 #define SEQUENCE 11
 #define LISTMAILBOX 12
+#define MULTIAPPEND 13
+#define SNLIST 14
 
 /* Function prototypes */
 
@@ -180,9 +198,6 @@ long imap_rename (MAILSTREAM *stream,char *old,char *newname);
 long imap_manage (MAILSTREAM *stream,char *mailbox,char *command,char *arg2);
 long imap_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *imap_open (MAILSTREAM *stream);
-IMAPPARSEDREPLY *imap_tcp (MAILSTREAM *stream,NETMBX *mb,NETDRIVER *dv,
-			   unsigned long port,
-			   NETDRIVER *altd,char *alts,unsigned long altp);
 IMAPPARSEDREPLY *imap_rimap (MAILSTREAM *stream,char *service,NETMBX *mb,
 			     char *usr,char *tmp);
 long imap_anon (MAILSTREAM *stream,char *tmp);
@@ -211,10 +226,20 @@ long imap_ping (MAILSTREAM *stream);
 void imap_check (MAILSTREAM *stream);
 void imap_expunge (MAILSTREAM *stream);
 long imap_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
-long imap_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
-		 STRING *msg);
+long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
+long imap_append_single (MAILSTREAM *stream,char *mailbox,char *flags,
+			 char *date,STRING *message,imapreferral_t ir);
 void imap_gc (MAILSTREAM *stream,long gcflags);
 void imap_gc_body (BODY *body);
+long imap_setacl (MAILSTREAM *stream,char *mailbox,char *id,char *rights);
+long imap_deleteacl (MAILSTREAM *stream,char *mailbox,char *id);
+long imap_getacl (MAILSTREAM *stream,char *mailbox);
+long imap_listrights (MAILSTREAM *stream,char *mailbox,char *id);
+long imap_myrights (MAILSTREAM *stream,char *mailbox);
+long imap_acl_work (MAILSTREAM *stream,char *command,IMAPARG *args[]);
+long imap_setquota (MAILSTREAM *stream,char *qroot,STRINGLIST *limits);
+long imap_getquota (MAILSTREAM *stream,char *qroot);
+long imap_getquotaroot (MAILSTREAM *stream,char *mailbox);
 
 IMAPPARSEDREPLY *imap_send (MAILSTREAM *stream,char *cmd,IMAPARG *args[]);
 IMAPPARSEDREPLY *imap_sout (MAILSTREAM *stream,char *tag,char *base,char **s);
@@ -248,6 +273,8 @@ ADDRESS *imap_parse_address (MAILSTREAM *stream,char **txtptr,
 			     IMAPPARSEDREPLY *reply);
 void imap_parse_flags (MAILSTREAM *stream,MESSAGECACHE *elt,char **txtptr);
 unsigned long imap_parse_user_flag (MAILSTREAM *stream,char *flag);
+char *imap_parse_astring (MAILSTREAM *stream,char **txtptr,
+			  IMAPPARSEDREPLY *reply,unsigned long *len);
 char *imap_parse_string (MAILSTREAM *stream,char **txtptr,
 			 IMAPPARSEDREPLY *reply,GETS_DATA *md,
 			 unsigned long *len);
@@ -267,4 +294,5 @@ STRINGLIST *imap_parse_stringlist (MAILSTREAM *stream,char **txtptr,
 				   IMAPPARSEDREPLY *reply);
 void imap_parse_extension (MAILSTREAM *stream,char **txtptr,
 			   IMAPPARSEDREPLY *reply);
+void imap_parse_capabilities (MAILSTREAM *stream,char *t);
 char *imap_host (MAILSTREAM *stream);
