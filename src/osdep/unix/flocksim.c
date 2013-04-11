@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	23 October 2006
+ * Last Edited:	25 October 2006
  */
  
 #undef flock			/* name is used as a struct for fcntl */
@@ -82,38 +82,54 @@ int flocksim (int fd,int op)
    * on NFS-mounted files.  If you are wise, you'll use IMAP instead of NFS
    * for mail files.
    *
-   *  Sun alleges that it doesn't matter, because they say they have fixed all
-   * the rpc.statd/rpc.lockd bugs.  This is absolutely not true; huge amounts
-   * of user and support time have been wasted in cluster-wide hangs.
+   *  Sun alleges that it doesn't matter, and that they have fixed all the
+   * rpc.statd/rpc.lockd bugs.  As of October 2006, that is still false.
    *
-   *  As of October 2006 the above statements are all still true on the
-   * most recent version of Solaris.
+   *  We need three tests for three major historical variants in SVR4:
+   *  1) In NFSv2, ustat() would return -1 in f_tinode for NFS.
+   *  2) When fstatvfs() was introduced with NFSv3, ustat() was "fixed".
+   *  3) When 64-bit filesystems were introduced, fstatvfs() would return
+   *	 EOVERFLOW; you have to use fstatvfs64() even though you don't care
+   *	 about any of the affected values.
    *
-   *  The reason why we need three tests is that there are three 
+   * We can't use fstatfs() because fstatfs():
+   * . is documented as being deprecated in SVR4.
+   * . has inconsistent calling conventions (there are two additional int
+   *   arguments on Solaris and I don't know what they do).
+   * . returns inconsistent statfs structs.  On Solaris, the file system type
+   *   is a short called f_fstyp.  On AIX, it's an int called f_type that is
+   *   documented as always being 0!
+   *
+   * For what it's worth, here's the scoop on fstatfs() elsewhere:
+   *
+   *  On Linux, the file system type is a long called f_type that has a file
+   * system type code.  A different module (flocklnx.c) uses this because
+   * some knothead "improved" flock() to return ENOLCK on NFS files instead
+   * of being a successful no-op.  This "improvement" apparently has been
+   * reverted, but not before it got to many systems in the field.
+   *
+   *  On BSD, it's a short called either f_otype or f_type that is documented
+   * as always being zero.  Fortunately, BSD has flock() the way it's supposed
+   * to be, and none of this nonsense is necessary.
    */
   if (!fstat (fd,&sbuf))	{ /* no hope of working if can't fstat()! */
     /* Any base type that begins with "nfs" or "afs" is considered to be a
      * network filesystem.
      */
 #ifndef NOFSTATVFS
+    struct statvfs vsbuf;
 #ifndef NOFSTATVFS64
-    {				/* newest test for "transitional" */
-      struct statvfs64 vsbuf64;
-      if (!fstatvfs64 (fd,&vsbuf64) && (vsbuf64.f_basetype[1] == 'f') &&
-	  (vsbuf64.f_basetype[2] == 's') &&
-	  ((vsbuf64.f_basetype[0] == 'n') || (vsbuf64.f_basetype[0] == 'a')))
-	return 0;
-    }
+    struct statvfs64 vsbuf64;
+    if (!fstatvfs64 (fd,&vsbuf64) && (vsbuf64.f_basetype[1] == 'f') &&
+	(vsbuf64.f_basetype[2] == 's') &&
+	((vsbuf64.f_basetype[0] == 'n') || (vsbuf64.f_basetype[0] == 'a')))
+      return 0;
 #endif		/* NOFSTATVFS64 */
-    {				/* newer test */
-      struct statvfs vsbuf;
-      if (!fstatvfs (fd,&vsbuf) && (vsbuf.f_basetype[1] == 'f') &&
-	  (vsbuf.f_basetype[2] == 's') &&
-	  ((vsbuf.f_basetype[0] == 'n') || (vsbuf.f_basetype[0] == 'a')))
-	return 0;
-    }
+    if (!fstatvfs (fd,&vsbuf) && (vsbuf.f_basetype[1] == 'f') &&
+	(vsbuf.f_basetype[2] == 's') &&
+	((vsbuf.f_basetype[0] == 'n') || (vsbuf.f_basetype[0] == 'a')))
+      return 0;
 #endif		/* NOFSTATVFS */
-				/* oldest test */
     if (!ustat (sbuf.st_dev,&usbuf) && !++usbuf.f_tinode) return 0;
   }
 

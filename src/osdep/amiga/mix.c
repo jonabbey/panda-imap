@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 March 2006
- * Last Edited:	23 October 2006
+ * Last Edited:	25 October 2006
  */
 
 
@@ -1342,9 +1342,9 @@ long mix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   STRING st;
   char tmp[2*MAILTMPLEN];
   long ret = mix_isvalid (mailbox,LOCAL->buf);
-  MAILSTREAM *astream = NIL;
   mailproxycopy_t pc =
     (mailproxycopy_t) mail_parameters (stream,GET_MAILPROXYCOPY,NIL);
+  MAILSTREAM *astream = NIL;
   FILE *idxf = NIL;
   FILE *msgf = NIL;
   FILE *statf = NIL;
@@ -1369,15 +1369,15 @@ long mix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     int fd;
     unsigned long i;
     MESSAGECACHE *elt;
-    MIXLOCAL *local = (MIXLOCAL *) astream->local;
-    unsigned long seq = mix_modseq (local->indexseq);
     unsigned long newsize,hdrsize,size;
-				/* calculate size of per-message header */
-    sprintf (local->buf,MSRFMT,MSGTOK,0,0,0,0,0,0,0,'+',0,0,0);
-    hdrsize = strlen (local->buf);
+    MIXLOCAL *local = (MIXLOCAL *) astream->local;
+    unsigned long seq = mix_modseq (local->metaseq);
 				/* make sure new modseq fits */
     if (local->indexseq > seq) seq = local->indexseq + 1;
     if (local->statusseq > seq) seq = local->statusseq + 1;
+				/* calculate size of per-message header */
+    sprintf (local->buf,MSRFMT,MSGTOK,0,0,0,0,0,0,0,'+',0,0,0);
+    hdrsize = strlen (local->buf);
 
     MM_CRITICAL (stream);	/* go critical */
     astream->silent = T;	/* no events here */
@@ -1448,7 +1448,7 @@ long mix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 		MM_FLAGS (stream,elt->msgno);
 	      }
 				/* done with status file now */
-	  mix_status_update (stream,&statf,LONGT);
+	  mix_status_update (astream,&statf,LONGT);
 				/* return sets if doing COPYUID */
 	  if (cu) (*cu) (stream,mailbox,astream->uid_validity,source,dest);
 	  source = dest = NIL;	/* don't free these sets now */
@@ -1514,24 +1514,24 @@ long mix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 
 				/* get first message */
   if (ret && MM_APPEND (af) (stream,data,&flags,&date,&message)) {
-    MAILSTREAM *astream = mail_open (NIL,mailbox,OP_SILENT);
+    MAILSTREAM *astream;
     FILE *idxf = NIL;
     FILE *msgf = NIL;
     FILE *statf = NIL;
-    if (ret = (astream && (idxf = mix_index_open (astream,LONGT)) &&
+    if (ret = ((astream = mail_open (NIL,mailbox,OP_SILENT)) &&
+	       (idxf = mix_index_open (astream,LONGT)) &&
 	       (statf = mix_parse (astream,idxf,MSO_WRITE))) ? LONGT : NIL) {
       int fd;
-      unsigned long size;
+      unsigned long size,hdrsize;
       MESSAGECACHE elt;
       MIXLOCAL *local = (MIXLOCAL *) astream->local;
       unsigned long seq = mix_modseq (local->metaseq);
-      unsigned long hdrsize;
-				/* calculate size of per-message header */
-      sprintf (local->buf,MSRFMT,MSGTOK,0,0,0,0,0,0,0,'+',0,0,0);
-      hdrsize = strlen (local->buf);
 				/* make sure new modseq fits */
       if (local->indexseq > seq) seq = local->indexseq + 1;
       if (local->statusseq > seq) seq = local->statusseq + 1;
+				/* calculate size of per-message header */
+      sprintf (local->buf,MSRFMT,MSGTOK,0,0,0,0,0,0,0,'+',0,0,0);
+      hdrsize = strlen (local->buf);
       MM_CRITICAL (astream);	/* go critical */
       astream->silent = T;	/* no events here */
 				/* open data file */
