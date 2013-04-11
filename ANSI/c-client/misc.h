@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	28 June 1995
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,6 +41,17 @@
  *
  */
 
+/* KLUDGE ALERT!!!
+ *
+ * Yes, write() and writev() are overridden here instead of in osdep.  This
+ * is because misc.h is one of the last files that most things #include, so
+ * this should avoid problems with some system #include file.
+ */
+
+#define write safe_write
+#define writev safe_writev
+
+
 /* Coddle certain compilers' 6-character symbol limitation */
 
 #ifdef __COMPILER_KCC__

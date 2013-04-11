@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	4 October 1994
+ * Last Edited:	14 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,7 +41,7 @@
 #include "mail.h"
 #include "osdep.h"
 #include <time.h>
-#include <sys\stat.h>
+#include <sys/stat.h>
 #include <dos.h>
 #include <io.h>
 #include "dawz.h"
@@ -917,7 +917,8 @@ long dawz_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
     if (!mail_parse_date (&elt,date)) {
-      mm_log ("Bad date in append",ERROR);
+      sprintf (tmp,"Bad date in append: %s",date);
+      mm_log (tmp,ERROR);
       return NIL;
     }
   }
@@ -1070,7 +1071,7 @@ long dawz_parse (MAILSTREAM *stream)
   struct stat sbuf;
   MESSAGECACHE *elt = NIL;
   char c,*s,*t,*x;
-  char tmp[MAILTMPLEN];
+  char lbuf[65],tmp[MAILTMPLEN];
   long i;
   long curpos = LOCAL->filesize;
   long nmsgs = stream->nmsgs;
@@ -1086,25 +1087,25 @@ long dawz_parse (MAILSTREAM *stream)
   while (i = sbuf.st_size - curpos) {
 				/* get to that position in the file */
     lseek (LOCAL->fd,curpos,SEEK_SET);
-    if ((i = read (LOCAL->fd,tmp,64)) <= 0) {
+    if ((i = read (LOCAL->fd,lbuf,64)) <= 0) {
       sprintf (tmp,"Unable to read internal header at %ld, size = %ld: %s",
 	       curpos,sbuf.st_size,i ? strerror (errno) : "no data read");
       mm_log (tmp,ERROR);
       dawz_close (stream);
       return NIL;
     }
-    tmp[i] = '\0';		/* tie off buffer just in case */
-    if (!((s = strchr (tmp,'\015')) && (s[1] == '\012'))) {
+    lbuf[i] = '\0';		/* tie off buffer just in case */
+    if (!((s = strchr (lbuf,'\015')) && (s[1] == '\012'))) {
       sprintf (tmp,"Unable to find end of line at %ld in %ld bytes, text: %s",
-	       curpos,i,tmp);
+	       curpos,i,lbuf);
       mm_log (tmp,ERROR);
       dawz_close (stream);
       return NIL;
     }
     *s = '\0';			/* tie off header line */
-    i = (s + 2) - tmp;		/* note start of text offset */
-    if (!((s = strchr (tmp,',')) && (t = strchr (s+1,';')))) {
-      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,tmp);
+    i = (s + 2) - lbuf;		/* note start of text offset */
+    if (!((s = strchr (lbuf,',')) && (t = strchr (s+1,';')))) {
+      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,lbuf);
       mm_log (tmp,ERROR);
       dawz_close (stream);
       return NIL;
@@ -1115,14 +1116,14 @@ long dawz_parse (MAILSTREAM *stream)
     elt->data1 = curpos;	/* note file offset of header */
     elt->data2 = i << 24;	/* as well as offset from header of message */
 				/* parse the header components */
-    if (!(mail_parse_date (elt,tmp) &&
+    if (!(mail_parse_date (elt,lbuf) &&
 	  (elt->rfc822_size = strtol (x = s,&s,10)) && (!(s && *s)) &&
 	  isdigit (t[0]) && isdigit (t[1]) && isdigit (t[2]) &&
 	  isdigit (t[3]) && isdigit (t[4]) && isdigit (t[5]) &&
 	  isdigit (t[6]) && isdigit (t[7]) && isdigit (t[8]) &&
 	  isdigit (t[9]) && isdigit (t[10]) && isdigit (t[11]) && !t[12])) {
       sprintf (tmp,"Unable to parse internal header elements at %ld: %s,%s;%s",
-	       curpos,tmp,x,t);
+	       curpos,lbuf,x,t);
       dawz_close (stream);
       return NIL;
     }

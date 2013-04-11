@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	6 October 1994
+ * Last Edited:	13 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -119,28 +119,28 @@ DRIVER *bezerk_valid (char *name)
 }
 
 
-/* Berkeley mail test for valid mailbox
+/* Berkeley mail test for valid mailbox name
  * Accepts: mailbox name
+ *	    scratch buffer
  * Returns: T if valid, NIL otherwise
  */
 
 int bezerk_isvalid (char *name,char *tmp)
 {
-  int fd,zn;
+  int fd;
   int ret = NIL;
-  char *s = tmp,*t,file[MAILTMPLEN];
+  char *t,file[MAILTMPLEN];
   struct stat sbuf;
   time_t tp[2];
   errno = EINVAL;		/* assume invalid argument */
 				/* must be non-empty file */
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
-      !stat (dummy_file (file,name),&sbuf)) {
+      (t = dummy_file (file,name)) && !stat (t,&sbuf)) {
     if (!sbuf.st_size)errno = 0;/* empty file */
     else if ((fd = open (file,O_RDONLY,NIL)) >= 0) {
-      memset (tmp,'\0',MAILTMPLEN);
-      errno = -1;		/* bogus format in case VALID fails */
-      if (read (fd,tmp,MAILTMPLEN-1) >= 0) VALID (s,t,ret,zn);
-      close (fd);			/* close the file */
+				/* error -1 for invalid format */
+      if (!(ret = bezerk_isvalid_fd (fd,tmp))) errno = -1;
+      close (fd);		/* close the file */
       tp[0] = sbuf.st_atime;	/* preserve atime and mtime */
       tp[1] = sbuf.st_mtime;
       utime (file,tp);		/* set the times */
@@ -149,6 +149,26 @@ int bezerk_isvalid (char *name,char *tmp)
   return ret;			/* return what we should */
 }
 
+/* Berkeley mail test for valid mailbox
+ * Accepts: file descriptor
+ *	    scratch buffer
+ * Returns: T if valid, NIL otherwise
+ */
+
+long bezerk_isvalid_fd (int fd,char *tmp)
+{
+  int zn;
+  int ret = NIL;
+  char *s,*t,c = '\n';
+  memset (tmp,'\0',MAILTMPLEN);
+  if (read (fd,tmp,MAILTMPLEN-1) >= 0) {
+    for (s = tmp; (*s == '\n') || (*s == ' ') || (*s == '\t');) c = *s++;
+    if (c == '\n') VALID (s,t,ret,zn);
+  }
+  return ret;			/* return what we should */
+}
+
+
 /* Berkeley manipulate driver parameters
  * Accepts: function code
  *	    function-dependent value
@@ -966,7 +986,8 @@ long bezerk_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   short f = bezerk_getflags (stream,flags);
 				/* parse date if given */
   if (date && !mail_parse_date (&elt,date)) {
-    mm_log ("Bad date in append",ERROR);
+    sprintf (buf,"Bad date in append: %s",date);
+    mm_log (buf,ERROR);
     return NIL;
   }
 				/* make sure valid mailbox */
@@ -1116,45 +1137,51 @@ int bezerk_lock (char *file,int flags,int mode,char *lock,int op)
 {
   int fd,ld,j;
   int i = LOCKTIMEOUT * 60 - 1;
-  char tmp[MAILTMPLEN];
-  struct timeval tp;
+  char hitch[MAILTMPLEN],tmp[MAILTMPLEN];
+  time_t t;
   struct stat sb;
 				/* build lock filename */
   strcat (dummy_file (lock,file),".lock");
   do {				/* until OK or out of tries */
-    gettimeofday (&tp,NIL);	/* get the time now */
+    t = time (0);		/* get the time now */
 #ifdef NFSKLUDGE
   /* SUN-OS had an NFS, As kludgy as an albatross;
    * And everywhere that it was installed, It was a total loss.  -- MRC 9/25/91
    */
 				/* build hitching post file name */
-    sprintf (tmp,"%s.%d.%d.",lock,time (0),getpid ());
-    j = strlen (tmp);		/* append local host name */
-    gethostname (tmp + j,(MAILTMPLEN - j) - 1);
+    sprintf (hitch,"%s.%d.%d.",lock,time (0),getpid ());
+    j = strlen (hitch);		/* append local host name */
+    gethostname (hitch + j,(MAILTMPLEN - j) - 1);
 				/* try to get hitching-post file */
-    if ((ld = open (tmp,O_WRONLY|O_CREAT|O_EXCL,
+    if ((ld = open (hitch,O_WRONLY|O_CREAT|O_EXCL,
 		    (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) < 0) {
-				/* prot fail & non-ex, don't use lock files */
-      if ((errno == EACCES) && (stat (tmp,&sb))) *lock = '\0';
-      else {			/* otherwise something strange is going on */
-	sprintf (tmp,"Error creating %s: %s",lock,strerror (errno));
-	mm_log (tmp,WARN);	/* this is probably not good */
-				/* don't use lock files if not one of these */
-	if ((errno != EEXIST) && (errno != EACCES)) *lock = '\0';
+      sprintf (tmp,"Error creating %s: %s",hitch,strerror (errno));
+      switch (errno) {		/* what happened? */
+      case EEXIST:		/* file already exists? */
+	break;			/* oops, just try again */
+      case EACCES:		/* protection failure */
+				/* try again if file exists(?) */
+	if (!stat (hitch,&sb)) break;
+				/* punt silently if paranoid site */
+	if (mail_parameters (NIL,GET_LOCKEACCESERROR,NIL))
+      default:			/* some other error */
+	  mm_log (tmp,WARN);	/* this is probably not good */
+	*lock = '\0';		/* give up on lock file */
+	break;
       }
     }
     else {			/* got a hitching-post */
 				/* make sure others can break the lock */
-      chmod (tmp,(int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
+      chmod (hitch,(int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
       close (ld);		/* close the hitching-post */
-      link (tmp,lock);		/* tie hitching-post to lock, ignore failure */
-      stat (tmp,&sb);		/* get its data */
-      unlink (tmp);		/* flush hitching post */
+      link (hitch,lock);	/* tie hitching-post to lock, ignore failure */
+      stat (hitch,&sb);		/* get its data */
+      unlink (hitch);		/* flush hitching post */
       /* If link count .ne. 2, hitch failed.  Set ld to -1 as if open() failed
 	 so we try again.  If extant lock file and time now is .gt. file time
 	 plus timeout interval, flush the lock so can win next time around. */
       if ((ld = (sb.st_nlink != 2) ? -1 : 0) && (!stat (lock,&sb)) &&
-	  (tp.tv_sec > sb.st_ctime + LOCKTIMEOUT * 60)) unlink (lock);
+	  (t > sb.st_ctime + LOCKTIMEOUT * 60)) unlink (lock);
     }
 
 #else
@@ -1165,16 +1192,18 @@ int bezerk_lock (char *file,int flags,int mode,char *lock,int op)
 				/* try to get the lock */
     if ((ld = open (lock,O_WRONLY|O_CREAT|O_EXCL,
 		    (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) < 0)
-      switch (errno) {
+      switch (errno) {		/* what happened? */
       case EEXIST:		/* if extant and old, grab it for ourselves */
-	if ((!stat (lock,&sb)) && tp.tv_sec > sb.st_ctime + LOCKTIMEOUT * 60)
+	if ((!stat (lock,&sb)) && t > sb.st_ctime + LOCKTIMEOUT * 60)
 	  ld = open (lock,O_WRONLY|O_CREAT,
 		     (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
 	break;
       case EACCES:		/* protection fail, ignore if non-ex or old */
-	if (stat (lock,&sb) || (tp.tv_sec > sb.st_ctime + LOCKTIMEOUT * 60))
-	  *lock = '\0';		/* assume no world write mail spool dir */
-	break;
+	if (!mail_parameters (NIL,GET_LOCKEACCESERROR,NIL)) {
+	  if (stat (lock,&sb) || (t > sb.st_ctime + LOCKTIMEOUT * 60))
+	    *lock = '\0';	/* assume no world write mail spool dir */
+	  break;
+	}
       default:			/* some other failure */
 	sprintf (tmp,"Error creating %s: %s",lock,strerror (errno));
 	mm_log (tmp,WARN);	/* this is probably not good */
@@ -1243,12 +1272,12 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
 {
   int fd;
   long delta,i,j,is,is1;
-  char *s,*s1,*t = NIL,*e;
+  char c = '\n',*s,*s1,*t = NIL,*e;
   int ti = 0,zn = 0;
-  int first = T;
   long nmsgs = stream->nmsgs;
   long newcnt = 0;
   struct stat sbuf;
+  STRING bs;
   MESSAGECACHE *elt;
   FILECACHE *m = NIL,*n = NIL;
   mailcache_t mc = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
@@ -1302,19 +1331,26 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
 	return -1;
       }
       delta -= i;		/* account for data read in */
-				/* validate newly-appended data */
-      if (first) {		/* only do this first time! */
-	if (*s == '\n') s++;	/* skip spurious newline */
-	VALID (s,t,ti,zn);	/* see new data is valid */
+      if (c) {			/* validate newly-appended data */
+				/* skip leading whitespace */
+	while ((*s == '\n') || (*s == ' ') || (*s == '\t')) {
+	  c = *s++;		/* yes, skip the damn thing */
+	  s1++;
+	  if (!--i) break;	/* only whitespace was appended?? */
+	}
+				/* see new data is valid */
+	if (c == '\n') VALID (s,t,ti,zn);
         if (!ti) {		/* invalid data? */
-	  mm_log ("Mailbox format invalidated (consult an expert), aborted",
-		  ERROR);
+	  char tmp[MAILTMPLEN];
+	  sprintf (tmp,"Unexpected changes to mailbox (try restarting): %.20s",
+		   s);
+	  mm_log (tmp,ERROR);
 	  bezerk_unlock (fd,stream,lock);
 	  bezerk_abort (stream);
 	  mail_unlock (stream);
 	  return -1;
 	}
-	first = NIL;		/* never do this again */
+	c = NIL;		/* don't need to do this again */
       }
 
 				/* found end of message or end of data? */
@@ -1323,12 +1359,14 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
 				/* calculate message length */
 	j = ((e ? e : s1 + i) - s) - 1;
 	if (m) {		/* new cache needed, have previous data? */
-	  n->header = (char *) fs_get (sizeof (FILECACHE) + j + 2);
+	  n->header = (char *) fs_get (sizeof (FILECACHE) + j + 3);
 	  n = (FILECACHE *) n->header;
 	}
-	else m = n = (FILECACHE *) fs_get (sizeof (FILECACHE) + j + 2);
+	else m = n = (FILECACHE *) fs_get (sizeof (FILECACHE) + j + 3);
 				/* copy message data */
 	memcpy (n->internal,s,j);
+				/* ensure ends with newline */
+	if (s[j-1] != '\n') n->internal[j++] = '\n';
 	n->internal[j] = '\0';
 	n->header = NIL;	/* initially no link */
 	n->headersize = j;	/* stash away buffer length */
@@ -1428,18 +1466,33 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
     }
 				/* set internal date */
     if (!mail_parse_date (elt,LOCAL->buf)) mm_log ("Unparsable date",WARN);
-    is = 0;			/* initialize newline count */
     e = NIL;			/* no status stuff yet */
     do switch (*(t = s)) {	/* look at header lines */
-    case 'X':			/* possible X-Status: line */
-      if (s[1] == '-' && s[2] == 'S') s += 2;
-      else {
-	is++;			/* count another newline */
-	break;			/* this is uninteresting after all */
+    case '\n':			/* end of header */
+      m->body = ++s;		/* start of body is here */
+      j = m->body - m->header;	/* new header size */
+				/* calculate body size */
+      if (m->headersize >= j) m->bodysize = m->headersize - j;
+      if (e) {			/* saw status poop? */
+	*e++ = '\n';		/* patch in trailing newline */
+	m->headersize = e - m->header;
       }
+      else m->headersize = j;	/* set header size */
+      s = NIL;			/* don't scan any further */
+      break;
+    case '\0':			/* end of message */
+      if (e) {			/* saw status poop? */
+	*e++ = '\n';		/* patch in trailing newline */
+	m->headersize = e - m->header;
+      }
+      break;
+
+    case 'X':			/* possible X-Status: line */
+      if (s[1] == '-' && s[2] == 'S' && s[3] == 't' && s[4] == 'a' &&
+	  s[5] == 't' && s[6] == 'u' && s[7] == 's' && s[8] == ':') s += 2;
     case 'S':			/* possible Status: line */
-      if (s[1] == 't' && s[2] == 'a' && s[3] == 't' && s[4] == 'u' &&
-	  s[5] == 's' && s[6] == ':') {
+      if (s[0] == 'S' && s[1] == 't' && s[2] == 'a' && s[3] == 't' &&
+	  s[4] == 'u' && s[5] == 's' && s[6] == ':') {
 	if (!e) e = t;		/* note deletion point */
 	s += 6;			/* advance to status flags */
 	do switch (*s++) {	/* parse flags */
@@ -1466,30 +1519,10 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
 	} while (*s && *s != '\n');
 				/* recalculate Status/X-Status lines */
 	bezerk_update_status (m->status,elt);
+	break;			/* all done */
       }
-      else is++;		/* otherwise random line */
-      break;
+				/* otherwise fall into default case */
 
-    case '\n':			/* end of header */
-      m->body = ++s;		/* start of body is here */
-      j = m->body - m->header;	/* new header size */
-				/* calculate body size */
-      if (m->headersize >= j) m->bodysize = m->headersize - j;
-      if (e) {			/* saw status poop? */
-	*e++ = '\n';		/* patch in trailing newline */
-	m->headersize = e - m->header;
-      }
-      else m->headersize = j;	/* set header size */
-      s = NIL;			/* don't scan any further */
-      is++;			/* count a newline */
-      break;
-    case '\0':			/* end of message */
-      if (e) {			/* saw status poop? */
-	*e++ = '\n';		/* patch in trailing newline */
-	m->headersize = e - m->header;
-      }
-      is++;			/* count an extra newline here */
-      break;
     default:			/* anything else is uninteresting */
       if (e) {			/* have status stuff to worry about? */
 	j = s - e;		/* yuck!!  calculate size of delete area */
@@ -1501,12 +1534,13 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
 				/* tie off old cruft */
 	*(m->header + m->headersize) = '\0';
       }
-      is++;
       break;
     } while (s && (s = strchr (s,'\n')) && s++);
-				/* count newlines in body */
-    if (s = m->body) while (*s) if (*s++ == '\n') is++;
-    elt->rfc822_size = m->headersize + m->bodysize + is;
+				/* get size including CR's  */
+    INIT (&bs,mail_string,(void *) m->header,m->headersize);
+    elt->rfc822_size = strcrlflen (&bs);
+    INIT (&bs,mail_string,(void *) m->body,m->bodysize);
+    elt->rfc822_size += strcrlflen (&bs); 
   }
   if (n) fatal ("Cache link-list inconsistency");
   while (i < LOCAL->cachesize) LOCAL->msgs[i++] = NIL;
@@ -1551,20 +1585,20 @@ char *bezerk_eom (char *som,char *sod,long i)
       i = (sod + i) - s;	/* total number of tries */
       do {			/* fast search for newline */
 	if ((0x80808080 & (0x01010101 + (0x7f7f7f7f & ~(m ^ *(Word *) s)))) &&
-	    (s1 = ((s[3] == '\n') ? (s + 4) :
-		   ((s[2] == '\n') ? (s + 3) :
-		    ((s[1] == '\n') ? (s + 2) :
-		     ((s[0] == '\n') ? (s + 1) : NIL)))))) {
-	  VALID (s1,t,ti,zn);	/* interesting word, check it closer */
+				/* find rightmost newline in word */
+	    ((*(s1 = s + 3) == '\n') || (*--s1 == '\n') ||
+	     (*--s1 == '\n') || (*--s1 == '\n'))) {
+	  s1++;			/* skip past newline */
+	  VALID (s1,t,ti,zn);	/* see if valid From line */
 	  if (ti) return s1;
 	}
-	else s += 4;		/* try next word */
+	s += 4;			/* try next word */
 	i -= 4;			/* count a word checked */
       } while (i > 24);		/* continue until end of plausible string */
     }
   }
-  while (s = strstr (s,"\nFrom ")) {
-    s++;			/* skip newline */
+				/* slow search - still plausible string? */
+  while (i-- > 24) if (*s++ == '\n') {
     VALID (s,t,ti,zn);		/* if found start of message... */
     if (ti) return s;		/* return that pointer */
   }

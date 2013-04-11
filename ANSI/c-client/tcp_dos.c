@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	7 September 1994
+ * Last Edited:	8 September 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -151,6 +151,7 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
   stream->host = host;		/* official host name */
   stream->localhost = cpystr (mylocalhost ());
+  stream->port = port;		/* port number */
   stream->tcps = sock;		/* init socket */
   stream->ictr = 0;		/* init input counter */
   return stream;		/* return success */
@@ -159,10 +160,11 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
 /* TCP/IP authenticated open
  * Accepts: host name
  *	    service name
+ *	    returned user name
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_aopen (char *host,char *service)
+TCPSTREAM *tcp_aopen (char *host,char *service,char *usrnam)
 {
   return NIL;			/* always NIL on DOS */
 }
@@ -249,25 +251,31 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer)
 long tcp_getdata (TCPSTREAM *stream)
 {
   int i;
-  fd_set fds;
+  fd_set fds,efds;
   struct timeval tmo;
   time_t t = time (0);
   tmo.tv_sec = tcptimeout_read;
   tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
+  FD_ZERO (&efds);		/* handle errors too */
   if (stream->tcps < 0) return NIL;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     FD_SET (stream->tcps,&fds);	/* set bit in selection vector */
-				/* block and read */
-    if (((i = select (stream->tcps+1,&fds,0,0,
-		      tmo.tv_sec ? &tmo : (struct timeval *) 0)) > 0) &&
-	((i = read (stream->tcps,stream->ibuf,BUFLEN)) >= 0)) {
-      stream->iptr = stream->ibuf;
-      stream->ictr = i;		/* set new byte pointer and count */
+    FD_SET (stream->tcps,&efds);/* set bit in selection vector */
+    errno = NIL;		/* block and read */
+    while (((i = select (stream->tcps+1,&fds,0,&efds,
+			 tmo.tv_sec ? &tmo : (struct timeval *) 0)) < 0) &&
+	   (errno == EINTR));
+    if (!i) {			/* timeout? */
+      if (tcptimeout && ((*tcptimeout) (time (0) - t))) continue;
+      else return tcp_abort (stream);
     }
-				/* error or timeout */
-    else if (i || !(tcptimeout && ((*tcptimeout) (time (0) - t))))
-      return tcp_abort (stream);
+    if (i < 0) return tcp_abort (stream);
+    while (((i = read (stream->tcps,stream->ibuf,BUFLEN)) < 0) &&
+	   (errno == EINTR));
+    if (i < 1) return tcp_abort (stream);
+    stream->iptr = stream->ibuf;
+    stream->ictr = i;		/* set new byte pointer and count */
   }
   return T;
 }
@@ -352,6 +360,17 @@ long tcp_abort (TCPSTREAM *stream)
 char *tcp_host (TCPSTREAM *stream)
 {
   return stream->host;		/* return host name */
+}
+
+
+/* TCP/IP return port for this stream
+ * Accepts: TCP/IP stream
+ * Returns: port number for this stream
+ */
+
+long tcp_port (TCPSTREAM *stream)
+{
+  return stream->port;		/* return port number */
 }
 
 

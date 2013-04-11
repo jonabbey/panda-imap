@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	22 January 1996
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -57,6 +57,8 @@
 #define rfc822_parse_content_header rpcnth
 #define rfc822_parse_adrlist rpadrl
 #define rfc822_parse_address rpaddr
+#define rfc822_parse_group rpgrop
+#define rfc822_parse_mailbox rpmlbx
 #define rfc822_parse_routeaddr rpradr
 #define rfc822_parse_addrspec rpaspc
 #define rfc822_parse_phrase rpphra
@@ -65,9 +67,11 @@
 #define rfc822_quote rquot
 #define rfc822_cpy_adr rcpyad
 #define rfc822_skipws rskpws
+#define rfc822_skip_comment rskpcm
 #define rfc822_contents rcntnt
 #define rfc822_output routpt
-#define rfc822_encode_body renbdy
+#define rfc822_encode_body_7bit renbd7
+#define rfc822_encode_body_8bit renbd8
 #define rfc822_base64 rbas64
 #define rfc822_binary rbinry
 #define rfc822_qprint rqprnt
@@ -89,7 +93,11 @@ void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
 void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t);
 void rfc822_parse_content_header (BODY *body,char *name,char *s);
 void rfc822_parse_adrlist (ADDRESS **lst,char *string,char *host);
-ADDRESS *rfc822_parse_address (char **string,char *defaulthost);
+ADDRESS *rfc822_parse_address (ADDRESS **lst,ADDRESS *last,char **string,
+			       char *defaulthost);
+ADDRESS *rfc822_parse_group (ADDRESS **lst,ADDRESS *last,char **string,
+			     char *defaulthost);
+ADDRESS *rfc822_parse_mailbox (char **string,char *defaulthost);
 ADDRESS *rfc822_parse_routeaddr (char *string,char **ret,char *defaulthost);
 ADDRESS *rfc822_parse_addrspec (char *string,char **ret,char *defaulthost);
 char *rfc822_parse_phrase (char *string);
@@ -98,6 +106,7 @@ char *rfc822_cpy (char *src);
 char *rfc822_quote (char *src);
 ADDRESS *rfc822_cpy_adr (ADDRESS *adr);
 void rfc822_skipws (char **s);
+char *rfc822_skip_comment (char **s,long trim);
 char *rfc822_contents (char **dst,unsigned long *dstl,unsigned long *len,
 		       char *src,unsigned long srcl,unsigned short encoding);
 
@@ -105,8 +114,10 @@ char *rfc822_contents (char **dst,unsigned long *dstl,unsigned long *len,
 #define TCPSTREAM void
 #endif
 typedef long (*soutr_t) (TCPSTREAM *stream,char *string);
+typedef long (*rfc822emit_t) (char *t,ENVELOPE *env,BODY *body,soutr_t f,TCPSTREAM *s);
 long rfc822_output (char *t,ENVELOPE *env,BODY *body,soutr_t f,TCPSTREAM *s);
-void rfc822_encode_body (ENVELOPE *env,BODY *body);
+void rfc822_encode_body_7bit (ENVELOPE *env,BODY *body);
+void rfc822_encode_body_8bit (ENVELOPE *env,BODY *body);
 long rfc822_output_body (BODY *body,soutr_t f,TCPSTREAM *s);
 void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len);
 unsigned char *rfc822_binary (void *src,unsigned long srcl,unsigned long *len);

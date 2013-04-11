@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	19 April 1995
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -235,7 +235,8 @@ long pmatch (char *s,char *pat)
   case '*':			/* match 0 or more characters */
     if (!pat[1]) return T;	/* pattern ends with * wildcard */
 				/* if still more, hunt through rest of base */
-    for (; *s; s++) if (pmatch (s,pat+1)) return T;
+    do if (pmatch (s,pat+1)) return T;
+    while (*s++);
     break;
   case '%':			/* match 1 character (RFC-1176) */
   case '?':			/* match 1 character (common) */

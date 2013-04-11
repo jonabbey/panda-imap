@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 January 1993
- * Last Edited:	14 September 1994
+ * Last Edited:	14 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -56,12 +56,26 @@ typedef struct nntp_local {
   SMTPSTREAM *nntpstream;	/* NNTP stream for I/O */
   unsigned int dirty : 1;	/* disk copy of .newsrc needs updating */
   int fd;			/* temporary file */
-  char *tmp;			/* name of the temporary file */
+  unsigned long hm;		/* header text message number */
+  char *ht;			/* header text */
+  unsigned long hs;		/* header size */
+  unsigned long tm;		/* text temporary file message number */
+  char *tf;			/* name of the text temporary file */
   char *host;			/* local host name */
   char *name;			/* local bboard name */
   unsigned long *number;	/* news message numbers */
 } NNTPLOCAL;
 
+
+/* Drive-dependent data passed to init method */
+
+typedef struct nntp_data {
+  int fd;			/* file data */
+  unsigned long pos;		/* initial position */
+} NNTPDATA;
+
+
+STRINGDRIVER nntp_string;
 
 /* Convenient access to local data */
 
@@ -86,12 +100,17 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream);
 void nntp_close (MAILSTREAM *stream);
 void nntp_fetchfast (MAILSTREAM *stream,char *sequence);
 void nntp_fetchflags (MAILSTREAM *stream,char *sequence);
+void nntp_string_init (STRING *s,void *data,unsigned long size);
+char nntp_string_next (STRING *s);
+void nntp_string_setpos (STRING *s,unsigned long i);
 ENVELOPE *nntp_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body);
 char *nntp_fetchheader (MAILSTREAM *stream,long msgno);
 char *nntp_fetchtext (MAILSTREAM *stream,long msgno);
 char *nntp_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len);
-void nntp_slurp (MAILSTREAM *stream,unsigned long *siz);
+char *nntp_fetchheader_work(MAILSTREAM *stream,long msgno,unsigned long *size);
+int nntp_fopen (char *file,int access,unsigned long *size);
 long nntp_read (MAILSTREAM *stream,unsigned long count,char *buffer);
+int nntp_fetchtext_work (MAILSTREAM *stream,long msgno,unsigned long *size);
 void nntp_setflag (MAILSTREAM *stream,char *sequence,char *flag);
 void nntp_clearflag (MAILSTREAM *stream,char *sequence,char *flag);
 void nntp_search (MAILSTREAM *stream,char *criteria);
@@ -131,6 +150,7 @@ char nntp_search_cc (MAILSTREAM *stream,long msgno,char *d,long n);
 char nntp_search_from (MAILSTREAM *stream,long msgno,char *d,long n);
 char nntp_search_to (MAILSTREAM *stream,long msgno,char *d,long n);
 typedef char (*search_t) (MAILSTREAM *stream,long msgno,char *d,long n);
+
 search_t nntp_search_date (search_t f,long *n);
 search_t nntp_search_flag (search_t f,char **d);
 search_t nntp_search_string (search_t f,char **d,long *n);

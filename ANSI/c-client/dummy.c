@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	7 September 1994
+ * Last Edited:	2 May 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -89,12 +89,6 @@ DRIVER dummydriver = {
 
 				/* prototype stream */
 MAILSTREAM dummyproto = {&dummydriver};
-
-
-				/* driver parameters */
-static long mbx_protection = 0600;
-static long sub_protection = 0600;
-static long lock_protection = 0666;
 
 /* Dummy validate mailbox
  * Accepts: mailbox name
@@ -103,14 +97,13 @@ static long lock_protection = 0666;
 
 DRIVER *dummy_valid (char *name)
 {
-  char tmp[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN];
   struct stat sbuf;
 				/* must be valid local mailbox */
   return (name && *name && (*name != '*') && (*name != '{') &&
-				/* INBOX is always accepted */
-	  ((!strcmp (ucase (strcpy (tmp,name)),"INBOX")) ||
-				/* so is empty file */
-	   (!(stat (dummy_file (tmp,name),&sbuf) || sbuf.st_size))))
+	  (s = mailboxfile (tmp,name)) &&
+				/* INBOX or empty file accepted */
+	  (!*s || (!(stat (s,&sbuf) || sbuf.st_size))))
     ? &dummydriver : NIL;
 }
 
@@ -123,30 +116,7 @@ DRIVER *dummy_valid (char *name)
 
 void *dummy_parameters (long function,void *value)
 {
-  switch ((int) function) {
-  case SET_MBXPROTECTION:
-    mbx_protection = (long) value;
-    break;
-  case GET_MBXPROTECTION:
-    value = (void *) mbx_protection;
-    break;
-  case SET_SUBPROTECTION:
-    sub_protection = (long) value;
-    break;
-  case GET_SUBPROTECTION:
-    value = (void *) sub_protection;
-    break;
-  case SET_LOCKPROTECTION:
-    lock_protection = (long) value;
-    break;
-  case GET_LOCKPROTECTION:
-    value = (void *) lock_protection;
-    break;
-  default:
-    value = NIL;		/* error case */
-    break;
-  }
-  return value;
+  return NIL;
 }
 
 /* Dummy find list of subscribed mailboxes
@@ -199,16 +169,19 @@ void dummy_find_all (MAILSTREAM *stream,char *pat)
   if (s = strrchr (pat,'/')) {	/* directory specified in pattern? */
     strncpy (file,pat,i = (++s) - pat);
     file[i] = '\0';		/* tie off prefix */
-    t = dummy_file (tmp,pat);	/* make fully-qualified file name */
+				/* make fully-qualified file name */
+    if (!(t = dummy_file (tmp,pat))) return;
 				/* tie off directory name */
     if (s = strrchr (t,'/')) *s = '\0';
   }
   else t = myhomedir ();	/* use home directory to search */
   if (dirp = opendir (t)) {	/* now open that directory */
-    while (d = readdir (dirp)) {/* for each directory entry */
-      strcpy (file + i,d->d_name);
-      if (pmatch (file,pat)) mm_mailbox (file);
-    }
+    while (d = readdir (dirp))	/* for each directory entry */
+      if ((d->d_name[0] != '.') ||
+	  (d->d_name[1] && ((d->d_name[1] != '.') || d->d_name[2]))) {
+	strcpy (file + i,d->d_name);
+	if (pmatch (file,pat)) mm_mailbox (file);
+      }
     closedir (dirp);		/* flush directory */
   }
 				/* always an INBOX */
@@ -236,10 +209,12 @@ void dummy_find_all_bboards (MAILSTREAM *stream,char *pat)
   file[i] = '\0';		/* tie off prefix */
   sprintf (tmp,"%s/%s",pw->pw_dir,(file[1] == '/') ? file + 2 : file + 1);
   if (dirp = opendir (tmp)) {	/* now open that directory */
-    while (d = readdir (dirp)) {/* for each directory entry */
-      strcpy (file + i,d->d_name);
-      if (pmatch (file + 1,pat)) mm_bboard (file + 1);
-    }
+    while (d = readdir (dirp))	/* for each directory entry */
+      if ((d->d_name[0] != '.') ||
+	  (d->d_name[1] && ((d->d_name[1] != '.') || d->d_name[2]))) {
+	strcpy (file + i,d->d_name);
+	if (pmatch (file + 1,pat)) mm_bboard (file + 1);
+      }
     closedir (dirp);		/* flush directory */
   }
 }
@@ -358,31 +333,33 @@ long dummy_rename (MAILSTREAM *stream,char *old,char *new)
 
 MAILSTREAM *dummy_open (MAILSTREAM *stream)
 {
-  char tmp[MAILTMPLEN];
+  int fd;
+  char err[MAILTMPLEN],tmp[MAILTMPLEN];
   struct stat sbuf;
-  int fd = -1;
 				/* OP_PROTOTYPE call */
   if (!stream) return &dummyproto;
-  if ((strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX")) &&
-      ((fd = open (dummy_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0))
-    sprintf (tmp,"%s: %s",strerror (errno),stream->mailbox);
-  else {			/* open as empty file */
-    if (fd >= 0) {		/* if got a file */
-      fstat (fd,&sbuf);		/* sniff at its size */
-      close (fd);
-      if (sbuf.st_size) sprintf (tmp,"Not a mailbox: %s",stream->mailbox);
-      else fd = -1;		/* a-OK */
-    }
-    if (fd < 0) {		/* no file, right? */
-      if (!stream->silent) {	/* only if silence not requested */
-	mail_exists (stream,0);	/* say there are 0 messages */
-	mail_recent (stream,0);
-      }
-      return stream;		/* return success */
+  err[0] = '\0';		/* no error message yet */
+				/* can we open the file? */
+  if ((fd = open (dummy_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0) {
+				/* no, error unless INBOX */
+    if (strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX"))
+      sprintf (err,"%s: %s",strerror (errno),stream->mailbox);
+  }
+  else {			/* file had better be empty then */
+    fstat (fd,&sbuf);		/* sniff at its size */
+    close (fd);
+    if (sbuf.st_size)		/* bogus format if non-empty */
+      sprintf (err,"%s (file %s) is not in valid mailbox format",
+	       stream->mailbox,tmp);
+  }
+  if (!stream->silent) {	/* only if silence not requested */
+    if (err[0]) mm_log (err,ERROR);
+    else {
+      mail_exists (stream,0);	/* say there are 0 messages */
+      mail_recent (stream,0);	/* and certainly no recent ones! */
     }
   }
-  if (!stream->silent) mm_log (tmp,ERROR);
-  return NIL;			/* always fails */
+  return err[0] ? NIL : stream;	/* return success if no error */
 }
 
 
@@ -627,5 +604,5 @@ char *dummy_file (char *dst,char *name)
 {
   char *s = mailboxfile (dst,name);
 				/* return our standard inbox */
-  return s ? s : strcpy (dst,sysinbox ());
+  return (s && !*s) ? strcpy (dst,sysinbox ()) : s;
 }

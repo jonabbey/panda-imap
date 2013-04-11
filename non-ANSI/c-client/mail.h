@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	6 October 1994
+ * Last Edited:	7 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -67,6 +67,8 @@
 #define SET_GETS (long) 104
 #define GET_CACHE (long) 105
 #define SET_CACHE (long) 106
+#define GET_USERNAMEBUF (long) 107
+#define SET_USERNAMEBUF (long) 108
 	/* 2xx: environment */
 #define GET_USERNAME (long) 201
 #define SET_USERNAME (long) 202
@@ -87,6 +89,8 @@
 #define SET_CLOSETIMEOUT (long) 307
 #define GET_TIMEOUT (long) 308
 #define SET_TIMEOUT (long) 309
+#define GET_RSHTIMEOUT (long) 310
+#define SET_RSHTIMEOUT (long) 311
 	/* 4xx: network drivers */
 #define GET_MAXLOGINTRIALS (long) 400
 #define SET_MAXLOGINTRIALS (long) 401
@@ -102,7 +106,7 @@
 #define SET_CLOSEONERROR (long) 411
 #define GET_POP3PORT (long) 412
 #define SET_POP3PORT (long) 413
-	/* 5xx: UNIX local file drivers */
+	/* 5xx: local file drivers */
 #define GET_MBXPROTECTION (long) 500
 #define SET_MBXPROTECTION (long) 501
 #define GET_SUBPROTECTION (long) 502
@@ -115,11 +119,25 @@
 #define SET_NEWSACTIVE (long) 509
 #define GET_NEWSSPOOL (long) 510
 #define SET_NEWSSPOOL (long) 511
-	/* 6xx: DOS local file drivers */
-#define GET_NEWSRC (long) 600
-#define SET_NEWSRC (long) 601
-#define GET_EXTENSION (long) 602
-#define SET_EXTENSION (long) 603
+#define GET_NEWSRC (long) 512
+#define SET_NEWSRC (long) 513
+#define GET_EXTENSION (long) 514
+#define SET_EXTENSION (long) 515
+#define GET_DISABLEFCNTLLOCK (long) 516
+#define SET_DISABLEFCNTLLOCK (long) 517
+#define GET_LOCKEACCESERROR (long) 518
+#define SET_LOCKEACCESERROR (long) 519
+	/* 6xx: posting parameters */
+#define	GET_RFC822OUTPUT (long) 600
+#define	SET_RFC822OUTPUT (long) 601
+#define	GET_POSTVERBOSE (long) 602
+#define	SET_POSTVERBOSE (long) 603
+#define	GET_POSTSOUTR (long) 604
+#define	SET_POSTSOUTR (long) 605
+#define	GET_POSTGETLINE (long) 606
+#define	SET_POSTGETLINE (long) 607
+#define	GET_POSTCLOSE (long) 608
+#define	SET_POSTCLOSE (long) 609
 
 /* Open options */
 
@@ -182,6 +200,8 @@ typedef struct mail_envelope {
   char *in_reply_to;		/* replied message ID */
   char *message_id;		/* message ID */
   char *newsgroups;		/* USENET newsgroups */
+  char *followup_to;		/* USENET reply newsgroups */
+  char *references;		/* USENET references */
 } ENVELOPE;
 
 /* Primary body types */
@@ -262,6 +282,7 @@ BODY {
     unsigned long bytes;	/* size in bytes */
     unsigned long ibytes;	/* internal size in bytes (drivers ONLY!!) */
   } size;
+  char *md5;			/* MD5 checksum */
 };
 
 
@@ -504,6 +525,10 @@ typedef long (*readfn_t) ();
 typedef char *(*mailgets_t) ();
 typedef void *(*mailcache_t) ();
 typedef long (*tcptimeout_t) ();
+typedef long (*postsoutr_t) ();
+typedef char *(*postgetline_t) ();
+typedef void (*postclose_t) ();
+typedef void (*postverbose_t) ();
 
 #include "linkage.h"
 

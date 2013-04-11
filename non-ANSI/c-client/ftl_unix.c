@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	29 August 1995
  *
  * Copyright 1994 by the University of Washington
  *
@@ -42,6 +42,6 @@ void fatal (string)
 	char *string;
 {
   mm_fatal (string);		/* pass up the string */
-  syslog (LOG_ALERT,"IMAP C-Client crash: %s",string);
+  syslog (LOG_ALERT,"IMAP toolkit crash: %.100s",string);
   abort ();			/* die horribly */
 }

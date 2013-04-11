@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	9 October 1994
+ * Last Edited:	29 January 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -130,7 +130,8 @@ int mh_isvalid (char *name,char *tmp,long synonly)
 				/* parse profile file */
     while (*(s = t) && (t = strchr (s,'\n'))) {
       *t++ = '\0';		/* tie off line */
-      if (v = strchr (s,' ')) {	/* found space in line? */
+				/* found space in line? */
+      if (v = strpbrk (s," \t")) {
 	*v = '\0';		/* tie off, is keyword "Path:"? */
 	if (!strcmp (lcase (s),"path:")) {
 	  if (*++v == '/') s = v;
@@ -806,7 +807,7 @@ long mh_ping (MAILSTREAM *stream)
   long recent = stream->recent;
   stat (LOCAL->dir,&sbuf);
   if (sbuf.st_ctime != LOCAL->scantime) {
-    struct direct **names;
+    struct direct **names = NIL;
     long nfiles = scandir (LOCAL->dir,&names,mh_select,mh_numsort);
     old = nmsgs ? mail_elt (stream,nmsgs)->data1 : 0;
 				/* note scanned now */
@@ -1026,7 +1027,8 @@ long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
     if (!mail_parse_date (&elt,date)) {
-      mm_log ("Bad date in append",ERROR);
+      sprintf (tmp,"Bad date in append: %s",date);
+      mm_log (tmp,ERROR);
       return NIL;
     }
   }

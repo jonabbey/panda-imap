@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	6 October 1994
+ * Last Edited:	21 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,6 +42,7 @@
 #include <ctype.h>
 #include <netdb.h>
 #include <errno.h>
+extern int errno;		/* just in case */
 #include <signal.h>
 #include <pwd.h>
 #include <sys/file.h>
@@ -75,7 +76,7 @@
 
 /* Global storage */
 
-char *version = "7.8(92)";	/* version number of this server */
+char *version = "7.8(100)";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 int state = LOGIN;		/* server state */
 int mackludge = 0;		/* MacMS kludge */
@@ -122,6 +123,8 @@ void main (int argc,char *argv[]);
 void clkint ();
 void kodint ();
 void slurp (char *s,int n);
+char inchar ();
+void *flush ();
 char *snarf (char **arg);
 void fetch (char *s,char *t);
 void fetch_body (long i,char *s);
@@ -163,7 +166,7 @@ void main (int argc,char *argv[])
     pass = cpystr ("*");	/* and fake password */
     state = SELECT;		/* enter select state */
     t = "PREAUTH";		/* pre-authorized */
-    syslog (LOG_INFO,"Preauthenticated user=%s host=%s",user,
+    syslog (LOG_INFO,"Preauthenticated user=%.80s host=%.80s",user,
 	    tcp_clienthost (tmp));
   }
   else t = "OK";
@@ -179,9 +182,8 @@ void main (int argc,char *argv[])
 				/* find end of line */
     if (!strchr (cmdbuf,'\012')) {
       if (t = strchr (cmdbuf,' ')) *t = '\0';
-      printf (toobig,t ? cmdbuf : "*");
-				/* slurp until we find it then */
-      while (getchar () != '\012');
+      flush ();			/* flush excess */
+      printf (response,t ? cmdbuf : "*");
     }
     else if (!(tag = strtok (cmdbuf," \015\012"))) fputs (nulcmd,stdout);
     else if (!(cmd = strtok (NIL," \015\012")))
@@ -210,16 +212,19 @@ void main (int argc,char *argv[])
 	  printf ("* BYE %s Fatal mailbox error: %s\015\012",host,
 		  lsterr ? lsterr : "<unknown>");
 	  state = LOGOUT;	/* go away */
-	  syslog (LOG_INFO,"Fatal mailbox error on host %s: %s",
-		  tcp_clienthost (tmp),lsterr ? lsterr : "???");
+	  syslog (LOG_INFO,
+		  "Fatal mailbox error user=%.80s host=%.80s mbx=%.80s: %.80s",
+		  user ? user : "???",tcp_clienthost (tmp),
+		  (stream && stream->mailbox) ? stream->mailbox : "???",
+		  lsterr ? lsterr : "???");
 	}
       }
       else switch (state) {	/* dispatch depending upon state */
       case LOGIN:		/* waiting to get logged in */
 	if (!strcmp (cmd,"LOGIN")) {
 	  struct passwd *pwd;
-	  fs_give ((void **) &user);
-	  fs_give ((void **) &pass);
+	  if (user) fs_give ((void **) &user);
+	  if (pass) fs_give ((void **) &pass);
 				/* two arguments */
 	  if (!((user = cpystr (snarf (&arg))) &&
 		(pass = cpystr (snarf (&arg))))) response = misarg;
@@ -227,7 +232,8 @@ void main (int argc,char *argv[])
 				/* see if username and password are OK */
 	  else if (server_login (user,pass,&home,argc,argv)) {
 	    state = SELECT;
-	    syslog (LOG_INFO,"Login user=%s host=%s",user,tcp_clienthost(tmp));
+	    syslog (LOG_INFO,"Login user=%.80s host=%.80s",user,
+		    tcp_clienthost(tmp));
 	  }
 				/* nope, see if we allow anonymous */
 	  else if (!stat (ANOFILE,&sbuf) && !strcmp (user,"anonymous") &&
@@ -236,7 +242,7 @@ void main (int argc,char *argv[])
 	    setgid (pwd->pw_gid);
 	    setuid (pwd->pw_uid);
 	    state = SELECT;	/* make selected */
-	    syslog (LOG_INFO,"Login anonymous=%s host=%s",pass,
+	    syslog (LOG_INFO,"Login anonymous=%.80s host=%.80s",pass,
 		    tcp_clienthost(tmp));
 	  }
 	  else {
@@ -245,10 +251,10 @@ void main (int argc,char *argv[])
 	    if (!--logtry) {
 	      fputs ("* BYE Too many login failures\015\012",stdout);
 	      state = LOGOUT;
-	      syslog (LOG_INFO,"Excessive login failures user=%s host=%s",
-		      user,tcp_clienthost (tmp));
+	      syslog(LOG_INFO,"Excessive login failures user=%.80s host=%.80s",
+		     user,tcp_clienthost (tmp));
 	    }
-	    else syslog (LOG_INFO,"Login failure user=%s host=%s",
+	    else syslog (LOG_INFO,"Login failure user=%.80s host=%.80s",
 			 user,tcp_clienthost (tmp));
 	  }
 	}
@@ -369,19 +375,15 @@ void main (int argc,char *argv[])
 		fputs (argrdy,stdout);
 		fflush (stdout);/* dump output buffer */
 				/* copy the literal */
-		while (i--) *t++ = getchar ();
+		while (i--) *t++ = inchar ();
 				/* get new command tail */
 		slurp (t,TMPLEN - (t-cmdbuf) - 1);
 				/* find end of line */
-		if (!(s = strchr (t,'\012'))) {
-				/* slurp until we find it then */
-		  while (getchar () != '\012');
-		  response = toobig;
-		}
-		else {
+		if (s = strchr (t,'\012')) {
 		  *s = NIL;	/* tie off line */
 		  if (*--s == '\015') *s = NIL;
 		}
+		else flush ();	/* error */
 	      }
 	    }
 				/* punt if error */
@@ -413,7 +415,7 @@ void main (int argc,char *argv[])
 				     + (*cmd == 'E') ? OP_READONLY : NIL))
 		&& ((response == win) || (response == altwin))) {
 				/* flush old list */
-	      fs_give ((void **) &flags);
+	      if (flags) fs_give ((void **) &flags);
 	      s = tmp;		/* write flags here */
 	      *s = '(';		/* start new flag list */
 	      s[1] = '\0';
@@ -429,8 +431,9 @@ void main (int argc,char *argv[])
 	      response = stream->rdonly ?
 		"%s OK [READ-ONLY] %s completed\015\012" :
 		  "%s OK [READ-WRITE] %s completed\015\012";
-	      if (anonymous) syslog (LOG_INFO,"Selected %s from %s",
-				     stream->mailbox,tcp_clienthost (tmp));
+	      if (anonymous)
+		syslog (LOG_INFO,"Anonymous select of %.80s host=%.80s",
+			stream->mailbox,tcp_clienthost (tmp));
 	    }
 	    else {		/* nuke if still open */
 	      if (stream) mail_close (stream);
@@ -577,7 +580,7 @@ void main (int argc,char *argv[])
 	if (recent != stream->recent)
 	  printf ("* %d RECENT\015\012",(recent = stream->recent));
 				/* output changed flags */
-	for (i = 1; i <= stream->nmsgs; i++) if (mail_elt (stream,i)->spare) {
+	for (i = 1; i <= stream->nmsgs; i++) if (mail_elt (stream,i)->spare2) {
 	  printf ("* %d FETCH (",i);
 	  fetch_flags (i,NIL);
 	  fputs (")\015\012",stdout);
@@ -613,7 +616,8 @@ void main (int argc,char *argv[])
     }
     fflush (stdout);		/* make sure output blatted */
   } while (state != LOGOUT);	/* until logged out */
-  syslog (LOG_INFO,"Logout from %s",tcp_clienthost (tmp));
+  syslog (LOG_INFO,"Logout user=%.80s host=%.80s",user ? user : "???",
+	  tcp_clienthost (tmp));
   exit (0);			/* all done */
 }
 
@@ -624,7 +628,8 @@ void clkint ()
 {
   char tmp[MAILTMPLEN];
   fputs ("* BYE Autologout; idle for too long\015\012",stdout);
-  syslog (LOG_INFO,"Autologout from %s",tcp_clienthost (tmp));
+  syslog (LOG_INFO,"Autologout user=%.80s host=%.80s",user ? user : "???",
+	  tcp_clienthost (tmp));
   fflush (stdout);		/* make sure output blatted */
 				/* try to gracefully close the stream */
   if (state == OPEN) mail_close (stream);
@@ -666,12 +671,45 @@ void slurp (char *s,int n)
   while (!fgets (s,n,stdin)) {	/* read buffer */
     if (errno==EINTR) errno = 0;/* ignore if some interrupt */
     else {
-      syslog (LOG_INFO,"Connection broken while reading line from %s",
-	      tcp_clienthost (s));
+      syslog (LOG_INFO,
+	      "Connection broken while reading line user=%.80s host=%.80s",
+	      user ? user : "???",tcp_clienthost (s));
       _exit (1);
     }
   }
   alarm (0);			/* make sure timeout disabled */
+}
+
+
+/* Read a character
+ * Returns: character
+ */
+
+char inchar ()
+{
+  char c,tmp[MAILTMPLEN];
+  while ((c = getchar ()) == EOF) {
+    if (errno==EINTR) errno = 0;/* ignore if some interrupt */
+    else {
+      syslog (LOG_INFO,
+	      "Connection broken while reading char user=%.80s host=%.80s",
+	      user ? user : "???",tcp_clienthost (tmp));
+      _exit (1);
+    }
+  }
+  return c;
+}
+
+
+/* Flush until newline seen
+ * Returns: NIL, always
+ */
+
+void *flush ()
+{
+  while (inchar () != '\012');	/* slurp until we find newline */
+  response = toobig;
+  return NIL;
 }
 
 /* Snarf an argument
@@ -711,18 +749,14 @@ char *snarf (char **arg)
 				/* get a literal buffer */
       c = litbuf = (char *) fs_get (i+1);
       alarm (TIMEOUT);		/* start timeout */
-      while (i--) *c++ = getchar ();
+      while (i--) *c++ = inchar ();
       alarm (0);		/* stop timeout */
       *c++ = NIL;		/* make sure string tied off */
       c = litbuf;		/* return value */
     				/* get new command tail */
       slurp ((*arg = t),TMPLEN - (t - cmdbuf) - 1);
-      if (!strchr (t,'\012')) {	/* have a newline there? */
-	response = toobig;	/* lost it seems */
-				/* slurp until we find it then */
-	while (getchar () != '\012');
-	return NIL;
-      }
+				/* flush if didn't see NL */
+      if (!strchr (t,'\012')) return flush ();
       break;
     }
 				/* otherwise fall through (third party IMAP) */
@@ -751,8 +785,11 @@ void fetch (char *s,char *t)
   int parse_bodies = NIL;
   void (*f[MAXFETCH]) ();
   char *fa[MAXFETCH];
-  if (!mail_sequence (stream,s)) {
-    response = badseq;		/* punt if sequence bogus */
+				/* c-client clobbers sequence, use spare */
+  if (mail_sequence (stream,s)) for (i = 1; i <= nmsgs; i++)
+    mail_elt (stream,i)->spare = mail_elt (stream,i)->sequence;
+  else {			/* sequence bogus */
+    response = badseq;		/* punt */
     return;
   }
 				/* process macros */
@@ -814,7 +851,7 @@ void fetch (char *s,char *t)
   }
   f[k++] = NIL;			/* tie off attribute list */
 				/* for each requested message */
-  for (i = 1; i <= nmsgs; i++) if (mail_elt (stream,i)->sequence) {
+  for (i = 1; i <= nmsgs; i++) if (mail_elt (stream,i)->spare) {
 				/* parse envelope, set body, do warnings */
     if (parse_envs) mail_fetchstructure (stream,i,parse_bodies ? &b : NIL);
     printf ("* %d FETCH (",i);	/* leader */
@@ -906,7 +943,7 @@ void fetch_flags (long i,char *s)
     }
   while (u);			/* until no more user flags */
   printf ("FLAGS (%s)",tmp+1);	/* output results, skip first char of list */
-  elt->spare = NIL;		/* we've sent the update */
+  elt->spare2 = NIL;		/* we've sent the update */
 }
 
 
@@ -1225,7 +1262,7 @@ void mm_expunged (MAILSTREAM *s,long number)
 
 void mm_flags (MAILSTREAM *s,long number)
 {
-  if (s != tstream) mail_elt (s,number)->spare = T;
+  if (s != tstream) mail_elt (s,number)->spare2 = T;
 }
 
 /* Mailbox found
@@ -1284,7 +1321,7 @@ void mm_log (char *string,long errflg)
   case NIL:			/* information message, set as OK response */
     if (response == win) {	/* only if no other response yet */
       response = altwin;	/* switch to alternative win message */
-      fs_give ((void **) &lsterr);
+      if (lsterr) fs_give ((void **) &lsterr);
       lsterr = cpystr (string);	/* copy string for later use */
     }
     break;
@@ -1297,7 +1334,7 @@ void mm_log (char *string,long errflg)
   case ERROR:			/* error that broke command */
   default:			/* default should never happen */
     response = lose;		/* set fatality */
-    fs_give ((void **) &lsterr);/* flush old error */
+    if (lsterr) fs_give ((void **) &lsterr);
     lsterr = cpystr (string);	/* note last error */
     break;
   }
@@ -1355,17 +1392,25 @@ void mm_nocritical (MAILSTREAM *s)
 
 long mm_diskerror (MAILSTREAM *s,long errcode,long serious)
 {
+  char tmp[MAILTMPLEN];
   if (serious) {		/* try your damnest if clobberage likely */
     fputs ("* BAD Retrying to fix probable mailbox damage!\015\012",stdout);
     fflush (stdout);		/* dump output buffer */
-    syslog (LOG_ALERT,"Retrying after disk error %s",strerror (errcode));
+    syslog (LOG_ALERT,
+	    "Retrying after disk error user=%.80s host=%.80s mbx=%.80s: %.80s",
+	    user,tcp_clienthost (tmp),
+	    (stream && stream->mailbox) ? stream->mailbox : "???",
+	    strerror (errcode));
     alarm (0);			/* make damn sure timeout disabled */
     sleep (60);			/* give it some time to clear up */
     return NIL;
   }
 				/* otherwise die before more damage is done */
   printf ("* BYE Aborting due to disk error %s\015\012",strerror (errcode));
-  syslog (LOG_ALERT,"Fatal disk error %s",strerror (errcode));
+  syslog (LOG_ALERT,"Fatal disk error user=%.80s host=%.80s mbx=%.80s: %.80s",
+	  user,tcp_clienthost (tmp),
+	  (stream && stream->mailbox) ? stream->mailbox : "???",
+	  strerror (errcode));
   return T;
 }
 
@@ -1376,5 +1421,9 @@ long mm_diskerror (MAILSTREAM *s,long errcode,long serious)
 
 void mm_fatal (char *string)
 {
-  mm_log (string,ERROR);	/* shouldn't happen normally */
+  char tmp[MAILTMPLEN];
+  printf ("* BYE [ALERT] IMAP2bis server crashing: %s\015\012",string);
+  syslog (LOG_ALERT,"Fatal error user=%.80s host=%.80s mbx=%.80s: %.80s",
+	  user ? user : "???",tcp_clienthost (tmp),
+	  (stream && stream->mailbox) ? stream->mailbox : "???",string);
 }

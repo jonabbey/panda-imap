@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	23 December 1993
- * Last Edited:	14 September 1994
+ * Last Edited:	26 June 1995
  *
- * Copyright 1994 by Mark Crispin
+ * Copyright 1995 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -59,7 +59,7 @@ struct hostent {
 #define	h_addr h_addr_list[0]	/* address, for backward compatiblity */
 };
 
-struct hostent *gethostbyname(char *name); 
+struct hostent *gethostbyname (char *name); 
 
 #define pascal
 
@@ -72,6 +72,8 @@ short resolveropen = 0;		/* TCP's resolver open */
 #include "nl_mac.c"
 #include "tcp_mac.c"
 #include "tz_nul.c"
+#include "gethstid.c"
+#include "writevs.c"
 
 #define SIG_A5 0x41352020 /* 'A5  ' */
 #define SIG_SP 0x53502020 /* 'SP  ' */
@@ -108,7 +110,7 @@ struct sysvar {
 
 static long ssp;
 
-void mint_setup ()
+void mint_setup (void)
 {
   long w,*p;
   return;			/* **temp** */
@@ -121,7 +123,7 @@ void mint_setup ()
   (*(void (*) (void)) sysvar->pull_vector) ();
 }
 
-void mint_cleanup ()
+void mint_cleanup (void)
 {
   return;			/* **temp** */
 				/* clean up resolver */
@@ -130,26 +132,6 @@ void mint_cleanup ()
   Super ((void *) ssp);
 }
 
-/* Emulator for BSD writev() call
- * Accepts: file name
- *	    I/O vector structure
- *	    Number of vectors in structure
- * Returns: 0 if successful, -1 if failure
- */
-
-int writev (int fd,struct iovec *iov,int iovcnt)
-{
-  int c,cnt;
-  if (iovcnt <= 0) return (-1);
-  for (cnt = 0; iovcnt != 0; iovcnt--, iov++) {
-    c = write (fd,iov->iov_base,iov->iov_len);
-    if (c < 0) return -1;
-    cnt += c;
-  }
-  return (cnt);
-}
-
-
 /* Emulator for BSD fsync() call
  * Accepts: file name
  * Returns: 0 if successful, -1 if failure

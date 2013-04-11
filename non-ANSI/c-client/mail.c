@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	6 October 1994
+ * Last Edited:	31 January 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,6 +40,7 @@
 #include "osdep.h"
 #include <time.h>
 #include "misc.h"
+#include "rfc822.h"
 
 
 /* c-client global data */
@@ -50,6 +51,18 @@ static DRIVER *maildrivers = NIL;
 static mailgets_t mailgets = NIL;
 				/* mail cache manipulation function */
 static mailcache_t mailcache = mm_cache;
+				/* place to stash last user name */
+static char *mailusernamebuf = NIL;
+				/* pointer to alternate rfc822 generator */
+static rfc822emit_t rfc822_emit = rfc822_output;
+				/* pointer to SMTP verbose output collector */
+static postverbose_t post_verbose = NIL;
+				/* POST send string as record */
+static postsoutr_t post_soutr = tcp_soutr;
+				/* POST receive line */
+static postgetline_t post_getline = tcp_getline;
+				/* POST close connection */
+static postclose_t post_close = tcp_close;
 
 /* Default limited get string
  * Accepts: readin function pointer
@@ -277,6 +290,42 @@ void *mail_parameters (stream,function,value)
   case GET_CACHE:
     ret = (void *) mailcache;
     break;
+  case SET_USERNAMEBUF:
+    mailusernamebuf = (char *) value;
+    /* BUG: missing break?  anyone care? */
+  case GET_USERNAMEBUF:
+    ret = (void *) mailusernamebuf;
+    break;
+  case SET_RFC822OUTPUT:
+    rfc822_emit = (rfc822emit_t) value;
+    break;
+  case GET_RFC822OUTPUT:
+    ret = (void *) rfc822_emit;
+    break;
+  case SET_POSTVERBOSE:
+    post_verbose = (postverbose_t) value;
+    break;
+  case GET_POSTVERBOSE:
+    ret = (void *) post_verbose;
+    break;
+  case SET_POSTSOUTR:
+    post_soutr = (postsoutr_t) value;
+    break;
+  case GET_POSTSOUTR:
+    ret = (void *) post_soutr;
+    break;
+  case SET_POSTGETLINE:
+    post_getline = (postgetline_t) value;
+    break;
+  case GET_POSTGETLINE:
+    ret = (void *) post_getline;
+    break;
+  case SET_POSTCLOSE:
+    post_close = (postclose_t) value;
+    break;
+  case GET_POSTCLOSE:
+    ret = (void *) post_close;
+    break;
   default:
     if (stream && stream->dtb)	/* if have stream, do for that stream only */
       ret = (*stream->dtb->parameters) (function,value);
@@ -439,6 +488,7 @@ long mail_valid_net_parse (name,mb)
   *mb->host = *mb->mailbox = *mb->service = '\0';
 				/* init flags */
   mb->anoflag = mb->dbgflag = NIL;
+  if (mailusernamebuf) *mailusernamebuf = '\0';
 				/* check if bboard */
   if (mb->bbdflag = (*name == '*') ? T : NIL) name++;
 				/* have host specification? */
@@ -474,6 +524,10 @@ long mail_valid_net_parse (name,mb)
 	if (!strcmp (s,"service")) {
 	  if (*mb->service) return NIL;
 	  else strcpy (mb->service,v);
+	}
+	if (!strcmp (s,"user") && mailusernamebuf) {
+	  if (*mailusernamebuf) return NIL;
+	  else strcpy (mailusernamebuf,v);
 	}
 	else return NIL;	/* invalid argument switch */
       }
@@ -1087,8 +1141,11 @@ long mail_append_full (stream,mailbox,flags,date,message)
   DRIVER *factory = mail_valid (stream,mailbox,NIL);
   if (!factory) {		/* got a driver to use? */
     if (!stream &&		/* ask default for TRYCREATE if no stream */
-	(*default_proto ()->dtb->append) (stream,mailbox,flags,date,message))
-      fatal ("Append validity confusion");
+	(*default_proto ()->dtb->append) (stream,mailbox,flags,date,message)) {
+				/* timing race?? */
+      mm_notify (stream,"Append validity confusion",WARN);
+      return T;
+    }
 				/* now generate error message */
     mail_valid (stream,mailbox,"append to mailbox");
     return NIL;			/* return failure */
@@ -1170,7 +1227,7 @@ char *mail_cdate (string,elt)
   }
   else m = elt->month - 3;	/* March is month 0 */
   sprintf (string,"%s %s %2d %02d:%02d:%02d %4d\n",
-	   days[(int)(elt->day+5+((7+31*m)/12)+y+(y/4)+(y/400)-(y/100)) % 7],s,
+	   days[(int)(elt->day+2+((7+31*m)/12)+y+(y/4)+(y/400)-(y/100)) % 7],s,
 	   elt->day,elt->hours,elt->minutes,elt->seconds,elt->year + BASEYEAR);
   return string;
 }
@@ -1179,7 +1236,23 @@ char *mail_cdate (string,elt)
  * Accepts: elt to write into
  *	    date string to parse
  * Returns: T if parse successful, else NIL
- * This routine accepts mm/dd/yy format for the date as well
+ * This routine parses dates as follows:
+ * . leading three alphas followed by comma and space are ignored
+ * . date accepted in format: mm/dd/yy, mm/dd/yyyy, dd-mmm-yy, dd-mmm-yyyy,
+ *    dd mmm yy, dd mmm yyyy
+ * . space or end of string required
+ * . time accepted in format hh:mm:ss or hh:mm
+ * . end of string accepted
+ * . timezone accepted: hyphen followed by symbolic timezone, or space
+ *    followed by signed numeric timezone or symbolic timezone
+ * Examples of normal input:
+ * . IMAP date-only (SEARCH): dd-mmm-yy, dd-mmm-yyyy, mm/dd/yy, mm/dd/yyyy
+ * . IMAP date-time (INTERNALDATE):
+ *    dd-mmm-yy hh:mm:ss-zzz
+ *    dd-mmm-yyyy hh:mm:ss +zzzz
+ * . RFC-822:
+ *    www, dd mmm yy hh:mm:ss zzz
+ *    www, dd mmm yyyy hh:mm:ss +zzzz
  */
 
 long mail_parse_date (elt,s)
@@ -1190,10 +1263,16 @@ long mail_parse_date (elt,s)
   int ms;
   struct tm *t;
   time_t tn;
+  char tmp[MAILTMPLEN];
+				/* make a writeable uppercase copy */
+  if (s && *s && (strlen (s) < MAILTMPLEN)) s = ucase (strcpy (tmp,s));
+  else return NIL;
 				/* skip over possible day of week */
-  if (isalpha (*s) && s[3] == ',') s += 5;
+  if (isalpha (*s) && isalpha (s[1]) && isalpha (s[2]) && (s[3] == ',') &&
+      (s[4] == ' ')) s += 5;
 				/* parse first number (probable month) */
   if (!(s && (m = strtol ((const char *) s,&s,10)))) return NIL;
+
   switch (*s) {			/* different parse based on delimiter */
   case '/':			/* mm/dd/yy format */
     if (!((d = strtol ((const char *) ++s,&s,10)) && *s == '/' &&
@@ -1202,8 +1281,8 @@ long mail_parse_date (elt,s)
   case ' ':			/* dd mmm yy format */
   case '-':			/* dd-mmm-yy format */
     d = m;			/* so the number we got is a day */
-				/* make sure string is UC and long enough! */
-    if (strlen (ucase (s)) < 5) return NIL;
+				/* make sure string long enough! */
+    if (strlen (s) < 5) return NIL;
     /* Some compilers don't allow `<<' and/or longs in case statements. */
 				/* slurp up the month string */
     ms = ((s[1] - 'A') * 1024) + ((s[2] - 'A') * 32) + (s[3] - 'A');
@@ -1222,9 +1301,8 @@ long mail_parse_date (elt,s)
     case (('D'-'A') * 1024) + (('E'-'A') * 32) + ('C'-'A'): m = 12; break;
     default: return NIL;
     }
-    if (((s[4] == '-') || s[4] == ' ') &&
-	(y = strtol ((const char *) s+5,&s,10)) && (*s == '\0' || *s == ' '))
-      break;			/* parse the year */
+    if ((s[4] == *s) &&	(y = strtol ((const char *) s+5,&s,10)) &&
+	(*s == '\0' || *s == ' ')) break;
   default: return NIL;		/* unknown date format */
   }
 				/* minimal validity check of date */
@@ -1239,13 +1317,25 @@ long mail_parse_date (elt,s)
     d = strtol ((const char *) s,&s,10);
     if (*s != ':') return NIL;
     m = strtol ((const char *) ++s,&s,10);
-    if (*s != ':') return NIL;
-    y = strtol ((const char *) ++s,&s,10);
-				/* minimal validity check of time */
+    y = (*s == ':') ? strtol ((const char *) ++s,&s,10) : 0;
+				/* validity check time */
     if (d < 0 || d > 23 || m < 0 || m > 59 || y < 0 || y > 59) return NIL;
 				/* set values in elt */
     elt->hours = d; elt->minutes = m; elt->seconds = y;
     switch (*s) {		/* time zone specifier? */
+    case ' ':			/* numeric time zone */
+      if (!isalpha (s[1])) {	/* treat as '-' case if alphabetic */
+				/* test for sign character */
+	if ((elt->zoccident = (*++s == '-')) || (*s == '+')) s++;
+				/* validate proper timezone */
+	if (!(isdigit (*s) && isdigit (s[1]) && isdigit (s[2]) &&
+	      isdigit (s[3])) || (s[4] && (s[4] != ' '))) return NIL;
+	elt->zhours = (*s - '0') * 10 + (s[1] - '0');
+	elt->zminutes = (s[2] - '0') * 10 + (s[3] - '0');
+	break;
+      }
+				/* falls through */
+
     case '-':			/* symbolic time zone */
       if (!(ms = *++s)) return NIL;
       if (*++s) {		/* multi-character? */
@@ -1263,6 +1353,7 @@ long mail_parse_date (elt,s)
        * timezones which lack the flavor but also the ambiguity of the names.
        */
       switch (ms) {		/* determine the timezone */
+	/* oriental (from Greenwich) timezones */
 				/* Middle Europe */
       case (('M'-'A')*1024)+(('E'-'A')*32)+'T'-'A':
       case 'A': elt->zhours = 1; break;
@@ -1282,6 +1373,7 @@ long mail_parse_date (elt,s)
       case 'L': elt->zhours = 11; break;
       case 'M': elt->zhours = 12; break;
 
+	/* occidental (from Greenwich) timezones */
       case 'N': elt->zoccident = 1; elt->zhours = 1; break;
       case 'O': elt->zoccident = 1; elt->zhours = 2; break;
       case (('A'-'A')*1024)+(('D'-'A')*32)+'T'-'A':
@@ -1350,14 +1442,6 @@ long mail_parse_date (elt,s)
       elt->zminutes = 0;	/* never a fractional hour */
       break;
     case '\0':			/* no time zone */
-      break;
-    case ' ':			/* numeric time zone */
-				/* test for sign character */
-      if ((elt->zoccident = (*++s == '-')) || (*s == '+')) s++;
-      if (!(isdigit (*s) && isdigit (s[1]) && isdigit (s[2]) && isdigit (s[3]))
-	   || s[4]) return NIL;	/* proper timezone */
-      elt->zhours = (*s - '0') * 10 + (s[1] - '0');
-      elt->zminutes = (s[2] - '0') * 10 + (s[3] - '0');
       break;
     default:
       return NIL;
@@ -1556,7 +1640,8 @@ ENVELOPE *mail_newenvelope ()
   env->date = NIL;
   env->subject = NIL;
   env->from = env->sender = env->reply_to = env->to = env->cc = env->bcc = NIL;
-  env->in_reply_to = env->message_id = env->newsgroups = NIL;
+  env->in_reply_to = env->message_id = env->newsgroups = env->followup_to =
+    env->references = NIL;
   return env;
 }
 
@@ -1603,6 +1688,7 @@ BODY *mail_initbody (body)
   body->contents.msg.body = NIL;
   body->contents.msg.text = NIL;
   body->size.lines = body->size.bytes = body->size.ibytes = 0;
+  body->md5 = NIL;
   return body;
 }
 
@@ -1661,6 +1747,7 @@ void mail_free_body_data (body)
   mail_free_body_parameter (&body->parameter);
   if (body->id) fs_give ((void **) &body->id);
   if (body->description) fs_give ((void **) &body->description);
+  if (body->md5) fs_give ((void **) &body->md5);
   switch (body->type) {		/* free contents */
   case TYPETEXT:		/* unformatted text */
     if (body->contents.text) fs_give ((void **) &body->contents.text);
@@ -1786,6 +1873,8 @@ void mail_free_envelope (env)
     if ((*env)->in_reply_to) fs_give ((void **) &(*env)->in_reply_to);
     if ((*env)->message_id) fs_give ((void **) &(*env)->message_id);
     if ((*env)->newsgroups) fs_give ((void **) &(*env)->newsgroups);
+    if ((*env)->followup_to) fs_give ((void **) &(*env)->followup_to);
+    if ((*env)->references) fs_give ((void **) &(*env)->references);
     fs_give ((void **) env);	/* return envelope to free storage */
   }
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 1994
+ * Last Edited:	1 May 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -56,7 +56,8 @@ long server_login (user,pass,home,argc,argv)
 				/* validate password */
   if (authenticate_user (pw,pass,NIL) < 0) return NIL;
   setgid (pw->pw_gid);		/* all OK, login in as that user */
-  initgroups (user,pw->pw_gid);	/* initialize groups */
+				/* initialize groups */
+  initgroups (pw->pw_name,pw->pw_gid);
   setuid (pw->pw_uid);
 				/* note home directory */
   if (home) *home = cpystr (pw->pw_dir);

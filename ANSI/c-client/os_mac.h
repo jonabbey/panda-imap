@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	29 May 1994
+ * Last Edited:	10 August 1995
  *
- * Copyright 1994 by Mark Crispin
+ * Copyright 1995 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -64,6 +64,5 @@ extern short resolveropen;	/* make this global so caller can sniff */
 
 #define gethostid clock
 
-pascal void tcp_dns_result (struct hostInfo *hostInfoPtr,char *userDataPtr);
 long wait (void);
 long random (void);

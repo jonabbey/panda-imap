@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1994
- * Last Edited:	6 October 1994
+ * Last Edited:	14 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,7 +41,7 @@
 #include "mail.h"
 #include "osdep.h"
 #include <time.h>
-#include <sys\stat.h>
+#include <sys/stat.h>
 #include <dos.h>
 #include <io.h>
 #include "bezrkdos.h"
@@ -939,12 +939,13 @@ long bezrkdos_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   long j,n,ok = T;
   time_t t = time (0);
   long sz = SIZE (message);
-  long size;
+  long size = 0;
   short f = bezrkdos_getflags (stream,flags);
   if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
     if (!mail_parse_date (&elt,date)) {
-      mm_log ("Bad date in append",ERROR);
+      sprintf (tmp,"Bad date in append: %s",date);
+      mm_log (tmp,ERROR);
       return NIL;
     }
   }
@@ -1057,9 +1058,10 @@ void bezrkdos_gc (MAILSTREAM *stream,long gcflags)
 
 unsigned long bezrkdos_size (MAILSTREAM *stream,long m)
 {
+  unsigned long end = (m < stream->nmsgs) ?
+    mail_elt (stream,m+1)->data1 : LOCAL->filesize;
   MESSAGECACHE *elt = mail_elt (stream,m);
-  return ((m < stream->nmsgs) ? mail_elt (stream,m+1)->data1 : LOCAL->filesize)
-    - (elt->data1 + (elt->data2 >> 24));
+  return end - (elt->data1 + (elt->data2 >> 24));
 }
 
 

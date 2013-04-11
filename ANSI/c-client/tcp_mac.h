@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	23 December 1993
+ * Last Edited:	5 September 1995
  *
- * Copyright 1993 by Mark Crispin
+ * Copyright 1995 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,9 +40,13 @@
 #define TCPSTREAM struct tcp_stream
 TCPSTREAM {
   char *host;			/* host name */
+  long port;			/* port number */
   char *localhost;		/* local host name */
   struct TCPiopb pb;		/* MacTCP parameter block */
   long ictr;			/* input counter */
   char *iptr;			/* input pointer */
   char ibuf[BUFLEN];		/* input buffer */
 };
+
+extern ResultUPP tcp_dns_upp;
+pascal void tcp_dns_result (struct hostInfo *hostInfoPtr,char *userDataPtr);

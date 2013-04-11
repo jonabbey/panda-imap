@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	22 January 1996
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -57,6 +57,8 @@
 #define rfc822_parse_content_header rpcnth
 #define rfc822_parse_adrlist rpadrl
 #define rfc822_parse_address rpaddr
+#define rfc822_parse_group rpgrop
+#define rfc822_parse_mailbox rpmlbx
 #define rfc822_parse_routeaddr rpradr
 #define rfc822_parse_addrspec rpaspc
 #define rfc822_parse_phrase rpphra
@@ -65,9 +67,11 @@
 #define rfc822_quote rquot
 #define rfc822_cpy_adr rcpyad
 #define rfc822_skipws rskpws
+#define rfc822_skip_comment rskpcm
 #define rfc822_contents rcntnt
 #define rfc822_output routpt
-#define rfc822_encode_body renbdy
+#define rfc822_encode_body_7bit renbd7
+#define rfc822_encode_body_8bit renbd8
 #define rfc822_base64 rbas64
 #define rfc822_binary rbinry
 #define rfc822_qprint rqprnt
@@ -89,6 +93,8 @@ void rfc822_parse_content  ();
 void rfc822_parse_content_header  ();
 void rfc822_parse_adrlist  ();
 ADDRESS *rfc822_parse_address  ();
+ADDRESS *rfc822_parse_group  ();
+ADDRESS *rfc822_parse_mailbox  ();
 ADDRESS *rfc822_parse_routeaddr  ();
 ADDRESS *rfc822_parse_addrspec  ();
 char *rfc822_parse_phrase  ();
@@ -97,14 +103,17 @@ char *rfc822_cpy  ();
 char *rfc822_quote  ();
 ADDRESS *rfc822_cpy_adr  ();
 void rfc822_skipws  ();
+char *rfc822_skip_comment  ();
 char *rfc822_contents  ();
 
 #ifndef TCPSTREAM
 #define TCPSTREAM void
 #endif
 typedef long (*soutr_t)  ();
+typedef long (*rfc822emit_t) ();
 long rfc822_output  ();
-void rfc822_encode_body  ();
+void rfc822_encode_body_7bit  ();
+void rfc822_encode_body_8bit  ();
 long rfc822_output_body  ();
 void *rfc822_base64  ();
 unsigned char *rfc822_binary  ();

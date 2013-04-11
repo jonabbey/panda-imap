@@ -1,13 +1,13 @@
 /*
- * Program:	VMS TCP/IP routines for Multinet.
+ * Program:	VMS TCP/IP routines for Multinet
  *
  * Author:	Yehavi Bourvine, The Hebrew University of Jerusalem
  *		Internet: Yehavi@VMS.huji.ac.il
  *
  * Date:	2 August 1994
- * Last Edited:	7 September 1994
+ * Last Edited:	8 September 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -155,6 +155,7 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
   stream->localhost = cpystr ((host_name = gethostbyname (tmp)) ?
 			      host_name->h_name : tmp);
 				/* init sockets */
+  stream->port = port;		/* port number */
   stream->tcpsi = stream->tcpso = sock;
   stream->ictr = 0;		/* init input counter */
   return stream;		/* return success */
@@ -163,10 +164,11 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
 /* TCP/IP authenticated open
  * Accepts: host name
  *	    service name
+ *	    returned user name
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_aopen (char *host,char *service)
+TCPSTREAM *tcp_aopen (char *host,char *service,char *usrnam)
 {
 	return NIL;
 }
@@ -358,8 +360,7 @@ long tcp_abort (TCPSTREAM *stream)
   }
   return NIL;
 }
-
-
+
 /* TCP/IP get host name
  * Accepts: TCP/IP stream
  * Returns: host name for this stream
@@ -368,6 +369,17 @@ long tcp_abort (TCPSTREAM *stream)
 char *tcp_host (TCPSTREAM *stream)
 {
   return stream->host;		/* return host name */
+}
+
+
+/* TCP/IP return port for this stream
+ * Accepts: TCP/IP stream
+ * Returns: port number for this stream
+ */
+
+long tcp_port (TCPSTREAM *stream)
+{
+  return stream->port;		/* return port number */
 }
 
 

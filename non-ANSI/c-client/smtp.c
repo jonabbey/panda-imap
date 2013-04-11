@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	26 June 1994
+ * Last Edited:	31 January 1996
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -56,31 +56,29 @@ long smtp_port = 0;		/* default port override */
 
 /* Mail Transfer Protocol open connection
  * Accepts: service host list
- *	    initial debugging flag
+ *	    SMTP open options
  * Returns: T on success, NIL on failure
  */
 
-SMTPSTREAM *smtp_open (hostlist,debug)
+SMTPSTREAM *smtp_open (hostlist,options)
 	char **hostlist;
-	long debug;
+	long options;
 {
   SMTPSTREAM *stream = NIL;
+  char *s,tmp[MAILTMPLEN];
   void *tcpstream;
-  char tmp[MAILTMPLEN];
   if (!(hostlist && *hostlist)) mm_log ("Missing MTP service host",ERROR);
   else do {			/* try to open connection */
-    if (tcpstream = smtp_port ? tcp_open (*hostlist,NIL,smtp_port) :
-	tcp_open (*hostlist,"smtp",SMTPTCPPORT)) {
+    if (smtp_port) sprintf (s = tmp,"%s:%ld",*hostlist,smtp_port);
+    else s = *hostlist;		/* get server name */
+    if (tcpstream = tcp_open (s,"smtp",SMTPTCPPORT)) {
       stream = (SMTPSTREAM *) fs_get (sizeof (SMTPSTREAM));
       stream->tcpstream = tcpstream;
-      stream->debug = debug;
-      stream->reply = NIL;
-				/* get SMTP greeting */
-      if (smtp_reply (stream) == SMTPGREET &&
-	  ((smtp_send (stream,"HELO",tcp_localhost (tcpstream)) == SMTPOK) ||
-	   ((!strcmp ("localhost",lcase (strcpy (tmp,*hostlist)))) &&
-	    (smtp_send (stream,"HELO","localhost") == SMTPOK))))
-	return stream;		/* success return */
+      if(smtp_greeting (stream,
+		     strcmp ("localhost",(char*)lcase(strcpy(tmp,*hostlist)))
+			      ? tcp_localhost (tcpstream) : "localhost",
+		     options))
+	return stream;
       smtp_close (stream);	/* otherwise punt stream */
     }
   } while (*++hostlist);	/* try next server */
@@ -88,6 +86,33 @@ SMTPSTREAM *smtp_open (hostlist,debug)
 }
 
 
+/* Mail Transfer Protocol salutation
+ * Accepts: local host name
+ *	    SMTP open options
+ * Returns: T on success, NIL on failure
+ */
+long smtp_greeting (stream,lhost,options)
+        SMTPSTREAM *stream;
+	char *lhost;
+	long options;
+{
+  stream->size = 0;		/* size limit */
+  stream->debug = (options & SOP_DEBUG) ? T : NIL;
+  stream->esmtp = (options & SOP_ESMTP) ? T : NIL;
+  stream->ok_send = stream->ok_soml = stream->ok_saml = stream->ok_expn =
+    stream->ok_help = stream->ok_turn = stream->ok_size =
+      stream->ok_8bitmime = NIL;
+  stream->reply = NIL;
+				/* get SMTP greeting */
+  if (smtp_reply (stream) == SMTPGREET) {
+    if ((stream->ehlo = stream->esmtp) &&
+	(smtp_send (stream,"EHLO",lhost) == SMTPOK)) return T;
+				/* try ordinary SMTP then */
+    stream->ehlo = stream->esmtp = NIL;
+    if (smtp_send (stream,"HELO",lhost) == SMTPOK) return T;
+  }
+  return NIL;
+}
 /* Mail Transfer Protocol close connection
  * Accepts: stream
  * Returns: NIL always
@@ -99,7 +124,7 @@ SMTPSTREAM *smtp_close (stream)
   if (stream) {			/* send "QUIT" */
     smtp_send (stream,"QUIT",NIL);
 				/* close TCP connection */
-    tcp_close (stream->tcpstream);
+    (* (postclose_t) mail_parameters (NIL,GET_POSTCLOSE,NIL)) (stream->tcpstream);
     if (stream->reply) fs_give ((void **) &stream->reply);
     fs_give ((void **) &stream);/* flush the stream */
   }
@@ -122,6 +147,7 @@ long smtp_mail (stream,type,env,body)
 {
   char tmp[8*MAILTMPLEN];
   long error = NIL;
+  rfc822emit_t f;
   if (!(env->to || env->cc || env->bcc)) {
   				/* no recipients in request */
     smtp_fake (stream,SMTPHARDERROR,"No recipients specified");
@@ -132,6 +158,7 @@ long smtp_mail (stream,type,env,body)
   strcpy (tmp,"FROM:<");	/* compose "MAIL FROM:<return-path>" */
   rfc822_address (tmp,env->return_path);
   strcat (tmp,">");
+  if (stream->ok_8bitmime) strcat (tmp," BODY=8BITMIME");
 				/* send "MAIL FROM" command */
   if (!(smtp_send (stream,type,tmp) == SMTPOK)) return NIL;
 				/* negotiate the recipients */
@@ -148,8 +175,14 @@ long smtp_mail (stream,type,env,body)
   if (!(smtp_send (stream,"DATA",NIL) == SMTPREADY)) return NIL;
 				/* set up error in case failure */
   smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection went away!");
+				/* if output's via a known routine */
+  if((f = mail_parameters (NIL,GET_RFC822OUTPUT,NIL)) == (rfc822emit_t) rfc822_output){
+				/* encode body as necessary */
+      if (stream->ok_8bitmime) rfc822_encode_body_8bit (env,body);
+      else rfc822_encode_body_7bit (env,body);
+  }
 				/* output data, return success status */
-  return rfc822_output (tmp,env,body,smtp_soutr,stream->tcpstream) &&
+  return (*f) (tmp,env,body,smtp_soutr,stream->tcpstream) &&
     (smtp_send (stream,".",NIL) == SMTPOK);
 }
 
@@ -225,8 +258,10 @@ long smtp_send (stream,command,args)
   if (stream->debug) mm_dlog (tmp);
   strcat (tmp,"\015\012");
 				/* send the command */
-  return tcp_soutr (stream->tcpstream,tmp) ? smtp_reply (stream) :
-    smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection went away!");
+  return (*(postsoutr_t) mail_parameters (NIL,GET_POSTSOUTR,NIL))
+							(stream->tcpstream,tmp)
+	   ? smtp_reply (stream)
+	   : smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection went away!");
 }
 
 /* Simple Mail Transfer Protocol get reply
@@ -237,17 +272,56 @@ long smtp_send (stream,command,args)
 long smtp_reply (stream)
 	SMTPSTREAM *stream;
 {
+  unsigned long i,j;
+  postgetline_t getline = mail_parameters (NIL,GET_POSTGETLINE,NIL);
+  postverbose_t pv;
 				/* flush old reply */
   if (stream->reply) fs_give ((void **) &stream->reply);
   				/* get reply */
-  if (!(stream->reply = tcp_getline (stream->tcpstream)))
+  if (!(stream->reply = (*getline) (stream->tcpstream)))
     return smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection went away!");
   if (stream->debug) mm_dlog (stream->reply);
+				/* got an OK reply? */
+  if (((i = atoi (stream->reply)) == SMTPOK) && stream->ehlo) {
+    char tmp[MAILTMPLEN];	/* yes, make uppercase copy of response text */
+    ucase (strcpy (tmp,stream->reply+4));
+				/* command name */
+    j = (((long) tmp[0]) << 24) + (((long) tmp[1]) << 16) +
+      (((long) tmp[2]) << 8) + tmp[3];
+				/* defined by SMTP 8bit-MIMEtransport */
+    if (j == (('8' << 24) + ('B' << 16) + ('I' << 8) + 'T') &&
+	tmp[4] == 'M' && tmp[5] == 'I' && tmp[6] == 'M' && tmp[7] == 'E' &&
+	!tmp[8]) stream->ok_8bitmime = T;
+				/* defined by SMTP Size Declaration */
+    else if (j == (('S' << 24) + ('I' << 16) + ('Z' << 8) + 'E') &&
+	     (!tmp[4] || tmp[4] == ' ')) {
+      if (tmp[4]) stream->size = atoi (tmp+5);
+      stream->ok_size = T;
+    }
+				/* defined by SMTP Service Extensions */
+    else if (j == (('S' << 24) + ('E' << 16) + ('N' << 8) + 'D') && !tmp[4])
+      stream->ok_send = T;
+    else if (j == (('S' << 24) + ('O' << 16) + ('M' << 8) + 'L') && !tmp[4])
+      stream->ok_soml = T;
+    else if (j == (('S' << 24) + ('A' << 16) + ('M' << 8) + 'L') && !tmp[4])
+      stream->ok_saml = T;
+    else if (j == (('E' << 24) + ('X' << 16) + ('P' << 8) + 'N') && !tmp[4])
+      stream->ok_expn = T;
+    else if (j == (('H' << 24) + ('E' << 16) + ('L' << 8) + 'P') && !tmp[4])
+      stream->ok_help = T;
+    else if (j == (('T' << 24) + ('U' << 16) + ('R' << 8) + 'N') && !tmp[4])
+      stream->ok_turn = T;
+  }
+  else if (i < 100 && (pv = mail_parameters (NIL,GET_POSTVERBOSE,NIL))){
+    (*pv) (stream->reply);
+    return smtp_reply(stream);
+  }
 				/* handle continuation by recursion */
-  return (stream->reply[3]=='-') ? smtp_reply (stream) : atoi (stream->reply);
+  if (stream->reply[3]=='-') return smtp_reply (stream);
+  stream->ehlo = NIL;		/* not doing EHLO any more */
+  return i;			/* return the response code */
 }
-
-
+
 /* Simple Mail Transfer Protocol set fake error
  * Accepts: SMTP stream
  *	    SMTP error code
@@ -267,7 +341,8 @@ long smtp_fake (stream,code,text)
   sprintf (stream->reply,"%ld %s",code,text);
   return code;			/* return error code */
 }
-
+
+
 /* Simple Mail Transfer Protocol filter mail
  * Accepts: stream
  *	    string
@@ -279,17 +354,18 @@ long smtp_soutr (stream,s)
 	char *s;
 {
   char c,*t;
+  postsoutr_t soutr = mail_parameters (NIL, GET_POSTSOUTR, 0);
 				/* "." on first line */
-  if (s[0] == '.') tcp_soutr (stream,".");
+  if (s[0] == '.') (*soutr) (stream,".");
 				/* find lines beginning with a "." */
   while (t = strstr (s,"\015\012.")) {
     c = *(t += 3);		/* remember next character after "." */
     *t = '\0';			/* tie off string */
 				/* output prefix */
-    if (!tcp_soutr (stream,s)) return NIL;
+    if (!(*soutr) (stream,s)) return NIL;
     *t = c;			/* restore delimiter */
     s = t - 1;			/* push pointer up to the "." */
   }
 				/* output remainder of text */
-  return *s ? tcp_soutr (stream,s) : T;
+  return *s ? (*soutr) (stream,s) : T;
 }

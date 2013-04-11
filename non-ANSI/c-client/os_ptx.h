@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	14 September 1994
+ * Last Edited:	7 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,17 +33,12 @@
  *
  */
 
-#define MAILFILE "/usr/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
-#define NFSKLUDGE
-
 #include <string.h>
 
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <stdlib.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
 #include <sys/utime.h>
@@ -51,6 +46,7 @@
 #include <sys/uio.h>		/* needed for writev() prototypes */
 #include <stropts.h>		/* needed in daemons */
 #include <syslog.h>
+#include <sys/file.h>
 
 
 /* Different names, equivalent things in BSD and SysV */
@@ -62,20 +58,16 @@
 #define direct dirent
 #define random lrand48
 
+
 /* For flock() emulation */
+
+#define flock bsd_flock
 
 #define LOCK_SH 1
 #define LOCK_EX 2
 #define LOCK_NB 4
 #define LOCK_UN 8
 
-
-/* For gettimeofday() emulation */
-
-struct timezone {
-  int tz_minuteswest;		/* of Greenwich */
-  int tz_dsttime;		/* type of dst correction to apply */
-};
 
 #include "env_unix.h"
 #include "fs.h"
@@ -84,6 +76,7 @@ struct timezone {
 #include "tcp.h"
 
 long gethostid ();
+typedef int (*select_t) ();
+typedef int (*compar_t) ();
 int scandir ();
-int flock ();
-int gettimeofday ();
+int bsd_flock ();

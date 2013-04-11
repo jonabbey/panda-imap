@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 September 1994
+ * Last Edited:	8 September 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -53,5 +53,6 @@ long tcp_soutr  ();
 long tcp_sout  ();
 void tcp_close  ();
 char *tcp_host  ();
+long tcp_port  ();
 char *tcp_localhost  ();
 char *tcp_clienthost  ();

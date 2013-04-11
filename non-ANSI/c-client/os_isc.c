@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	4 September 1994
+ * Last Edited:	9 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,10 +36,10 @@
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
 #include "osdep.h"
+#undef flock
 #include <ctype.h>
 #include <stdio.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <sys/tiuser.h>
 #include <sys/stropts.h>
 #include <sys/poll.h>
@@ -49,7 +49,6 @@
 #include <errno.h>
 #include <pwd.h>
 #include <shadow.h>
-#include <sys/file.h>
 #include <sys/socket.h>
 #include "misc.h"
 
@@ -72,18 +71,6 @@ extern char *sys_errlist[];
 #include "gr_waitp.c"
 #include "strerror.c"
 #include "flock.c"
-#include "gettime.c"
 #include "scandir.c"
 #include "tz_sv4.c"
-
-/* Emulator for BSD fsync() call
- * Accepts: file name
- * Returns: 0 if successful, -1 if failure
- */
-
-int fsync (fd)
-	int fd;
-{
-  sync ();
-  return 0;
-}
+#include "fsync.c"

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	14 September 1994
+ * Last Edited:	7 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,10 +33,6 @@
  *
  */
 
-#define MAILFILE "/usr/mail/%s"
-#define ACTIVEFILE "/usr/spool/news/active"
-#define NEWSSPOOL "/var/spool/news"
-
 #include <string.h>
 #include <sys/types.h>
 #include <sys/bsdtypes.h>
@@ -47,6 +43,7 @@
 #include <time.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
 #include <syslog.h>
+#include <sys/file.h>
 
 
 /* Different names, equivalent things in BSD and SysV */
@@ -66,6 +63,8 @@
 
 /* For flock() emulation */
 
+#define flock bsd_flock
+
 #define LOCK_SH 1
 #define LOCK_EX 2
 #define LOCK_NB 4
@@ -80,6 +79,7 @@
 
 long gethostid ();
 void *memmove ();
+typedef int (*select_t) ();
+typedef int (*compar_t) ();
 int scandir ();
-int flock ();
-int gettimeofday ();
+int bsd_flock ();

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 September 1994
- * Last Edited:	8 October 1994
+ * Last Edited:	14 June 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -87,7 +87,7 @@ static FILE *newsrc_create (notify)
 	int notify;
 {
   char *newsrc = (char *) mail_parameters (NIL,GET_NEWSRC,NIL);
-  FILE *f = fopen (newsrc,"w");
+  FILE *f = fopen (newsrc,"wb");
   if (!f) newsrc_error ("Unable to create news state %s",newsrc,ERROR);
   else if (notify) newsrc_error ("Creating news state %s",newsrc,WARN);
   return f;
@@ -134,9 +134,9 @@ static long newsrc_newmessages (f,stream,number,nl)
 				/* deleted message? */
     if (mail_elt (stream,i+1)->deleted) {
       k = number[i];		/* this is the top of the current range */
-      if (j == 0) j = k;	/* if no range in progress, start one */
+      if (!j) j = k;		/* if no range in progress, start one */
     }
-    else if (j != 0) {		/* unread message, ending a range */
+    else if (j) {		/* unread message, ending a range */
       if (k = number[i] - 1) {	/* calculate end of range */
 				/* dump range */
 	sprintf (tmp,(j == k) ? "%c%ld" : "%c%ld-%ld",c,j,k);
@@ -150,7 +150,8 @@ static long newsrc_newmessages (f,stream,number,nl)
     sprintf (tmp,(j == k) ? "%c%ld" : "%c%ld-%ld",c,j,k);
     if (fputs (tmp,f) == EOF) return NIL;
   }
-  return LONGT;
+				/* write trailing newline, return */
+  return (fputs (nl,f) == EOF) ? NIL : LONGT;
 }
 
 /* Find list of newsgroups
@@ -171,7 +172,7 @@ void newsrc_find (pat)
       grp = tmp + (s + 1 - pat); /* where we write the bboards */
     }
     while (c != EOF) {		/* yes, read newsrc */
-      for (s = grp; (s < tmp + MAILTMPLEN) && ((c = getc (f)) != EOF) &&
+      for (s = grp; (s < (tmp + MAILTMPLEN - 1)) && ((c = getc (f)) != EOF) &&
 	   (c != ':') && (c != '!') && (c != '\015') && (c != '\012');
 	   *s++ = c);
       if (c == ':') {		/* found a subscribed newsgroup? */
@@ -205,7 +206,7 @@ long newsrc_update (group,state)
     long pos = 0;
     nl[0] = nl[1] = nl[2]='\0';	/* no newline known yet */
     do {			/* read newsrc */
-      for (s = tmp; (s < tmp + MAILTMPLEN) && ((c = getc (f)) != EOF) &&
+      for (s = tmp; (s < (tmp + MAILTMPLEN - 1)) && ((c = getc (f)) != EOF) &&
 	   (c != ':') && (c != '!') && (c != '\015') && (c != '\012');
 	   *s++ = c) pos = ftell (f);
       *s = '\0';		/* tie off name */
@@ -216,8 +217,8 @@ long newsrc_update (group,state)
 	  ret = LONGT;		/* noop the update */
 	}
 				/* write the character */
-	else if (!fseek (f,pos,0)) ret = ((putc (state,f))==EOF) ? NIL:LONGT;
-	fclose (f);
+	else if (!fseek (f,pos,0)) ret = ((putc (state,f)) == EOF) ? NIL:LONGT;
+	if (fclose (f) == EOF) ret = NIL;
 	f = NIL;		/* done with file */
 	break;
       }
@@ -269,15 +270,16 @@ long newsrc_read (group,stream,number)
   long m = 0,recent = 0,unseen = 0;
   FILE *f = fopen ((char *) mail_parameters (NIL,GET_NEWSRC,NIL),"rb");
   if (f) do {			/* read newsrc */
-    for (s = tmp; (s < tmp + MAILTMPLEN) && ((c = getc (f)) != EOF) &&
+    for (s = tmp; (s < (tmp + MAILTMPLEN - 1)) && ((c = getc (f)) != EOF) &&
 	 (c != ':') && (c != '!') && (c != '\015') && (c != '\012'); *s++ = c);
+    *s = '\0';			/* tie off name */
     if ((c==':') || (c=='!')) {	/* found newsgroup? */
-      *s = '\0';		/* yes, tie off name */
-      if (!strcmp (tmp,group)) {/* group name match? */
-				/* skip leading whitespace */
+      if (strcmp (tmp,group))	/* group name match? */
+	while ((c != '\015') && (c != '\012') && (c != EOF)) c = getc (f);
+      else {			/* yes, skip leading whitespace */
 	while ((c = getc (f)) == ' ');
 				/* only if unprocessed messages */
-	while (f && (m < stream->nmsgs)) {
+	if (stream->nmsgs) while (f && (m < stream->nmsgs)) {
 				/* collect a number */
 	  for (i = 0,j = 0; isdigit (c); c = getc (f)) i = i*10 + (c-'0');
 	  if (i) {		/* better have a number */
@@ -313,11 +315,17 @@ long newsrc_read (group,stream,number)
 	    break;
 	  }
 	}
+	else {			/* empty newsgroup */
+	  while ((c != '\015') && (c != '\012') && (c != EOF)) c = getc (f);
+	  fclose (f);		/* all done - close the file */
+	  f = NIL;
+	}
       }
     }
   } while (f && (c != EOF));	/* until file closed or EOF */
   if (f) {			/* still have file open? */
-    mm_log ("No state for newsgroup found, reading as new",WARN);
+    sprintf (tmp,"No state for newsgroup %s found, reading as new",group);
+    mm_log (tmp,WARN);
     fclose (f);			/* close the file */
   }
   while (m < stream->nmsgs){	/* mark all remaining messages as new */
@@ -326,7 +334,7 @@ long newsrc_read (group,stream,number)
     ++recent;			/* count another recent message */
   }
   if (unseen) {			/* report first unseen message */
-    sprintf (tmp,"[UNSEEN] %ld is first unseen message",unseen);
+    sprintf (tmp,"[UNSEEN] %ld is first unseen message in %s",unseen,group);
     mm_notify (stream,tmp,(long) NIL);
   }
   return recent;
@@ -350,8 +358,10 @@ long newsrc_write (group,stream,number)
   FILE *f,*bf;
   nl[0] = nl[1] = nl[2] = '\0';	/* no newline known yet */
   if (f = fopen (newsrc,"rb")) {/* have existing newsrc file? */
-    if (!(bf = fopen ((strcat (strcpy (backup,newsrc),".old")),"wb")))
+    if (!(bf = fopen ((strcat (strcpy (backup,newsrc),".old")),"wb"))) {
+      fclose (f);		/* punt input file */
       return newsrc_error ("Can't create backup news state %s",backup,ERROR);
+    }
 				/* copy to backup file */
     while ((c = getc (f)) != EOF) {
 				/* need to know about newlines and found it? */
@@ -361,14 +371,17 @@ long newsrc_write (group,stream,number)
 	ungetc (c,f);		/* push it back */
       }
 				/* write to backup file */
-      if ((d = putc (c,bf)) == EOF)
+      if ((d = putc (c,bf)) == EOF) {
+	fclose (f);		/* punt input file */
 	return newsrc_error("Error writing backup news state %s",newsrc,ERROR);
+      }
     }
-    fclose (bf);		/* close backup file */
-    fclose (f);			/* and existing file */
+    fclose (f);			/* close existing file */
+    if (fclose (bf) == EOF)	/* and backup file */
+      return newsrc_error ("Error closing backup news state %s",newsrc,ERROR);
     if (d == EOF) {		/* open for write if empty file */
       if (f = newsrc_create (NIL)) bf = NIL;
-      else return;		/* can't rewrite? */
+      else return NIL;
     }
     else if (!nl[0])		/* make sure newlines valid */
       return newsrc_error ("Unknown newline convention in %s",newsrc,ERROR);
@@ -383,53 +396,55 @@ long newsrc_write (group,stream,number)
   }
   else {			/* create new newsrc file */
     if (f = newsrc_create (T)) bf = NIL;
-    else return;		/* can't create newsrc */
+    else return NIL;		/* can't create newsrc */
   }
 
   while (bf) {			/* read newsrc */
-    for (s = tmp; (s < tmp + MAILTMPLEN) && ((c = getc (bf)) != EOF) &&
+    for (s = tmp; (s < (tmp + MAILTMPLEN - 1)) && ((c = getc (bf)) != EOF) &&
 	 (c != ':') && (c != '!') && (c != '\015') && (c != '\012'); *s++ = c);
     *s = '\0';			/* tie off name */
-    if ((tmp[0] && (fputs (tmp,f) == EOF)) || ((putc (c,f)) == EOF))
-      return newsrc_write_error (newsrc,bf,f);
-				/* found correct group? */
-    if (((c == ':') || (c == '!')) && !strcmp (tmp,group)) {
-				/* yes, write new status */
-      if (!newsrc_newmessages (f,stream,number,nl[0] ? nl : "\n"))
+				/* saw correct end of group delimiter? */
+    if (tmp[0] && ((c == ':') || (c == '!'))) {
+				/* yes, write newsgroup name and delimiter */
+      if ((tmp[0] && (fputs (tmp,f) == EOF)) || ((putc (c,f)) == EOF))
 	return newsrc_write_error (newsrc,bf,f);
+      if (!strcmp (tmp,group)) {/* found correct group? */
+				/* yes, write new status */
+	if (!newsrc_newmessages (f,stream,number,nl[0] ? nl : "\n"))
+	  return newsrc_write_error (newsrc,bf,f);
 				/* skip past old data */
-      while (((c = getc (bf)) != EOF) && (c != '\015') && (c != '\012'));
+	while (((c = getc (bf)) != EOF) && (c != '\015') && (c != '\012'));
 				/* skip past newline */
-      while ((c != EOF) && (c == '\015') && (c == '\012')) c = getc (bf);
-      while (c != EOF) {	/* copy remainder of file */
-	if (putc (c,f) == EOF) return newsrc_write_error (newsrc,bf,f);
-	c = getc (bf);		/* get next character */
+	while ((c == '\015') || (c == '\012')) c = getc (bf);
+	while (c != EOF) {	/* copy remainder of file */
+	  if (putc (c,f) == EOF) return newsrc_write_error (newsrc,bf,f);
+	  c = getc (bf);	/* get next character */
+	}
+				/* done with file */
+	if (fclose (f) == EOF) return newsrc_write_error (newsrc,bf,f);
+	f = NIL;
       }
-      fclose (f);		/* done with file */
-      f = NIL;
-    }
 				/* copy remainder of line */
-    else while (((c = getc (bf)) != EOF) && (c != '\015') && (c != '\012'))
-      if (putc (c,f) == EOF) return newsrc_write_error (newsrc,bf,f);
-    if (c == '\015') {		/* write CR if seen */
-      if (putc (c,f) == EOF) return newsrc_write_error (newsrc,bf,f);
+      else while (((c = getc (bf)) != EOF) && (c != '\015') && (c != '\012'))
+	if (putc (c,f) == EOF) return newsrc_write_error (newsrc,bf,f);
+      if (c == '\015') {	/* write CR if seen */
+	if (putc (c,f) == EOF) return newsrc_write_error (newsrc,bf,f);
 				/* sniff to see if LF */
-      if (((c = getc (bf)) != EOF) && (c != '\012')) ungetc (c,bf);
-    }
+	if (((c = getc (bf)) != EOF) && (c != '\012')) ungetc (c,bf);
+      }
 				/* write LF if seen */
-    if ((c == '\012') && (putc (c,f) == EOF))
-      return newsrc_write_error (newsrc,bf,f);
+      if ((c == '\012') && (putc (c,f) == EOF))
+	return newsrc_write_error (newsrc,bf,f);
+    }
     if (c == EOF) {		/* hit end of file? */
       fclose (bf);		/* yup, close the file */
       bf = NIL;
     }
   }
   if (f) {			/* still have newsrc file open? */
-    if ((fputs (group,f) == EOF) || ((putc (':',f)) == EOF))
-      return newsrc_write_error (newsrc,bf,f);
-    if (!newsrc_newmessages (f,stream,number,nl[0] ? nl : "\n"))
-      return newsrc_write_error (newsrc,bf,f);
-    fclose (f);			/* all done with newsrc file */
+    if ((fputs (group,f) == EOF) || ((putc (':',f)) == EOF) ||
+	(!newsrc_newmessages (f,stream,number,nl[0] ? nl : "\n")) ||
+	(fclose (f) == EOF)) return newsrc_write_error (newsrc,bf,f);
   }
   return LONGT;
 }

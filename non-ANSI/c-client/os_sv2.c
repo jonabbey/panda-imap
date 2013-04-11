@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	31 August 1994
+ * Last Edited:	7 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,10 +36,10 @@
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
 #include "osdep.h"
+#undef flock
 #include <ctype.h>
 #include <stdio.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -47,7 +47,6 @@
 extern int errno;
 #include <pwd.h>
 #include <grp.h>
-#include <sys/file.h>
 #include <sys/socket.h>
 #include <time.h>
 #define KERNEL
@@ -59,11 +58,6 @@ extern int errno;
 
 extern int sys_nerr;
 extern char *sys_errlist[];
-void *malloc ();
-void *realloc ();
-void syslog ();
-struct group *getgrent ();
-char *getenv ();
 
 #define toint(c)	((c)-'0')
 #define isodigit(c)	(((unsigned)(c)>=060)&((unsigned)(c)<=067))
@@ -87,7 +81,10 @@ typedef	struct fd_set {
 #define	FD_ISSET(n, p)	((p)->fds_bits[(n)/NFDBITS] & \
 					(1 << ((n) % NFDBITS)))
 #define FD_ZERO(p)	bzero((char *)(p), sizeof(*(p)))
-
+
+#define initgroups(a,b)		/* do nothing */
+
+
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
@@ -96,59 +93,18 @@ typedef	struct fd_set {
 #include "log_std.c"
 #include "gr_wait.c"
 #include "flock.c"
-#include "gettime.c"
 #include "opendir.c"
 #include "scandir.c"
 #include "memmove2.c"
 #include "strstr.c"
 #include "strerror.c"
-#include "ingroups.c"
+#include "strtoul.c"
 #include "tz_sv4.c"
-
-/* Emulator for BSD gethostid() call
- * Returns: unique identifier for this machine
- */
-
-unsigned long gethostid ()
-{
-  return (unsigned long) 0xdeadface;
-}
-
-
-/* Emulator for BSD writev() call
- * Accepts: file name
- *	    I/O vector structure
- *	    Number of vectors in structure
- * Returns: 0 if successful, -1 if failure
- */
-
-int writev (fd,iov,iovcnt)
-	int fd;
-	struct iovec *iov;
-	int iovcnt;
-{
-  int c,cnt;
-  if (iovcnt <= 0) return (-1);
-  for (cnt = 0; iovcnt != 0; iovcnt--, iov++) {
-    c = write (fd,iov->iov_base,iov->iov_len);
-    if (c < 0) return -1;
-    cnt += c;
-  }
-  return cnt;
-}
-
-
-/* Emulator for BSD fsync() call
- * Accepts: file name
- * Returns: 0 if successful, -1 if failure
- */
-
-int fsync (fd)
-	int fd;
-{
-  sync ();
-  return 0;
-}
+#include "gethstid.c"
+#include "fsync.c"
+#undef setpgrp
+#include "setpgrp.c"
+#include "writevs.c"
 
 /* Emulator for BSD syslog() routine
  * Accepts: priority
@@ -156,25 +112,27 @@ int fsync (fd)
  *	    parameters
  */
 
-void syslog (priority,message,parameters)
-	int priority;
-	char *message;
-	char *parameters;
+int syslog (priority,message,parameters)
+     int priority;
+     char *message;
+     char *parameters;
 {
   /* nothing here for now */
 }
 
 
-/* Emulator for BSD setgroups() routine
- * Accepts: number of groups
- *          group matrix
+/* Emulator for BSD openlog() routine
+ * Accepts: identity
+ *	    options
+ *	    facility
  */
 
-int setgroups (n,grps)
-	int n;
-	int grps[NGROUPS];
+int openlog (ident,logopt,facility)
+     char *ident;
+     int logopt;
+     int facility;
 {
-  return 0;			/* no-op for now */
+  /* nothing here for now */
 }
 
 
@@ -184,8 +142,8 @@ int setgroups (n,grps)
  */
 
 int ftruncate (fd,length)
-	int fd;
-	unsigned long length;
+     int fd;
+     unsigned long length;
 {
   return -1;			/* gotta figure out how to do this */
 }

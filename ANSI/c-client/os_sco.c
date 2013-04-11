@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 1994
+ * Last Edited:	9 December 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -38,12 +38,12 @@
 #include "mail.h"
 #include <stdio.h>
 #include "osdep.h"
+#undef flock
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-extern int h_errno;		/* not defined in netdb.h */
 #include <ctype.h>
 #include <errno.h>
 #include <utime.h>
@@ -53,7 +53,8 @@ extern int h_errno;		/* not defined in netdb.h */
 #include <sys/audit.h>
 #include <prot.h>
 #include <pwd.h>
-extern char *crypt();
+
+char *bigcrypt (char *key,char *salt);
 
 #define DIR_SIZE(d) d->d_reclen
 
@@ -62,91 +63,12 @@ extern char *crypt();
 #include "nl_unix.c"
 #include "env_unix.c"
 #include "tcp_unix.c"
+#include "log_sco.c"
 #include "gr_waitp.c"
 #include "memmove2.c"
 #include "flock.c"
 #include "scandir.c"
 #include "tz_sv4.c"
-
-/* Server log in
- * Accepts: user name string
- *	    password string
- *	    optional place to return home directory
- * Returns: T if password validated, NIL otherwise
- */
-
-static struct passwd *pwd = NIL;/* used by Geteuid() */
-
-long server_login (char *user,char *pass,char **home,int argc,char *argv[])
-{
-  struct pr_passwd *pw;
-  set_auth_parameters (argc,argv);
-				/* see if this user code exists */
-  if (!(pw = getprpwnam (lcase (user)))) return NIL;
-				/* Encrypt the given password string */
-  if (strcmp (pw->ufld.fd_encrypt,(char *) crypt (pass,pw->ufld.fd_encrypt)))
-    return NIL;
-  pwd = getpwnam (user);	/* all OK, get the public information */
-  setluid ((uid_t) pwd->pw_uid);/* purportedly needed */
-  setgid ((gid_t) pwd->pw_gid);	/* login in as that user */
-  setuid ((uid_t) pwd->pw_uid);
-				/* note home directory */
-  if (home) *home = cpystr (pwd->pw_dir);
-  return T;
-}
-
-/* Get host ID
- * Returns: host ID
- */
-
-unsigned long gethostid ()
-{
-  return (unsigned long) 0xdeadface;
-}
-
-
-/* Emulator for BSD writev() call
- * Accepts: file name
- *	    I/O vector structure
- *	    Number of vectors in structure
- * Returns: 0 if successful, -1 if failure
- */
-
-int writev (int fd,struct iovec *iov,int iovcnt)
-{
-  int c,cnt;
-  if (iovcnt <= 0) return (-1);
-  for (cnt = 0; iovcnt != 0; iovcnt--, iov++) {
-    c = write (fd,iov->iov_base,iov->iov_len);
-    if (c < 0) return -1;
-    cnt += c;
-  }
-  return (cnt);
-}
-
-
-/* Emulator for BSD fsync() call
- * Accepts: file name
- * Returns: 0 if successful, -1 if failure
- */
-
-int fsync (int fd)
-{
-  sync ();
-  return (0);
-}
-
-/* Emulator for geteuid()
- * I'm not quite sure why this is done; it was this way in the code Ken sent
- * me.  It only had the comment ``EUIDs don't work on SCO!''.  I think it has
- * something to do with the set_auth_parameters() stuff in server_login().
- *
- * Someone with expertise in SCO (and with an SCO system to hack) should look
- * into this and figure out what's going on.
- */
-
-int Geteuid ()
-{
-				/* if server_login called, use its UID */
-  return pwd ? (pwd->pw_uid) : getuid ();
-}
+#include "gethstid.c"
+#include "fsync.c"
+#include "writevs.c"

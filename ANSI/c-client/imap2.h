@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	28 June 1994
+ * Last Edited:	6 September 1995
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -71,6 +71,7 @@ typedef struct imap_local {
   unsigned int use_find : 1;	/* server supports FIND command */
   unsigned int use_bboard : 1;	/* server supports BBOARD command */
   unsigned int use_purge : 1;	/* server supports PURGE command */
+  char *user;			/* logged in user name */
   char *prefix;			/* find prefix */
   char tmp[IMAPTMPLEN];		/* temporary buffer */
 } IMAPLOCAL;
@@ -118,6 +119,8 @@ typedef struct imap_local {
 #define map_gc_body igcb
 
 #define imap_host imhost
+#define imap_port import
+#define imap_user imuser
 #define imap_select imsele
 #define imap_send imsend
 #define imap_soutr imsotr
@@ -192,6 +195,8 @@ void map_gc (MAILSTREAM *stream,long gcflags);
 void map_gc_body (BODY *body);
 
 char *imap_host (MAILSTREAM *stream);
+long imap_port (MAILSTREAM *stream);
+char *imap_user (MAILSTREAM *stream);
 IMAPPARSEDREPLY *imap_send (MAILSTREAM *stream,char *cmd,char *a1,char *a2,
 			    char *a3,char *a4,char *a5,STRING *a6);
 IMAPPARSEDREPLY *imap_soutr (MAILSTREAM *stream,char *tag,char *string);

@@ -9,9 +9,9 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	30 August 1994
+ * Last Edited:	13 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -32,9 +32,6 @@
  *
  */
 
-#define isodigit(c)    (((unsigned)(c)>=060)&((unsigned)(c)<=067))
-#define toint(c)       ((c)-'0')
-
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
 #include "osdep.h"
@@ -52,14 +49,24 @@ extern int errno;		/* just in case */
 #include "misc.h"
 
 
+#define isodigit(c)    (((unsigned)(c)>=060)&((unsigned)(c)<=067))
+#define toint(c)       ((c)-'0')
+
+extern int sys_nerr;
+extern char *sys_errlist[];
+
+
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
 #include "env_unix.c"
+#define fork vfork
 #include "tcp_unix.c"
 #include "log_std.c"
 #include "gr_wait.c"
+#include "memmove.c"
 #include "strerror.c"
 #include "strstr.c"
 #include "strtol.c"
+#include "strtoul.c"
 #include "tz_bsd.c"

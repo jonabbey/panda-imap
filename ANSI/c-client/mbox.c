@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	6 September 1994
+ * Last Edited:	12 April 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -97,28 +97,10 @@ MAILSTREAM mboxproto = {&mboxdriver};
 
 DRIVER *mbox_valid (char *name)
 {
-  int fd;
-  char s[MAILTMPLEN];
-  char *t = sysinbox ();
-  int ti,zn;
-  DRIVER *ret = NIL;
-  struct stat sbuf;
-			
-  if (!mailboxfile (s,name)) {	/* only consider INBOX */
-    mailboxfile (s,"mbox");	/* make what the file name would be */
-				/* file exist? */
-    if ((stat (s,&sbuf) == 0) && (fd = open (s,O_RDONLY,NIL)) >= 0) {
-				/* allow empty or valid file */
-      if (!sbuf.st_size) ret = &mboxdriver;
-      else if ((read (fd,s,MAILTMPLEN-1) >= 0)) {
-	VALID (s,t,ti,zn);
-	if (ti) ret = &mboxdriver;
-      }
-      close (fd);		/* close the file */
-
-    }
-  }
-  return ret;
+  char tmp[MAILTMPLEN];
+  char *s = mailboxfile (tmp,name);
+				/* only consider INBOX */
+  return (s && !*s && bezerk_isvalid ("mbox",tmp)) ? &mboxdriver : NIL;
 }
 
 /* MBOX mail open
@@ -155,36 +137,38 @@ MAILSTREAM *mbox_open (MAILSTREAM *stream)
 long mbox_ping (MAILSTREAM *stream)
 {
   int fd,sfd;
-  int ti,zn;
-  char *s,*t;
-  long size;
+  char *s = sysinbox ();
+  unsigned long size;
   struct stat sbuf;
   char lock[MAILTMPLEN],lockx[MAILTMPLEN];
   if (LOCAL && !stream->rdonly && !stream->lock) {
     mm_critical (stream);	/* go critical */
-    if ((sfd = bezerk_lock (sysinbox(),O_RDWR,NIL,lockx,LOCK_EX)) >= 0) {
-      fstat (sfd,&sbuf);	/* get size of the poop */
-      if (size = sbuf.st_size){ /* non-empty? */
-				/* yes, read it */
-	read (sfd,s = (char *) fs_get (sbuf.st_size + 1),size);
-	s[sbuf.st_size] = '\0';	/* tie it off */
-	VALID (s,t,ti,zn);
-	if (ti) {		/* must be valid format */
+    if ((sfd = bezerk_lock (s,O_RDWR,NIL,lockx,LOCK_EX)) >= 0) {
+      fstat (sfd,&sbuf);	/* get size again now that locked */
+      if (size = sbuf.st_size) { /* get size of new mail if any */
+				/* mail in good format? */
+	if (bezerk_isvalid_fd (sfd,lock)) {
+	  lseek (sfd,0,L_SET);	/* rewind file */
+	  read (sfd,s = (char *) fs_get (size + 1),size);
+	  s[size] = '\0';	/* tie it off */
 	  if ((fd = bezerk_lock (stream->mailbox,O_WRONLY|O_APPEND,NIL,lock,
 				 LOCK_EX)) >= 0) {
-	    fstat (fd,&sbuf);	/* get current file size before write*/
-	    if (write (fd,s,size) >= 0) ftruncate (sfd,0);
+	    fstat (fd,&sbuf);	/* get current file size before write */
+	    if ((write (fd,s,size) >= 0) && !fsync (fd))
+	      ftruncate (sfd,0);/* flush from sysinbx */
 	    else {		/* failed */
 	      sprintf (LOCAL->buf,"New mail copy failed: %s",strerror (errno));
 	      mm_log (LOCAL->buf,ERROR);
 	      ftruncate (fd,sbuf.st_size);
 	    }
-	    fsync (fd);		/* force out the update */
 	    bezerk_unlock (fd,NIL,lock);
 	  }
+	  fs_give ((void **) &s);/* either way, flush the poop now */
 	}
-	else mm_log ("Invalid data in /usr/spool/mail file",ERROR);
-	fs_give ((void **) &s);	/* flush the poop now */
+	else {
+	  sprintf (LOCAL->buf,"Invalid data in %s file",sysinbox ());
+	  mm_log (LOCAL->buf,ERROR);
+	}
       }
 				/* all done with update */
       bezerk_unlock (sfd,NIL,lockx);

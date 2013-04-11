@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	14 September 1994
+ * Last Edited:	13 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,30 +33,30 @@
  *
  */
 
-#define MAILFILE "/usr/spool/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
-#define NFSKLUDGE
-
 #include <strings.h>
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <fcntl.h>
 #include <syslog.h>
+#include <sys/file.h>
+
 
 typedef unsigned long size_t;
 
-extern char *strtok ();
-extern char *strstr ();
-extern char *strpbrk ();
-extern char *strerror ();
-extern void *memmove ();
-extern char *memset ();
-extern long strtol ();
-extern void *malloc ();
-extern void free ();
-extern void *realloc ();
-extern int errno;
+char *strtok ();
+char *strstr ();
+char *strpbrk ();
+char *strerror ();
+void *memmove ();
+void *memset ();
+long strtol ();
+unsigned long strtoul ();
+void *malloc ();
+void free ();
+void *realloc ();
+
+int errno;
 
 #define memcpy memmove
 #define strchr index

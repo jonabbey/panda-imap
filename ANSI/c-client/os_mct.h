@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 September 1994
+ * Last Edited:	7 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,17 +33,16 @@
  *
  */
 
-#define MAILFILE "/var/spool/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/var/spool/news"
-/* #define NFSKLUDGE */		/* doesn't work on MachTen */
-
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <fcntl.h>
 #include <syslog.h>
+#include <sys/file.h>
+
 
 #include "env_unix.h"
 #include "fs.h"

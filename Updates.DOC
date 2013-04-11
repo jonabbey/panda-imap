@@ -1617,3 +1617,358 @@ Note: Dates in this revision history indicate when the work was completed.
 
 		*** 3.5 frozen at this point ***
 
+12 October 1994	[os_d-g.c] Missing utime.h include.
+
+12 October 1994	[bezrkdos.c] Fix uninitialized variable.
+
+13 October 1994	[bezerk.c, mmdf.c] Make sure Status:/X-Status: deletion does
+		not affect subsequent lines that start with S or X.
+
+17 October 1994	[env_dos.c] Fix summer time offset on DOS.  Again.  I'm
+		getting real tired of doing this!
+
+17 October 1994	[gr_waitp.c] Per Mike's request, move alarms into killreq
+		conditional.
+
+18 October 1994	[bezerk.c, mmdf.c, tenex2.c, tenexdos.c] Replace newline count
+		calculation with routine that mirrors what will be fetched.
+
+20 October 1994	[rfc822.c] No extra space if ADL and no personal name.
+
+20 October 1994	[rfc822.c/h] Handle commas in comment personal names.
+
+20 October 1994	[pop3.c] Make sure find returns /POP3 switch.
+
+20 October 1994	[mmdf.c] Include terminating newline in message text.
+
+21 October 1994	[newsrc.c] Add more error checking.
+
+21 October 1994	[bezerk.c, dummy.c, env_unix.c, flock.c, mail.h, mmdf.c,
+		 os_a32.c/h] Make it possible to turn off SVR4 locking (since
+		locking is flakey on SVR4, that's why).
+
+23 October 1994	[rfc822.c/h, smtp.c/h] Support ESMTP and 8-bit mail.
+
+26 October 1994	[newsrc.c] Fix missing function returns.
+
+26 October 1994	[os_cvx.h, os_dyn.c] Remove references to unused timezone()
+		function.
+
+26 October 1994	[flock.c, os*.c/h] Make AIX 3.2 port build again, *sigh*.
+
+26 October 1994	[bezrkdos.c, tenexdos.c] Fix crashes caused by dynamic elts
+		in Pine.
+
+ 6 November 1994 [newsrc.c] Fix spurious 0xff written to file, and missing
+		newline when adding new newsgroup.
+
+ 8 November 1994 [mtx.c, tenex2.c] Fix humiliating bug; when black box mode
+		was enabled, these drivers would accept an empty mailbox for
+		INBOX even through it wasn't the special file name.  This
+		caused wierd behavior on ShivaMS that had us confounded for
+		months.
+
+14 November 1994 [rfc822.c] Fix handling of empty comments in personal name
+		position.
+
+21 November 1994 [bezerk.c] Fix performance bug in finding messages.
+
+21 November 1994 [mbox.c, mtx.c, tenex2.c] Safer fsync() when appending.
+
+28 November 1994 [dummy.c] Error if non-empty INBOX.
+
+29 November 1994 [os_sco.c] Use bigcrypt(), get system serial number for host
+		id stuff.
+
+ 4 December 1994 [bezerk.c, mmdf.c, rfc822.c] Error message wordsmithing.
+
+ 8 December 1994 [bezerk.c] Fix crash when newly-appended mail starts with nl.
+
+19 January 1995	[mbox.c] Fix wired-in reference to /usr/spool/mail.
+
+19 January 1995	[phile.c] Buffer handling improvements.
+
+23 January 1995 [bezerk.c, mmdf.c] More diagnostic data in error messages.
+
+24 January 1995 [rfc822.c] Don't suppress duplicate spaces since this breaks
+		multipart delimiters which have such.
+
+24 January 1995	[imap2.c] Fix crash due to server timeout during mm_login().
+
+25 January 1995	[imapd.c] More detailed syslog() messages.
+
+26 January 1995	[bezerk.c, mmdf.c] Fix bug in 23 January change.
+
+26 January 1995	[mh.c] Fix crash in mh_ping if no such directory.
+
+26 January 1995	[log_lnx.c] Linux shadow password server login.
+
+26 January 1995	[os_ptx.c, os_sv4.c] Remove extraneous #include.
+
+29 January 1995	[env_unix.c] Disallow namespace names.
+
+31 January 1995	[mtx.c, tenex2.c] Bugtrap for bad filesize in expunge.
+
+31 January 1995	[imap2.c] Fix crash on unknown host caused by January 24 edit.
+
+ 1 February 1995 [newsrc.c] Fix possible fencepost.
+
+ 1 February 1995 [rfc822.c] Pacify Microsoft C.
+
+ 2 February 1995 [nntpcdos.c/h] Cache last message header and text on disk.
+
+ 2 February 1995 [env_unix.c, gr_wait*.c] Optional status return.
+
+ 9 February 1995 [mail.c] Parse more date formats in mail_parse_date().
+
+ 9 February 1995 [nntpcdos.c/h] Cache last message header in memory.
+
+13 February 1995 [bezerk.c, bezrkdos.c, dawz.c, mh.c, mmdf.c, mtx.c, tenex2.c,
+		  tenexdos.c] Better "Bad date in append" diagnostic message.
+
+14 February 1995 [strtoul.c, os_bsd.c/h, os_dyn.c/h, os_hpp.c] Add strtoul()
+		function (currently just for Pine's benefit).
+
+15 February 1995 [pop3.c] Size header and text cache pointers correctly.
+
+16 February 1995 [imapd.c] Fix FLAGS, INTERNALDATE, and RFC822.SIZE fetch on
+		multiple messages when cache not loaded.
+
+23 February 1995 [log_aix.c, os_aix.c] Work around IBM cretinism.
+
+ 7 March 1995	[imapd.c] Fix loops in getchar().
+
+ 7 March 1995	[ipop*d.c] Add autologout and KOD handling.
+
+ 9 March 1995	[rfc822.c] Fix bug with missing hostname and trailing comment
+		in user name running past end of string.
+
+13 March 1995	[bezerk.c, mmdf.c] Coerce messages to end with newline always.
+
+13 March 1995	[nntpc*.c] Change NOOP to STAT to placate stupid NNTP servers
+		that anal-retentively log errors.
+
+18 March 1995	[mail.c] Fix day-of-week calculation.
+
+20 March 1995	[newsrc.c] Better diagnostics.
+
+23 March 1995	[strtoul.c] Make sure that strtoul() compiles right.
+
+27 March 1995	[os_s40.c, os_sun.c] Add strtoul().
+
+30 March 1995	[tcp_unix.c] Ignore EINTR on connect().
+
+30 March 1995	[rfc822.c] Stick a pacifier into the mouths of two obstreperous
+		cretins who advocate the bizarre fantasy that it is somehow
+		reasonable to transmit messages with a "Newsgroups" header
+		which were not actually posted to any newsgroups; don't
+		believe Newsgroups unless a Path: is present.
+
+30 March 1995	[rfc822.c] Write a null group as a To-list if no To or cc
+		list present.
+
+31 March 1995	[rfc822.c] Make the March 30 pacifier less likely to cause
+		problems for people who use working software.
+
+ 3 April 1995	[bezerk.c, dummy.c, env_unix.c, mbox.c, mmdf.c, mtx.c,
+		 phile.c, tenex2.c] Change the way mailbox name validation
+		works so bogus names fail reliably.
+
+ 3 April 1995	[rfc822.c] Prevent spurious nesting of groups in parse when
+		additional whitespace is present.
+
+ 5 April 1995	[rfc822.c] Prevent leading spaces getting in group names that
+		aren't the first entry in an address list.
+
+12 April 1995	[bezerk.c/h] Be more tolerant of leading whitespace before a
+		message header.
+
+12 April 1995	[mbox.c] Don't call VALID directly.
+
+13 April 1995	[phile.c] Better error message for append.
+
+18 April 1995	[Makefile, os_art.c/h] Added AIX/RT port.
+
+19 April 1995	[misc.c] Fix pathological case in wildcard (trailing **).
+
+19 April 1995	[bezerk.c] Fix TRYCREATE.
+
+21 April 1995	[tcp_unix.c] Permit connect() to have EISCONN error.
+
+21 April 1995	[tcp_unix.c] Run rsh in its own process group.
+
+ 1 May 1995	[newsrc.c] .newsrc update tweak.
+
+ 1 May 1995	[env_unix.c] Build bboard names properly.
+
+ 1 May 1995	[log_*.c] Pass pw->pw_name instead of name to initgroups().
+
+ 2 May 1995	[env_unix.c] Fix spurious translation to INBOX if bboard name
+		fails.
+
+ 2 May 1995	[dummy.c] Filter bogus . and .. names.
+
+ 3 May 1995	[gethstid.c, fsync.c, log_sco.c, os*.c/h, setpgrp.c, writev.c]
+		More breaking out of OS-dependent stuff into individual modules
+
+ 6 May 1995	[rfc822.c] Fix crash with missing message-ID.
+
+10 May 1995	[os_lnx.c/h] Linus has stupid SVR4 definition of setpgrp().
+
+11 May 1995	[mail.c] Make "Append validity confusion" a warning.
+
+15 May 1995	[log_osf.c, log_sco.c, os_osf.c] More SecureWare changes.
+
+18 May 1995	[env_unix.c] Further translation fixes.
+
+18 May 1995	[log_sos.c, os_osf.c, os_sos.c] Grumble; the OSF/1 enhanced
+		security stuff isn't on all OSF/1 systems.  Make new SOS port.
+
+23 May 1995	[rfc822.c] Add ML to the blessed mailer list.
+
+25 May 1995	[mtx.c, tenex2.c] Make sure don't return sick stream if parse
+		fails.
+
+26 May 1995	[rfc822.c] Support Content-MD5.
+
+27 May 1995	[env_dos.c/h, env_unix.c/h, misc.h, os_asv.c, os_mnt.c,
+		 os_sco.c, os_sv2.c, write.c] Safe write() and writev().
+
+27 May 1995	[mail.c/h] Change these for MD5 too.
+
+ 1 June 1995	[os_bsd.c/h] Make it build on BSD again.
+
+12 June 1995	[bezerk.c] Missing error report in bezerk_lock().
+
+14 June 1995	[newsrc.c] Fix bug that caused bogus \377 in newsrc on some
+		systems.
+
+26 June 1995	[bezerk.c, mmdf.c] Fix handling of lock files in protected
+		directory.
+
+26 June 1995	[os_*.c, tcp_unix.c] Don't use redefined write() in TCP
+		routines.
+
+26 June 1995	[makefile.dos] Default to -nologo and Winsock.
+
+26 June 1995	[env_unix.c, os_*.c, write*.c] New way of doing write() stuff.
+
+27 June 1995	[env_dos.c, os_dwa.c] Further cleanups of env stuff.
+
+28 June 1995	[misc.h, env_dos.h, env_unix.h, write.c, writev.c, writevs.c]
+		More on write() stuff.
+
+ 7 July 1995	[writev.c] Yet another fix...
+
+18 July 1995	[nntpcdos.c] Fix crash when message missing and fencepost
+		error in calculating rfc822_size.
+
+18 July 1995	[makefile.dos] Add EXTRACFLAGS.
+
+ 1 August 1995	[nntp.c/h] Add AUTHINFO for NNTP posting.
+
+10 August 1995	[env_mac.c, os_mac.c/h, tcp_mac.c/h] PPC fixes.
+
+10 August 1995	[bezerk.c, mmdf.c] Remove strstr() calls.
+
+25 August 1995	[rfc822.c] Prevent overrun in rfc822_qprint() if no QP chars.
+
+28 August 1995	[nntpc*.c] Fix memory leak.
+
+29 August 1995	[ftl_unix.c, imapd.c, ipop?d.c] Limit size of syslog() strings.
+
+31 August 1995	[Makefile, log_sos.c, os_sos.c] More placation of OSF/1
+		SecureWare...
+
+ 5 September 1995 [imap2.*, tcp*] imap_port() routine to get port number.
+
+ 5 September 1995 [mail.c/h, mtest.c] temporary /user= support.
+
+ 6 September 1995 [imap2.c/h] imap_user() routine to get logged-in user.
+
+11 September 1995 [Makefile, mtx.c] Tenex driver must come before mtx driver
+		in mail_valid() search.  mtx_snarf() didn't copy message text.
+
+22 September 1995 [mmdf.c] Fix search for trailing delimiter.
+
+13 October 1995	[imap2.c] Clear text cache for a message if \Seen goes off, so
+		implicit \Seen setting will happen text time.
+
+19 October 1995 [rfc822.c] Fix comments eating the next character after the
+		comment.
+
+ 7 November 1995 [dawz.c, tenexdos.c] Fix internal header parsing error
+		messages that overwrite the error data.
+
+21 November 1995 [flock.c] No-op if NFS file.
+
+30 November 1995 [rfc822.c] Fix crash which occurs when some cretin decides
+		to apply an encoding to a MESSAGE or MULTIPART body part.
+
+ 5 December 1995 [rfc822.c] Fix trailing comment in personal name confusing
+		phrase parse.
+
+ 8 December 1995 [tcp_unix.c] Disable alarms around gethostbyname() call.
+
+10 December 1995 [bezerk.c mmdf.c] Don't lose X- from unknown X-??? headers.
+
+14 December 1995 [rfc822.c] Default MULTIPART/DIGEST parts properly.
+
+15 December 1995 [mtx.c, tenex2.c] Return proper error from locking.
+
+27 December 1995 [imap2.c] Bump size of section buffer in map_fetchbody();
+		real fix is in imap-4 toolkit.
+
+11 January 1996	[tcp_unix.c] Free up all fd's from 3 to 20 (or up to the pipe
+		fd's if any of them are higher) in the rsh fork.
+
+18 January 1996 [nntpcdos.c] Fix buffer resizing when reading header.
+
+22 January 1996 [mail.c/h, rfc822.c/h] Use imap-4 toolkit's RFC822 parser to
+		get new error inclusions in the address list.
+
+29 January 1996 [mh.c] Permit tab after "Path:" in .mh_profile file.
+
+ 6 February 1996 [mail.c/h, nntp.c, rfc822.h, smtp.c/h] MikeS' changes for
+		Pine piping.
+
+ 7 February 1996 [Makefile, env_unix.c, os*.c/h, tcp_unix.c] TCP open timeouts,
+		configurable rsh timeouts, filesystem names in Makefile (all
+		changes from imap-4).
+
+ 7 February 1996 [rfc822.c] Fix bug in parsing null strings (introduced in
+		imap-4 toolkit version from 22 January).
+
+ 9 February 1996 [os*.c/h] Fix flock() handling (for the last time???).
+
+ 9 February 1996 [tcp_unix.c] Rsh timeout of 0 disables rsh.
+
+13 February 1996 [imap2.c] Quote space and asterisk in imap_send() a5 argument.
+
+18 February 1996 [Makefile] Document ucbcc more.
+
+20 February 1996 [rfc822.c] Fix rfc822_parse_msg() crash caused by header which
+		doesn't end with newline.
+
+21 February 1996 [imapd.c] Fix fs_give() calls with possible NUL arguments.
+
+26 February 1996 [imap2.c] Back out of space literal quoting from February 13
+		edit.
+
+26 February 1996 [os_neb.c] Remove unnecessary crypt() prototype.
+
+11 March 1996	[Makefile, os*.c/h] Add UnixWare port, fix Altos port,
+		reorganize some port references.
+
+13 March 1996	[os_bsd.c/h] Fix missing strtol().
+
+13 March 1996	[Makefile] Add epx port.
+
+13 March 1996	[bezerk.c, mmdf.c] Remove gettimeofday() calls.
+
+14 March 1996	[rfc822.c] Spaces followed by a soft line break are absorbed
+		into the buffer so a following hard line break doesn't flush.
+
+14 March 1996	[*os2*] OS/2 support code.
+
+16 March 1996	[makefile.os2, nntpcdos.c] Fix OS/2 build.

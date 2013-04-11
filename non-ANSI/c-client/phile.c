@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	6 October 1994
+ * Last Edited:	13 April 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -115,14 +115,12 @@ int phile_isvalid (name,tmp)
 	char *name;
 	char *tmp;
 {
-  int i,fd,ti,zn;
   struct stat sbuf;
-  char *s = tmp,*t;
-				/* INBOX is never accepted */
-  return (strcmp (ucase (strcpy (tmp,name)),"INBOX") &&
-	  (*name != '{') && !((*name == '*') && (name[1] == '{')) &&
-	  !stat (mailboxfile (tmp,name),&sbuf) && !(sbuf.st_mode & S_IFDIR) &&
-	  sbuf.st_size);
+  char *s;
+				/* INBOX never accepted, any other name is */
+  return ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
+	  (s = mailboxfile (tmp,name)) && *s && !stat (s,&sbuf) &&
+	  !(sbuf.st_mode & S_IFDIR) && sbuf.st_size);
 }
 
 /* File manipulate driver parameters
@@ -302,7 +300,7 @@ MAILSTREAM *phile_open (stream)
 	MAILSTREAM *stream;
 {
   int i,k,fd;
-  unsigned long j;
+  unsigned long j,m;
   char *s,tmp[MAILTMPLEN];
   struct passwd *pw;
   struct stat sbuf;
@@ -369,15 +367,19 @@ MAILSTREAM *phile_open (stream)
 				/* set subject to be mailbox name */
   LOCAL->env->subject = cpystr (stream->mailbox);
 				/* slurp the data */
-  read (fd,LOCAL->buf = (char *) fs_get (elt->rfc822_size),elt->rfc822_size);
+  read (fd,LOCAL->buf = (char *) fs_get (elt->rfc822_size+1),elt->rfc822_size);
+  LOCAL->buf[elt->rfc822_size] = '\0';
   close (fd);			/* close the file */
 				/* analyze data type */
   if (i = phile_type ((unsigned char *) LOCAL->buf,elt->rfc822_size,&j)) {
     LOCAL->body->type = TYPETEXT;
     LOCAL->body->subtype = cpystr ("PLAIN");
     if (!(i & PTYPECRTEXT)) {	/* change Internet newline format as needed */
-      strcrlfcpy (&LOCAL->buf,&elt->rfc822_size,s = cpystr (LOCAL->buf),
-		  elt->rfc822_size);
+      STRING bs;
+      INIT (&bs,mail_string,(void *) (s = LOCAL->buf),elt->rfc822_size);
+      LOCAL->buf = (char *) fs_get ((m = strcrlflen (&bs) + 1));
+      strcrlfcpy (&LOCAL->buf,&m,s,elt->rfc822_size);
+      elt->rfc822_size = m;	/* update size */
       fs_give ((void **) &s);	/* flush original UNIX-format string */
     }
     LOCAL->body->parameter = mail_newbody_parameter ();
@@ -807,7 +809,10 @@ long phile_append (stream,mailbox,flags,date,message)
 	char *date;
 	 		   STRING *message;
 {
-  mm_log ("Append not valid for file",ERROR);
+  char tmp[MAILTMPLEN],file[MAILTMPLEN];
+  sprintf (tmp,"Can't append - file \"%s\" is not in valid mailbox format",
+	   mailboxfile (file,mailbox));
+  mm_log (tmp,ERROR);
   return NIL;
 }
 

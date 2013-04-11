@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	7 September 1994
+ * Last Edited:	8 September 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -46,6 +46,7 @@
 #define TCPSTREAM struct tcp_stream
 TCPSTREAM {
   char *host;			/* host name */
+  long port;			/* port number */
   char *localhost;		/* local host name */
   tcp_Socket *tcps;		/* tcp socket */
   long ictr;			/* input counter */
@@ -59,6 +60,7 @@ TCPSTREAM {
 #include "mail.h"
 #include "osdep.h"
 #include <time.h>
+#include <errno.h>
 #include <sys\timeb.h>
 #include "misc.h"
 
@@ -173,6 +175,7 @@ TCPSTREAM *TCP_open (char *host,char *service,long port)
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
   stream->host = cpystr (host);	/* official host name */
   stream->localhost = cpystr (mylocalhost ());
+  stream->port = port;		/* port number */
   stream->tcps = sock;		/* init socket */
   stream->ictr = 0;		/* init input counter */
   return stream;		/* return success */
@@ -181,10 +184,11 @@ TCPSTREAM *TCP_open (char *host,char *service,long port)
 /* TCP/IP authenticated open
  * Accepts: host name
  *	    service name
+ *	    returned user name
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_aopen (char *host,char *service)
+TCPSTREAM *tcp_aopen (char *host,char *service,char *usrnam)
 {
   return NIL;			/* always NIL on DOS */
 }
@@ -337,6 +341,17 @@ void tcp_close (TCPSTREAM *stream)
 char *tcp_host (TCPSTREAM *stream)
 {
   return stream->host;		/* return host name */
+}
+
+
+/* TCP/IP return port for this stream
+ * Accepts: TCP/IP stream
+ * Returns: port number for this stream
+ */
+
+long tcp_port (TCPSTREAM *stream)
+{
+  return stream->port;		/* return port number */
 }
 
 

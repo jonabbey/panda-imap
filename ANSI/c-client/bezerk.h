@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	28 June 1994
+ * Last Edited:	12 April 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -57,7 +57,7 @@
   if ((*s == 'F') && (s[1] == 'r') && (s[2] == 'o') && (s[3] == 'm') &&	\
       (s[4] == ' ')) {							\
     for (x = s + 5; *x && *x != '\n'; x++);				\
-    if (x) {								\
+    if (*x) {								\
       if (x - s >= 41) {						\
 	for (zn = -1; x[zn] != ' '; zn--);				\
 	if ((x[zn-1] == 'm') && (x[zn-2] == 'o') && (x[zn-3] == 'r') &&	\
@@ -214,6 +214,7 @@ typedef struct bezerk_local {
 
 DRIVER *bezerk_valid (char *name);
 int bezerk_isvalid (char *name,char *tmp);
+long bezerk_isvalid_fd (int fd,char *tmp);
 void *bezerk_parameters (long function,void *value);
 void bezerk_find (MAILSTREAM *stream,char *pat);
 void bezerk_find_bboards (MAILSTREAM *stream,char *pat);

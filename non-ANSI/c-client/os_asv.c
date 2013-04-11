@@ -1,5 +1,5 @@
 /*
- * Program:	Get time of day
+ * Program:	Operating-system dependent routines -- Altos SVR4 version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -9,10 +9,10 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:	11 May 1989
- * Last Edited:	12 November 1993
+ * Date:	10 April 1992
+ * Last Edited:	11 March 1996
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,17 +33,50 @@
  *
  */
 
-/* Emulator for BSD gettimeofday() call
- * Accepts: address where to write timeval information
- *	    address where to write timezone information
- * Returns: 0 if successful, -1 if failure
- */
+#include "tcp_unix.h"		/* must be before osdep includes tcp.h */
+#include "mail.h"
+#include "osdep.h"
+#undef flock
+#include <ctype.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/tiuser.h>
+#include <sys/stropts.h>
+#include <sys/poll.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <errno.h>
+#include <pwd.h>
+#include <sys/socket.h>
+#include "misc.h"
 
-int gettimeofday (struct timeval *tp,struct timezone *tzp)
-{
-  tp->tv_sec = time (0);	/* time since 1-Jan-70 00:00:00 GMT in secs */
-				/* others aren't used in current code */
-  if (tzp) tzp->tz_minuteswest = tzp->tz_dsttime = 0;
-  tp->tv_usec = 0;
-  return 0;
-}
+extern int sys_nerr;
+extern char *sys_errlist[];
+
+#define toint(c)	((c)-'0')
+#define isodigit(c)	(((unsigned)(c)>=060)&((unsigned)(c)<=067))
+
+#define DIR_SIZE(d) d->d_reclen
+
+#define pid_t short		/* may not be known on all ASV systems */
+
+#define initgroups(a,b)		/* do nothing */
+
+#include "strstr.c"
+#include "fs_unix.c"
+#include "ftl_unix.c"
+#include "nl_unix.c"
+#include "env_unix.c"
+#include "tcp_unix.c"
+#include "log_std.c"
+#include "gr_waitp.c"
+#include "strerror.c"
+#include "flock.c"
+#include "scandir.c"
+#include "strtoul.c"
+#include "tz_sv4.c"
+#include "gethstid.c"
+#include "memmove.c"
+#include "fsync.c"
+#include "writevs.c"

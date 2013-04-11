@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	27 September 1994
+# Last Edited:	16 March 1996
 #
-# Copyright 1994 by the University of Washington
+# Copyright 1996 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -45,11 +45,34 @@ OSTYPE:
 	@echo 'You must specify what type of system'
 	@false
 
-a32 aix bsi d-g lnx mct mnt neb nxt osf sco sgi:
+# ANSI compiler ports.  Note for SCO you may have to set LN to "copy -rom"
+
+a32 a41 aix bsi d-g drs lnx mct mnt neb nxt osf sco sgi slx sos:
 	$(MAKE) build SYSTYPE=ANSI OS=$@
 
-bsd cvx dyn hpp isc ptx pyr s40 sol ssn sun sv4 ult vul:
+# Non-ANSI compiler ports.
+#
+# In spite of the claims of certain sorcerer's apprentices, it does absolutely
+# nothing (other than sooth bruised egos of those who can't stand the thought
+# of their computer being called non-ANSI) to move a port to the ANSI tree.
+# If you have trouble building Pine, the thing to change is in Pine, not here.
+# So keep paws off the ANSI/non-ANSI assignments here.
+#
+# There is a wide variety of reasons why a compiler may be listed here.  These
+# systems either do not have ANSI compilers, or some versions of these systems
+# do not have ANSI compilers.
+#
+# In a few cases, the port was mistakenly submitted as non-ANSI (e.g. ptx, sol)
+# or there is a compatibility reason why it is there (e.g. gso, gul, uw2).
+# These are fixed in imap-4.
+#
+# Yes, SV4 belongs in the non-ANSI tree.  There are some SVR4 systems which
+# do not have ANSI compilers.
+
+art asv bsd cvx dyn epx gas gso gul hpp isc ptx pyr s40 sol ssn sun sv4 ult vul uw2:
 	$(MAKE) build SYSTYPE=non-ANSI OS=$@
+
+# SVR2 doesn't have symbolic links, nor does it let you link directories.
 
 sv2:
 	$(MAKE) build SYSTYPE=non-ANSI OS=$@ LN="#"

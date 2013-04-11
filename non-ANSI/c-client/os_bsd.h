@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	14 September 1994
+ * Last Edited:	11 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,23 +33,25 @@
  *
  */
 
-#define MAILFILE "/usr/spool/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
-#define NFSKLUDGE
-
 #include <string.h>
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <fcntl.h>
 #include <syslog.h>
+#include <sys/file.h>
+#include <machine/endian.h>	/* needed for htons() prototypes */
 
-extern char *strstr ();
-extern char *strerror ();
-extern void *memmove ();
-extern long strtol ();
-extern char *malloc();
-extern char *realloc();
+
+char *getenv ();
+char *strstr ();
+char *strerror ();
+void *memmove ();
+long strtol ();
+unsigned long strtoul ();
+void *malloc ();
+void free ();
+void *realloc ();
 
 #include "env_unix.h"
 #include "fs.h"

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	11 October 1994
+ * Last Edited:	26 June 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,6 +39,7 @@
 #include "mail.h"
 #include "osdep.h"
 #include <time.h>
+#include <errno.h>
 #include <sys\timeb.h>
 #include <sys\nfs_time.h>
 #include <sys\tk_types.h>
@@ -54,6 +55,7 @@
 #include "ftl_dos.c"
 #include "nl_dos.c"
 #include "env_dos.c"
+#undef write
 #include "tcp_dos.c"
 
 

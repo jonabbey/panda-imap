@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 September 1994
+ * Last Edited:	21 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,11 +33,6 @@
  *
  */
 
-#define MAILFILE "/usr/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
-#define NFSKLUDGE
-
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -45,7 +40,15 @@
 #include <dirent.h>
 #include <time.h>		/* for struct tm */
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <fcntl.h>
 #include <syslog.h>
+#include <sys/file.h>
+
+
+/* Many versions of SysV get this wrong */
+
+#define setpgrp(a,b) Setpgrp(a,b)
+
 
 #define direct dirent
 

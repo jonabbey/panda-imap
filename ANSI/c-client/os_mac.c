@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	14 September 1994
+ * Last Edited:	10 August 1995
  *
- * Copyright 1994 by Mark Crispin
+ * Copyright 1995 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,6 +39,8 @@
 #include <limits.h>
 #include <time.h>
 #include <stdio.h>
+#include <errno.h>
+#define EFBIG 10569
 #include <MacTCPCommonTypes.h>
 #include <AddressXlation.h>
 #include <TCPPB.h>
@@ -58,3 +60,4 @@ short resolveropen = 0;		/* TCP's resolver open */
 #include "ftl_mac.c"
 #include "nl_mac.c"
 #include "tcp_mac.c"
+#include "write.c"

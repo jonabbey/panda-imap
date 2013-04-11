@@ -1,0 +1,134 @@
+# Program:	C client makefile
+#
+# Author:	Mark Crispin
+#		Networks and Distributed Computing
+#		Computing & Communications
+#		University of Washington
+#		Administration Building, AG-44
+#		Seattle, WA  98195
+#		Internet: MRC@CAC.Washington.EDU
+#
+# Date:		14 March 1996
+# Last Edited:	16 March 1996
+#
+# Copyright 1996 by the University of Washington
+#
+#  Permission to use, copy, modify, and distribute this software and its
+# documentation for any purpose and without fee is hereby granted, provided
+# that the above copyright notice appears in all copies and that both the
+# above copyright notice and this permission notice appear in supporting
+# documentation, and that the name of the University of Washington not be
+# used in advertising or publicity pertaining to distribution of the software
+# without specific, written prior permission.  This software is made
+# available "as is", and
+# THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
+# WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
+# NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
+# INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
+# (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+
+# Common macros
+CC=	gcc
+CP=	cp
+MAKE=	make
+MV=	mv
+RM=	rm -f
+OS=	os2
+
+
+# emx OMF format build
+# Used to build .dlls with data exports
+DEBUG=
+ZOMF=	-Zomf
+O=	.obj
+A=	.lib
+E=	.exe
+D=	.dll
+AR=	emxomfar r
+ZLIB=	-Zcrtdll
+ZOPT=	-O3 -fno-strength-reduce -mprobe
+ZDEF=	-DOS2 -DOMF
+.SUFFIXES: .c .obj .exe
+
+
+# emx AOUT format build
+# Useful for debugging with gdb
+
+#DEBUG=	-g
+#ZOMF=
+#O=	.o
+#A=	.a
+#D=	.dll
+#E=	.exe
+#AR=	ar rus
+#ZLIB=	-Zcrtdll
+#ZOPT=	-O3 -fno-strength-reduce -mprobe
+#ZDEF=	-DOS2
+#.SUFFIXES: .c .o .exe
+
+
+.c$O: ; $(CC) $(ZOMF) $(CFLAGS) -c $<
+
+EXTRADRIVERS=
+DRIVERS=	imap nntp bezrkdos tenexdos pop3 dawz dummy
+DEFAULTDRIVER=	dawz
+ARCHIVE=	c-client$A
+BINARIES=	mail$O bezrkdos$O imap2$O dawz$O tenexdos$O \
+		nntpcdos$O dummyos2$O smtp$O nntp$O misc$O rfc822$O \
+		pop3$O sm_dos$O newsrc$O os_$(OS)$O os2_link$O
+EXTRALDFLAGS=
+CFLAGS=		$(DEBUG) $(ZOPT) $(ZDEF)
+LDFLAGS=	$(ZOMF) $(ZLIB) $(DEBUG) -lsocket
+
+all:		mtest$E
+
+clean:
+		$(RM) *$O *$A *.dll linkage.* osdep.* os2_link.c mtest$E
+
+mtest$E:	$(ARCHIVE) mtest$O
+		$(CC) $(CFLAGS) -o mtest$E mtest$O -L. -lc-client $(LDFLAGS)
+
+$(ARCHIVE):	$(BINARIES) c-client.def
+		$(CC) -Zdll -o c-client$D $(BINARIES) c-client.def $(LDFLAGS)
+		emximp -o $(ARCHIVE) c-client.def
+
+SRCS=		mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
+		env_os2.h tcp_dos.h \
+		os_$(OS).c env_unix.c fs_os2.c ftl_os2.c nl_dos.c tcp_dos.c
+
+# OS-dependent module
+osdep$O:	$(SRCS)
+		$(CC) $(CFLAGS) -DSTDPROTO=$(STDPROTO) $(EXTRAOSDEFS) -c os_$(OS).c
+		$(MV) os_$(OS)$O osdep$O
+
+linkage:
+		drivers.cmd $(DEFAULTDRIVER) $(EXTRADRIVERS) $(DRIVERS)
+		touch linkage
+
+os2_link.c: 	linkage
+
+osdep.h:	os_$(OS).h linkage
+		$(RM) osdep.h
+		$(CP) os_$(OS).h osdep.h
+
+# Dependencies
+
+bezrkdos$O:	mail.h bezrkdos.h rfc822.h misc.h osdep.h
+dawz:		mail.h dawz.h rfc822.h misc.h dummy.h osdep.h
+dummyos2$O:	mail.h dummy.h misc.h osdep.h
+imap2$O:	mail.h imap2.h misc.h osdep.h
+mail$O:		mail.h misc.h osdep.h
+misc$O:		mail.h misc.h osdep.h
+mtest$O:	mail.h rfc822.h smtp.h nntp.h misc.h osdep.h
+newsrc$O:	mail.h newsrc.h misc.h osdep.h
+nntp$O:		mail.h smtp.h nntp.h rfc822.h misc.h osdep.h
+nntpcdos$O:	mail.h smtp.h news.h nntp.h nntpcdos.h rfc822.h misc.h osdep.h
+pop3$O:		mail.h pop3.h rfc822.h misc.h osdep.h
+sm_dos$O:	mail.h misc.h osdep.h
+smtp$O:		mail.h smtp.h rfc822.h misc.h osdep.h
+rfc822$O:	mail.h rfc822.h misc.h osdep.h
+tenexdos$O:	mail.h tenexdos.h rfc822.h misc.h dummy.h osdep.h

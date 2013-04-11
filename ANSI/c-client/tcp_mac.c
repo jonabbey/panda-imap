@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	7 September 1994
+ * Last Edited:	8 September 1995
  *
- * Copyright 1994 by Mark Crispin
+ * Copyright 1995 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -143,14 +143,15 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
   }
 
   else {			/* look up host name */
-    if (StrToAddr (host,&hst,tcp_dns_result,NIL)) {
+    if (!tcp_dns_upp) tcp_dns_upp = NewResultProc (tcp_dns_result);
+    if (StrToAddr (host,&hst,tcp_dns_upp,NIL)) {
       while (hst.rtnCode == cacheFault && wait ());
 				/* kludge around MacTCP bug */
       if (hst.rtnCode == outOfMemory) {
 	mm_log ("Re-initializing domain resolver",WARN);
 	CloseResolver ();	/* bop it on the head and try again */
 	OpenResolver (NIL);	/* note this will leak 12K */
-	StrToAddr (host,&hst,tcp_dns_result,NIL);
+	StrToAddr (host,&hst,tcp_dns_upp,NIL);
 	while (hst.rtnCode == cacheFault && wait ());
       }
       if (hst.rtnCode) {	/* still have error status? */
@@ -250,6 +251,7 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
   sprintf (tmp,"[%ld.%ld.%ld.%ld]",i,j,k,l);
   stream->localhost = cpystr (tmp);
   if (!myLocalHost) myLocalHost = cpystr (tmp);
+  stream->port = port;		/* copy port number */
   return stream;
 }
 
@@ -259,6 +261,8 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
  *	    user data pointer
  */
 
+ResultUPP tcp_dns_upp = NIL;
+
 pascal void tcp_dns_result (struct hostInfo *hostInfoPtr,char *userDataPtr)
 {
   /* dummy routine */
@@ -267,10 +271,11 @@ pascal void tcp_dns_result (struct hostInfo *hostInfoPtr,char *userDataPtr)
 /* TCP/IP authenticated open
  * Accepts: host name
  *	    service name
- * Returns: TCP/IP stream if success else NIL
+ *	    returned user name
+ * Returns : TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_aopen (char *host,char *service)
+TCPSTREAM *tcp_aopen (char *host,char *service,char *usrnam)
 {
   return NIL;			/* no authenticated opens on Mac */
 }
@@ -471,6 +476,17 @@ void tcp_close (TCPSTREAM *stream)
 char *tcp_host (TCPSTREAM *stream)
 {
   return stream->host;		/* return host name */
+}
+
+
+/* TCP/IP return port for this stream
+ * Accepts: TCP/IP stream
+ * Returns: port number for this stream
+ */
+
+long tcp_port (TCPSTREAM *stream)
+{
+  return stream->port;		/* return port number */
 }
 
 

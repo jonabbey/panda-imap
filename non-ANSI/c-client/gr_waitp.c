@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	30 November 1993
- * Last Edited:	6 May 1994
+ * Last Edited:	2 February 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,12 +39,15 @@
 
 /* Grim PID reaper
  * Accepts: process ID
+ *	    kill request flag
+ *	    status return value
  */
 
-void grim_pid_reap (pid,killreq)
+void grim_pid_reap_status (pid,killreq,status)
 	int pid;
 	int killreq;
+	void *status;
 {
   if (killreq) kill(pid,SIGHUP);/* kill if not already dead */
-  while ((waitpid (pid,NIL,NIL) < 0) && (errno != ECHILD));
+  while ((waitpid (pid,status,NIL) < 0) && (errno != ECHILD));
 }

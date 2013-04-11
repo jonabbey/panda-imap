@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	6 October 1994
+ * Last Edited:	26 February 1996
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -94,7 +94,7 @@ MAILSTREAM imapproto = {&imapdriver};
 static long map_maxlogintrials = MAXLOGINTRIALS;
 static long map_lookahead = MAPLOOKAHEAD;
 static long map_port = 0;
-static long map_prefetch = T;
+static long map_prefetch = MAPLOOKAHEAD;
 static long map_loginfullname = NIL;
 static long map_closeonerror = NIL;
 
@@ -433,13 +433,13 @@ MAILSTREAM *map_open (MAILSTREAM *stream)
   if (!LOCAL) {			/* open new connection if no recycle */
     stream->local = fs_get (sizeof (IMAPLOCAL));
     LOCAL->reply.line = LOCAL->reply.tag = LOCAL->reply.key =
-      LOCAL->reply.text = LOCAL->prefix = NIL;
+      LOCAL->reply.text = LOCAL->prefix = LOCAL->user = NIL;
     LOCAL->use_body = LOCAL->use_find = LOCAL->use_bboard =
       LOCAL->use_purge = T;	/* assume maximal server */
     LOCAL->tcpstream = NIL;	/* no TCP stream yet */
 				/* try authenticated open */
     if (tstream = (stream->anonymous || mb.anoflag || mb.port) ? NIL :
-	tcp_aopen (mb.host,"/etc/rimapd")) {
+	tcp_aopen (mb.host,"/etc/rimapd",usrnam)) {
 				/* if success, see if reasonable banner */
       if (tcp_getbuffer (tstream,(long) 1,c) && (*c == '*')) {
 	i = 0;			/* copy to buffer */
@@ -473,7 +473,7 @@ MAILSTREAM *map_open (MAILSTREAM *stream)
 
     if (LOCAL && LOCAL->tcpstream && !strcmp (reply->key,"OK")) {
 				/* only so many tries to login */
-      for (i = 0; i < map_maxlogintrials; ++i) {
+      for (i = 0; LOCAL && LOCAL->tcpstream && (i < map_maxlogintrials); ++i) {
 	*pwd = 0;		/* get password */
 				/* if caller wanted anonymous access */
 	if ((mb.anoflag || stream->anonymous) && !i) {
@@ -485,8 +485,10 @@ MAILSTREAM *map_open (MAILSTREAM *stream)
 				/* abort if he refuses to give a password */
 	if (*pwd == '\0') i = map_maxlogintrials;
 	else {			/* send "LOGIN usrnam pwd" */
-	  if (imap_OK (stream,reply = imap_sendq2 (stream,"LOGIN",usrnam,pwd)))
+	  if (imap_OK (stream,reply = imap_sendq2(stream,"LOGIN",usrnam,pwd))){
+	    stream->anonymous = strcmp (usrnam,"anonymous") ? NIL : T;
 	    break;		/* success */
+	  }
 				/* output failure and try again */
 	  mm_log (reply->text,WARN);
 				/* give up now if connection died */
@@ -498,13 +500,14 @@ MAILSTREAM *map_open (MAILSTREAM *stream)
 	mm_log (*pwd ? "Too many login failures":"Login aborted",ERROR);
 	map_close (stream);
       }
-      else stream->anonymous = strcmp (usrnam,"anonymous") ? NIL : T;
     }
 				/* failed utterly to open */
     if (LOCAL && !LOCAL->tcpstream) map_close (stream);
   }
 
   if (LOCAL) {			/* have a connection now??? */
+				/* note user name */
+    LOCAL->user = cpystr (usrnam);
     stream->sequence++;		/* bump sequence number */
     if (stream->halfopen ||	/* send "SELECT/EXAMINE/BBOARD mailbox" */
 	!imap_OK (stream,reply = imap_sendq1 (stream,mb.bbdflag ? "BBOARD" :
@@ -559,6 +562,7 @@ void map_close (MAILSTREAM *stream)
     LOCAL->tcpstream = NIL;
 				/* free up memory */
     if (LOCAL->reply.line) fs_give ((void **) &LOCAL->reply.line);
+    if (LOCAL->user) fs_give ((void **) &LOCAL->user);
     map_gc (stream,GC_TEXTS);	/* nuke the cached strings */
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
@@ -576,8 +580,11 @@ void map_close (MAILSTREAM *stream)
 void map_fetchfast (MAILSTREAM *stream,char *sequence)
 {				/* send "FETCH sequence FAST" */
   IMAPPARSEDREPLY *reply;
+  char *s = (strlen (sequence) > 1024) ? strchr (sequence+1024,',') : NIL;
+  if (s) *s++ = '\0';
   if (!imap_OK (stream,reply = imap_send2 (stream,"FETCH",sequence,"FAST")))
     mm_log (reply->text,ERROR);
+  if (s) map_fetchfast (stream,s);
 }
 
 
@@ -589,8 +596,11 @@ void map_fetchfast (MAILSTREAM *stream,char *sequence)
 void map_fetchflags (MAILSTREAM *stream,char *sequence)
 {				/* send "FETCH sequence FLAGS" */
   IMAPPARSEDREPLY *reply;
+  char *s = (strlen (sequence) > 1024) ? strchr (sequence+1024,',') : NIL;
+  if (s) *s++ = '\0';
   if (!imap_OK (stream,reply = imap_send2 (stream,"FETCH",sequence,"FLAGS")))
     mm_log (reply->text,ERROR);
+  if (s) map_fetchflags (stream,s);
 }
 
 /* Mail Access Protocol fetch structure
@@ -660,10 +670,7 @@ char *map_fetchheader (MAILSTREAM *stream,long msgno)
   if (!elt->data1) {		/* not if already cached */
     sprintf (seq,"%ld",msgno);
     if (!imap_OK (stream,	/* send "FETCH msgno RFC822.HEADER" */
-		  reply = imap_send2 (stream,"FETCH",seq,
-				      (map_prefetch && !elt->data2) ?
-				      "(RFC822.HEADER RFC822.TEXT)" :
-				      "RFC822.HEADER")))
+		  reply = imap_send2 (stream,"FETCH",seq,"RFC822.HEADER")))
       mm_log (reply->text,ERROR);
   }
   return elt->data1 ? (char *) elt->data1 : "";
@@ -704,7 +711,7 @@ char *map_fetchbody (MAILSTREAM *stream,long m,char *sec,unsigned long *len)
   char *s = sec;
   char **ss;
   unsigned long i;
-  char seq[20],sect[30];
+  char seq[20],sect[MAILTMPLEN];
   IMAPPARSEDREPLY *reply;
   *len = 0;			/* in case failure */
 				/* make sure have a body */
@@ -769,9 +776,13 @@ char *map_fetchbody (MAILSTREAM *stream,long m,char *sec,unsigned long *len)
 
 void map_setflag (MAILSTREAM *stream,char *seq,char *flag)
 {
-				/* send "STORE sequence +Flags flag" */
-  IMAPPARSEDREPLY *reply = imap_send2f (stream,"STORE",seq,"+Flags",flag);
-  if (!imap_OK (stream,reply)) mm_log (reply->text,ERROR);
+  IMAPPARSEDREPLY *reply;
+  char *s = (strlen (seq) > 1024) ? strchr (seq+1024,',') : NIL;
+  if (s) *s++ = '\0';
+				/* send "STORE seq +Flags flag" */
+  if (!imap_OK (stream,reply = imap_send2f (stream,"STORE",seq,"+Flags",flag)))
+    mm_log (reply->text,ERROR);
+  if (s) map_setflag (stream,s,flag);
 }
 
 
@@ -783,9 +794,13 @@ void map_setflag (MAILSTREAM *stream,char *seq,char *flag)
 
 void map_clearflag (MAILSTREAM *stream,char *seq,char *flag)
 {
-				/* send "STORE sequence -Flags flag" */
-  IMAPPARSEDREPLY *reply = imap_send2f (stream,"STORE",seq,"-Flags",flag);
-  if (!imap_OK (stream,reply)) mm_log (reply->text,ERROR);
+  IMAPPARSEDREPLY *reply;
+  char *s = (strlen (seq) > 1024) ? strchr (seq+1024,',') : NIL;
+  if (s) *s++ = '\0';
+				/* send "STORE seq -Flags flag" */
+  if (!imap_OK (stream,reply = imap_send2f (stream,"STORE",seq,"-Flags",flag)))
+    mm_log (reply->text,ERROR);
+  if (s) map_clearflag (stream,s,flag);
 }
 
 /* Mail Access Protocol search for messages
@@ -795,28 +810,29 @@ void map_clearflag (MAILSTREAM *stream,char *seq,char *flag)
 
 void map_search (MAILSTREAM *stream,char *criteria)
 {
-  long i,j;
+  long i,j,k;
   char *s;
   IMAPPARSEDREPLY *reply;
   MESSAGECACHE *elt;
 				/* do the SEARCH */
   if (imap_OK (stream,reply = imap_send1 (stream,"SEARCH",criteria))) {
 				/* can never pre-fetch with a short cache */
-    if (!map_prefetch || stream->scache) return;
+    if (!(k = map_prefetch) || stream->scache) return;
     s = LOCAL->tmp;		/* build sequence in temporary buffer */
     *s = '\0';			/* initially nothing */
 				/* search through mailbox */
-    for (i = 1; i <= stream->nmsgs; ++i) 
+    for (i = 1; k && (i <= stream->nmsgs); ++i) 
 				/* for searched messages with no envelope */
       if ((elt = mail_elt (stream,i)) && elt->searched &&
 	  !mail_lelt (stream,i)->env) {
 				/* prepend with comma if not first time */
 	if (LOCAL->tmp[0]) *s++ = ',';
 	sprintf (s,"%ld",j = i);/* output message number */
+	k--;			/* count one up */
 	s += strlen (s);	/* point at end of string */
 				/* search for possible end of range */
-	while (i < stream->nmsgs && (elt = mail_elt (stream,i+1)) &&
-	       elt->searched && !mail_lelt (stream,i+1)->env) i++;
+	while (k && (i < stream->nmsgs) && (elt = mail_elt (stream,i+1)) &&
+	       elt->searched && !mail_lelt (stream,i+1)->env) i++,k--;
 	if (i != j) {		/* if a range */
 	  sprintf (s,":%ld",i);	/* output delimiter and end of range */
 	  s += strlen (s);	/* point at end of string */
@@ -877,15 +893,19 @@ void map_expunge (MAILSTREAM *stream)
 long map_copy (MAILSTREAM *stream,char *sequence,char *mailbox)
 {
   IMAPPARSEDREPLY *reply;
+  char *s = (strlen (sequence) > 1024) ? strchr (sequence+1024,',') : NIL;
+  if (s) *s++ = '\0';
   if (!LOCAL->tcpstream) {	/* not valid on dead stream */
     mm_log ("Copy rejected: connection to remote IMAP server closed",ERROR);
     return NIL;
   }
 				/* send "COPY sequence mailbox" */
-  if (imap_OK (stream,reply = imap_send (stream,"COPY",NIL,sequence,NIL,NIL,
-					 mailbox,NIL))) return T;
-  mm_log (reply->text,ERROR);
-  return NIL;
+  if (!imap_OK (stream,reply = imap_send (stream,"COPY",NIL,sequence,NIL,NIL,
+					  mailbox,NIL))) {
+    mm_log (reply->text,ERROR);
+    return NIL;
+  }
+  return s ? map_copy (stream,s,mailbox) : LONGT;
 }
 
 
@@ -1009,6 +1029,30 @@ char *imap_host (MAILSTREAM *stream)
   return (LOCAL && LOCAL->tcpstream) ? tcp_host (LOCAL->tcpstream) :
     "<closed stream>";
 }
+
+
+/* IMAP return port number
+ * Accepts: MAIL stream
+ * Returns: port number
+ */
+
+long imap_port (MAILSTREAM *stream)
+{
+				/* return port number on stream if open */
+  return (LOCAL && LOCAL->tcpstream) ? tcp_port (LOCAL->tcpstream) :
+    0xffffffff;
+}
+
+
+/* Mail Access Protocol return logged-in user name
+ * Accepts: MAIL stream
+ * Returns: logged-in user name
+ */
+
+char *imap_user (MAILSTREAM *stream)
+{
+  return (LOCAL && LOCAL->user) ? LOCAL->user : NIL;
+}
 
 /* Mail Access Protocol send command
  * Accepts: MAIL stream
@@ -1088,7 +1132,7 @@ IMAPPARSEDREPLY *imap_send (MAILSTREAM *stream,char *cmd,char *a1,char *a2,
   }
   if (a5) {			/* only do this if fifth arg present */
     s += strlen (s);		/* tally what we have so far */
-    if (strpbrk (a5,"\012\015\"%{\\")) {
+    if (strpbrk (a5,"\012\015\"*%{\\")) {
       sprintf (s," {%ld}",i = (long) strlen (a5));
 				/* output debugging telemetry */
       if (stream->debug) mm_dlog (LOCAL->tmp);
@@ -1684,6 +1728,11 @@ void imap_parse_flags (MAILSTREAM *stream,MESSAGECACHE *elt,char **txtptr)
     if (c == ')') break;	/* quit if end of list */
   }
   ++*txtptr;			/* bump past delimiter */
+  if (!elt->seen) {		/* if \Seen went off */
+				/* flush any cached text */
+    if (elt->data2) fs_give ((void **) &elt->data2);
+    if (!stream->scache) map_gc_body (mail_lelt (stream,elt->msgno)->body);
+  }
   mm_flags (stream,elt->msgno);	/* make sure top level knows */
 }
 
@@ -1916,7 +1965,8 @@ void imap_parse_body_structure (MAILSTREAM *stream,BODY *body,char **txtptr,
 				/* parse it */
 	imap_parse_body_structure (stream,&part->body,txtptr,reply);
       } while (**txtptr == '(');/* for each body part */
-      if (!(body->subtype = imap_parse_string (stream,txtptr,reply,(long)NIL)))
+      if (!(body->subtype =
+	    ucase (imap_parse_string (stream,txtptr,reply,(long)NIL))))
 	mm_log ("Missing multipart subtype",WARN);
       if (**txtptr != ')') {	/* validate ending */
 	sprintf (LOCAL->tmp,"Junk at end of multipart body: %.80s",*txtptr);
@@ -1943,8 +1993,8 @@ void imap_parse_body_structure (MAILSTREAM *stream,BODY *body,char **txtptr,
 	  body->type = i;	/* set body type */
 	}
       }
-				/* parse subtype */
-      body->subtype = imap_parse_string (stream,txtptr,reply,(long) NIL);
+      body->subtype =		/* parse subtype */
+	ucase (imap_parse_string (stream,txtptr,reply,(long) NIL));
 
       body->parameter = NIL;	/* init parameter list */
 

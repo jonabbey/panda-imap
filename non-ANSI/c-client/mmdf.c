@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1993
- * Last Edited:	6 October 1994
+ * Last Edited:	13 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -119,13 +119,13 @@ int mmdf_isvalid (name,tmp)
 {
   int fd;
   int ret = NIL;
-  char file[MAILTMPLEN];
+  char *t,file[MAILTMPLEN];
   struct stat sbuf;
   time_t tp[2];
   errno = EINVAL;		/* assume invalid argument */
 				/* must be non-empty file */
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
-      !stat (dummy_file (file,name),&sbuf)) {
+      (t = dummy_file (file,name)) && !stat (t,&sbuf)) {
     if (!sbuf.st_size)errno = 0;/* empty file */
     else if ((fd = open (file,O_RDONLY,NIL)) >= 0) {
       memset (tmp,'\0',MAILTMPLEN);
@@ -986,7 +986,8 @@ long mmdf_append (stream,mailbox,flags,date,message)
   if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
     if (!mail_parse_date (&elt,date)) {
-      mm_log ("Bad date in append",ERROR);
+      sprintf (buf,"Bad date in append: %s",date);
+      mm_log (buf,ERROR);
       return NIL;
     }
   }
@@ -1116,45 +1117,51 @@ int mmdf_lock (file,flags,mode,lock,op)
 {
   int fd,ld,j;
   int i = LOCKTIMEOUT * 60 - 1;
-  char tmp[MAILTMPLEN];
-  struct timeval tp;
+  char hitch[MAILTMPLEN],tmp[MAILTMPLEN];
+  time_t t;
   struct stat sb;
 				/* build lock filename */
   strcat (dummy_file (lock,file),".lock");
   do {				/* until OK or out of tries */
-    gettimeofday (&tp,NIL);	/* get the time now */
+    t = time (0);		/* get the time now */
 #ifdef NFSKLUDGE
   /* SUN-OS had an NFS, As kludgy as an albatross;
    * And everywhere that it was installed, It was a total loss.  -- MRC 9/25/91
    */
 				/* build hitching post file name */
-    sprintf (tmp,"%s.%d.%d.",lock,time (0),getpid ());
-    j = strlen (tmp);		/* append local host name */
-    gethostname (tmp + j,(MAILTMPLEN - j) - 1);
+    sprintf (hitch,"%s.%d.%d.",lock,time (0),getpid ());
+    j = strlen (hitch);		/* append local host name */
+    gethostname (hitch + j,(MAILTMPLEN - j) - 1);
 				/* try to get hitching-post file */
-    if ((ld = open (tmp,O_WRONLY|O_CREAT|O_EXCL,
+    if ((ld = open (hitch,O_WRONLY|O_CREAT|O_EXCL,
 		    (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) < 0) {
-				/* prot fail & non-ex, don't use lock files */
-      if ((errno == EACCES) && (stat (tmp,&sb))) *lock = '\0';
-      else {			/* otherwise something strange is going on */
-	sprintf (tmp,"Error creating %s: %s",lock,strerror (errno));
-	mm_log (tmp,WARN);	/* this is probably not good */
-				/* don't use lock files if not one of these */
-	if ((errno != EEXIST) && (errno != EACCES)) *lock = '\0';
+      sprintf (tmp,"Error creating %s: %s",hitch,strerror (errno));
+      switch (errno) {		/* what happened? */
+      case EEXIST:		/* file already exists? */
+	break;			/* oops, just try again */
+      case EACCES:		/* protection failure */
+				/* try again if file exists(?) */
+	if (!stat (hitch,&sb)) break;
+				/* punt silently if paranoid site */
+	if (!mail_parameters (NIL,GET_LOCKEACCESERROR,NIL))
+      default:			/* some other error */
+	  mm_log (tmp,WARN);	/* this is probably not good */
+	*lock = '\0';		/* give up on lock file */
+	break;
       }
     }
     else {			/* got a hitching-post */
 				/* make sure others can break the lock */
-      chmod (tmp,(int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
+      chmod (hitch,(int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
       close (ld);		/* close the hitching-post */
-      link (tmp,lock);		/* tie hitching-post to lock, ignore failure */
-      stat (tmp,&sb);		/* get its data */
-      unlink (tmp);		/* flush hitching post */
+      link (hitch,lock);	/* tie hitching-post to lock, ignore failure */
+      stat (hitch,&sb);		/* get its data */
+      unlink (hitch);		/* flush hitching post */
       /* If link count .ne. 2, hitch failed.  Set ld to -1 as if open() failed
 	 so we try again.  If extant lock file and time now is .gt. file time
 	 plus timeout interval, flush the lock so can win next time around. */
       if ((ld = (sb.st_nlink != 2) ? -1 : 0) && (!stat (lock,&sb)) &&
-	  (tp.tv_sec > sb.st_ctime + LOCKTIMEOUT * 60)) unlink (lock);
+	  (t > sb.st_ctime + LOCKTIMEOUT * 60)) unlink (lock);
     }
 
 #else
@@ -1165,16 +1172,18 @@ int mmdf_lock (file,flags,mode,lock,op)
 				/* try to get the lock */
     if ((ld = open (lock,O_WRONLY|O_CREAT|O_EXCL,
 		    (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) < 0)
-      switch (errno) {
+      switch (errno) {		/* what happened? */
       case EEXIST:		/* if extant and old, grab it for ourselves */
-	if ((!stat (lock,&sb)) && tp.tv_sec > sb.st_ctime + LOCKTIMEOUT * 60)
+	if ((!stat (lock,&sb)) && t > sb.st_ctime + LOCKTIMEOUT * 60)
 	  ld = open (lock,O_WRONLY|O_CREAT,
 		     (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
 	break;
       case EACCES:		/* protection fail, ignore if non-ex or old */
-	if (stat (lock,&sb) || (tp.tv_sec > sb.st_ctime + LOCKTIMEOUT * 60))
-	  *lock = '\0';		/* assume no world write mail spool dir */
-	break;
+	if (!mail_parameters (NIL,GET_LOCKEACCESERROR,NIL)) {
+	  if (stat (lock,&sb) || (t > sb.st_ctime + LOCKTIMEOUT * 60))
+	    *lock = '\0';	/* assume no world write mail spool dir */
+	  break;
+	}
       default:			/* some other failure */
 	sprintf (tmp,"Error creating %s: %s",lock,strerror (errno));
 	mm_log (tmp,WARN);	/* this is probably not good */
@@ -1256,6 +1265,7 @@ int mmdf_parse (stream,lock,op)
   long newcnt = 0;
   struct tm *tm;
   struct stat sbuf;
+  STRING bs;
   MESSAGECACHE *elt;
   FILECACHE *m = NIL,*n = NIL;
   mailcache_t mc = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
@@ -1313,8 +1323,10 @@ int mmdf_parse (stream,lock,op)
       if (first) {		/* only do this first time! */
 	if (*s == '\n') s++;	/* skip spurious newline */
 	if (!ISMMDF (s)) {	/* must start with MMDF header */
-	  mm_log ("Mailbox format invalidated (consult an expert), aborted",
-		  ERROR);
+	  char tmp[MAILTMPLEN];
+	  sprintf (tmp,
+		   "Unexpected changes to mailbox (try restarting): %.20s",s);
+	  mm_log (tmp,ERROR);
 	  mmdf_unlock (fd,stream,lock);
 	  mmdf_abort (stream);
 	  mail_unlock (stream);
@@ -1330,15 +1342,19 @@ int mmdf_parse (stream,lock,op)
       while (i && ((e = mmdf_eom (s,s1,i)) || !delta)) {
 	if (e != s) {		/* make sure not another header */
 	  nmsgs++;		/* yes, have a new message */
+	  /* Note: unlike bezerk, the final newline is part of the message,
+	     hence length is 1 larger than in bezerk driver. */
 				/* calculate message length */
-	  j = ((e ? e : s1 + i) - s) - 1;
+	  j = ((e ? e : s1 + i) - s);
 	  if (m) {		/* new cache needed, have previous data? */
-	    n->header = (char *) fs_get (sizeof (FILECACHE) + j + 2);
+	    n->header = (char *) fs_get (sizeof (FILECACHE) + j + 3);
 	    n = (FILECACHE *) n->header;
 	  }
-	  else m = n = (FILECACHE *) fs_get (sizeof (FILECACHE) + j + 2);
+	  else m = n = (FILECACHE *) fs_get (sizeof (FILECACHE) + j + 3);
 				/* copy message data */
 	  memcpy (n->internal,s,j);
+				/* ensure ends with newline */
+	  if (s[j-1] != '\n') n->internal[j++] = '\n';
 	  n->internal[j] = '\0';
 	  n->header = NIL;	/* initially no link */
 	  n->headersize = j;	/* stash away buffer length */
@@ -1450,18 +1466,33 @@ int mmdf_parse (stream,lock,op)
       elt->zhours = 0; elt->zminutes = 0;
     }
 
-    is = 0;			/* initialize newline count */
     e = NIL;			/* no status stuff yet */
     do switch (*(t = s)) {	/* look at header lines */
-    case 'X':			/* possible X-Status: line */
-      if (s[1] == '-' && s[2] == 'S') s += 2;
-      else {
-	is++;			/* count another newline */
-	break;			/* this is uninteresting after all */
+    case '\n':			/* end of header */
+      m->body = ++s;		/* start of body is here */
+      j = m->body - m->header;	/* new header size */
+				/* calculate body size */
+      m->bodysize = (j <= m->headersize) ? m->headersize - j : 0;
+      if (e) {			/* saw status poop? */
+	*e++ = '\n';		/* patch in trailing newline */
+	m->headersize = e - m->header;
       }
+      else m->headersize = j;	/* set header size */
+      s = NIL;			/* don't scan any further */
+      break;
+    case '\0':			/* end of message */
+      if (e) {			/* saw status poop? */
+	*e++ = '\n';		/* patch in trailing newline */
+	m->headersize = e - m->header;
+      }
+      break;
+
+    case 'X':			/* possible X-Status: line */
+      if (s[1] == '-' && s[2] == 'S' && s[3] == 't' && s[4] == 'a' &&
+	  s[5] == 't' && s[6] == 'u' && s[7] == 's' && s[8] == ':') s += 2;
     case 'S':			/* possible Status: line */
-      if (s[1] == 't' && s[2] == 'a' && s[3] == 't' && s[4] == 'u' &&
-	  s[5] == 's' && s[6] == ':') {
+      if (s[0] == 'S' && s[1] == 't' && s[2] == 'a' && s[3] == 't' &&
+	  s[4] == 'u' && s[5] == 's' && s[6] == ':') {
 	if (!e) e = t;		/* note deletion point */
 	s += 6;			/* advance to status flags */
 	do switch (*s++) {	/* parse flags */
@@ -1488,30 +1519,10 @@ int mmdf_parse (stream,lock,op)
 	} while (*s && *s != '\n');
 				/* recalculate Status/X-Status lines */
 	mmdf_update_status (m->status,elt);
+	break;			/* all done */
       }
-      else is++;		/* otherwise random line */
-      break;
+				/* otherwise fall into default case */
 
-    case '\n':			/* end of header */
-      m->body = ++s;		/* start of body is here */
-      j = m->body - m->header;	/* new header size */
-				/* calculate body size */
-      m->bodysize = (j <= m->headersize) ? m->headersize - j : 0;
-      if (e) {			/* saw status poop? */
-	*e++ = '\n';		/* patch in trailing newline */
-	m->headersize = e - m->header;
-      }
-      else m->headersize = j;	/* set header size */
-      s = NIL;			/* don't scan any further */
-      is++;			/* count a newline */
-      break;
-    case '\0':			/* end of message */
-      if (e) {			/* saw status poop? */
-	*e++ = '\n';		/* patch in trailing newline */
-	m->headersize = e - m->header;
-      }
-      is++;			/* count an extra newline here */
-      break;
     default:			/* anything else is uninteresting */
       if (e) {			/* have status stuff to worry about? */
 	j = s - e;		/* yuck!!  calculate size of delete area */
@@ -1523,12 +1534,13 @@ int mmdf_parse (stream,lock,op)
 				/* tie off old cruft */
 	*(m->header + m->headersize) = '\0';
       }
-      is++;
       break;
     } while (s && (s = strchr (s,'\n')) && s++);
-				/* count newlines in body */
-    if (s = m->body) while (*s) if (*s++ == '\n') is++;
-    elt->rfc822_size = m->headersize + m->bodysize + is;
+				/* get size including CR's  */
+    INIT (&bs,mail_string,(void *) m->header,m->headersize);
+    elt->rfc822_size = strcrlflen (&bs);
+    INIT (&bs,mail_string,(void *) m->body,m->bodysize);
+    elt->rfc822_size += strcrlflen (&bs);
   }
   if (n) fatal ("Cache link-list inconsistency");
   while (i < LOCAL->cachesize) LOCAL->msgs[i++] = NIL;
@@ -1578,7 +1590,11 @@ char *mmdf_eom (som,sod,i)
       } while (i > 8);		/* continue until near the end */
     }
   }
-  return strstr (s,mmdfhdr);	/* search final bit */
+  while (i >= MMDFHDRLEN) {
+    if (ISMMDF (s)) return s;
+    i--; s++;
+  }
+  return NIL;
 }
 
 /* MMDF extend mailbox to reserve worst-case space for expansion

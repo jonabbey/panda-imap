@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	11 July 1994
+ * Last Edited:	13 June 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,8 +33,8 @@
  *
  */
 
-extern void *malloc ();
-extern void free ();
-extern void *realloc ();
+void *malloc ();
+void free ();
+void *realloc ();
 
 #include "os_sun.h"		/* now use regular SUN-OS file */

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 September 1994
+ * Last Edited:	7 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -32,7 +32,8 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
-
+
+/* c-client environment parameters */
 
 static char *myUserName = NIL;	/* user name */
 static char *myHomeDir = NIL;	/* home directory name */
@@ -43,8 +44,28 @@ static char *newsActive = NIL;	/* news active file */
 static char *newsSpool = NIL;	/* news spool */
 static char *blackBoxDir = NIL;	/* black box directory name */
 static int blackBox = NIL;	/* is a black box */
+static long mbx_protection = 0600;
+static long sub_protection = 0600;
+static long lock_protection = 0666;
+static long disableFcntlLock =	/* flock() emulator is a no-op */
+#ifdef SVR4_DISABLE_FLOCK
+  T
+#else
+  NIL
+#endif
+  ;
+static long lockEaccesError =	/* warning on EACCES errors on .lock files */
+#ifdef WARN_LOCK_EACCES_ERRORS
+  T
+#else
+  NIL
+#endif
+  ;
 static MAILSTREAM *defaultProto = NIL;
 static char *userFlags[NUSERFLAGS] = {NIL};
+
+#include "write.c"		/* include safe writing routines */
+#include "writev.c"		/* include safe writing routines */
 
 /* Environment manipulate parameters
  * Accepts: function code
@@ -105,6 +126,37 @@ void *env_parameters (function,value)
     break;
   case GET_SYSINBOX:
     value = (void *) sysInbox;
+    break;
+
+  case SET_MBXPROTECTION:
+    mbx_protection = (long) value;
+    break;
+  case GET_MBXPROTECTION:
+    value = (void *) mbx_protection;
+    break;
+  case SET_SUBPROTECTION:
+    sub_protection = (long) value;
+    break;
+  case GET_SUBPROTECTION:
+    value = (void *) sub_protection;
+    break;
+  case SET_LOCKPROTECTION:
+    lock_protection = (long) value;
+    break;
+  case GET_LOCKPROTECTION:
+    value = (void *) lock_protection;
+    break;
+  case SET_DISABLEFCNTLLOCK:
+    disableFcntlLock = (long) value;
+    break;
+  case GET_DISABLEFCNTLLOCK:
+    value = (void *) disableFcntlLock;
+    break;
+  case SET_LOCKEACCESERROR:
+    lockEaccesError = (long) value;
+    break;
+  case GET_LOCKEACCESERROR:
+    value = (void *) lockEaccesError;
     break;
   default:
     value = NIL;		/* error case */
@@ -192,7 +244,7 @@ long env_init (user,home)
   if (myUserName) fatal ("env_init called twice!");
   myUserName = cpystr (user);	/* remember user name */
   myHomeDir = cpystr (home);	/* and home directory */
-  sprintf (tmp,MAILFILE,myUserName);
+  sprintf (tmp,"%s/%s",MAILSPOOL,myUserName);
   sysInbox = cpystr (tmp);	/* system inbox is from mail spool */
   dorc ("/etc/imapd.conf");	/* do systemwide */
   if (blackBoxDir) {		/* build black box directory name */
@@ -282,7 +334,7 @@ char *sysinbox ()
 /* Return mailbox file name
  * Accepts: destination buffer
  *	    mailbox name
- * Returns: file name
+ * Returns: file name or NIL if error
  */
 
 char *mailboxfile (dst,name)
@@ -290,43 +342,55 @@ char *mailboxfile (dst,name)
 	char *name;
 {
   struct passwd *pw;
-  char *s,tmp[MAILTMPLEN];
+  char *s,*t,tmp[MAILTMPLEN];
   char *dir = myhomedir ();
-  *dst = '\0';			/* originally no file name */
-				/* ignore extraneous context */
-  if ((s = strstr (name,"/~")) || (s = strstr (name,"//"))) name = s + 1;
-  switch (*name) {		/* dispatch based on first character */
+  *dst = '\0';			/* erase buffer */
+  if (blackBox && strstr (name,"/..")) dst = NIL;
+  else switch (*name) {		/* dispatch based on first character */
   case '*':			/* bboard? */
-    if (!((pw = getpwnam ("ftp")) && pw->pw_dir)) break;
-    sprintf (dst,"%s/%s",pw->pw_dir,name + 1);
-    break;
-  case '/':			/* absolute file path */
-    if (!(blackBox && strncmp (name,sysInbox,strlen (myHomeDir) + 1)))
-      strcpy (dst,name);
-    break;
-  case '.':			/* these names may be private */
-    if ((name[1] != '.') || !blackBox) sprintf (dst,"%s/%s",dir,name);
-    break;
-  case '~':			/* home directory */
-    if (blackBox) break;	/* don't permit this for now */
-    if (name[1] != '/') {	/* if not want my own home directory */
-      strcpy (tmp,name + 1);	/* copy user name */
-      if (name = strchr (tmp,'/')) *name++ = '\0';
-      else name = "";		/* prevent code before from being surprised */
-				/* look it up in password file */
-      if (!(dir = ((pw = getpwnam (tmp)) ? pw->pw_dir : NIL))) break;
+    if ((pw = getpwnam ("ftp")) && pw->pw_dir && !strstr (name,"..") &&
+	!strstr (name,"//") && !strstr (name,"/~")) {
+      sprintf (dst,"%s/%s",pw->pw_dir,name + 1);
+      break;
     }
-    else name += 2;		/* skip past user name */
-    sprintf (dst,"%s/%s",dir,name);
-    break;
-  default:			/* some other name */
+				/* drops in */
+  case '#':			/* namespace name? */
+    dst = NIL;			/* definite error */
+    break;			/* can't be used */
+  default:			/* any other name, ignore extraneous context */
+    if ((s = strstr (name,"/~")) || (s = strstr (name,"//"))) name = s + 1;
+    switch (*name) {		/* dispatch based on first character */
+    case '/':			/* absolute file path */
+      if (blackBox && strncmp (name,sysInbox,strlen (myHomeDir)+1)) dst = NIL;
+      else strcpy (dst,name);
+      break;
+    case '.':			/* these names may be private */
+      if (blackBox && (name[1] == '.')) dst = NIL;
+      else sprintf (dst,"%s/%s",dir,name);
+      break;
+    case '~':			/* home directory */
+      if (blackBox) dst = NIL;	/* don't permit this for now */
+      else {
+	if (name[1] != '/') {	/* if not want my own home directory */
+	  strcpy (tmp,name + 1);/* copy user name */
+	  if (name = strchr (tmp,'/')) *name++ = '\0';
+	  else name = "";	/* prevent code before from being surprised */
+				/* look it up in password file */
+	  if (!(dir = ((pw = getpwnam (tmp)) ? pw->pw_dir : NIL))) break;
+	}
+	else name += 2;		/* skip past user name */
+	sprintf (dst,"%s/%s",dir,name);
+      }
+      break;
+    default:			/* some other name */
 				/* non-INBOX name is in home directory */
-    if (strcmp (ucase (strcpy (dst,name)),"INBOX"))
-      sprintf (dst,"%s/%s",dir,name);
+      if (strcmp (ucase (strcpy (tmp,name)),"INBOX"))
+	sprintf (dst,"%s/%s",dir,name);
 				/* blackbox INBOX is always in home dir */
-    else if (blackBox) sprintf (dst,"%s/INBOX",dir);
-    else dst = NIL;		/* driver selects what INBOX is */
-    break;
+      else if (blackBox) sprintf (dst,"%s/INBOX",dir);
+				/* empty name means driver selects INBOX */
+      break;
+    }
   }
   return dst;
 }

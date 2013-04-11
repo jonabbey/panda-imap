@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 September 1994
+ * Last Edited:	27 June 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -37,6 +37,8 @@
 static char *myLocalHost = NIL;	/* local host name */
 static char *myHomeDir = NIL;	/* home directory name */
 static char *myNewsrc = NIL;	/* newsrc file name */
+
+#include "write.c"		/* include safe writing routines */
 
 /* Environment manipulate parameters
  * Accepts: function code
@@ -78,24 +80,43 @@ void *env_parameters (long function,void *value)
   return value;
 }
 
-/* Write current time in RFC 822 format
+/* Write current time
  * Accepts: destination string
+ *	    optional format of day-of-week prefix
+ *	    format of date and time
+ *	    flag whether to append symbolic timezone
  */
 
-void rfc822_date (char *date)
+static void do_date (char *date,char *prefix,char *fmt,int suffix)
 {
-  int zone,dstflag;
-  time_t ti = time (0);
-  struct tm *t;
-  tzset ();			/* initialize timezone stuff */
-  t = localtime (&ti);		/* output local time */
-  dstflag = daylight ? (t->tm_isdst > 0) : 0;
-				/* get timezone value */
-  zone = (int) -(timezone/60) - (dstflag ? 60 : 0);
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-	   tzname[dstflag]);
+  time_t tn = time (0);
+  struct tm *t = gmtime (&tn);
+  int zone = t->tm_hour * 60 + t->tm_min;
+  int julian = t->tm_yday;
+  t = localtime (&tn);		/* get local time now */
+				/* minus UTC minutes since midnight */
+  zone = t->tm_hour * 60 + t->tm_min - zone;
+  /* julian can be one of:
+   *  36x  local time is December 31, UTC is January 1, offset -24 hours
+   *    1  local time is 1 day ahead of UTC, offset +24 hours
+   *    0  local time is same day as UTC, no offset
+   *   -1  local time is 1 day behind UTC, offset -24 hours
+   * -36x  local time is January 1, UTC is December 31, offset +24 hours
+   */
+  if (julian = t->tm_yday -julian)
+    zone += ((julian < 0) == (abs (julian) == 1)) ? -24*60 : 24*60;
+  if (prefix) {			/* want day of week? */
+    sprintf (date,prefix,days[t->tm_wday]);
+    date += strlen (date);	/* make next sprintf append */
+  }
+				/* output the date */
+  sprintf (date,fmt,t->tm_mday,months[t->tm_mon],t->tm_year+1900,
+	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60);
+  if (suffix) {			/* append timezone suffix if desired */
+    tzset ();			/* get timezone from TZ environment stuff */
+    sprintf (date + strlen (date)," (%s)",
+	     tzname[daylight ? (((struct tm *) t)->tm_isdst > 0) : 0]);
+  }
 }
 
 
@@ -103,18 +124,19 @@ void rfc822_date (char *date)
  * Accepts: destination string
  */
 
+void rfc822_date (char *date)
+{
+  do_date (date,"%s, ","%d %s %d %02d:%02d:%02d %+03d%02d",T);
+}
+
+
+/* Write current time in internal format
+ * Accepts: destination string
+ */
+
 void internal_date (char *date)
 {
-  int zone;
-  time_t ti = time (0);
-  struct tm *t;
-  tzset ();			/* initialize timezone stuff */
-  t = localtime (&ti);		/* output local time */
-				/* get timezone value */
-  zone = (int) -(timezone/60) - ((daylight ? (t->tm_isdst > 0) : 0) ? 60 : 0);
-  sprintf (date,"%2d-%s-%d %02d:%02d:%02d %+03d%02d",
-	   t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60);
+  do_date (date,NIL,"%02d-%s-%d %02d:%02d:%02d %+03d%02d",NIL);
 }
 
 /* Return my home directory name

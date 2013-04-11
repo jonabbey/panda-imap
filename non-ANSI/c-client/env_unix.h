@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 September 1994
+ * Last Edited:	28 June 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,4 +44,8 @@ char *sysinbox  ();
 char *lockname  ();
 MAILSTREAM *user_flags  ();
 void dorc  ();
-void grim_pid_reap  ();
+void grim_pid_reap_status  ();
+#define grim_pid_reap(pid,killreq) \
+  grim_pid_reap_status (pid,killreq,NIL)
+long safe_write  ();
+long safe_writev  ();

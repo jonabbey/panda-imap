@@ -9,9 +9,9 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	30 August 1994
+ * Last Edited:	13 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -48,7 +48,6 @@ extern int errno;		/* just in case */
 #include <pwd.h>
 #include "misc.h"
 
-extern char *timezone  ();
 extern int sys_nerr;
 extern char *sys_errlist[];
 
@@ -60,6 +59,7 @@ extern char *sys_errlist[];
 #include "ftl_unix.c"
 #include "nl_unix.c"
 #include "env_unix.c"
+#define fork vfork
 #include "tcp_unix.c"
 #include "log_std.c"
 #include "gr_wait.c"
@@ -68,5 +68,6 @@ extern char *sys_errlist[];
 #include "strpbrk.c"
 #include "strstr.c"
 #include "strtol.c"
+#include "strtoul.c"
 #include "strtok.c"
 #include "tz_nul.c"

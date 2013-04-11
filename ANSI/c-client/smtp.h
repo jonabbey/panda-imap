@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	24 May 1994
+ * Last Edited:	31 January 1996
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -51,19 +51,36 @@
 #define SMTPHARDERROR (long) 554/* SMTP miscellaneous hard failure */
 
 
+/* SMTP open options */
+
+#define SOP_DEBUG (long) 1	/* debug protocol negotiations */
+#define SOP_ESMTP (long) 2	/* ESMTP requested */
+
+
 /* SMTP I/O stream */
 
 typedef struct smtp_stream {
   void *tcpstream;		/* TCP I/O stream */
   char *reply;			/* last reply string */
+  unsigned long size;		/* size limit */
   unsigned int debug : 1;	/* stream debug flag */
+  unsigned int ehlo : 1;	/* doing EHLO processing */
+  unsigned int esmtp : 1;	/* support ESMTP */
+  unsigned int ok_send : 1;	/* supports SEND */
+  unsigned int ok_soml : 1;	/* supports SOML */
+  unsigned int ok_saml : 1;	/* supports SAML */
+  unsigned int ok_expn : 1;	/* supports EXPN */
+  unsigned int ok_help : 1;	/* supports HELP */
+  unsigned int ok_turn : 1;	/* supports TURN */
+  unsigned int ok_size : 1;	/* supports SIZE */
+  unsigned int ok_8bitmime : 1;	/* supports 8-bit MIME */
 } SMTPSTREAM;
-
-
+
 /* Coddle certain compilers' 6-character symbol limitation */
 
 #ifdef __COMPILER_KCC__
 #define smtp_open sopen
+#define	smtp_greeting sgreet
 #define smtp_close sclose
 #define smtp_mail smail
 #define smtp_debug sdebug
@@ -78,7 +95,8 @@ typedef struct smtp_stream {
 
 /* Function prototypes */
 
-SMTPSTREAM *smtp_open (char **hostlist,long debug);
+SMTPSTREAM *smtp_open (char **hostlist,long options);
+long smtp_greeting (SMTPSTREAM *stream,char *lhost,long options);
 SMTPSTREAM *smtp_close (SMTPSTREAM *stream);
 long smtp_mail (SMTPSTREAM *stream,char *type,ENVELOPE *msg,BODY *body);
 void smtp_debug (SMTPSTREAM *stream);

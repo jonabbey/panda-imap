@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	11 July 1994
+ * Last Edited:	29 August 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,8 +41,15 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <netdb.h>
+#include <errno.h>
+extern int errno;		/* just in case */
+#include <signal.h>
 #include <pwd.h>
 #include "misc.h"
+
+
+/* Autologout timer */
+#define TIMEOUT 60*30
 
 
 /* Size of temporary buffers */
@@ -60,7 +67,7 @@
 
 /* Global storage */
 
-char *version = "2.3(15)";	/* server version */
+char *version = "2.3(17)";	/* server version */
 short state = LISN;		/* server state */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 long nmsgs = 0;			/* number of messages */
@@ -75,6 +82,8 @@ short *msg = NIL;		/* message translation vector */
 /* Function prototypes */
 
 void main (int argc,char *argv[]);
+void clkint ();
+void kodint ();
 short c_helo (char *t,int argc,char *argv[]);
 short c_fold (char *t);
 short c_read (char *t);
@@ -98,9 +107,20 @@ void main (int argc,char *argv[])
   printf ("+ %s POP2 %s w/IMAP2 client %s at %s\015\012",s,version,
 	  "(Comments to MRC@CAC.Washington.EDU)",cmdbuf);
   fflush (stdout);		/* dump output buffer */
+  signal (SIGALRM,clkint);	/* prepare for clock interrupt */
+  signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
   state = AUTH;			/* initial server state */
-				/* command processing loop */
-  while ((state != DONE) && fgets (cmdbuf,TMPLEN-1,stdin)) {
+  while (state != DONE) {	/* command processing loop */
+    alarm (TIMEOUT);		/* get a command under timeout */
+    while (!fgets (cmdbuf,TMPLEN-1,stdin)) {
+      if (errno==EINTR) errno=0;/* ignore if some interrupt */
+      else {
+	syslog (LOG_INFO,"Connection broken while reading line from %.80s",
+		tcp_clienthost (cmdbuf));
+	_exit (1);
+      }
+    }
+    alarm (0);			/* make sure timeout disabled */
 				/* find end of line */
     if (!strchr (cmdbuf,'\012')) {
       puts ("- Command line too long\015");
@@ -141,8 +161,39 @@ void main (int argc,char *argv[])
     fflush (stdout);		/* make sure output blatted */
   }
   mail_close (stream);		/* clean up the stream */
-  syslog (LOG_INFO,"Logout from %s",tcp_clienthost (cmdbuf));
+  syslog (LOG_INFO,"Logout from %.80s",tcp_clienthost (cmdbuf));
   exit (0);			/* all done */
+}
+
+/* Clock interrupt
+ */
+
+void clkint ()
+{
+  char tmp[MAILTMPLEN];
+  puts ("- Autologout; idle for too long\015");
+  syslog (LOG_INFO,"Autologout user=%.80s host=%.80s",user ? user : "???",
+	  tcp_clienthost (tmp));
+  fflush (stdout);		/* make sure output blatted */
+  mail_close (stream);		/* try to gracefully close the stream */
+  stream = NIL;
+  exit (0);			/* die die die */
+}
+
+
+/* Kiss Of Death interrupt
+ */
+
+void kodint ()
+{
+  char tmp[MAILTMPLEN];
+  puts ("- Received Kiss of Death\015");
+  syslog (LOG_INFO,"Kiss of death user=%.80s host=%.80s",user ? user : "???",
+	  tcp_clienthost (tmp));
+  fflush (stdout);		/* make sure output blatted */
+  mail_close (stream);		/* try to gracefully close the stream */
+  stream = NIL;
+  exit (0);			/* die die die */
 }
 
 /* Parse HELO command
@@ -166,7 +217,7 @@ short c_helo (char *t,int argc,char *argv[])
   if (s = strchr (u,':')) {	/* want remote mailbox? */
     *s++ = '\0';		/* separate host name from user name */
     user = cpystr (s);		/* note user name */
-    syslog (LOG_INFO,"IMAP login to host=%s user=%s host=%s",u,user,
+    syslog (LOG_INFO,"IMAP login to host=%.80s user=%.80s host=%s",u,user,
 	    tcp_clienthost (tmp));
     sprintf (tmp,"{%s}INBOX",u);/* initially remote INBOX */
     if (pwd) {			/* try to become someone harmless */
@@ -175,12 +226,13 @@ short c_helo (char *t,int argc,char *argv[])
     }
   }
   else if (server_login (user = cpystr (u),pass,NIL,argc,argv)) {
-    syslog (LOG_INFO,"Login user=%s host=%s",user,tcp_clienthost (tmp));
+    syslog (LOG_INFO,"Login user=%.80s host=%.80s",user,tcp_clienthost (tmp));
     strcpy (tmp,"INBOX");	/* local; attempt login, select INBOX */
   }
   else {
     puts ("- Bad login\015");
-    syslog (LOG_INFO,"Login failure user=%s host=%s",user,tcp_clienthost(tmp));
+    syslog (LOG_INFO,"Login failure user=%.80s host=%.80s",user,
+	    tcp_clienthost(tmp));
     return DONE;
   }
   return c_fold (tmp);		/* open default mailbox */
@@ -470,7 +522,7 @@ void mm_nocritical (MAILSTREAM *stream)
 
 long mm_diskerror (MAILSTREAM *stream,long errcode,long serious)
 {
-  syslog (LOG_ALERT,"Retrying after disk error %s",strerror (errcode));
+  syslog (LOG_ALERT,"Retrying after disk error %.80s",strerror (errcode));
   sleep (5);			/* can't do much better than this! */
   return NIL;
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 September 1994
+ * Last Edited:	16 August 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -34,6 +34,8 @@
  */
 
 
+#define SUBSCRIPTIONTEMP(t) sprintf (t,"%s/.mlbxlsttmp",myhomedir ())
+
 /* Function prototypes */
 
 #include "env.h"
@@ -44,4 +46,8 @@ char *sysinbox ();
 char *lockname (char *tmp,char *fname);
 MAILSTREAM *user_flags (MAILSTREAM *stream);
 void dorc (char *file);
-void grim_pid_reap (int pid,int killreq);
+void grim_pid_reap_status (int pid,int killreq,void *status);
+#define grim_pid_reap(pid,killreq) \
+  grim_pid_reap_status (pid,killreq,NIL)
+long safe_write (int fd,char *buf,long nbytes);
+long safe_writev (int fd,struct iovec *iov,int iovcnt);

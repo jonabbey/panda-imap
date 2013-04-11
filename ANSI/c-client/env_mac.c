@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	14 September 1994
+ * Last Edited:	10 August 1995
  *
- * Copyright 1994 by Mark Crispin
+ * Copyright 1995 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -74,6 +74,10 @@ void *env_parameters (long function,void *value)
  * Nothing is done about the gmtFlags.dlsDelta byte yet, since I
  * don't know how it's supposed to work.
  */
+
+/* PPC cretins broke the MachineLocation struct */
+
+#define gmtFlags u
 
 static void do_date (char *date,char *fmt)
 {

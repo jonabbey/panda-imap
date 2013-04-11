@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	11 October 1993
+# Last Edited:	13 March 1996
 #
-# Copyright 1993 by the University of Washington
+# Copyright 1996 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -33,11 +33,13 @@
 
 C = ../c-client
 CCLIENTLIB = $C/c-client.a
+SHELL = /bin/sh
 
 CCMD = ../../../ccmd
 
-# Get local CFLAGS and LFLAGS definitions from c-client directory
+# Get local definitions from c-client directory
 
+CC = `cat $C/CCTYPE`
 CFLAGS = -I$C -I$(CCMD) `cat $C/CFLAGS`
 LDFLAGS = $(CCMD)/ccmd.a $(CCLIENTLIB) -ltermlib `cat $C/LDFLAGS`
 

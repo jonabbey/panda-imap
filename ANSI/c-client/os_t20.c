@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	16 September 1994
+ * Last Edited:	8 September 1995
  *
- * Copyright 1994 by Mark Crispin
+ * Copyright 1995 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -176,10 +176,11 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
 /* TCP/IP authenticated open
  * Accepts: host name
  *	    service name
+ *	    returned user name
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_aopen (char *host,char *service)
+TCPSTREAM *tcp_aopen (char *host,char *service,char *usrnam)
 {
   return NIL;
 }

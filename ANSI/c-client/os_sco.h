@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 September 1994
+ * Last Edited:	7 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,19 +33,16 @@
  *
  */
 
-#define MAILFILE "/usr/spool/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
-
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/dir.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
 #include <dirent.h>
 #include <syslog.h>
+#include <sys/file.h>
 
 
 /* Different names, equivalent things in BSD and SysV */
@@ -62,6 +59,8 @@
 
 /* For flock() emulation */
 
+#define flock bsd_flock
+
 #define LOCK_SH 1
 #define LOCK_EX 2
 #define LOCK_NB 4
@@ -71,8 +70,8 @@
 /* For writev() emulation */
 
 struct iovec {
-  caddr_t iov_base;
-  int iov_len;
+  char *iov_base;
+  unsigned long iov_len;
 };
 
 
@@ -86,9 +85,12 @@ struct iovec {
 #include "nl.h"
 #include "tcp.h"
 
-unsigned long gethostid (void);
-int scandir (char *dirname,struct direct ***namelist,int (*select) (),
-	     int (*compar) ());
+long gethostid (void);
+typedef int (*select_t) (struct direct *name);
+typedef int (*compar_t) (void *d1,void *d2);
+int scandir (char *dirname,struct direct ***namelist,select_t select,
+	     compar_t compar);
+int bsd_flock (int fd,int operation);
 int fsync (int fd);
-int writev (int fd,struct iovec *iov,int iovcnt);
-int Geteuid ();
+long writev (int fd,struct iovec *iov,int iovcnt);
+int Geteuid (void);

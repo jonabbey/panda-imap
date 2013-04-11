@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 1994
+ * Last Edited:	7 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -48,10 +48,9 @@
 extern int errno;		/* just in case */
 #include <pwd.h>
 #include "misc.h"
-extern char *crypt();
-#include <sys/poll.h>
 #include <sys/select.h>
-#include <sys/lockf.h>
+
+char *crypt (char *key,char *salt);
 
 extern int sys_nerr;
 extern char *sys_errlist[];
@@ -65,3 +64,4 @@ extern char *sys_errlist[];
 #include "log_std.c"
 #include "gr_waitp.c"
 #include "tz_sv4.c"
+#include "flock.c"

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 January 1993
- * Last Edited:	9 October 1994
+ * Last Edited:	28 August 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -549,7 +549,10 @@ char *nntp_slurp (MAILSTREAM *stream)
   while (s = tcp_getline (LOCAL->nntpstream->tcpstream)) {
     if (*s == '.') {		/* possible end of text? */
       if (s[1]) t = s + 1;	/* pointer to true start of line */
-      else break;		/* end of data */
+      else {
+	fs_give ((void **) &s);	/* free the line */
+	break;			/* end of data */
+      }
     }
     else t = s;			/* want the entire line */
 				/* ensure have enough room */
@@ -780,9 +783,9 @@ void nntp_search (MAILSTREAM *stream,char *criteria)
 long nntp_ping (MAILSTREAM *stream)
 {
   /* Kludge alert: SMTPSOFTFATAL is 421 which is used in NNTP to mean ``No
-   * next article in this group''.  Hopefully, no NNTP server will choke on
-   * a bogus command. */
-  return (smtp_send (LOCAL->nntpstream,"NOOP",NIL) != SMTPSOFTFATAL);
+   * next article in this group''.  Hopefully, no NNTP server will send this
+   * in response to a STAT */
+  return (smtp_send (LOCAL->nntpstream,"STAT",NIL) != SMTPSOFTFATAL);
 }
 
 

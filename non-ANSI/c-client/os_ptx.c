@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	30 August 1994
+ * Last Edited:	27 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,10 +36,10 @@
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
 #include "osdep.h"
+#undef flock
 #include <ctype.h>
 #include <stdio.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <sys/time.h>
 #include <sys/tiuser.h>
 #include <sys/stropts.h>
@@ -48,11 +48,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <regexpr.h>
 #include <errno.h>
 #include <pwd.h>
 #include <shadow.h>
-#include <sys/file.h>
 #include <sys/select.h>
 #include "misc.h"
 
@@ -72,11 +70,11 @@ extern char *sys_errlist[];
 #include "env_unix.c"
 #undef rfc822_date
 #define getpeername Getpeername
+#define fork vfork
 #include "tcp_unix.c"
 #include "log_sv4.c"
 #include "gr_waitp.c"
 #include "flock.c"
-#include "gettime.c"
 #include "scandir.c"
 #include "tz_sv4.c"
 

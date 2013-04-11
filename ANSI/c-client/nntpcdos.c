@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 January 1993
- * Last Edited:	9 October 1994
+ * Last Edited:	14 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,8 +41,7 @@
 #include "mail.h"
 #include "osdep.h"
 #include <time.h>
-#include <sys\stat.h>
-#include "dawz.h"
+#include <sys/stat.h>
 #undef LOCAL
 #include "smtp.h"
 #include "nntp.h"
@@ -335,11 +334,13 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
 				/* copy host and newsgroup name */
     LOCAL->host = cpystr (mb.host);
     LOCAL->name = cpystr (mb.mailbox);
+    LOCAL->hm = LOCAL->tm = 0;	/* no cache header/text message numbers yet */
+    LOCAL->ht = NIL;		/* no header text yet */
     if (!((s = getenv ("TMP")) || (s = getenv ("TEMP")))) s = myhomedir ();
     if ((i = strlen (s)) && ((s[i-1] == '\\') || (s[i-1]=='/')))
       s[i-1] = '\0';		/* tie off trailing directory delimiter */
     sprintf (tmp,"%s\\NEWS%4.4d.TMP",s,++tmpcnt);
-    LOCAL->tmp = cpystr (tmp);	/* build name of tmp file we use */
+    LOCAL->tf = cpystr (tmp);	/* build name of tmp file we use for text */
     stream->sequence++;		/* bump sequence number */
     stream->rdonly = T;		/* make sure higher level knows readonly */
     LOCAL->number = NIL;
@@ -382,10 +383,9 @@ void nntp_close (MAILSTREAM *stream)
 {
   if (LOCAL) {			/* only if a file is open */
     nntp_check (stream);	/* dump final checkpoint */
-    if (LOCAL->tmp) {		/* flush temp file if any */
-      unlink (LOCAL->tmp);	/* sayonara */
-      fs_give ((void **) &LOCAL->tmp);
-    }
+    if (LOCAL->ht) fs_give ((void **) &LOCAL->ht);
+    unlink (LOCAL->tf);		/* sayonara to the text temporary file */
+    fs_give ((void **) &LOCAL->tf);
     if (LOCAL->name) fs_give ((void **) &LOCAL->name);
     if (LOCAL->host) fs_give ((void **) &LOCAL->host);
     if (LOCAL->number) fs_give ((void **) &LOCAL->number);
@@ -424,6 +424,74 @@ void nntp_fetchflags (MAILSTREAM *stream,char *sequence)
   return;			/* no-op for local mail */
 }
 
+/* NNTP string driver for file stringstructs */
+
+STRINGDRIVER nntp_string = {
+  nntp_string_init,		/* initialize string structure */
+  nntp_string_next,		/* get next byte in string structure */
+  nntp_string_setpos		/* set position in string structure */
+};
+
+
+/* Cache buffer for file stringstructs */
+
+#define DOSCHUNKLEN 4096
+char dos_chunk[DOSCHUNKLEN];
+
+
+/* Initialize NNTP string structure for file stringstruct
+ * Accepts: string structure
+ *	    pointer to string
+ *	    size of string
+ */
+
+void nntp_string_init (STRING *s,void *data,unsigned long size)
+{
+  NNTPDATA *d = (NNTPDATA *) data;
+  s->data = (void *) d->fd;	/* note fd */
+  s->data1 = d->pos;		/* note file offset */
+  s->size = size;		/* note size */
+  s->curpos = s->chunk = dos_chunk;
+  s->chunksize = (unsigned long) DOSCHUNKLEN;
+  s->offset = 0;		/* initial position */
+				/* and size of data */
+  s->cursize = min ((long) DOSCHUNKLEN,size);
+				/* move to that position in the file */
+  lseek (d->fd,d->pos,SEEK_SET);
+  read (d->fd,s->chunk,(unsigned int) s->cursize);
+}
+
+/* Get next character from file stringstruct
+ * Accepts: string structure
+ * Returns: character, string structure chunk refreshed
+ */
+
+char nntp_string_next (STRING *s)
+{
+  char c = *s->curpos++;	/* get next byte */
+				/* move to next chunk */
+  SETPOS (s,s->offset + s->chunksize);
+  return c;			/* return the byte */
+}
+
+
+/* Set string pointer position for file stringstruct
+ * Accepts: string structure
+ *	    new position
+ */
+
+void nntp_string_setpos (STRING *s,unsigned long i)
+{
+  s->offset = i;		/* set new offset */
+  s->curpos = s->chunk;		/* reset position */
+				/* set size of data */
+  if (s->cursize = s->size > s->offset ? min ((long) DOSCHUNKLEN,SIZE (s)):0) {
+				/* move to that position in the file */
+    lseek ((int) s->data,s->data1 + s->offset,SEEK_SET);
+    read ((int) s->data,s->curpos,(unsigned int) s->cursize);
+  }
+}
+
 /* NNTP mail fetch envelope
  * Accepts: MAIL stream
  *	    message # to fetch
@@ -441,10 +509,9 @@ ENVELOPE *nntp_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
   LONGCACHE *lelt;
   ENVELOPE **env;
   STRING bs;
-  DAWZDATA d;
+  NNTPDATA d;
   BODY **b;
   MESSAGECACHE *elt = mail_elt (stream,msgno);
-  long m = msgno - 1;
   unsigned long hdrsize;
   unsigned long textsize = 0;
   if (stream->scache) {		/* short cache */
@@ -465,29 +532,12 @@ ENVELOPE *nntp_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
   if ((body && !*b) || !*env) {	/* have the poop we need? */
     mail_free_envelope (env);	/* flush old envelope and body */
     mail_free_body (b);
-    sprintf (tmp,"%ld",LOCAL->number[m]);
-    if (smtp_send (LOCAL->nntpstream,"HEAD",tmp) == NNTPHEAD) {
-      nntp_slurp (stream,&hdrsize);
-				/* limit header size */
-      if (hdrsize > MAXHDR) hdrsize = MAXHDR;
-      h = (char *) fs_get (hdrsize +1);
-				/* read header */
-      read (LOCAL->fd,h,hdrsize);
-      h[hdrsize] = '\0';	/* ensure tied off */
-      close (LOCAL->fd);	/* clean up the file descriptor */
-    }
-    else {			/* failed, mark as deleted */
+    if (!(h = nntp_fetchheader_work (stream,msgno,&hdrsize)))
       mail_elt (stream,msgno)->deleted = T;
-      h = cpystr ("");		/* no header */
-      hdrsize = 0;		/* empty header */
-    }
     if (body) {			/* get message text */
-      sprintf (tmp,"%ld",LOCAL->number[m]);
-      if (smtp_send (LOCAL->nntpstream,"BODY",tmp) == NNTPBODY) {
-	nntp_slurp (stream,&textsize);
-	d.fd = LOCAL->fd;	/* set initial stringstruct */
+      if ((d.fd = nntp_fetchtext_work (stream,msgno,&textsize)) >= 0) {
 	d.pos = 0;		/* starting at beginning of file */
-	INIT (&bs,dawz_string,(void *) &d,textsize);
+	INIT (&bs,nntp_string,(void *) &d,textsize);
 				/* calculate message size */
 	elt->rfc822_size = hdrsize + textsize;
       }
@@ -497,8 +547,8 @@ ENVELOPE *nntp_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
       }
     }
 				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,h,hdrsize,body ? &bs:NIL,BADHOST,tmp);
-    fs_give ((void **) &h);	/* don't need header any more */
+    rfc822_parse_msg (env,body ? b : NIL,h ? h : "",hdrsize,body ? &bs : NIL,
+		      BADHOST,tmp);
 				/* clean up the file descriptor */
     if (body) close ((int) bs.data);
 				/* parse date */
@@ -517,22 +567,12 @@ ENVELOPE *nntp_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
 
 char *nntp_fetchheader (MAILSTREAM *stream,long msgno)
 {
-  char tmp[MAILTMPLEN];
+  char *ret;
   unsigned long hdrsize;
-  long m = msgno - 1;
-  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
-  if (stream->text) fs_give ((void **) &stream->text);
 				/* get the header */
-  sprintf (tmp,"%ld",LOCAL->number[m]);
-  if (smtp_send (LOCAL->nntpstream,"HEAD",tmp) == NNTPHEAD) {
-    nntp_slurp (stream,&hdrsize);
-				/* return it to user */
-    stream->text = (mg ? *mg : mm_gets) (nntp_read,stream,hdrsize);
-    close (LOCAL->fd);		/* clean up the file descriptor */
-  }
-				/* failed, mark as deleted */
-  else mail_elt (stream,msgno)->deleted = T;
-  return stream->text ? stream->text : "";
+  if (!(ret = nntp_fetchheader_work (stream,msgno,&hdrsize)))
+    mail_elt (stream,msgno)->deleted = T;
+  return ret ? ret : "";
 }
 
 
@@ -551,9 +591,7 @@ char *nntp_fetchtext (MAILSTREAM *stream,long msgno)
   mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
   if (stream->text) fs_give ((void **) &stream->text);
 				/* get the text */
-  sprintf (tmp,"%ld",LOCAL->number[m]);
-  if (smtp_send (LOCAL->nntpstream,"BODY",tmp) == NNTPBODY) {
-    nntp_slurp (stream,&textsize);
+  if ((LOCAL->fd = nntp_fetchtext_work (stream,msgno,&textsize)) >= 0) {
 				/* return it to user */
     stream->text = (mg ? *mg : mm_gets) (nntp_read,stream,textsize);
     close (LOCAL->fd);		/* clean up the file descriptor */
@@ -607,13 +645,9 @@ char *nntp_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
       return NIL;
     }
   } while (i);
-
 				/* lose if body bogus */
   if ((!b) || b->type == TYPEMULTIPART) return NIL;
-				/* get the text */
-  sprintf (tmp,"%ld",LOCAL->number[m - 1]);
-  if (smtp_send (LOCAL->nntpstream,"BODY",tmp) == NNTPBODY) {
-    nntp_slurp (stream,&textsize);
+  if ((LOCAL->fd = nntp_fetchtext_work (stream,m,&textsize)) >= 0) {
 				/* move to that place in the file */
     lseek (LOCAL->fd,offset,SEEK_SET);
     stream->text =		/* return it to user */
@@ -623,6 +657,80 @@ char *nntp_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
   else elt->deleted = T;	/* failed, mark as deleted */
   elt->seen = T;		/* mark as seen */
   return stream->text ? stream->text : "";
+}
+
+/* NNTP mail fetch message header worker routine
+ * Accepts: MAIL stream
+ *	    message # to fetch
+ *	    pointer to size to return
+ * Returns: file descriptor of header temp file or -1 if error
+ */
+
+char *nntp_fetchheader_work (MAILSTREAM *stream,long msgno,unsigned long *size)
+{
+  int fd;
+  char *s,*t;
+  unsigned long i,j;
+  unsigned long bufsize = MAILTMPLEN;
+  if (msgno != LOCAL->hm) {	/* if message number different */
+    if (LOCAL->ht) fs_give ((void **) &LOCAL->ht);
+    LOCAL->hs = 0;		/* no size yet */
+    LOCAL->ht = (char *) fs_get (bufsize);
+    LOCAL->hm = 0;		/* may get an error getting message */
+    sprintf (LOCAL->ht,"%ld",LOCAL->number[msgno - 1]);
+    if (smtp_send (LOCAL->nntpstream,"HEAD",LOCAL->ht) != NNTPHEAD) return NIL;
+    LOCAL->hm = msgno;		/* note have cached message now */
+    while (s = tcp_getline (LOCAL->nntpstream->tcpstream)) {
+      if (*s == '.') {		/* possible end of text? */
+	if (s[1]) t = s + 1;	/* pointer to true start of line */
+	else {
+	  fs_give ((void **) &s);
+	  break;		/* end of data */
+	}
+      }
+      else t = s;		/* want the entire line */
+				/* ensure have enough room */
+      if ((j = (LOCAL->hs + (i = strlen (t))) + 5) >= bufsize)
+	fs_resize ((void **) &LOCAL->ht,
+		   bufsize += MAILTMPLEN * ((j / MAILTMPLEN) + 1));
+				/* copy the text */
+      strncpy (LOCAL->ht + LOCAL->hs,t,i);
+      LOCAL->hs += i;		/* set new buffer position */
+      LOCAL->ht[LOCAL->hs++] = '\015';
+      LOCAL->ht[LOCAL->hs++] = '\012';
+      fs_give ((void **) &s);	/* free the line */
+    }
+				/* add final newline */
+    LOCAL->ht[LOCAL->hs++] = '\015';
+    LOCAL->ht[LOCAL->hs++] = '\012';
+    LOCAL->ht[LOCAL->hs] = '\0';/* tie off string with NUL */
+  }
+  *size = LOCAL->hs;		/* return header size */
+  return LOCAL->ht;
+}
+
+/* NNTP file open
+ * Accepts: file name
+ *	    access mode
+ *	    pointer to size to return
+ * Returns: file descriptor, or -1 if failure
+ */
+
+int nntp_fopen (char *file,int access,unsigned long *size)
+{
+  int fd = open (file,O_BINARY | access,S_IREAD|S_IWRITE);
+  if (fd < 0) {
+    char tmp[MAILTMPLEN];
+    sprintf (tmp,"Can't open scratch file %s",file);
+    mm_log (tmp,ERROR);
+    *size = 0;			/* zap the size then */
+  }
+  else {			/* get the file size */
+    struct stat sbuf;
+    fstat (fd,&sbuf);
+    *size = sbuf.st_size;
+  }
+  return fd;
 }
 
 
@@ -638,23 +746,23 @@ long nntp_read (MAILSTREAM *stream,unsigned long count,char *buffer)
   return read (LOCAL->fd,buffer,(unsigned int) count) ? T : NIL;
 }
 
-/* NNTP mail slurp NNTP dot-terminated text
+/* NNTP mail fetch message text (body only)
  * Accepts: MAIL stream
+ *	    message # to fetch
  *	    pointer to size to return
+ * Returns: file descriptor of header temp file or -1 if error
  */
 
-void nntp_slurp (MAILSTREAM *stream,unsigned long *siz)
+int nntp_fetchtext_work (MAILSTREAM *stream,long msgno,unsigned long *size)
 {
-  char *s,*t;
-  int i,ok = T;
-  char tmp[MAILTMPLEN];
-  if ((LOCAL->fd = open (LOCAL->tmp,
-			 O_BINARY|O_RDWR|O_TRUNC|O_CREAT,S_IREAD|S_IWRITE))
-      < 0) {
-    sprintf (tmp,"Can't open scratch file %s",LOCAL->tmp);
-    mm_log (tmp,ERROR);
-  }
-  *siz = 0;			/* initially no data */
+  char *s,*t,tmp[MAILTMPLEN];
+  int i,fd;
+  if (msgno == LOCAL->tm) return nntp_fopen (LOCAL->tf,O_RDONLY,size);
+  LOCAL->tm = 0;		/* get the header */
+  sprintf (tmp,"%ld",LOCAL->number[msgno - 1]);
+  if (smtp_send (LOCAL->nntpstream,"BODY",tmp) != NNTPBODY) return -1;
+  LOCAL->tm = msgno;		/* remember this message number */
+  fd = nntp_fopen (LOCAL->tf,O_RDWR|O_TRUNC|O_CREAT,size);
   while (s = tcp_getline (LOCAL->nntpstream->tcpstream)) {
     if (*s == '.') {		/* possible end of text? */
       if (s[1]) t = s + 1;	/* pointer to true start of line */
@@ -664,27 +772,26 @@ void nntp_slurp (MAILSTREAM *stream,unsigned long *siz)
       }
     }
     else t = s;			/* want the entire line */
-    if (ok && (LOCAL->fd >= 0)){/* copy it to the file */
-      if ((write (LOCAL->fd,t,i = strlen (t)) >= 0) &&
-	  (write (LOCAL->fd,"\015\012",2) >= 0))
-	*siz += i + 2;		/* tally up size of data */
+    if (fd >= 0) {		/* copy it to the file */
+      if ((write (fd,t,i = strlen (t)) >= 0) &&
+	  (write (fd,"\015\012",2) >= 0))
+	*size += i + 2;		/* tally up size of data */
       else {
-	sprintf (tmp,"Error writing scratch file, data trucated at %lu chars",
-		 *siz);
+	sprintf (tmp,"Error writing scratch file at byte %lu",*size);
 	mm_log (tmp,ERROR);
-	ok = NIL;		/* don't try any more */
+	close (fd);		/* forget it */
+	fd = -1;		/* failure now */
       }
     }
     fs_give ((void **) &s);	/* free the line */
   }
-  if (LOCAL->fd >= 0) {		/* making a file? */
-    if (ok) {			/* not if some problem happened */
-      write (LOCAL->fd,"\015\012",2);
-      *siz += 2;		/* write final newline */
-    }
+  if (fd >= 0) {		/* making a file? */
+    write (fd,"\015\012",2);
+    *size += 2;			/* write final newline */
 				/* rewind to start of file */
-    lseek (LOCAL->fd,(unsigned long) 0,SEEK_SET);
+    lseek (fd,(unsigned long) 0,SEEK_SET);
   }
+  return fd;			/* return the file descriptor */
 }
 
 /* NNTP mail set flag
@@ -847,9 +954,9 @@ void nntp_search (MAILSTREAM *stream,char *criteria)
 long nntp_ping (MAILSTREAM *stream)
 {
   /* Kludge alert: SMTPSOFTFATAL is 421 which is used in NNTP to mean ``No
-   * next article in this group''.  Hopefully, no NNTP server will choke on
-   * a bogus command. */
-  return (smtp_send (LOCAL->nntpstream,"NOOP",NIL) != SMTPSOFTFATAL);
+   * next article in this group''.  Hopefully, no NNTP server will send this
+   * in response to a STAT */
+  return (smtp_send (LOCAL->nntpstream,"STAT",NIL) != SMTPSOFTFATAL);
 }
 
 
@@ -1117,20 +1224,19 @@ char nntp_search_body (MAILSTREAM *stream,long msgno,char *d,long n)
   char tmp[BUFLEN];
   unsigned long bufsize,textsize,curpos = 0;
 				/* get the text */
-  sprintf (tmp,"%ld",LOCAL->number[msgno - 1]);
-  if (smtp_send (LOCAL->nntpstream,"BODY",tmp) != NNTPBODY) return NIL;
-  nntp_slurp (stream,&textsize);
-  while (textsize) {
-    bufsize = min (textsize,(unsigned long) BUFLEN);
-    read (LOCAL->fd,tmp,(unsigned int) bufsize);
-    if (search (tmp,bufsize,d,n)) return T;
+  if ((LOCAL->fd = nntp_fetchtext_work (stream,msgno,&textsize)) >= 0) {
+    while (textsize) {
+      bufsize = min (textsize,(unsigned long) BUFLEN);
+      read (LOCAL->fd,tmp,(unsigned int) bufsize);
+      if (search (tmp,bufsize,d,n)) return T;
 				/* backtrack by pattern size if not at end */
-    if (bufsize != textsize) bufsize -= n;
-    textsize -= bufsize;	/* this many bytes handled */
-    curpos += bufsize;		/* advance to that point */
-    lseek (LOCAL->fd,curpos,SEEK_SET);
+      if (bufsize != textsize) bufsize -= n;
+      textsize -= bufsize;	/* this many bytes handled */
+      curpos += bufsize;	/* advance to that point */
+      lseek (LOCAL->fd,curpos,SEEK_SET);
+    }
+    close (LOCAL->fd);		/* clean up the file descriptor */
   }
-  close (LOCAL->fd);		/* clean up the file descriptor */
   return NIL;			/* not found */
 }
 
@@ -1144,24 +1250,11 @@ char nntp_search_subject (MAILSTREAM *stream,long msgno,char *d,long n)
 
 char nntp_search_text (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  char tmp[BUFLEN];
-  unsigned long bufsize,textsize,curpos = 0;
-				/* get the text */
-  sprintf (tmp,"%ld",LOCAL->number[msgno - 1]);
-  if (smtp_send (LOCAL->nntpstream,"ARTICLE",tmp) != NNTPARTICLE) return NIL;
-  nntp_slurp (stream,&textsize);
-  while (textsize) {
-    bufsize = min (textsize,(unsigned long) BUFLEN);
-    read (LOCAL->fd,tmp,(unsigned int) bufsize);
-    if (search (tmp,bufsize,d,n)) return T;
-				/* backtrack by pattern size if not at end */
-    if (bufsize != textsize) bufsize -= n;
-    textsize -= bufsize;	/* this many bytes handled */
-    curpos += bufsize;		/* advance to that point */
-    lseek (LOCAL->fd,curpos,SEEK_SET);
-  }
-  close (LOCAL->fd);		/* clean up the file descriptor */
-  return NIL;			/* not found */
+  char *s;
+  unsigned long hdrsize;
+				/* get the header */
+  return ((s = nntp_fetchheader_work (stream,msgno,&hdrsize)) &&
+	  (search (s,hdrsize,d,n))) ? T : nntp_search_body (stream,msgno,d,n);
 }
 
 char nntp_search_bcc (MAILSTREAM *stream,long msgno,char *d,long n)

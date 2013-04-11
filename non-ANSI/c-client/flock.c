@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	18 May 1994
+ * Last Edited:	23 November 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,19 +33,21 @@
  *
  */
 
+#include <ustat.h>
+
 /* Emulator for BSD flock() call
  * Accepts: file descriptor
  *	    operation bitmask
  * Returns: 0 if successful, -1 if failure
  */
 
-int flock (fd,operation)
+int bsd_flock (fd,operation)
 	int fd;
 	int operation;
 {
+  struct stat sbuf;
+  struct ustat usbuf;
   struct flock fl;
-				/* non-blocking vs. blocking */
-  int cmd = (operation & LOCK_NB) ? F_SETLK : F_SETLKW;
 				/* lock applies to entire file */
   fl.l_whence = fl.l_start = fl.l_len = 0;
   fl.l_pid = getpid ();		/* shouldn't be necessary */
@@ -63,5 +65,9 @@ int flock (fd,operation)
     errno = EINVAL;
     return -1;
   }
-  return fcntl (fd,cmd,&fl);	/* do the lock */
+				/* ftinode should be -1 if NFS */
+  return ((!fstat (fd,&sbuf) && !ustat (sbuf.st_dev,&usbuf) &&
+	   !++usbuf.f_tinode) ||
+	  ((int) mail_parameters (NIL,GET_DISABLEFCNTLLOCK,NIL))) ? NIL :
+	    fcntl (fd,(operation & LOCK_NB) ? F_SETLK : F_SETLKW,&fl);
 }

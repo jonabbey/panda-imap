@@ -1,18 +1,18 @@
 /*
  * Program:	Operating-system dependent routines -- HP/UX version
  *
- * Author:	David L. Miller
+ * Author:	Mark Crispin
  *		Networks and Distributed Computing
  *		Computing & Communications
  *		University of Washington
  *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: DLM@CAC.Washington.EDU
+ *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	30 August 1994
+ * Last Edited:	27 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,13 +41,12 @@
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
 #include "osdep.h"
+#undef flock
 #include <stdio.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/utsname.h>
-#include <sys/file.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -64,14 +63,14 @@ extern int sys_nerr;
 #include "ftl_unix.c"
 #include "nl_unix.c"
 #include "env_unix.c"
+#define fork vfork
 #include "tcp_unix.c"
 #include "log_std.c"
 #include "gr_waitp.c"
 #include "flock.c"
-#include "strerror.c"
-#include "strstr.c"
-#include "strtol.c"
 #include "tz_sv4.c"
+#undef setpgrp
+#include "setpgrp.c"
 
 /* Emulator for BSD gethostid() call
  * Returns: a unique identifier for the system.  
@@ -82,6 +81,5 @@ extern int sys_nerr;
 long gethostid ()
 {
   struct utsname udata;
-  if (uname (&udata)) return 0 ;
-  return atol (udata.idnumber);
+  return (uname (&udata)) ? 0xfeedface : atol (udata.__idnumber);
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	5 September 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,8 +44,8 @@
 #define TCPSTREAM struct tcp_stream
 TCPSTREAM {
   char *host;			/* host name */
+  long port;			/* port number */
   char *localhost;		/* local host name */
-  int pid;			/* process ID if piped */
   int tcpsi;			/* input socket */
   int tcpso;			/* output socket */
   int ictr;			/* input counter */

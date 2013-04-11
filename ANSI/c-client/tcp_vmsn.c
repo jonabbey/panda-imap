@@ -1,13 +1,18 @@
 /*
  * Program:	Dummy VMS TCP/IP routines for non-TCP/IP systems
  *
- * Author:	Yehavi Bourvine, The Hebrew University of Jerusalem
- *		Internet: Yehavi@VMS.huji.ac.il
+ * Author:	Mark Crispin
+ *		Networks and Distributed Computing
+ *		Computing & Communications
+ *		University of Washington
+ *		Administration Building, AG-44
+ *		Seattle, WA  98195
+ *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	7 September 1994
+ * Last Edited:	8 September 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -49,6 +54,10 @@ void *tcp_parameters (long function,void *value)
 
 TCPSTREAM *tcp_open (char *host,char *service,long port)
 {
+  char tmp[MAILTMPLEN];
+  if (port) sprintf (tmp,"Can't connect to %.80s,%d: no TCP",host,port);
+  else sprintf (tmp,"Can't connect to %.80s,%s: no TCP",host,service);
+  mm_log (tmp,ERROR);
   return NIL;
 }
 
@@ -56,10 +65,11 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
 /* TCP/IP authenticated open
  * Accepts: host name
  *	    service name
+ *	    returned user name
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_aopen (char *host,char *service)
+TCPSTREAM *tcp_aopen (char *host,char *service,char *usrnam)
 {
   return NIL;
 }
@@ -161,6 +171,17 @@ char *tcp_host (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   return NIL;
+}
+
+
+/* TCP/IP return port for this stream
+ * Accepts: TCP/IP stream
+ * Returns: port number for this stream
+ */
+
+long tcp_port (TCPSTREAM *stream)
+{
+  return 0xffffffff;		/* return port number */
 }
 
 

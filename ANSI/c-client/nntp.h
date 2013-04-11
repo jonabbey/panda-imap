@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	14 April 1994
+ * Last Edited:	1 August 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,7 +39,11 @@
 #define NNTPGREET (long) 200	/* NNTP successful greeting */
 #define NNTPGREETNOPOST (long) 201
 #define NNTPOK (long) 240	/* NNTP OK code */
+#define NNTPAUTHED (long) 281	/* NNTP successful authentication */
 #define NNTPREADY (long) 340	/* NNTP ready for data */
+#define NNTPWANTAUTH (long) 380	/* NNTP authentication needed */
+#define NNTPWANTPASS (long) 381	/* NNTP password needed */
+#define NNTPWANTAUTH2 (long) 480/* NNTP authentication needed (alternate) */
 
 
 /* Coddle certain compilers' 6-character symbol limitation */

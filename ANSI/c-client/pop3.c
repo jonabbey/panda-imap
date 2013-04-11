@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	9 October 1994
+ * Last Edited:	15 February 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -172,7 +172,7 @@ void pop3_find_all (MAILSTREAM *stream,char *pat)
   char *t = NIL,tmp[MAILTMPLEN];
   if (stream && LOCAL) {	/* have a mailbox stream open? */
 				/* always include INBOX for consistency */
-    sprintf (tmp,"{%s}INBOX",LOCAL->host);
+    sprintf (tmp,"{%s/POP3}INBOX",LOCAL->host);
     if (pmatch (((*pat == '{') && (t = strchr (pat,'}'))) ? ++t : pat,"INBOX"))
       mm_mailbox (tmp);
   }
@@ -336,8 +336,8 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
       LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
       nmsgs = strtol (LOCAL->reply,NIL,10);
 				/* create caches */
-      LOCAL->header = (char **) fs_get (i * sizeof (char *));
-      LOCAL->body = (char **) fs_get (i * sizeof (char *));
+      LOCAL->header = (char **) fs_get (nmsgs * sizeof (char *));
+      LOCAL->body = (char **) fs_get (nmsgs * sizeof (char *));
       for (i = 0; i < nmsgs;) {	/* initialize caches */
 	LOCAL->header[i] = LOCAL->body[i] = NIL;
 				/* instantiate elt */

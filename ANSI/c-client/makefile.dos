@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	11 October 1994
+# Last Edited:	18 July 1995
 #
 # Copyright 1994 by the University of Washington
 #
@@ -31,11 +31,11 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
-OS = dnv
+OS = wsk
 EXTRADRIVERS = 
 DRIVERS = imap nntp bezrkdos tenexdos dawz dummy
 DEFAULTDRIVER = dawz
-CFLAGS= -AL
+CFLAGS= -AL -nologo $(EXTRACFLAGS)
 CC = cl
 
 all:	mtest.exe

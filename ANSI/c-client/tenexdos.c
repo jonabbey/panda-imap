@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 June 1994
- * Last Edited:	6 October 1994
+ * Last Edited:	14 March 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,7 +41,7 @@
 #include "mail.h"
 #include "osdep.h"
 #include <time.h>
-#include <sys\stat.h>
+#include <sys/stat.h>
 #include <dos.h>
 #include <io.h>
 #include "tenexdos.h"
@@ -1029,9 +1029,10 @@ void tenexdos_gc (MAILSTREAM *stream,long gcflags)
 
 unsigned long tenexdos_size (MAILSTREAM *stream,long m)
 {
+  unsigned long end = (m < stream->nmsgs) ?
+    mail_elt (stream,m+1)->data1 : LOCAL->filesize;
   MESSAGECACHE *elt = mail_elt (stream,m);
-  return ((m < stream->nmsgs) ? mail_elt (stream,m+1)->data1 : LOCAL->filesize)
-    - (elt->data1 + (elt->data2 >> 24));
+  return end - (elt->data1 + (elt->data2 >> 24));
 }
 
 
@@ -1055,8 +1056,9 @@ unsigned long tenexdos_822size (MAILSTREAM *stream,long msgno)
     while (msgsize) {		/* read message */
       read (LOCAL->fd,tmp,i = min (msgsize,(long) MAILTMPLEN));
       msgsize -= i;		/* account for having read that much */
-				/* now count the CRLFs */
-      while (i) if (tmp[--i] == '\n') elt->rfc822_size++;
+				/* now count the newlines */
+      while (i) if ((tmp[--i] == '\n') && (!i || (tmp[i-1] != '\015')))
+	elt->rfc822_size++;
     }
   }
   return elt->rfc822_size;
@@ -1199,7 +1201,7 @@ long tenexdos_parse (MAILSTREAM *stream)
 	  isdigit (t[6]) && isdigit (t[7]) && isdigit (t[8]) &&
 	  isdigit (t[9]) && isdigit (t[10]) && isdigit (t[11]) && !t[12])) {
       sprintf (tmp,"Unable to parse internal header elements at %ld: %s,%s;%s",
-	       curpos,tmp,x,t);
+	       curpos,lbuf,x,t);
       tenexdos_close (stream);
       return NIL;
     }

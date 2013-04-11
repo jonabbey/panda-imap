@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- MS-DOS (Novell) version
+ * Program:	MS-DOS TCP/IP routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	7 September 1994
+ * Last Edited:	5 September 1995
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -43,6 +43,7 @@
 #define TCPSTREAM struct tcp_stream
 TCPSTREAM {
   char *host;			/* host name */
+  long port;			/* port number */
   char *localhost;		/* local host name */
   int tcps;			/* tcp socket */
   long ictr;			/* input counter */

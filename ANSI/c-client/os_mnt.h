@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	23 December 1993
- * Last Edited:	14 September 1994
+ * Last Edited:	7 February 1996
  *
- * Copyright 1994 by Mark Crispin
+ * Copyright 1996 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -29,16 +29,14 @@
  *
  */
 
-#define MAILFILE "/usr/spool/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
-
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 #define _U_TIME_H		/* damn cretins */
 #include <sys/types.h>
 #include <sys/dir.h>
+#include <sys/file.h>
+#include <fcntl.h>
 #include <time.h>		/* for struct tm */
 #include <Desk.h>
 #include <Devices.h>
@@ -64,17 +62,17 @@ extern short resolveropen;	/* make this global so caller can sniff */
 
 /* This is the traditional definition of utime() */
 
-extern int utime (char *path,time_t timep[2]);
+int utime (char *path,time_t timep[2]);
 
 
 /* For writev() emulation */
 
 struct iovec {
   char *iov_base;
-  int iov_len;
+  unsigned long iov_len;
 };
 
-extern char *strerror ();
+char *strerror (int n);
 
 
 #include "env_unix.h"
@@ -85,8 +83,7 @@ extern char *strerror ();
 
 #define TCPDRIVER "\04.IPP"
 
-#define gethostid clock
-
+long gethostid (void);
 void tcp_dns_result (struct hostInfo *hostInfoPtr,char *userDataPtr);
 long wait (void);
 long random (void);

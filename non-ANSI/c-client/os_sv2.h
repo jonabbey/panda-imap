@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	14 September 1994
+ * Last Edited:	7 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,10 +33,6 @@
  *
  */
 
-#define MAILFILE "/usr/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
-
 #include <unistd.h>
 #include <string.h>
 #include <memory.h>
@@ -44,6 +40,12 @@
 #include <sys/dir.h>
 #include <fcntl.h>
 #include <syslog.h>
+#include <sys/file.h>
+
+
+/* Many versions of SysV get this wrong */
+
+#define setpgrp(a,b) Setpgrp(a,b)
 
 
 /* Different names between BSD and SVR4 */
@@ -56,7 +58,11 @@
 
 #define SIGSTOP SIGQUIT
 
+#define LOG_MAIL 0
+
 /* For flock() emulation */
+
+#define flock bsd_flock
 
 #define LOCK_SH 1
 #define LOCK_EX 2
@@ -96,16 +102,22 @@ struct passwd *getpwent ();
 struct passwd *getpwuid ();
 struct passwd *getpwnam ();
 
-unsigned long gethostid ();
+char *getenv ();
+long gethostid ();
 void *memmove ();
 char *strstr ();
 char *strerror ();
+unsigned long strtoul ();
 DIR *opendir ();
 int closedir ();
 struct direct *readdir ();
+typedef int (*select_t) ();
+typedef int (*compar_t) ();
 int scandir ();
-int flock ();
-int gettimeofday ();
+int bsd_flock ();
 int fsync ();
-int writev ();
-int setitimer ();
+int openlog ();
+int syslog ();
+void *malloc ();
+void free ();
+void *realloc ();

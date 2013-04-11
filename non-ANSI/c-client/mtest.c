@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	4 September 1994
+ * Last Edited:	5 September 1995
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -83,6 +83,7 @@
 char *curhst = NIL;		/* currently connected host */
 char *curusr = NIL;		/* current login user */
 char personalname[MAILTMPLEN];	/* user's personal name */
+char userbuf[MAILTMPLEN];	/* /user= buffer */
 
 static char *hostlist[] = {	/* SMTP server host list */
   "mailhost",
@@ -139,6 +140,7 @@ int main ()
   personalname[0] = '\0';
 #endif
   curhst = cpystr (mylocalhost ());
+  mail_parameters (NIL,SET_USERNAMEBUF,(void *) userbuf);
   puts ("MTest -- C client test program");
   if (!*personalname) prompt ("Personal name: ",personalname);
 				/* user wants protocol telemetry? */
@@ -559,11 +561,16 @@ void mm_login (host,user,pwd,trial)
   if (curhst) fs_give ((void **) &curhst);
   curhst = (char *) fs_get (1+strlen (host));
   strcpy (curhst,host);
-  sprintf (tmp,"{%s} username: ",host);
-  prompt (tmp,user);
+  if (*userbuf) {
+    curusr = cpystr (strcpy (user,userbuf));
+    printf ("{%s/user=%s} ",host,user);
+  }
+  else {
+    sprintf (tmp,"{%s} username: ",host);
+    prompt (tmp,user);
+  }
   if (curusr) fs_give ((void **) &curusr);
-  curusr = (char *) fs_get (1+strlen (user));
-  strcpy (curusr,user);
+  curusr = cpystr (user);
   prompt ("password: ",pwd);
 }
 

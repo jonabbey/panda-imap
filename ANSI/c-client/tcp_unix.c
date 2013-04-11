@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 September 1994
+ * Last Edited:	9 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,12 +33,15 @@
  *
  */
 
+#undef write			/* don't use redefined write() */
  
 				/* TCP timeout handler routine */
 static tcptimeout_t tcptimeout = NIL;
 				/* TCP timeouts, in seconds */
+static long tcptimeout_open = 0;
 static long tcptimeout_read = 0;
 static long tcptimeout_write = 0;
+static long rshtimeout = 15;	/* rsh timeout */
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -55,6 +58,12 @@ void *tcp_parameters (long function,void *value)
   case GET_TIMEOUT:
     value = (void *) tcptimeout;
     break;
+  case SET_OPENTIMEOUT:
+    tcptimeout_open = (long) value;
+    break;
+  case GET_OPENTIMEOUT:
+    value = (void *) tcptimeout_open;
+    break;
   case SET_READTIMEOUT:
     tcptimeout_read = (long) value;
     break;
@@ -66,6 +75,12 @@ void *tcp_parameters (long function,void *value)
     break;
   case GET_WRITETIMEOUT:
     value = (void *) tcptimeout_write;
+    break;
+  case SET_RSHTIMEOUT:
+    rshtimeout = (long) value;
+    break;
+  case GET_RSHTIMEOUT:
+    value = (void *) rshtimeout;
     break;
   default:
     value = NIL;		/* error case */
@@ -84,14 +99,20 @@ void *tcp_parameters (long function,void *value)
 TCPSTREAM *tcp_open (char *host,char *service,long port)
 {
   TCPSTREAM *stream = NIL;
-  int sock;
+  int i,sock,flgs;
   char *s;
   struct sockaddr_in sin;
   struct hostent *host_name;
   char hostname[MAILTMPLEN];
   char tmp[MAILTMPLEN];
+  fd_set fds,efds;
   struct protoent *pt = getprotobyname ("ip");
   struct servent *sv = service ? getservbyname (service,"tcp") : NIL;
+  struct timeval tmo;
+  tmo.tv_sec = tcptimeout_open;
+  tmo.tv_usec = 0;
+  FD_ZERO (&fds);		/* initialize selection vector */
+  FD_ZERO (&efds);		/* handle errors too */
   if (s = strchr (host,':')) {	/* port number specified? */
     *s++ = '\0';		/* yes, tie off port */
     port = strtol (s,&s,10);	/* parse port */
@@ -104,6 +125,7 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
   }
 				/* copy port number in network format */
   else sin.sin_port = sv ? sv->s_port : htons (port);
+
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */
@@ -121,11 +143,12 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
       return NIL;
     }
   }
-
   else {			/* lookup host name, note that brain-dead Unix
 				   requires lowercase! */
     strcpy (hostname,host);	/* in case host is in write-protected memory */
+    i = (int) alarm (0);	/* quell alarms */
     if ((host_name = gethostbyname (lcase (hostname)))) {
+      alarm (i);		/* restore alarms */
 				/* copy address type */
       sin.sin_family = host_name->h_addrtype;
 				/* copy host name */
@@ -134,24 +157,54 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
       memcpy (&sin.sin_addr,host_name->h_addr,host_name->h_length);
     }
     else {
+      alarm (i);		/* restore alarms */
       sprintf (tmp,"No such host as %.80s",host);
       mm_log (tmp,ERROR);
       return NIL;
     }
   }
+
 				/* get a TCP stream */
   if ((sock = socket (sin.sin_family,SOCK_STREAM,pt ? pt->p_proto : 0)) < 0) {
     sprintf (tmp,"Unable to create TCP socket: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
   }
+  flgs = fcntl (sock,F_GETFL,0);/* get current socket flags */
+  fcntl (sock,F_SETFL,flgs | FNDELAY);
 				/* open connection */
-  if (connect (sock,(struct sockaddr *)&sin,sizeof (sin)) < 0) {
+  while ((i = connect (sock,(struct sockaddr *) &sin,sizeof (sin))) < 0 &&
+	 errno == EINTR);
+  if (i < 0) switch (errno) {	/* failed? */
+  case EINPROGRESS:
+  case EISCONN:
+  case EADDRINUSE:
+    break;			/* well, not really, it was interrupted */
+  default:
     sprintf (tmp,"Can't connect to %.80s,%d: %s",hostname,port,
 	     strerror (errno));
     mm_log (tmp,ERROR);
+    close (sock);		/* flush socket */
     return NIL;
   }
+  FD_SET (sock,&fds);		/* block for error or writeable */
+  FD_SET (sock,&efds);
+  while (((i = select (sock+1,0,&fds,&efds,tmo.tv_sec ? &tmo : 0)) < 0) &&
+	 (errno == EINTR));
+  if (i > 0) {			/* success, make sure really connected */
+    fcntl (sock,F_SETFL,flgs);	/* restore blocking status */
+				/* get socket status */
+    while ((i = read (sock,tmp,0)) < 0 && errno == EINTR);
+    if (!i) i = 1;		/* make success if the read is OK */
+  }	
+  if (i <= 0) {			/* timeout or error? */
+    sprintf (tmp,"Can't connect to %.80s,%d: %s",hostname,port,
+	     strerror (i ? errno : ETIMEDOUT));
+    mm_log (tmp,ERROR);
+    close (sock);		/* flush socket */
+    return NIL;
+  }
+
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
 				/* copy official host name */
@@ -160,32 +213,40 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
   gethostname (tmp,MAILTMPLEN-1);
   stream->localhost = cpystr ((host_name = gethostbyname (tmp)) ?
 			      host_name->h_name : tmp);
+  stream->port = port;		/* port number */
 				/* init sockets */
   stream->tcpsi = stream->tcpso = sock;
   stream->ictr = 0;		/* init input counter */
-  stream->pid = 0;		/* no process ID */
   return stream;		/* return success */
 }
   
 /* TCP/IP authenticated open
  * Accepts: host name
  *	    service name
+ *	    returned user name buffer
  * Returns: TCP/IP stream if success else NIL
  */
 
-TCPSTREAM *tcp_aopen (char *host,char *service)
+TCPSTREAM *tcp_aopen (char *host,char *service,char *usrbuf)
 {
   TCPSTREAM *stream = NIL;
   struct hostent *host_name;
+  char *user = (char *) mail_parameters (NIL,GET_USERNAMEBUF,NIL);
   char hostname[MAILTMPLEN];
   int i;
   int pipei[2],pipeo[2];
+  struct timeval tmo;
+  fd_set fds,efds;
+  if (!(tmo.tv_sec = rshtimeout)) return NIL;
+  tmo.tv_usec = 0;
+  FD_ZERO (&fds);		/* initialize selection vector */
+  FD_ZERO (&efds);		/* handle errors too */
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */
 				/* look like domain literal? */
   if (host[0] == '[' && host[i = (strlen (host))-1] == ']') {
-    strcpy (hostname,host+1);	/* yes, copy without brackets */
+    strcpy (hostname,host+1);/* yes, copy without brackets */
     hostname[i-1] = '\0';
   }
 				/* note that Unix requires lowercase! */
@@ -203,17 +264,23 @@ TCPSTREAM *tcp_aopen (char *host,char *service)
     return NIL;
   }
   if (!i) {			/* if child */
-    dup2 (pipei[1],1);		/* parent's input is my output */
-    dup2 (pipei[1],2);		/* parent's input is my error output too */
-    close (pipei[0]); close (pipei[1]);
-    dup2 (pipeo[0],0);		/* parent's output is my input */
-    close (pipeo[0]); close (pipeo[1]);
-				/* now run it */
-    execl (RSHPATH,RSH,hostname,"exec",service,0);
-    _exit (1);			/* spazzed */
+    if (!fork ()) {		/* make grandchild so it's inherited by init */
+      int maxfd = max (20,max (max(pipei[0],pipei[1]),max(pipeo[0],pipeo[1])));
+      dup2 (pipei[1],1);	/* parent's input is my output */
+      dup2 (pipei[1],2);	/* parent's input is my error output too */
+      dup2 (pipeo[0],0);	/* parent's output is my input */
+				/* close all unnecessary descriptors */
+      for (i = 3; i <= maxfd; i++) close (i);
+      setpgrp (0,getpid ());	/* be our own process group */
+      if (user && *user)	/* now run it */
+	execl (RSHPATH,RSH,hostname,"-l",user,"exec",service,0);
+      execl (RSHPATH,RSH,hostname,"exec",service,0);
+    }
+    _exit (1);			/* child is done */
   }
 
-  close (pipei[1]);		/* parent, close child's side of the pipes */
+  grim_pid_reap (i,NIL);	/* reap child; grandchild now owned by init */
+  close (pipei[1]);		/* close child's side of the pipes */
   close (pipeo[0]);
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
@@ -226,7 +293,19 @@ TCPSTREAM *tcp_aopen (char *host,char *service)
   stream->tcpsi = pipei[0];	/* init sockets */
   stream->tcpso = pipeo[1];
   stream->ictr = 0;		/* init input counter */
-  stream->pid = i;
+  stream->port = 0xffffffff;	/* no port number */
+  FD_SET (stream->tcpsi,&fds);	/* set bit in selection vector */
+  FD_SET (stream->tcpsi,&efds);	/* set bit in error selection vector */
+  while (((i = select (stream->tcpsi+1,&fds,0,&efds,&tmo)) < 0) &&
+	 (errno == EINTR));
+  if (i <= 0) {			/* timeout or error? */
+    mm_log (i ? "error in rsh to IMAP server" : "rsh to IMAP server timed out",
+	    WARN);
+    tcp_close (stream);		/* punt stream */
+    stream = NIL;
+  }
+				/* return user name */
+  strcpy (usrbuf,(user && *user) ? user : myusername ());
   return stream;		/* return success */
 }
 
@@ -414,14 +493,9 @@ long tcp_abort (TCPSTREAM *stream)
     if (stream->tcpsi != stream->tcpso) close (stream->tcpso);
     stream->tcpsi = stream->tcpso = -1;
   }
-  if (stream->pid) {		/* reap any PID we may have */
-    grim_pid_reap (stream->pid,T);
-    stream->pid = 0;
-  }
   return NIL;
 }
-
-
+
 /* TCP/IP get host name
  * Accepts: TCP/IP stream
  * Returns: host name for this stream
@@ -430,6 +504,17 @@ long tcp_abort (TCPSTREAM *stream)
 char *tcp_host (TCPSTREAM *stream)
 {
   return stream->host;		/* return host name */
+}
+
+
+/* TCP/IP return port for this stream
+ * Accepts: TCP/IP stream
+ * Returns: port number for this stream
+ */
+
+long tcp_port (TCPSTREAM *stream)
+{
+  return stream->port;		/* return port number */
 }
 
 
@@ -442,7 +527,8 @@ char *tcp_localhost (TCPSTREAM *stream)
 {
   return stream->localhost;	/* return local host name */
 }
-
+
+
 /* TCP/IP get server host name
  * Accepts: pointer to destination
  * Returns: string pointer if got results, else NIL

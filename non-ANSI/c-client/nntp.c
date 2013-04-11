@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	26 May 1994
+ * Last Edited:	31 January 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1995 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -102,7 +102,18 @@ long nntp_mail (stream,env,body)
   long ret;
   char tmp[8*MAILTMPLEN],*s;
 				/* negotiate post command */
-  if (!(smtp_send (stream,"POST",NIL) == NNTPREADY)) return NIL;
+  if (!(ret = smtp_send (stream,"POST",NIL) == NNTPREADY)) {
+    if ((ret == NNTPWANTAUTH) || (ret == NNTPWANTAUTH2)) {
+      char usr[MAILTMPLEN],pwd[MAILTMPLEN];
+				/* get user name and password */
+      mm_login (tcp_host (stream->tcpstream),usr,pwd,(long) 1);
+				/* try it if user gave one */
+      if (*pwd && (smtp_send (stream,"AUTHINFO USER",usr) == NNTPWANTPASS) &&
+	  (smtp_send (stream,"AUTHINFO PASS",pwd) == NNTPAUTHED))
+	ret = smtp_send (stream,"POST",NIL);
+    }
+    if (ret != NNTPREADY) return NIL;
+  }
 				/* set up error in case failure */
   smtp_fake (stream,SMTPSOFTFATAL,"NNTP connection went away!");
   /* Gabba gabba hey, we need some brain damage to send netnews!!!
@@ -125,7 +136,7 @@ long nntp_mail (stream,env,body)
   if (s = strstr (env->date," (")) *s = NIL;
 				/* output data, return success status */
   ret = tcp_soutr (stream->tcpstream,tmp) &&
-    rfc822_output (tmp,env,body,smtp_soutr,stream->tcpstream) &&
+    (* (rfc822emit_t) mail_parameters (NIL,GET_RFC822OUTPUT,NIL)) (tmp,env,body,smtp_soutr,stream->tcpstream) &&
       (smtp_send (stream,".",NIL) == NNTPOK);
   if (s) *s = ' ';		/* put the comment in the date back */
   return ret;

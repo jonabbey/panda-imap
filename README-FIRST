@@ -1,0 +1,4 @@
+IMAP2bis toolkit 3.6 is the FINAL version of the IMAP toolkit that
+supports the IMAP2 protocol.  The next IMAP toolkit will be 4.0, which
+supports IMAP4 and has *major* internal and external changes.  At the
+time of this writing toolkit 4.0 is in alpha test.

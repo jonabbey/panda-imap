@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 1994
+ * Last Edited:	21 February 1996
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -49,7 +49,8 @@
 extern int errno;		/* just in case */
 #include <pwd.h>
 #include "misc.h"
-extern char *crypt();
+
+char *crypt (char *key,char *salt);
 
 
 extern time_t _timezone;
@@ -62,3 +63,5 @@ extern time_t _timezone;
 #include "log_std.c"
 #include "gr_waitp.c"
 #include "tz_sv4.c"
+#undef setpgrp
+#include "setpgrp.c"
