@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	20 April 2005
+# Last Edited:	30 April 2005
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 1988-2005 University of Washington.
@@ -549,7 +549,7 @@ osx:	# Mac OS X
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
 	 CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
-	 BASECFLAGS="-g -O"
+	 BASECFLAGS="-g -O -Wno-pointer-sign"
 
 ptx:	# PTX
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \

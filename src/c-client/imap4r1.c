@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	8 April 2005
+ * Last Edited:	25 May 2005
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2005 University of Washington.
@@ -2341,8 +2341,7 @@ void imap_check (MAILSTREAM *stream)
   IMAPPARSEDREPLY *reply = imap_send (stream,"CHECK",NIL);
   mm_log (reply->text,imap_OK (stream,reply) ? (long) NIL : ERROR);
 }
-
-
+
 /* IMAP expunge mailbox
  * Accepts: MAIL stream
  */
@@ -2614,18 +2613,21 @@ void imap_gc_body (BODY *body)
 void imap_capability (MAILSTREAM *stream)
 {
   THREADER *thr,*t;
-				/* flush threaders */
-  if (thr = LOCAL->cap.threader) while (t = thr) {
-    fs_give ((void **) &t->name);
-    thr = t->next;
-    fs_give ((void **) &t);
-  }
-				/* zap capabilities */
-  memset (&LOCAL->cap,0,sizeof (LOCAL->cap));
-				/* assume IMAP2bis server */
-  LOCAL->cap.imap2bis = LOCAL->cap.rfc1176 = T;
-				/* send new capabilities */
+  LOCAL->gotcapability = NIL;	/* flush any previous capabilities */
+				/* request new capabilities */
   imap_send (stream,"CAPABILITY",NIL);
+  if (!LOCAL->gotcapability) {	/* did server get any? */
+				/* no, flush threaders just in case */
+    if (thr = LOCAL->cap.threader) while (t = thr) {
+      fs_give ((void **) &t->name);
+      thr = t->next;
+      fs_give ((void **) &t);
+    }
+				/* zap most capabilities */
+    memset (&LOCAL->cap,0,sizeof (LOCAL->cap));
+				/* assume IMAP2bis server if failure */
+    LOCAL->cap.imap2bis = LOCAL->cap.rfc1176 = T;
+  }
 }
 
 /* IMAP set ACL
@@ -3778,22 +3780,19 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
     }
   }
 
-  else if (!strcmp (reply->key,"FLAGS")) {
-				/* flush old user flags if any */
-    while ((i < NUSERFLAGS) && stream->user_flags[i])
-      fs_give ((void **) &stream->user_flags[i++]);
-    i = 0;			/* add flags */
-    if (reply->text && (s = (char *) strtok (reply->text+1," )"))) do
-      if (*s != '\\') {
-	if (i < NUSERFLAGS) stream->user_flags[i++] = cpystr (s);
-	else {
-	  sprintf (LOCAL->tmp,"Too many server flags, discarding: %.80s",
-		   (char *) s);
-	  mm_notify (stream,LOCAL->tmp,WARN);
-	}
+  else if (!strcmp (reply->key,"FLAGS") && reply->text &&
+	   (*reply->text == '(') && (s = (char *) strtok (reply->text+1," )")))
+    do if (*s != '\\') {
+      for (i = 0; (i < NUSERFLAGS) && stream->user_flags[i] &&
+	     compare_cstring (s,stream->user_flags[i]); i++);
+      if (i > NUSERFLAGS) {
+	sprintf (LOCAL->tmp,"Too many server flags, discarding: %.80s",
+		 (char *) s);
+	mm_notify (stream,LOCAL->tmp,WARN);
       }
+      else if (!stream->user_flags[i]) stream->user_flags[i++] = cpystr (s);
+    }
     while (s = (char *) strtok (NIL," )"));
-  }
   else if (!strcmp (reply->key,"SEARCH")) {
 				/* only do something if have text */
     if (reply->text && (t = (char *) strtok (reply->text," "))) do
@@ -5315,9 +5314,18 @@ void imap_parse_capabilities (MAILSTREAM *stream,char *t)
 {
   char *s;
   unsigned long i;
-  LOCAL->gotcapability = T;	/* flag that capabilities arrived */
-				/* no more assumptions about server */
-  LOCAL->cap.imap2bis = LOCAL->cap.rfc1176 = NIL;
+  THREADER *thr,*th;
+  if (!LOCAL->gotcapability) {	/* need to save previous capabilities? */
+				/* no, flush threaders */
+    if (thr = LOCAL->cap.threader) while (th = thr) {
+      fs_give ((void **) &th->name);
+      thr = th->next;
+      fs_give ((void **) &th);
+    }
+				/* zap capabilities */
+    memset (&LOCAL->cap,0,sizeof (LOCAL->cap));
+    LOCAL->gotcapability = T;	/* flag that capabilities arrived */
+  }
   for (t = (char *) strtok (t," "); t; t = (char *) strtok (NIL," ")) {
     if (!compare_cstring (t,"IMAP4"))
       LOCAL->cap.imap4 = LOCAL->cap.imap2bis = LOCAL->cap.rfc1176 = T;

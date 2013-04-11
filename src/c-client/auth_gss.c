@@ -199,12 +199,31 @@ long auth_gssapi_client_work (authchallenge_t challenger,gss_buffer_desc chal,
 	strcpy (tmp+4,strcpy (user,mb->user[0] ? mb->user : myusername ()));
 	buf.value = tmp; buf.length = strlen (user) + 4;
 				/* successful negotiation */
-	if (gss_wrap (&smn,ctx,NIL,qop,&buf,&conf,&resp) == GSS_S_COMPLETE) {
+	switch (smj = gss_wrap (&smn,ctx,NIL,qop,&buf,&conf,&resp)) {
+	case GSS_S_COMPLETE:
 	  if ((*responder) (stream,resp.value,resp.length)) ret = T;
 	  gss_release_buffer (&smn,&resp);
-	}
-	else {
-	  mm_log ("Unknown gss_wrap error",WARN);
+	  break;
+	default:
+	  do switch (dsmj = gss_display_status (&dsmn,smj,GSS_C_GSS_CODE,
+						GSS_C_NO_OID,&mctx,&resp)) {
+	  case GSS_S_COMPLETE:
+	    mctx = 0;
+	  case GSS_S_CONTINUE_NEEDED:
+	    sprintf (tmp,"Unknown gss_wrap failure: %s",(char *) resp.value);
+	    mm_log (tmp,WARN);
+	    gss_release_buffer (&dsmn,&resp);
+	  }
+	  while (dsmj == GSS_S_CONTINUE_NEEDED);
+	  do switch (dsmj = gss_display_status (&dsmn,smn,GSS_C_MECH_CODE,
+						GSS_C_NO_OID,&mctx,&resp)) {
+	  case GSS_S_COMPLETE:
+	  case GSS_S_CONTINUE_NEEDED:
+	    sprintf (tmp,"GSSAPI mechanism status: %s",(char *) resp.value);
+	    mm_log (tmp,WARN);
+	    gss_release_buffer (&dsmn,&resp);
+	  }
+	  while (dsmj == GSS_S_CONTINUE_NEEDED);
 	  (*responder) (stream,NIL,0);
 	}
       }

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 June 2004
+ * Last Edited:	15 June 2005
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
+ * Copyright 1988-2005 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -33,6 +33,7 @@
 extern int errno;		/* just in case */
 #include <pwd.h>
 #include "misc.h"
+#include <ustat.h>
 
 
 #include "fs_unix.c"

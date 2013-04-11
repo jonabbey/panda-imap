@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	7 April 2005
+ * Last Edited:	9 May 2005
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2005 University of Washington.
@@ -430,29 +430,34 @@ unsigned short *utf8_rmap (char *charset)
 	if (tab[i] != UBOGON) rmap[tab[i]] = (unsigned short) i;
       break;
     case CT_EUC:		/* 2 byte ASCII + utf8_eucparam base/CS2/CS3 */
-    case CT_DBYTE:		/* 2 byte ASCII + utf8_eucparam */
       for (param = (struct utf8_eucparam *) cs->tab,
 	   tab = (unsigned short *) param->tab,
-	   ku = 0; ku <= param->max_ku; ku++)
-	for (ten = 0; ten <= param->max_ten; ten++)
+	   ku = 0; ku < param->max_ku; ku++)
+	for (ten = 0; ten < param->max_ten; ten++)
 	  if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
 	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten) +
 	      0x8080;
       break;
+    case CT_DBYTE:		/* 2 byte ASCII + utf8_eucparam */
+      for (param = (struct utf8_eucparam *) cs->tab,
+	   tab = (unsigned short *) param->tab,
+	   ku = 0; ku < param->max_ku; ku++)
+	for (ten = 0; ten < param->max_ten; ten++)
+	  if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
+	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten);
+      break;
     case CT_DBYTE2:		/* 2 byte ASCII + utf8_eucparam plane1/2 */
       for (param = (struct utf8_eucparam *) cs->tab,
 	   tab = (unsigned short *) param->tab,
-	   ku = 0; ku <= param->max_ku; ku++)
-	for (ten = 0; ten <= param->max_ten; ten++)
+	   ku = 0; ku < param->max_ku; ku++)
+	for (ten = 0; ten < param->max_ten; ten++)
 	  if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
-	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten) +
-	      0x8080;
+	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten);
       param++;
-      for (ku = 0; ku <= param->max_ku; ku++)
-	for (ten = 0; ten <= param->max_ten; ten++)
+      for (ku = 0; ku < param->max_ku; ku++)
+	for (ten = 0; ten < param->max_ten; ten++)
 	  if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
-	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten) +
-	      0x8080;
+	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten);
       break;
     case CT_SJIS:		/* 2 byte Shift-JIS */
       for (ku = 0; ku <= MAX_JIS0208_KU; ku++)

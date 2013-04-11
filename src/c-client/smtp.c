@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	10 March 2005
+ * Last Edited:	30 April 2005
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2005 University of Washington.
@@ -158,7 +158,10 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 				/* explicit port overrides all */
       if (mb.port) port = mb.port;
 				/* else /submit overrides port argument */
-      else if (!compare_cstring (mb.service,"submit")) port = SUBMITTCPPORT;
+      else if (!compare_cstring (mb.service,"submit")) {
+	port = SUBMITTCPPORT;	/* override port, use IANA name */
+	strcpy (mb.service,"submission");
+      }
 				/* else port argument overrides SMTP port */
       else if (!port) port = smtp_port ? smtp_port : SMTPTCPPORT;
       if (netstream =		/* try to open ordinary connection */

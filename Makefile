@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	8 March 2005
+# Last Edited:	30 April 2005
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 1988-2005 University of Washington.
@@ -77,7 +77,7 @@
 # lnx	Linux with traditional passwords and crypt() in the C library
 #	 (see lnp, sl4, sl5, and slx)
 # lnp	Linux with Pluggable Authentication Modules (PAM)
-# lmd	Mankdrake Linux
+# lmd	Mandrake Linux
 # lrh	RedHat Linux 7.2 and later
 # lsu	SuSE Linux
 # lyn	LynxOS
@@ -340,10 +340,12 @@ lsu:	an
 
 osx:	an
 	$(BUILD) BUILDTYPE=osx \
+	IP=6 EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS) gss" \
 	SPECIALS="SSLDIR=/System/Library/OpenSSL SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
 
 oxp:	an
 	$(BUILD) BUILDTYPE=osx \
+	IP=6 EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS) gss" \
 	SPECIALS="SSLDIR=/System/Library/OpenSSL SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib PAMLDFLAGS=-lpam" \
 	PASSWDTYPE=pam \
 	EXTRACFLAGS="$(EXTRACFLAGS) -DMAC_OSX_KLUDGE=1"
