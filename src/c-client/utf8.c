@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	27 September 2006
+ * Last Edited:	12 October 2006
  */
 
 
@@ -873,7 +873,8 @@ long ucs4_rmapbuf (unsigned char *t,unsigned long *ucs4,unsigned long len,
 /* Return UCS-4 character from UTF-8 string
  * Accepts: pointer to string
  *	    remaining octets in string
- * Returns: UCS-4 character with pointer and count updated, negative if error
+ * Returns: UCS-4 character with pointer and count updated
+ *	    or error code with pointer and count unchanged
  */
 
 unsigned long utf8_get (unsigned char **s,unsigned long *i)
@@ -881,55 +882,45 @@ unsigned long utf8_get (unsigned char **s,unsigned long *i)
   unsigned char c;
   unsigned char *t = *s;
   unsigned long j = *i;
-  unsigned long ret = 0;
+  unsigned long ret = U8G_NOTUTF8;
   int more = 0;
-  while (j) {			/* until run out of input */
-    j--;			/* count this character */
+  do {				/* make sure have soure octets available */
+    if (!j--) return more ? U8G_ENDSTRI : U8G_ENDSTRG;
 				/* UTF-8 continuation? */
-    if (((c = *t++) > 0x7f) && (c < 0xc0)) {
-      if (more) {
-	ret <<= 6;		/* shift current value by 6 bits */
-	ret |= c & 0x3f;
-	if (!--more) {		/* last octet */
-	  *s = t;		/* update pointer and counter */
-	  *i = j;
-	  return ret;
-	}
-      }
-      else return U8G_BADCONT;	/* continuation when not in progress */
+    else if (((c = *t++) > 0x7f) && (c < 0xc0)) {
+				/* continuation when not in progress */
+      if (!more) return U8G_BADCONT;
+      --more;			/* found a continuation octet */
+      ret <<= 6;		/* shift current value by 6 bits */
+      ret |= c & 0x3f;		/* merge continuation octet */
     }
 				/* incomplete UTF-8 character */
     else if (more) return U8G_INCMPLT;
-    else if (c < 0x80) {	/* U+0000 - U+007f */
-      *s = t;			/* update pointer and counter */
-      *i = j;
-      return (unsigned long) c;
+    else {			/* start of sequence */
+      if (c < 0x80) ret = c;	/* U+0000 - U+007f */
+      else if (c < 0xe0) {	/* U+0080 - U+07ff */
+	if (c &= 0x1f) more = 1;/* first 5 bits of 12 */
+      }
+      else if (c < 0xf0) {	/* U+1000 - U+ffff */
+	if (c &= 0x0f) more = 2;/* first 4 bits of 16 */
+      }
+      else if (c < 0xf8) {	/* U+10000 - U+10ffff (and 110000 - 1fffff) */
+	if (c &= 0x07) more = 3;/* first 3 bits of 20.5 (21) */
+      }
+      else if (c < 0xfc) {	/* ISO 10646 200000 - 3fffffff */
+	if (c &= 0x03) more = 4;/* first 2 bits of 26 */
+      }
+      else if (c < 0xfe) {	/* ISO 10646 4000000 - 7fffffff*/
+	if (c &= 0x01) more = 5;/* first bit of 31 */
+      }
+      if (more) ret = c;	/* continuation needed, save start bits */
     }
-    else if (c < 0xe0) {	/* U+0080 - U+07ff */
-      ret = c & 0x1f;		/* first 5 bits of 12 */
-      more = 1;
-    }
-    else if (c < 0xf0) {	/* U+1000 - U+ffff */
-      ret = c & 0x0f;		/* first 4 bits of 16 */
-      more = 2;
-    }
-				/* non-BMP Unicode */
-    else if (c < 0xf8) {	/* U+10000 - U+10ffff (and 110000 - 1fffff) */
-      ret = c & 0x07;		/* first 3 bits of 20.5 (21) */
-      more = 3;
-    }
-    else if (c < 0xfc) {	/* ISO 10646 200000 - 3fffffff */
-      ret = c & 0x03;		/* first 2 bits of 26 */
-      more = 4;
-    }
-    else if (c < 0xfe) {	/* ISO 10646 4000000-7fffffff*/
-      ret = c & 0x01;		/* first bit of 31 */
-      more = 5;
-    }
-    else return U8G_NOTUTF8;	/* not in ISO 10646 */
+  } while (more);
+  if (!(ret & U8G_ERROR)) {	/* success return? */
+    *s = t;			/* yes, update pointer */
+    *i = j;			/* and counter */
   }
-				/* end of string */
-  return more ? U8G_ENDSTRI : U8G_ENDSTRG;
+  return ret;			/* return value */
 }
 
 /* Return UCS-4 character from named charset string

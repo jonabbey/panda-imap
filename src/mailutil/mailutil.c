@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 February 1994
- * Last Edited:	4 October 2006
+ * Last Edited:	12 October 2006
  */
 
 
@@ -37,7 +37,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "2006b.4";	/* program version */
+char *version = "2006c.5";	/* program version */
 int debugp = NIL;		/* flag saying debug */
 int verbosep = NIL;		/* flag saying verbose */
 int rwcopyp = NIL;		/* flag saying readwrite copy (for POP) */
@@ -380,7 +380,7 @@ int main (int argc,char *argv[])
     puts   ("   ;; report number of messages and new messages");
     printf (" %s\n",usgcre);
     puts   ("   ;; create new mailbox");
-    printf (" %s\n",usgcre);
+    printf (" %s\n",usgdel);
     puts   ("   ;; delete existing mailbox");
     printf (" %s\n",usgren);
     puts   ("   ;; rename mailbox to a new name");

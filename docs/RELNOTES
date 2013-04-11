@@ -11,6 +11,16 @@
  * ========================================================================
  */
 
+Updated: 23 October 2006
+
+imap-2006c is a maintenance release, consisting primarily of bugfixes to
+problems discovered in the release that affected a small number of users.
+
+By popular request, if a user has a mix (or other dual-use) format INBOX,
+it will no longer be listed as \NoInferiors.  It's a bad idea to depend
+upon this due to the case ambiguity issue, but it's there.
+
+
 Updated: 26 September 2006
 
 imap-2006b is a maintenance release, consisting entirely of bugfixes to

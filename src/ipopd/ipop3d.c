@@ -65,7 +65,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2006b.94";	/* server version */
+char *version = "2006c.94";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */

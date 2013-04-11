@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 April 1993
- * Last Edited:	30 August 2006
+ * Last Edited:	12 October 2006
  */
 
 #include <stdio.h>
@@ -41,7 +41,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "2006(12)";	/* dmail release version */
+char *version = "2006c.12";	/* dmail release version */
 int debug = NIL;		/* debugging (don't fork) */
 int flagseen = NIL;		/* flag message as seen */
 int trycreate = NIL;		/* flag saying gotta create before appending */

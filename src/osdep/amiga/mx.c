@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	13 September 2006
+ * Last Edited:	22 October 2006
  */
 
 
@@ -178,8 +178,8 @@ int mx_isvalid (char *name,char *tmp)
   struct stat sbuf;
   errno = NIL;			/* zap error */
 				/* validate name as directory */
-  return ((strlen (name) <= NETMAXMBX) && !stat (mx_file (tmp,name),&sbuf) &&
-	  ((sbuf.st_mode & S_IFMT) == S_IFDIR) &&
+  return ((strlen (name) <= NETMAXMBX) && *mx_file (tmp,name) &&
+	  !stat (tmp,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR) &&
 	  !stat (MXINDEX (tmp,name),&sbuf) &&
 	  ((sbuf.st_mode & S_IFMT) == S_IFREG));
 }
@@ -919,8 +919,7 @@ long mx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 	       mail_sequence (stream,sequence))));
 				/* acquire stream to append to */
   else if (!(astream = mail_open (NIL,mailbox,OP_SILENT))) {
-    sprintf (tmp,"Can't open copy mailbox: %s",strerror (errno));
-    MM_LOG (tmp,ERROR);
+    MM_LOG ("Can't open copy mailbox",ERROR);
     ret = NIL;
   }
   else {
@@ -1019,8 +1018,7 @@ long mx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* get first message */
   if (!MM_APPEND (af) (stream,data,&flags,&date,&message)) return NIL;
   if (!(astream = mail_open (NIL,mailbox,OP_SILENT))) {
-    sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
-    MM_LOG (tmp,ERROR);
+    MM_LOG ("Can't open append mailbox",ERROR);
     return NIL;
   }
   MM_CRITICAL (astream);	/* go critical */
@@ -1140,9 +1138,12 @@ int mx_numsort (const void *d1,const void *d2)
 char *mx_file (char *dst,char *name)
 {
   char *s;
-  if (!(mailboxfile (dst,name) && *dst)) return mailboxfile (dst,"~/INBOX");
+				/* empty string if mailboxfile fails */
+  if (!mailboxfile (dst,name)) *dst = '\0';
+				/* driver-selected INBOX  */
+  else if (!*dst) mailboxfile (dst,"~/INBOX");
 				/* tie off unnecessary trailing / */
-  if ((s = strrchr (dst,'/')) && !s[1]) *s = '\0';
+  else if ((s = strrchr (dst,'/')) && !s[1]) *s = '\0';
   return dst;
 }
 

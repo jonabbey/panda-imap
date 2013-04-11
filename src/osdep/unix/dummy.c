@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	30 August 2006
+ * Last Edited:	17 October 2006
  */
 
 
@@ -153,6 +153,7 @@ void *dummy_parameters (long function,void *value)
 
 void dummy_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
 {
+  DRIVER *drivers;
   char *s,test[MAILTMPLEN],file[MAILTMPLEN];
   long i;
   if (!pat || !*pat) {		/* empty pattern? */
@@ -181,8 +182,16 @@ void dummy_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
 				/* do the work */
     dummy_list_work (stream,s,test,contents,0);
 				/* always an INBOX */
-    if (pmatch ("INBOX",ucase (test)))
-      dummy_listed (stream,NIL,"INBOX",LATT_NOINFERIORS,contents);
+    if (pmatch ("INBOX",ucase (test))) {
+				/* done if have a dirfmt INBOX */
+      for (drivers = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL);
+	   drivers && !(!(drivers->flags & DR_DISABLE) &&
+			(drivers->flags & DR_DIRFMT) &&
+			(*drivers->valid) ("INBOX")); drivers = drivers->next);
+				/* list INBOX appropriately */
+      dummy_listed (stream,drivers ? '/' : NIL,"INBOX",
+		    drivers ? NIL : LATT_NOINFERIORS,contents);
+    }
   }
 }
 
@@ -266,12 +275,12 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
   if (dp = opendir (tmp)) {	/* do nothing if can't open directory */
 				/* see if a non-namespace directory format */
     for (drivers = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL), dt = NIL;
-	 !dt && drivers; drivers = drivers->next)
+	 dir && !dt && drivers; drivers = drivers->next)
       if (!(drivers->flags & DR_DISABLE) && (drivers->flags & DR_DIRFMT) &&
-	  (*drivers->valid) (tmp))
+	  (*drivers->valid) (dir))
 	dt = mail_parameters ((*drivers->open) (NIL),GET_DIRFMTTEST,NIL);
 				/* list it if at top-level */
-    if (!level && dir && pmatch_full (dir,pat,'/'))
+    if (!level && dir && pmatch_full (dir,pat,'/') && !pmatch (dir,"INBOX"))
       dummy_listed (stream,'/',dir,dt ? NIL : LATT_NOSELECT,contents);
 				/* scan directory, ignore . and .. */
     if (!dir || dir[(len = strlen (dir)) - 1] == '/') while (d = readdir (dp))
@@ -293,14 +302,17 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 				/* only interested in file type */
 	  switch (sbuf.st_mode & S_IFMT) {
 	  case S_IFDIR:		/* directory? */
-	    if (pmatch_full (tmp,pat,'/')) {
-	      if (!dummy_listed (stream,'/',tmp,LATT_NOSELECT,contents)) break;
-	      strcat (tmp,"/");	/* set up for dmatch call */
-	    }
+	    if (!pmatch (tmp,"INBOX")) {
+	      if (pmatch_full (tmp,pat,'/')) {
+		if (!dummy_listed (stream,'/',tmp,LATT_NOSELECT,contents))
+		  break;
+		strcat(tmp,"/");/* set up for dmatch call */
+	      }
 				/* try again with trailing / */
-	    else if (pmatch_full (strcat (tmp,"/"),pat,'/') &&
-		     !dummy_listed (stream,'/',tmp,LATT_NOSELECT,contents))
-	      break;
+	      else if (pmatch_full (strcat (tmp,"/"),pat,'/') &&
+		       !dummy_listed (stream,'/',tmp,LATT_NOSELECT,contents))
+		break;
+	    }
 	    if (dmatch (tmp,pat,'/') &&
 		(level < (long) mail_parameters (NIL,GET_LISTMAXLEVEL,NIL)))
 	      dummy_list_work (stream,tmp,pat,contents,level+1);

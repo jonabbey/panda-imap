@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	30 August 2006
+# Last Edited:	23 October 2006
 
 
 # Command line build parameters
@@ -133,7 +133,7 @@ RANLIB=ranlib
 # Standard distribution build parameters
 
 DEFAULTAUTHENTICATORS=ext md5 pla log
-DEFAULTDRIVERS=imap nntp pop3 mh mx mix mbx tenex mtx mmdf unix news phile
+DEFAULTDRIVERS=imap nntp pop3 mx mix mbx tenex mtx mmdf unix news mh phile
 CHUNKSIZE=65536
 
 # Normally no need to change any of these
@@ -841,7 +841,7 @@ $(ARCHIVE): $(BINARIES)
 # Cleanup
 
 clean:
-	sh -c '$(RM) auths.c crexcl.c nfstest.c linkage.[ch] siglocal.c osdep*.[ch] *.o ARCHIVE *FLAGS *TYPE $(ARCHIVE) || true'
+	sh -c '$(RM) auths.c crexcl.c linkage.[ch] siglocal.c osdep*.[ch] *.o ARCHIVE *FLAGS *TYPE $(ARCHIVE) || true'
 
 
 # Dependencies
@@ -879,7 +879,7 @@ utf8aux.o: mail.h misc.h osdep.h utf8.h
 osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	osdep.h env_unix.h tcp_unix.h \
 	osdep.c env_unix.c fs_unix.c ftl_unix.c nl_unix.c tcp_unix.c ip_unix.c\
-	auths.c crexcl.c flockcyg.c flocklnx.c flocksim.c nfstest.c fsync.c \
+	auths.c crexcl.c flockcyg.c flocklnx.c flocksim.c fsync.c \
 	gethstid.c getspnam.c \
 	gr_wait.c gr_wait4.c gr_waitp.c \
 	kerb_mit.c \
@@ -914,10 +914,6 @@ osdeplog.c:
 
 osdepssl.c:
 	@echo osdepssl.c not found...try make clean and new make
-	@false
-
-nfstest.c:
-	@echo nfstest.c not found...try make clean and new make
 	@false
 
 siglocal.c:
@@ -960,7 +956,7 @@ onceenv:
 	$(LN) sig_$(SIGTYPE).c siglocal.c
 	$(LN) crx_$(CRXTYPE).c crexcl.c
 	$(LN) ip$(IP)_unix.c ip_unix.c
-	sh -c '(test -f /usr/include/sys/statvfs.h -a $(OS) != sc5 -a $(OS) != sco) && $(LN) nfstnew.c nfstest.c || $(LN) nfstold.c nfstest.c'
+	sh -c '(test $(OS) = sc5 -o $(OS) = sco -o ! -f /usr/include/sys/statvfs.h) && echo -DNOFSTATVFS >> OSCFLAGS || fgrep statvfs64 /usr/include/sys/statvfs.h > /dev/null || echo -DNOFSTATVFS64 >> OSCFLAGS'
 
 
 # Password checkers

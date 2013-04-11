@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	13 September 2006
+ * Last Edited:	19 October 2006
  */
 
 
@@ -158,7 +158,7 @@ MAILSTREAM mhproto = {&mhdriver};
 
 static char *mh_profile = NIL;	/* holds MH profile */
 static char *mh_pathname = NIL;	/* holds MH path name */
-static long mh_once = 0;	/* already through this code */
+static long mh_once = 0;	/* already snarled once */
 static long mh_allow_inbox =NIL;/* allow INBOX as well as #mhinbox */
 
 /* MH mail validate mailbox
@@ -184,33 +184,36 @@ int mh_isvalid (char *name,char *tmp,long synonly)
 {
   struct stat sbuf;
   unsigned long i;
-				/* name must be #MHINBOX or #mh/... */
+  int ret = NIL;
+				/* non-mh name? */
   if (!((mh_allow_inbox && !compare_cstring (name,"INBOX")) ||
 	((name[0] == '#') && ((name[1] == 'm') || (name[1] == 'M')) &&
 	 ((name[2] == 'h') || (name[2] == 'H')) &&
 	 ((name[3] == '/') || !compare_cstring (name+3,"INBOX"))))) {
-				/* valid if in hierarchy (list kludge) */
+				/* yes, valid if in hierarchy (list kludge) */
     char *s,*t,altname[MAILTMPLEN];
 				/* see if non-NS name within mh hierarchy */
     if ((name[0] != '#') && (s = mh_path (tmp)) && (i = strlen (s)) &&
 	(t = mailboxfile (tmp,name)) && !strncmp (t,s,i) && (tmp[i] == '/')) {
       sprintf (altname,"#mh%.900s",tmp+i);
-      return mh_isvalid (altname,tmp,synonly);
+				/* can't do synonly here! */
+      ret = mh_isvalid (altname,tmp,NIL);
     }
-    errno = EINVAL;		/* bogus name */
-    return NIL;
+    else errno = EINVAL;	/* bogus name */
   }
-  if (!mh_path (tmp)) {		/* lose if no mh path */
+  else if (mh_path (tmp)) {	/* INBOX, #mhinbox, or #mh/ name */
+				/* all done if syntax only check & not INBOX */
+    if (synonly && compare_cstring (name,"INBOX")) return T;
+    errno = NIL;		/* zap error */
+				/* validate name as directory */
+    ret = ((stat (mh_file (tmp,name),&sbuf) == 0) &&
+	   (sbuf.st_mode & S_IFMT) == S_IFDIR);
+  }
+  else if (!mh_once++) {	/* only report error once */
     sprintf (tmp,"%.900s not found, mh format names disabled",mh_profile);
     mm_log (tmp,WARN);
-    return NIL;
   }
-				/* all done if syntax only check & not INBOX */
-  if (synonly && compare_cstring (name,"INBOX")) return T;
-  errno = NIL;			/* zap error */
-				/* validate name as directory */
-  return ((stat (mh_file (tmp,name),&sbuf) == 0) &&
-	  (sbuf.st_mode & S_IFMT) == S_IFDIR);
+  return ret;
 }
 
 /* MH mail test for valid mailbox
@@ -242,37 +245,35 @@ char *mh_path (char *tmp)
   char *s,*t,*v;
   int fd;
   struct stat sbuf;
-				/* have MH path yet? */
-  if (!mh_pathname && !mh_once++) {
-    if (!mh_profile) {		/* have MH profile? */
-      sprintf (tmp,"%s/%s",myhomedir (),MHPROFILE);
-      mh_profile = cpystr (tmp);
-    }
-    if ((fd = open (tmp,O_RDONLY,NIL)) < 0) return NIL;
-    fstat (fd,&sbuf);		/* yes, get size and read file */
-    read (fd,(t = (char *) fs_get (sbuf.st_size + 1)),sbuf.st_size);
-    close (fd);			/* don't need the file any more */
-    t[sbuf.st_size] = '\0';	/* tie it off */
+  if (!mh_profile) {		/* build mh_profile and mh_pathname now */
+    sprintf (tmp,"%s/%s",myhomedir (),MHPROFILE);
+    if ((fd = open (mh_profile = cpystr (tmp),O_RDONLY,NIL)) >= 0) {
+      fstat (fd,&sbuf);		/* yes, get size and read file */
+      read (fd,(t = (char *) fs_get (sbuf.st_size + 1)),sbuf.st_size);
+      close (fd);		/* don't need the file any more */
+      t[sbuf.st_size] = '\0';	/* tie it off */
 				/* parse profile file */
-    for (s = strtok (t,"\r\n"); s && *s; s = strtok (NIL,"\r\n")) {
+      for (s = strtok (t,"\r\n"); s && *s; s = strtok (NIL,"\r\n")) {
 				/* found space in line? */
-      if (v = strpbrk (s," \t")) {
-	*v++ = '\0';		/* tie off, is keyword "Path:"? */
-	if (!strcmp (lcase (s),"path:")) {
+	if (v = strpbrk (s," \t")) {
+	  *v++ = '\0';		/* tie off, is keyword "Path:"? */
+	  if (!strcmp (lcase (s),"path:")) {
 				/* skip whitespace */
-	  while ((*v == ' ') || (*v == '\t')) ++v;
-	  if (*v == '/') s = v;	/* absolute path? */
-	  else sprintf (s = tmp,"%s/%s",myhomedir (),v);
+	    while ((*v == ' ') || (*v == '\t')) ++v;
+				/* absolute path? */
+	    if (*v == '/') s = v;
+	    else sprintf (s = tmp,"%s/%s",myhomedir (),v);
 				/* copy name */
-	  mh_pathname = cpystr (s);
-	  break;		/* don't need to look at rest of file */
+	    mh_pathname = cpystr (s);
+	    break;		/* don't need to look at rest of file */
+	  }
 	}
       }
-    }
-    fs_give ((void **) &t);	/* flush profile text */
-    if (!mh_pathname) {		/* default path if not in the profile */
-      sprintf (tmp,"%s/%s",myhomedir (),MHPATH);
-      mh_pathname = cpystr (tmp);
+      fs_give ((void **) &t);	/* flush profile text */
+      if (!mh_pathname) {     /* default path if not in the profile */
+	sprintf (tmp,"%s/%s",myhomedir (),MHPATH);
+	mh_pathname = cpystr (tmp);
+      }
     }
   }
   return mh_pathname;
@@ -506,7 +507,7 @@ long mh_delete (MAILSTREAM *stream,char *mailbox)
   int i;
   char tmp[MAILTMPLEN];
 				/* is mailbox valid? */
-  if (!mh_isvalid (mailbox,tmp,NIL)){
+  if (!mh_isvalid (mailbox,tmp,NIL)) {
     sprintf (tmp,"Can't delete mailbox %.80s: no such mailbox",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
@@ -683,6 +684,7 @@ void mh_load_message (MAILSTREAM *stream,unsigned long msgno,long flags)
 	  break;
 	}
 	SNX (&bs);		/* eat the line feed, drop in */
+	--j;
       case '\012':		/* line feed? */
 	i += 2;			/* count a CRLF */
 				/* header size known yet? */

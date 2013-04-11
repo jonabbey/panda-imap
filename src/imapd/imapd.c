@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	29 September 2006
+ * Last Edited:	17 October 2006
  */
 
 /* Parameter files */
@@ -202,7 +202,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2006b.373";	/* version number of this server */
+char *version = "2006c.374";	/* version number of this server */
 char *logout = "Logout";	/* syslogreason for logout */
 char *goodbye = NIL;		/* bye reason */
 time_t alerttime = 0;		/* time of last alert */
@@ -1118,7 +1118,12 @@ int main (int argc,char *argv[])
 	else if (!(anonymous || strcmp (cmd,"DELETE"))) {
 	  if (!(s = snarf (&arg))) response = misarg;
 	  else if (arg) response = badarg;
-	  else mail_delete (NIL,s);
+	  else {		/* make sure not selected */
+	    if (lastsel && (!strcmp (s,lastsel) ||
+			    (stream && !strcmp (s,stream->mailbox))))
+	      mm_log ("Can not DELETE the selected mailbox",ERROR);
+	    else mail_delete (NIL,s);
+	  }
 	  if (stream)		/* allow untagged EXPUNGE */
 	    mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,(void *) stream);
 	}
@@ -1126,7 +1131,14 @@ int main (int argc,char *argv[])
 	else if (!(anonymous || strcmp (cmd,"RENAME"))) {
 	  if (!((s = snarf (&arg)) && (t = snarf (&arg)))) response = misarg;
 	  else if (arg) response = badarg;
-	  else mail_rename (NIL,s,t);
+	  else {		/* make sure not selected */
+	    if (!compare_cstring (s,"INBOX")) s = "INBOX";
+	    else if (!compare_cstring (s,"#MHINBOX")) s = "#MHINBOX";
+	    if (lastsel && (!strcmp (s,lastsel) ||
+			    (stream && !strcmp (s,stream->mailbox))))
+	      mm_log ("Can not RENAME the selected mailbox",ERROR);
+	    else mail_rename (NIL,s,t);
+	  }
 	  if (stream)		/* allow untagged EXPUNGE */
 	    mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,(void *) stream);
 	}
