@@ -1,3 +1,31 @@
+Updated: 15 September 2005
+
+imap-2004g is a maintenance release, and consists solely of a bugfix to
+quoted string handling in the mailbox name parsing routine.
+
+
+Updated: 15 August 2005
+
+imap-2004f is a maintenance release, and consists solely of a bugfix to
+the TCP code.
+
+Also included is a new version of the UNIX SSL/TLS routines that allows the
+SSL/TLS certificate validation client code to validate alternative names in
+server certificates.  This code has not been thoroughly regression-tested but
+is believed to work.  To use this new code instead of the old support:
+	cd imap-2004f/src/osdep/unix
+	mv ssl_unix.c ssl_unix.old
+	mv ssl_unix.new ssl_unix.c
+Then rebuild.
+
+
+Updated: 21 June 2005
+
+imap-2004e is a maintenance release, consisting entirely of bugfixes.
+
+There are no user-visible functional enhancements in this version.
+
+
 Updated: 20 April 2005
 
 imap-2004d is a maintenance release, released concurrently with Pine

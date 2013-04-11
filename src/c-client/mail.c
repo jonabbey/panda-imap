@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	15 March 2005
+ * Last Edited:	15 September 2005
  *
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2005 University of Washington.
@@ -691,8 +691,10 @@ long mail_valid_net_parse_work (char *name,NETMBX *mb,char *service)
       if (c == '=') {		/* parse switches which take arguments */
 	if (*t == '"') {	/* quoted string? */
 	  for (v = arg,i = 0,++t; (c = *t++) != '"';) {
+	    if (!c) return NIL;	/* unterminated string */
 				/* quote next character */
 	    if (c == '\\') c = *t++;
+	    if (!c) return NIL;	/* can't quote NUL either */
 	    arg[i++] = c;
 	  }
 	  c = *t++;		/* remember delimiter for later */

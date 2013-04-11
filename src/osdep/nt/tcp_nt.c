@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited: 17 February 2005
+ * Last Edited: 8 August 2005
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2005 University of Washington.
@@ -314,7 +314,11 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
     (*bn) (BLOCK_TCPREAD,NIL);
     while (size > 0) {		/* until request satisfied */
       if (tcpdebug) mm_log ("Reading TCP buffer",TCPDEBUG);
-      if (stream->tcpsi == stream->tcpso) {
+				/* simple case if not a socket */
+      if (stream->tcpsi != stream->tcpso)
+	while (((i = read (stream->tcpsi,s,(int) min (maxposint,size))) < 0) &&
+	       (errno == EINTR));
+      else {			/* socket case */
 	time_t tl = time (0);
 	time_t now = tl;
 	int ti = ttmo_read ? now + ttmo_read : 0;
@@ -332,20 +336,18 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 	  if ((i < 0) && ((errno = WSAGetLastError ()) == WSAEINTR) && ti &&
 	      (ti <= now)) i = 0;
 	} while ((i < 0) && (errno == WSAEINTR));
-				/* select says there's data to read? */
+				/* success from select, read what we can */
 	if (i > 0) while (((i = recv (stream->tcpsi,s,
 				      (int) min (maxposint,size),0)) ==
 			   SOCKET_ERROR) &&
 			  ((errno = WSAGetLastError ()) == WSAEINTR));
-	else if (!i && (!tmoh || !(*tmoh) (now - t,now - tl))) {
+	else if (!i) {		/* timeout, ignore if told to resume */
+	  if (tmoh && (*tmoh) (now - t,now - tl)) continue;
+				/* otherwise punt */
 	  if (tcpdebug) mm_log ("TCP buffer read timeout",TCPDEBUG);
 	  return tcp_abort (&stream->tcpsi);
 	}
       }
-				/* probably not a socket */
-      else while (((i = read (stream->tcpsi,s,
-			      (int) min (maxposint,size))) < 0) &&
-		  (errno == EINTR));
       if (i <= 0) {		/* error seen? */
 	if (tcpdebug) {
 	  char tmp[MAILTMPLEN];
@@ -381,7 +383,11 @@ long tcp_getdata (TCPSTREAM *stream)
   (*bn) (BLOCK_TCPREAD,NIL);
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     if (tcpdebug) mm_log ("Reading TCP data",TCPDEBUG);
-    if (stream->tcpsi == stream->tcpso) {
+				/* simple case if not a socket */
+    if (stream->tcpsi != stream->tcpso)
+      while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
+	     (errno == EINTR));
+    else {
       time_t tl = time (0);
       time_t now = tl;
       int ti = ttmo_read ? now + ttmo_read : 0;
@@ -399,18 +405,17 @@ long tcp_getdata (TCPSTREAM *stream)
 	if ((i < 0) && ((errno = WSAGetLastError ()) == WSAEINTR) && ti &&
 	    (ti <= now)) i = 0;
       } while ((i < 0) && (errno == WSAEINTR));
-				/* select says there's data to read? */
+				/* success from select, read what we can */
       if (i > 0) while (((i = recv (stream->tcpsi,stream->ibuf,BUFLEN,0)) ==
 			 SOCKET_ERROR) &&
 			((errno = WSAGetLastError ()) == WSAEINTR));
-      else if (!i && (!tmoh || !(*tmoh) (now - t,now - tl))) {
+      else if (!i) {		/* timeout, ignore if told to resume */
+	if (tmoh && (*tmoh) (now - t,now - tl)) continue;
+				/* otherwise punt */
 	if (tcpdebug) mm_log ("TCP data read timeout",TCPDEBUG);
 	return tcp_abort (&stream->tcpsi);
       }
     }
-				/* probably not a socket */
-    else while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
-		(errno == EINTR));
     if (i <= 0) {		/* error seen? */
       if (tcpdebug) {
 	char *s,tmp[MAILTMPLEN];
@@ -461,7 +466,11 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   (*bn) (BLOCK_TCPWRITE,NIL);
   while (size > 0) {		/* until request satisfied */
     if (tcpdebug) mm_log ("Writing to TCP",TCPDEBUG);
-    if (stream->tcpsi == stream->tcpso) {
+				/* simple case if not a socket */
+    if (stream->tcpsi != stream->tcpso)
+      while (((i = write (stream->tcpso,string,min (size,TCPMAXSEND))) < 0) &&
+	     (errno == EINTR));
+    else {
       time_t tl = time (0);	/* start of request */
       time_t now = tl;
       int ti = ttmo_write ? now + ttmo_write : 0;
@@ -484,15 +493,14 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 				    (int) min (size,TCPMAXSEND),0)) ==
 			 SOCKET_ERROR) &&
 			((errno = WSAGetLastError ()) == WSAEINTR));
-      else if (!i && (!tmoh || !(*tmoh) (now - t,now - tl))) {
+      else if (!i) {		/* timeout, ignore if told to resume */
+	if (tmoh && (*tmoh) (now - t,now - tl)) continue;
+				/* otherwise punt */
 	if (tcpdebug) mm_log ("TCP write timeout",TCPDEBUG);
 	return tcp_abort (&stream->tcpsi);
       }
     }
-    else while (((i = write (stream->tcpso,string,
-			     min (size,TCPMAXSEND))) < 0) &&
-		(errno == EINTR));
-    if (i < 0) {		/* error seen? */
+    if (i <= 0) {		/* error seen? */
       if (tcpdebug) {
 	char tmp[MAILTMPLEN];
 	sprintf (tmp,"TCP write I/O error %d",errno);
@@ -500,11 +508,9 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
       }
       return tcp_abort (&stream->tcpsi);
     }
-    else if (i) {
-      string += i;		/* how much we sent */
-      size -= i;		/* count this size */
-      if (tcpdebug) mm_log ("successfully wrote to TCP",TCPDEBUG);
-    }
+    string += i;		/* how much we sent */
+    size -= i;			/* count this size */
+    if (tcpdebug) mm_log ("successfully wrote to TCP",TCPDEBUG);
   }
   (*bn) (BLOCK_NONE,NIL);
   return T;			/* all done */

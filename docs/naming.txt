@@ -1,6 +1,6 @@
 		       Mailbox Name Conventions
 			     Mark Crispin
-			   28 September 2001
+			    16 August 2005
 
 
 Please refer to the file drivers.txt for related information.
@@ -103,6 +103,16 @@ where:
 			 with servers that support it
   "/readonly"		request read-only mailbox open (IMAP only; ignored
 			 on NNTP, and an error with SMTP and POP3)
+  "/loser"		disable various protocol features and perform various
+			 client-side workarounds; for example, it disables
+			 the SEARCH command in IMAP and does client-side
+			 searching instead.  The precise measures taken by
+			 /loser depend upon the protocol and are subject to
+			 change over time.  /loser is intended for use with
+			 defective servers which do not implement the
+			 protocol specification correctly.  It should be used
+			 only as a last resort since it will seriously
+			 degrade performance.
  mailbox_name		remote mailbox name, default is INBOX
 
 For example:
