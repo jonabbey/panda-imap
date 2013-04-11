@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	2 May 2003
+ * Last Edited:	2 June 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -55,6 +55,7 @@ typedef struct nntp_local {
   unsigned int sslflag : 1;	/* SSL session */
   unsigned int novalidate : 1;	/* certificate not validated */
   unsigned int xover : 1;	/* supports XOVER */
+  unsigned int xhdr : 1;	/* supports XHDR */
   char *name;			/* remote newsgroup name */
   char *user;			/* mailbox user */
   char *newsrc;			/* newsrc file */
@@ -100,6 +101,9 @@ long nntp_create (MAILSTREAM *stream,char *mailbox);
 long nntp_delete (MAILSTREAM *stream,char *mailbox);
 long nntp_rename (MAILSTREAM *stream,char *old,char *newname);
 long nntp_status (MAILSTREAM *stream,char *mbx,long flags);
+long nntp_getmap (MAILSTREAM *stream,char *name,
+		  unsigned long first,unsigned long last,
+		  unsigned long rnmsgs,unsigned long nmsgs,char *tmp);
 MAILSTREAM *nntp_mopen (MAILSTREAM *stream);
 void nntp_mclose (MAILSTREAM *stream,long options);
 void nntp_fetchfast (MAILSTREAM *stream,char *sequence,long flags);

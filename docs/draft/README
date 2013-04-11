@@ -1,4 +1,4 @@
-Last Updated: 21 May 2003
+Last Updated: 5 June 2003
 
 This directory contains Internet Drafts which, at the time of release of
 this software, were not yet been published as RFCs.  These documents are
@@ -13,7 +13,7 @@ File Name	I-D Name
 ---------	--------
 sort.txt	draft-ietf-imapext-sort-13.txt
 		;; SORT and THREAD commands
-		;; Status: in last call
+		;; Status: awaiting IESG action
 		;;  will be blocked waiting for i18n
 
 i18n.txt	draft-ietf-imapext-i18n-00.txt
@@ -21,3 +21,7 @@ i18n.txt	draft-ietf-imapext-i18n-00.txt
 
 compare.txt	draft-newman-i18n-comparator-00.txt
 		;; new document
+
+unselect.txt	draft-melnikov-imap-unselect-01.txt
+		;; UNSELECT command
+		;; Status: Last Call??

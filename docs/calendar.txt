@@ -128,14 +128,15 @@ in Jewish tradition.  The Muslim lunar calendar begins on July 16, 622,
 when Mohammed fled from Mecca to Medina.
 
      The Japanese, Taiwanese, and North Koreans use the Gregorian
-calendar, but number the year by political era.  In Japan, an era begins
-when an emperor succeeds to the throne; year 1 of the Heisei era was
-1989 when Emperor Akihito ascended to the throne (the first few days of
-1989 was year 64 of the Shouwa era).  In Taiwan, year 1 is the year of
-founding of the Republic of China (1911).  In North Korea, year 1 is the
-year of the Juche (self-reliance) ideal, corresponding to the birth year
-of founder Kim Il-Sung (1912).  Thus, year 2000 is Heisei 12 (Japan),
-90th year of the Republic (Taiwan), and Juche 89 (North Korea).
+calendar, but number the year by political era.  In Japan, an era
+begins when an emperor succeeds to the throne; year 1 of the Heisei
+era was 1989 when Emperor Akihito ascended to the throne (the first
+few days of 1989 was year 64 of the Shouwa era).  In Taiwan, year 1 is
+the first full year after the founding of the Republic of China in 1911.
+In North Korea, year 1 is the year of the Juche (self-reliance) ideal,
+corresponding to the birth year of founder Kim Il-Sung (1912).  Thus,
+year 2000 is Heisei 12 (Japan), 89th year of the Republic (Taiwan),
+and Juche 89 (North Korea).
 
 
 FURTHER MODIFICATIONS TO THE GREGORIAN CALENDAR

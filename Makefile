@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	16 April 2003
+# Last Edited:	14 July 2003
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 1988-2003 University of Washington.
@@ -71,6 +71,7 @@
 # hpx	HP-UX 10.x (see ghp, ghs, hxd, and shp)
 # hxd	HP-UX 10.x with DCE security (see shp)
 # isc	Interactive Systems
+# ldb	Debian Linux
 # lnx	Linux with traditional passwords and crypt() in the C library
 #	 (see lnp, sl4, sl5, and slx)
 # lnp	Linux with Pluggable Authentication Modules (PAM)
@@ -284,6 +285,10 @@ aos art asv aux bsd cvx dpx dyn isc pyr sv4 ult vul vu2: ua
 cyg:	an
 	$(BUILD) BUILDTYPE=cyg \
 	SPECIALS="SSLDIR=/usr/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
+
+ldb:	an
+	$(BUILD) BUILDTYPE=lnp \
+	SPECIALS="GSSDIR=/usr SSLDIR=/usr/lib/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private"
 
 lrh:	an
 	$(BUILD) BUILDTYPE=lnp \

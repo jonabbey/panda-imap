@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 January 2003
+ * Last Edited:	16 June 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -459,21 +459,30 @@ static struct passwd *pwuser (char *user)
  *	    argument vector
  * Returns: password entry if validated
  *
- * Tries all-lowercase form of user name if given user name fails
  * Tries password+1 if password fails and starts with space
  */
 
 static struct passwd *valpwd (char *user,char *pwd,int argc,char *argv[])
 {
+  char *s;
   struct passwd *pw;
-  char *usr;
-  if (pw = pwuser (user)) {	/* can get user? */
-    usr = cpystr (pw->pw_name);	/* copy returned name in case we need it */
-    if (!(pw = checkpw (pw,pwd,argc,argv)) && (*pwd == ' ') &&
-	(pw = pwuser (usr))) pw = checkpw (pw,pwd+1,argc,argv);
-    fs_give ((void **) &usr);	/* don't need copy of name any more */
+  struct passwd *ret = NIL;
+  if (auth_md5.server) {	/* using CRAM-MD5 authentication? */
+    if (s = auth_md5_pwd (user)) {
+      if (!strcmp (s,pwd) || ((*pwd == ' ') && pwd[1] && !strcmp (s,pwd+1)))
+	ret = pwuser (user);	/* validated, get passwd entry for user */
+      memset (s,0,strlen (s));	/* erase sensitive information */
+      fs_give ((void **) &s);
+    }
   }
-  return pw;
+  else if (pw = pwuser (user)) {/* can get user? */
+    s = cpystr (pw->pw_name);	/* copy returned name in case we need it */
+    if (*pwd && !(ret = checkpw (pw,pwd,argc,argv)) &&
+	(*pwd == ' ') && pwd[1] && (ret = pwuser (s)))
+      ret = checkpw (pw,pwd+1,argc,argv);
+    fs_give ((void **) &s);	/* don't need copy of name any more */
+  }
+  return ret;
 }
 
 /* Server log in
@@ -487,7 +496,6 @@ static struct passwd *valpwd (char *user,char *pwd,int argc,char *argv[])
 
 long server_login (char *user,char *pwd,char *authuser,int argc,char *argv[])
 {
-  char *s;
   struct passwd *pw = NIL;
   int level = LOG_NOTICE;
   char *err = "failed";
@@ -500,16 +508,6 @@ long server_login (char *user,char *pwd,char *authuser,int argc,char *argv[])
   }
   else if (logtry-- <= 0) err = "excessive login failures";
   else if (disablePlaintext) err = "disabled";
-  else if (auth_md5.server) {	/* using CRAM-MD5 authentication? */
-    if (s = (authuser && *authuser) ?
-	auth_md5_pwd (authuser) : auth_md5_pwd (user)) {
-      if (!strcmp (s,pwd) || ((*pwd == ' ') && !strcmp (s,pwd+1)))
-	pw = pwuser (user);	/* CRAM-MD5 authentication validated */
-      memset (s,0,strlen (s));	/* erase sensitive information */
-      fs_give ((void **) &s);
-    }
-    else err = "failed: no CRAM-MD5 entry";
-  }
   else if (!(authuser && *authuser)) pw = valpwd (user,pwd,argc,argv);
   else if (valpwd (authuser,pwd,argc,argv)) pw = pwuser (user);
   if (pw && pw_login (pw,authuser,pw->pw_name,NIL,argc,argv)) return T;

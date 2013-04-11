@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	28 August 2001
+ * Last Edited:	30 June 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -329,6 +329,8 @@ static SSLSTREAM *ssl_start (TCPSTREAM *tstream,char *host,unsigned long flags)
 				/* make maximum-sized buffers */
       stream->bufsize = stream->sizes.cbHeader +
 	stream->sizes.cbMaximumMessage + stream->sizes.cbTrailer;
+      if (stream->sizes.cbMaximumMessage < SSLBUFLEN)
+	fatal ("cbMaximumMessage is less than SSLBUFLEN!");
       stream->ibuf = (char *) fs_get (stream->bufsize);
       stream->obuf = (char *) fs_get (stream->bufsize);
       return stream;
@@ -579,7 +581,7 @@ long ssl_sout (SSLSTREAM *stream,char *string,unsigned long size)
 				/* message (up to maximum size) */
     buf[1].BufferType = SECBUFFER_DATA;
     memcpy (buf[1].pvBuffer = stream->obuf + stream->sizes.cbHeader,string,
-	    buf[1].cbBuffer = min (size,stream->sizes.cbMaximumMessage));
+	    buf[1].cbBuffer = min (size,SSLBUFLEN));
 				/* trailer */
     buf[2].BufferType = SECBUFFER_STREAM_TRAILER;
     memset (buf[2].pvBuffer = ((char *) buf[1].pvBuffer) + buf[1].cbBuffer,0,

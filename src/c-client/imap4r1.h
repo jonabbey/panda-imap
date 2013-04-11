@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	11 February 2003
+ * Last Edited:	25 June 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -75,8 +75,9 @@ typedef struct imap_local {
     unsigned int children : 1;	/* server has CHILDREN (RFC 3398) */
 				/* server has multi-APPEND */
     unsigned int multiappend : 1;
-    unsigned int scan : 1;	/* server has SCAN */
+    unsigned int unselect : 1;	/* server has UNSELECT */
     unsigned int sort : 1;	/* server has SORT */
+    unsigned int scan : 1;	/* server has SCAN */
 				/* supported authenticators */
     unsigned int auth : MAXAUTHENTICATORS;
     THREADER *threader;		/* list of threaders */
@@ -354,12 +355,15 @@ IMAPPARSEDREPLY *imap_send_astring (MAILSTREAM *stream,char *tag,char **s,
 				    SIZEDTEXT *as,long wildok,char *limit);
 IMAPPARSEDREPLY *imap_send_literal (MAILSTREAM *stream,char *tag,char **s,
 				    STRING *st);
-IMAPPARSEDREPLY *imap_send_spgm (MAILSTREAM *stream,char *tag,char **s,
-				 SEARCHPGM *pgm,char *limit);
-IMAPPARSEDREPLY *imap_send_sset (MAILSTREAM *stream,char *tag,char **s,
-				 SEARCHSET *set,char *prefix,char *limit);
-IMAPPARSEDREPLY *imap_send_slist (MAILSTREAM *stream,char *tag,char **s,
-				  char *name,STRINGLIST *list,char *limit);
+IMAPPARSEDREPLY *imap_send_spgm (MAILSTREAM *stream,char *tag,char *base,
+				 char **s,SEARCHPGM *pgm,char *limit);
+char *imap_send_spgm_trim (char *base,char *s,char *text);
+IMAPPARSEDREPLY *imap_send_sset (MAILSTREAM *stream,char *tag,char *base,
+				 char **s,SEARCHSET *set,char *prefix,
+				 char *limit);
+IMAPPARSEDREPLY *imap_send_slist (MAILSTREAM *stream,char *tag,char *base,
+				  char **s,char *name,STRINGLIST *list,
+				  char *limit);
 void imap_send_sdate (char **s,char *name,unsigned short date);
 IMAPPARSEDREPLY *imap_reply (MAILSTREAM *stream,char *tag);
 IMAPPARSEDREPLY *imap_parse_reply (MAILSTREAM *stream,char *text);

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	16 April 2003
+ * Last Edited:	14 July 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -51,6 +51,8 @@ static short disableFcntlLock = NIL;
 static short hideDotFiles = NIL;/* hide files whose names start with . */
 				/* advertise filesystem root */
 static short advertisetheworld = NIL;
+				/* only advertise own mailboxes and #shared */
+static short limitedadvertise = NIL;
 				/* disable automatic shared namespaces */
 static short noautomaticsharedns = NIL;
 static short no822tztext = NIL;	/* disable RFC [2]822 timezone text */
@@ -58,6 +60,7 @@ static short netfsstatbug = NIL;/* compensate for broken stat() on network
 				 * filesystems (AFS and old NFS).  Don't do
 				 * this unless you really have to!
 				 */
+
 				/* allow user config files */
 static short allowuserconfig = NIL;
 				/* 1 = disable plaintext, 2 = if not SSL */
@@ -122,6 +125,8 @@ static NAMESPACE nsftp = {"#ftp/",'/',NIL,&nsnews};
 static NAMESPACE nsshared = {"#shared/",'/',NIL,&nsftp};
 				/* world namespace */
 static NAMESPACE nsworld = {"/",'/',NIL,&nsshared};
+				/* only shared and public namespaces */
+static NAMESPACE nslimited = {"#shared/",'/',NIL,&nspublic};
 
 #include "write.c"		/* include safe writing routines */
 #include "crexcl.c"		/* include exclusive create */
@@ -300,6 +305,11 @@ void *env_parameters (long function,void *value)
     advertisetheworld = value ? T : NIL;
   case GET_ADVERTISETHEWORLD:
     ret = (void *) (advertisetheworld ? VOIDT : NIL);
+    break;
+  case SET_LIMITEDADVERTISE:
+    limitedadvertise = value ? T : NIL;
+  case GET_LIMITEDADVERTISE:
+    ret = (void *) (limitedadvertise ? VOIDT : NIL);
     break;
   case SET_DISABLEAUTOSHAREDNS:
     noautomaticsharedns = value ? T : NIL;
@@ -494,21 +504,30 @@ static struct passwd *pwuser (char *user)
  *	    argument vector
  * Returns: password entry if validated
  *
- * Tries all-lowercase form of user name if given user name fails
  * Tries password+1 if password fails and starts with space
  */
 
 static struct passwd *valpwd (char *user,char *pwd,int argc,char *argv[])
 {
+  char *s;
   struct passwd *pw;
-  char *usr;
-  if (pw = pwuser (user)) {	/* can get user? */
-    usr = cpystr (pw->pw_name);	/* copy returned name in case we need it */
-    if (!(pw = checkpw (pw,pwd,argc,argv)) && (*pwd == ' ') &&
-	(pw = pwuser (usr))) pw = checkpw (pw,pwd+1,argc,argv);
-    fs_give ((void **) &usr);	/* don't need copy of name any more */
+  struct passwd *ret = NIL;
+  if (auth_md5.server) {	/* using CRAM-MD5 authentication? */
+    if (s = auth_md5_pwd (user)) {
+      if (!strcmp (s,pwd) || ((*pwd == ' ') && pwd[1] && !strcmp (s,pwd+1)))
+	ret = pwuser (user);	/* validated, get passwd entry for user */
+      memset (s,0,strlen (s));	/* erase sensitive information */
+      fs_give ((void **) &s);
+    }
   }
-  return pw;
+  else if (pw = pwuser (user)) {/* can get user? */
+    s = cpystr (pw->pw_name);	/* copy returned name in case we need it */
+    if (*pwd && !(ret = checkpw (pw,pwd,argc,argv)) &&
+	(*pwd == ' ') && pwd[1] && (ret = pwuser (s)))
+      ret = checkpw (pw,pwd+1,argc,argv);
+    fs_give ((void **) &s);	/* don't need copy of name any more */
+  }
+  return ret;
 }
 
 /* Server log in
@@ -522,7 +541,6 @@ static struct passwd *valpwd (char *user,char *pwd,int argc,char *argv[])
 
 long server_login (char *user,char *pwd,char *authuser,int argc,char *argv[])
 {
-  char *s;
   struct passwd *pw = NIL;
   int level = LOG_NOTICE;
   char *err = "failed";
@@ -535,16 +553,6 @@ long server_login (char *user,char *pwd,char *authuser,int argc,char *argv[])
   }
   else if (logtry-- <= 0) err = "excessive login failures";
   else if (disablePlaintext) err = "disabled";
-  else if (auth_md5.server) {	/* using CRAM-MD5 authentication? */
-    if (s = (authuser && *authuser) ?
-	auth_md5_pwd (authuser) : auth_md5_pwd (user)) {
-      if (!strcmp (s,pwd) || ((*pwd == ' ') && !strcmp (s,pwd+1)))
-	pw = pwuser (user);	/* CRAM-MD5 authentication validated */
-      memset (s,0,strlen (s));	/* erase sensitive information */
-      fs_give ((void **) &s);
-    }
-    else err = "failed: no CRAM-MD5 entry";
-  }
   else if (!(authuser && *authuser)) pw = valpwd (user,pwd,argc,argv);
   else if (valpwd (authuser,pwd,argc,argv)) pw = pwuser (user);
   if (pw && pw_login (pw,authuser,pw->pw_name,NIL,argc,argv)) return T;
@@ -643,6 +651,8 @@ long env_init (char *user,char *home)
   struct stat sbuf;
   char tmp[MAILTMPLEN];
   if (myUserName) fatal ("env_init called twice!");
+				/* initially nothing in namespace list */
+  nslist[0] = nslist[1] = nslist[2] = NIL;
 				/* myUserName must be set before dorc() call */
   myUserName = cpystr (user ? user : ANONYMOUSUSER);
   dorc (NIL,NIL);		/* do systemwide configuration */
@@ -653,7 +663,6 @@ long env_init (char *user,char *home)
       nslist[0] = &nsblackother; /* set root */
       anonymous = T;		/* flag as anonymous */
     }
-    nslist[1] = nslist[2] = NIL;/* can't reference anything else */
     myHomeDir = cpystr ("");	/* home directory is root */
     sysInbox = cpystr ("INBOX");/* make system INBOX */
   }
@@ -675,11 +684,19 @@ long env_init (char *user,char *home)
 	mail_parameters (NIL,DISABLE_DRIVER,(void *) "mbox");
       }
       nslist[0] = &nshome;	/* home namespace */
-      nslist[1] = blackBox ? &nsblackother : &nsunixother;
-      nslist[2] = (advertisetheworld && !blackBox) ? &nsworld : &nsshared;
+				/* limited advertise namespaces */
+      if (limitedadvertise) nslist[2] = &nslimited;
+      else if (blackBox) {	/* black box namespaces */
+	nslist[1] = &nsblackother;
+	nslist[2] = &nsshared;
+      }
+      else {			/* open box namespaces */
+	nslist[1] = &nsunixother;
+	nslist[2] = advertisetheworld ? &nsworld : &nsshared;
+      }
     }
-    else {			/* anonymous user */
-      nslist[0] = nslist[1] = NIL,nslist[2] = &nsftp;
+    else {
+      nslist[2] = &nsftp;	/* anonymous user */
       sprintf (tmp,"%s/INBOX",
 	       home = (char *) mail_parameters (NIL,GET_ANONYMOUSHOME,NIL));
       sysInbox = cpystr (tmp);	/* make system INBOX */
@@ -722,23 +739,22 @@ long env_init (char *user,char *home)
 
 char *myusername_full (unsigned long *flags)
 {
+  struct passwd *pw;
+  struct stat sbuf;
+  char *s;
+  unsigned long euid;
   char *ret = UNLOGGEDUSER;
-  if (!myUserName) {		/* get user name if don't have it yet */
-    struct passwd *pw;
-    struct stat sbuf;
-    unsigned long euid = geteuid ();
-    char *s = (char *) (euid ? getlogin () : NIL);
-				/* look up getlogin() user name or EUID */
-    if (!((s && *s && (strlen (s) < NETMAXUSER) && (pw = getpwnam (s)) &&
-	   (pw->pw_uid == euid)) || (pw = getpwuid (euid))))
-      fatal ("Unable to look up user name");
-				/* init environment if not root */
-    if (euid) env_init (pw->pw_name,((s = getenv ("HOME")) && *s &&
-				     (strlen (s) < NETMAXMBX) &&
-				     !stat (s,&sbuf) &&
-				     ((sbuf.st_mode & S_IFMT) == S_IFDIR)) ?
-			s : pw->pw_dir);
-    else ret = pw->pw_name;	/* in case UID 0 user is other than root */
+				/* no user name yet and not root? */
+  if (!myUserName && (euid = geteuid ())) {
+				/* yes, look up getlogin() user name or EUID */
+    if (((s = (char *) getlogin ()) && *s && (strlen (s) < NETMAXUSER) &&
+	 (pw = getpwnam (s)) && (pw->pw_uid == euid)) ||
+	(pw = getpwuid (euid)))
+      env_init (pw->pw_name,
+		((s = getenv ("HOME")) && *s && (strlen (s) < NETMAXMBX) &&
+		 !stat (s,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR)) ?
+		s : pw->pw_dir);
+    else fatal ("Unable to look up user name");
   }
   if (myUserName) {		/* logged in? */
     if (flags) *flags = anonymous ? MU_ANONYMOUS : MU_LOGGEDIN;
@@ -1541,6 +1557,8 @@ void dorc (char *file,long flag)
 	  }
 	  else if (!compare_cstring (s,"set advertise-the-world"))
 	    advertisetheworld = atoi (k);
+	  else if (!compare_cstring (s,"set limited-advertise"))
+	    limitedadvertise = atoi (k);
 	  else if (!compare_cstring
 		   (s,"set disable-automatic-shared-namespaces"))
 	    noautomaticsharedns = atoi (k);

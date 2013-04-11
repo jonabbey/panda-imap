@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	16 July 2002
+ * Last Edited:	14 July 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -575,7 +575,7 @@ char *ssl_start_tls (char *server)
 
 void ssl_server_init (char *server)
 {
-  char tmp[MAILTMPLEN];
+  char cert[MAILTMPLEN],key[MAILTMPLEN];
   unsigned long i;
   struct stat sbuf;
   SSLSTREAM *stream = (SSLSTREAM *) memset (fs_get (sizeof (SSLSTREAM)),0,
@@ -583,10 +583,16 @@ void ssl_server_init (char *server)
   ssl_onceonlyinit ();		/* make sure algorithms added */
   ERR_load_crypto_strings ();
   SSL_load_error_strings ();
-				/* build specific certificate/key file name */
-  sprintf (tmp,"%s/%s-%s.pem",SSL_CERT_DIRECTORY,server,tcp_serveraddr ());
-				/* use non-specific name if no specific file */
-  if (stat (tmp,&sbuf)) sprintf (tmp,"%s/%s.pem",SSL_CERT_DIRECTORY,server);
+				/* build specific certificate/key file names */
+  sprintf (cert,"%s/%s-%s.pem",SSL_CERT_DIRECTORY,server,tcp_serveraddr ());
+  sprintf (key,"%s/%s-%s.pem",SSL_KEY_DIRECTORY,server,tcp_serveraddr ());
+				/* use non-specific name if no specific cert */
+  if (stat (cert,&sbuf)) sprintf (cert,"%s/%s.pem",SSL_CERT_DIRECTORY,server);
+  if (stat (key,&sbuf)) {	/* use non-specific name if no specific key */
+    sprintf (key,"%s/%s.pem",SSL_KEY_DIRECTORY,server);
+				/* use cert file as fallback for key */
+    if (stat (key,&sbuf)) strcpy (key,cert);
+  }
 				/* create context */
   if (!(stream->context = SSL_CTX_new (start_tls ?
 				       TLSv1_server_method () :
@@ -600,14 +606,14 @@ void ssl_server_init (char *server)
       syslog (LOG_ALERT,"Unable to set cipher list %.80s, host=%.80s",
 	      SSLCIPHERLIST,tcp_clienthost ());
 				/* load certificate */
-    else if (!SSL_CTX_use_certificate_chain_file (stream->context,tmp))
+    else if (!SSL_CTX_use_certificate_chain_file (stream->context,cert))
       syslog (LOG_ALERT,"Unable to load certificate from %.80s, host=%.80s",
-	      tmp,tcp_clienthost ());
+	      cert,tcp_clienthost ());
 				/* load key */
-    else if (!(SSL_CTX_use_RSAPrivateKey_file (stream->context,tmp,
+    else if (!(SSL_CTX_use_RSAPrivateKey_file (stream->context,key,
 					       SSL_FILETYPE_PEM)))
       syslog (LOG_ALERT,"Unable to load private key from %.80s, host=%.80s",
-	      tmp,tcp_clienthost ());
+	      key,tcp_clienthost ());
 
     else {			/* generate key if needed */
       if (SSL_CTX_need_tmp_RSA (stream->context))

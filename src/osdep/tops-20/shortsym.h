@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	7 April 2003
+ * Last Edited:	25 June 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2002 University of Washington.
@@ -146,6 +146,7 @@
 #define imap_send_sdate iss_da
 #define imap_send_slist iss_sl
 #define imap_send_spgm iss_pg
+#define imap_send_spgm_trim iss_pt
 #define imap_send_sset iss_st
 #define imap_send_sset_work iss_sw
 #define imap_setacl i_sacl
@@ -375,6 +376,7 @@
 #define nntp_fetchmessage nf_msg
 #define nntp_flagmsg n_fmsg
 #define nntp_gc n_gc
+#define nntp_getmap n_gmap
 #define nntp_header n_head
 #define nntp_isvalid n_isvl
 #define nntp_list n_list

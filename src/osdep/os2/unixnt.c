@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	17 April 2003
+ * Last Edited:	23 June 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -1038,7 +1038,7 @@ void unix_unlock (int fd,MAILSTREAM *stream,DOTLOCK *lock)
   struct utimbuf times;
   fstat (fd,&sbuf);		/* get file times */
 				/* if stream and csh would think new mail */
-  if (stream && (sbuf.st_atime <= sbuf.st_mtime)) {
+  if (stream && (LOCAL->ld >= 0) && (sbuf.st_atime <= sbuf.st_mtime)) {
 				/* set times to now */
     times.modtime = times.actime = time (0);
 				/* set the times, note change */

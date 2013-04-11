@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 April 1993
- * Last Edited:	14 July 2002
+ * Last Edited:	2 September 2003
  *
  * The IMAP tools software provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -33,8 +33,9 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "2002(12)";	/* dmail release version */
+char *version = "2003(12)";	/* dmail release version */
 int debug = NIL;		/* debugging (don't fork) */
+int flagseen = NIL;		/* flag message as seen */
 int trycreate = NIL;		/* flag saying gotta create before appending */
 int critical = NIL;		/* flag saying in critical code */
 char *sender = NIL;		/* message origin */
@@ -134,6 +135,9 @@ int main (int argc,char *argv[])
   for (--argc; argc && (*(s = *++argv)) == '-'; argc--) switch (s[1]) {
   case 'D':			/* debug */
     debug = T;			/* extra debugging */
+    break;
+  case 's':			/* deliver as seen */
+    flagseen = T;
     break;
   case 'f':
   case 'r':			/* flag giving return path */
@@ -364,7 +368,7 @@ int deliver_safely (MAILSTREAM *prt,STRING *st,char *mailbox,char *path,
 	   ((sbuf.st_mode & S_IFMT) == S_IFDIR) ? "directory" : "file",path);
   mm_dlog (tmp);
 				/* do the append now! */
-  if (!mail_append (prt,mailbox,st)) {
+  if (!mail_append_full (prt,mailbox,flagseen ? "\\Seen" : NIL,NIL,st)) {
     sprintf (tmp,"message delivery failed to %.80s",path);
     return fail (tmp,EX_CANTCREAT);
   }

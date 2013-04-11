@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	4 March 2003
+# Last Edited:	14 July 2003
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 1988-2003 University of Washington.
@@ -30,6 +30,7 @@ SSLTYPE=nopwd
 
 SSLDIR=/usr/local/ssl
 SSLCERTS=$(SSLDIR)/certs
+SSLKEYS=$(SSLCERTS)
 SSLINCLUDE=$(SSLDIR)/include
 SSLLIB=$(SSLDIR)/lib
 
@@ -45,7 +46,7 @@ SSLCRYPTO=-lcrypto
 SSLRSA= # -lRSAglue -lrsaref
 
 SSLCFLAGS= -I$(SSLINCLUDE) -I$(SSLINCLUDE)/openssl\
- -DSSL_CERT_DIRECTORY=\"$(SSLCERTS)\"
+ -DSSL_CERT_DIRECTORY=\"$(SSLCERTS)\" -DSSL_KEY_DIRECTORY=\"$(SSLKEYS)\"
 SSLLDFLAGS= -L$(SSLLIB) -lssl $(SSLCRYPTO) $(SSLRSA)
 
 

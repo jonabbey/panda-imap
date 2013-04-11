@@ -1,10 +1,10 @@
-.TH DMAIL LOCAL "Version 4.1"
+.TH DMAIL LOCAL "Version 2003"
 .SH NAME
 dmail \- procmail Mail Delivery Module
 .nh
 .SH SYNOPSIS
 .B dmail
-.I [\-D] [\-f from_name] [user][+folder]
+.I [\-D] [\-f from_name] [-s] [user][+folder]
 .SH DESCRIPTION
 .I dmail
 delivers mail to a user's INBOX or a designated folder.
@@ -61,7 +61,11 @@ The \fB-f\fR or \fB-r\fR flag is used to specify a Return-Path.  The header
 .br
    Return-Path: <\fIfrom_name\fR> 
 .br 
-is prepended to the message before delivery.  
+is prepended to the message before delivery.
+.PP
+The
+.B -s
+flag specifies that the message will be flagged as being "seen".
 .SH RESTRICTIONS
 Absolute pathnames and 
 .I ~user

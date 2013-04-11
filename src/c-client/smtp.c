@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	18 March 2003
+ * Last Edited:	9 June 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -167,7 +167,9 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	      stream = smtp_close (stream);
 	    }
 				/* re-negotiate EHLO */
-	    else if ((reply = smtp_ehlo (stream,s,&mb)) != SMTPOK) {
+	    else if ((reply = smtp_ehlo (stream,s,&mb)) == SMTPOK)
+	      ESMTP.ok = T;
+	    else {
 	      sprintf (tmp,"SMTP EHLO failure after STARTLS: %.80s",
 		       stream->reply);
 	      mm_log (tmp,ERROR);

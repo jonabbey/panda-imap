@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	16 March 2003
+ * Last Edited:	8 September 2003
  *
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -72,10 +72,12 @@ static quotaroot_t mailquotarootresults = NIL;
 static sortresults_t mailsortresults = NIL;
 				/* threaded results callback */
 static threadresults_t mailthreadresults = NIL;
+				/* free elt extra stuff callback */
+static freeeltsparep_t mailfreeeltsparep = NIL;
 				/* free envelope extra stuff callback */
 static freeenvelopesparep_t mailfreeenvelopesparep = NIL;
-				/* free envelope extra stuff callback */
-static freeeltsparep_t mailfreeeltsparep = NIL;
+				/* free body extra stuff callback */
+static freebodysparep_t mailfreebodysparep = NIL;
 				/* free stream extra stuff callback */
 static freestreamsparep_t mailfreestreamsparep = NIL;
 				/* SSL start routine */
@@ -86,6 +88,8 @@ static sslcertificatequery_t mailsslcertificatequery = NIL;
 static sslfailure_t mailsslfailure = NIL;
 				/* snarf interval */
 static long mailsnarfinterval = 60;
+				/* newsrc name uses canonical host */
+static long mailnewsrccanon = LONGT;
 
 				/* supported threaders */
 static THREADER mailthreadordsub = {
@@ -391,6 +395,12 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
   case GET_NEWSRCQUERY:
     ret = (void *) mailnewsrcquery;
     break;
+  case SET_NEWSRCCANONHOST:
+    mailnewsrccanon = (long) value;
+  case GET_NEWSRCCANONHOST:
+    ret = (void *) mailnewsrccanon;
+    break;
+
   case SET_FREEENVELOPESPAREP:
     mailfreeenvelopesparep = (freeenvelopesparep_t) value;
   case GET_FREEENVELOPESPAREP:
@@ -405,6 +415,11 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
     mailfreestreamsparep = (freestreamsparep_t) value;
   case GET_FREESTREAMSPAREP:
     ret = (void *) mailfreestreamsparep;
+    break;
+  case SET_FREEBODYSPAREP:
+    mailfreebodysparep = (freebodysparep_t) value;
+  case GET_FREEBODYSPAREP:
+    ret = (void *) mailfreebodysparep;
     break;
 
   case SET_SSLSTART:
@@ -1075,6 +1090,7 @@ MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
       }
       return stream;		/* return local mailbox stream */
     }
+
     else if ((options & OP_PROTOTYPE) &&
 	     ((name[1] == 'D') || (name[1] == 'd')) &&
 	     ((name[2] == 'R') || (name[2] == 'r')) &&
@@ -1104,6 +1120,13 @@ MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
 
   if (d) {			/* must have a factory */
     if (options & OP_PROTOTYPE) return (*d->open) (NIL);
+    if (options & OP_HALFOPEN) {/* wants a half-open stream? */
+				/* close any non-halfopen recycle stream */
+      if (stream && (!stream->halfopen || !(d->flags & DR_HALFOPEN)))
+	stream = mail_close (stream);
+				/* stream does not support halfopen */
+      if (!(d->flags & DR_HALFOPEN)) return NIL;
+    }
     if (stream) {		/* recycling requested? */
 				/* yes, recycleable stream? */
       if ((stream->dtb == d) && (d->flags & DR_RECYCLE) &&
@@ -1128,6 +1151,7 @@ MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
 	stream = mail_close (stream);
       }
     }
+
 				/* instantiate new stream if not recycling */
     if (!stream) (*mailcache) (stream = (MAILSTREAM *)
 			       memset (fs_get (sizeof (MAILSTREAM)),0,
@@ -3169,8 +3193,8 @@ long mail_search_msg (MAILSTREAM *stream,unsigned long msgno,char *section,
       (pgm->seen && !elt->seen) ||
       (pgm->unseen && elt->seen)) return NIL;
 				/* keywords */
-  if ((pgm->keyword && !mail_search_keyword (stream,elt,pgm->keyword)) ||
-      (pgm->unkeyword && mail_search_keyword (stream,elt,pgm->unkeyword)))
+  if ((pgm->keyword && !mail_search_keyword (stream,elt,pgm->keyword,LONGT)) ||
+      (pgm->unkeyword && !mail_search_keyword (stream,elt,pgm->unkeyword,NIL)))
     return NIL;
 				/* internal date ranges */
   if (pgm->before || pgm->on || pgm->since) {
@@ -3492,19 +3516,26 @@ long mail_search_string (SIZEDTEXT *s,char *charset,STRINGLIST **st)
  * Accepts: MAIL stream
  *	    elt to get flags from
  *	    keyword list
+ *	    T for keyword search, NIL for unkeyword search
  * Returns: T if search found a match
  */
 
-long mail_search_keyword (MAILSTREAM *stream,MESSAGECACHE *elt,STRINGLIST *st)
+long mail_search_keyword (MAILSTREAM *stream,MESSAGECACHE *elt,STRINGLIST *st,
+			  long flag)
 {
-  int i;
-  do for (i = 0;; ++i) {	/* check each possible keyword */
-    if (i >= NUSERFLAGS || !stream->user_flags[i]) return NIL;
-    if ((elt->user_flags & (1 << i)) &&
-	!compare_csizedtext (stream->user_flags[i],&st->text))
-      break;
-  } while (st = st->next);	/* try next keyword */
-  return T;
+  int i,j;
+  unsigned long f = 0;
+  unsigned long tf;
+  do {
+    for (i = 0; (j = (i < NUSERFLAGS) && stream->user_flags[i]); ++i)
+      if (!compare_csizedtext (stream->user_flags[i],&st->text)) {
+	f |= (1 << i);
+	break;
+      }
+    if (flag && !j) return NIL;
+  } while (st = st->next);
+  tf = elt->user_flags & f;	/* get set flags which match */
+  return flag ? (f == tf) : !tf;
 }
 
 /* Mail search an address list
@@ -4080,7 +4111,7 @@ SORTCACHE **mail_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm)
 unsigned int mail_strip_subject (char *t,char **ret)
 {
   SIZEDTEXT src,dst;
-  unsigned long i;
+  unsigned long i,slen;
   char c,*s,*x;
   unsigned int refwd = NIL;
   if (src.size = strlen (t)) {	/* have non-empty subject? */
@@ -4095,8 +4126,9 @@ unsigned int mail_strip_subject (char *t,char **ret)
       else if ((*t != '\t') && (*t != ' ')) c = *x++ = *t;
     }
     *x = '\0';			/* tie off string */
-    while (T) {		/* Step 2 */
-      for (t = s + dst.size; t > s; ) switch (t[-1]) {
+			/* Step 2 */
+    for (slen = dst.size; s; slen = strlen (s))  {
+      for (t = s + slen; t > s; ) switch (t[-1]) {
       case ' ': case '\t':	/* WSP */
 	*--t = '\0';		/* just remove it */
 	break;
@@ -4155,7 +4187,7 @@ unsigned int mail_strip_subject (char *t,char **ret)
       else break;		/* don't need to loop back to step 2 */
     }
     if (s != (t = *ret)) {	/* removed leading text? */
-      *ret = cpystr (s);	/* yes, make a fresh return copy */
+      s = *ret = cpystr (s);	/* yes, make a fresh return copy */
       fs_give ((void **) &t);	/* flush old copy */
     }
   }
@@ -5339,6 +5371,8 @@ void mail_free_body_data (BODY *body)
   if (body->mime.text.data) fs_give ((void **) &body->mime.text.data);
   if (body->contents.text.data) fs_give ((void **) &body->contents.text.data);
   if (body->md5) fs_give ((void **) &body->md5);
+  if (mailfreebodysparep && body->sparep)
+      (*mailfreebodysparep) (&body->sparep);
 }
 
 /* Mail garbage collect body parameter

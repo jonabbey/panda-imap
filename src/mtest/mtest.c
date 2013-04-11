@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	22 January 2003
+ * Last Edited:	2 September 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -360,43 +360,46 @@ void mm (MAILSTREAM *stream,long debug)
 
 void overview_header (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov)
 {
-  unsigned long i;
-  char *t,tmp[MAILTMPLEN];
-  ADDRESS *adr;
-  unsigned long msgno = mail_msgno (stream,uid);
-  MESSAGECACHE *elt = mail_elt (stream,msgno);
-  MESSAGECACHE selt;
-  tmp[0] = elt->recent ? (elt->seen ? 'R': 'N') : ' ';
-  tmp[1] = (elt->recent | elt->seen) ? ' ' : 'U';
-  tmp[2] = elt->flagged ? 'F' : ' ';
-  tmp[3] = elt->answered ? 'A' : ' ';
-  tmp[4] = elt->deleted ? 'D' : ' ';
-  mail_parse_date (&selt,ov->date);
-  sprintf (tmp+5,"%4lu) ",elt->msgno);
-  mail_date (tmp+11,&selt);
-  tmp[17] = ' ';
-  tmp[18] = '\0';
-  memset (tmp+18,' ',(size_t) 20);
-  tmp[38] = '\0';		/* tie off with null */
+  if (ov) {
+    unsigned long i;
+    char *t,tmp[MAILTMPLEN];
+    ADDRESS *adr;
+    unsigned long msgno = mail_msgno (stream,uid);
+    MESSAGECACHE *elt = mail_elt (stream,msgno);
+    MESSAGECACHE selt;
+    tmp[0] = elt->recent ? (elt->seen ? 'R': 'N') : ' ';
+    tmp[1] = (elt->recent | elt->seen) ? ' ' : 'U';
+    tmp[2] = elt->flagged ? 'F' : ' ';
+    tmp[3] = elt->answered ? 'A' : ' ';
+    tmp[4] = elt->deleted ? 'D' : ' ';
+    mail_parse_date (&selt,ov->date);
+    sprintf (tmp+5,"%4lu) ",elt->msgno);
+    mail_date (tmp+11,&selt);
+    tmp[17] = ' ';
+    tmp[18] = '\0';
+    memset (tmp+18,' ',(size_t) 20);
+    tmp[38] = '\0';		/* tie off with null */
 				/* get first from address from envelope */
-  for (adr = ov->from; adr && !adr->host; adr = adr->next);
-  if (adr) {			/* if a personal name exists use it */
-    if (!(t = adr->personal))
-      sprintf (t = tmp+400,"%s@%s",adr->mailbox,adr->host);
-    memcpy (tmp+18,t,(size_t) min (20,(long) strlen (t)));
-  }
-  strcat (tmp," ");
-  if (i = elt->user_flags) {
-    strcat (tmp,"{");
-    while (i) {
-      strcat (tmp,stream->user_flags[find_rightmost_bit (&i)]);
-      if (i) strcat (tmp," ");
+    for (adr = ov->from; adr && !adr->host; adr = adr->next);
+    if (adr) {			/* if a personal name exists use it */
+      if (!(t = adr->personal))
+	sprintf (t = tmp+400,"%s@%s",adr->mailbox,adr->host);
+      memcpy (tmp+18,t,(size_t) min (20,(long) strlen (t)));
     }
-    strcat (tmp,"} ");
+    strcat (tmp," ");
+    if (i = elt->user_flags) {
+      strcat (tmp,"{");
+      while (i) {
+	strcat (tmp,stream->user_flags[find_rightmost_bit (&i)]);
+	if (i) strcat (tmp," ");
+      }
+      strcat (tmp,"} ");
+    }
+    sprintf (tmp + strlen (tmp),"%.25s (%lu chars)",
+	     ov->subject ? ov->subject : " ",ov->optional.octets);
+    puts (tmp);
   }
-  sprintf (tmp + strlen (tmp),"%.25s (%lu chars)",
-	   ov->subject ? ov->subject : " ",ov->optional.octets);
-  puts (tmp);
+  else printf ("%%No overview for UID %lu\n",uid);
 }
 
 /* MM display header
