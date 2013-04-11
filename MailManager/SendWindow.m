@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 February 1989
- * Last Edited:	28 September 1992
+ * Last Edited:	19 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -457,7 +457,7 @@
       NXCloseMemory (file,NX_FREEBUFFER);
       if (part) {		// set as application octet data
 	part->body.type = TYPEAPPLICATION;
-	part->body.subtype = cpystr ("OCTET-DATA");
+	part->body.subtype = cpystr ("OCTET-STREAM");
 	t = strrchr (s,'/');	// find basic file name
 	part->body.parameter = mail_newbody_parameter ();
 	part->body.parameter->attribute = cpystr ("NAME");

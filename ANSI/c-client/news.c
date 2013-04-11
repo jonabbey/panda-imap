@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	11 February 1993
+ * Last Edited:	15 March 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -105,8 +105,8 @@ DRIVER *news_valid (char *name)
   struct stat sbuf;
   DRIVER *ret = NIL;
 				/* looks plausible and news installed? */
-  if (name && (*name == '*') && !(strchr (name,'/')) &&
-      ((fd = open (ACTIVEFILE,O_RDONLY,NIL)) >= 0)) {
+  if (name && (*name == '*') && !(strchr (name,'/')) && !stat (NEWSSPOOL,&sbuf)
+      && ((fd = open (ACTIVEFILE,O_RDONLY,NIL)) >= 0)) {
     fstat (fd,&sbuf);		/* get size of active file */
 				/* slurp in active file */
     read (fd,t = s = (char *) fs_get (sbuf.st_size+1),sbuf.st_size);
@@ -158,8 +158,11 @@ void news_find_bboards (MAILSTREAM *stream,char *pat)
 {
   void *s = NIL;
   char *t,*u,tmp[MAILTMPLEN],patx[MAILTMPLEN];
-  if (!(stream && stream->anonymous)) {
-    lcase (strcpy (patx,pat));	/* make sure compare with lower case */
+  struct stat sbuf;
+  lcase (strcpy (patx,pat));	/* make sure compare with lower case */
+				/* make sure have a local news spool */
+  if (!(stat (NEWSSPOOL,&sbuf) || stat (ACTIVEFILE,&sbuf) ||
+	(stream && stream->anonymous))) {
 				/* check all newsgroups from .newsrc */
     while (t = news_read (&s)) if (u = strchr (t,':')) {
       *u = '\0';		/* tie off at end of name */
@@ -1120,20 +1123,17 @@ char *news_read (void **sdb)
   int fd;
   char *s,*t,tmp[MAILTMPLEN];
   struct stat sbuf;
-				/* make sure news exists on this system */
-  if (!(stat (NEWSSPOOL,&sbuf) || stat (ACTIVEFILE,&sbuf))) {
-    if (!*sdb) {		/* first time through? */
-      if ((fd = open (NEWSRC,O_RDONLY,NIL)) < 0) return NIL;
-      fstat (fd,&sbuf);		/* get file size and read data */
-      read (fd,s = (char *) (*sdb = fs_get (sbuf.st_size + 1)),sbuf.st_size);
-      close (fd);		/* close file */
-      s[sbuf.st_size] = '\0';	/* tie off string */
-      if (t = strtok (s,"\n")) return t;
-    }
-				/* subsequent times through database */
-    else if (t = strtok (NIL,"\n")) return t;
-    fs_give (sdb);		/* free database */
+  if (!*sdb) {			/* first time through? */
+    if ((fd = open (NEWSRC,O_RDONLY,NIL)) < 0) return NIL;
+    fstat (fd,&sbuf);		/* get file size and read data */
+    read (fd,s = (char *) (*sdb = fs_get (sbuf.st_size + 1)),sbuf.st_size);
+    close (fd);			/* close file */
+    s[sbuf.st_size] = '\0';	/* tie off string */
+    if (t = strtok (s,"\n")) return t;
   }
+				/* subsequent times through database */
+  else if (t = strtok (NIL,"\n")) return t;
+  fs_give (sdb);		/* free database */
   return NIL;			/* all done */
 }
 

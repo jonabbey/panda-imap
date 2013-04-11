@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	23 December 1992
+ * Last Edited:	2 March 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -49,6 +49,7 @@
 #include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
+#include <signal.h>
 #include "mail.h"
 #include "osdep.h"
 #include <sys/file.h>
@@ -373,8 +374,10 @@ long bezerk_rename (MAILSTREAM *stream,char *old,char *new)
 MAILSTREAM *bezerk_open (MAILSTREAM *stream)
 {
   long i;
+  long retry = KODRETRY;	/* number of seconds to retry */
   int fd;
   char tmp[MAILTMPLEN];
+  struct stat sbuf;
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &bezerkproto;
   if (LOCAL) {			/* close old file if stream being recycled */
@@ -408,20 +411,39 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
   stream->sequence++;		/* bump sequence number */
 
   LOCAL->dirty = NIL;		/* no update yet */
-  if (!stream->readonly) {	/* make lock for state */
-    if ((i = open (LOCAL->lname,O_RDWR|O_CREAT,0666)) < 0)
+				/* make lock for read/write access */
+  if (!stream->readonly) while (retry) {
+				/* get a new file handle each time */
+    if ((fd = open (LOCAL->lname,O_RDWR|O_CREAT,0666)) < 0)
       mm_log ("Can't open mailbox lock, access is readonly",WARN);
-				/* try lock it */
-    else if (flock (i,LOCK_EX|LOCK_NB)) {
-      close (i);		/* couldn't lock, give up on it then */
-      mm_log ("Mailbox is open by another user or process, access is readonly",
-	      WARN);
+				/* can get the lock? */
+    if (flock (fd,LOCK_EX|LOCK_NB)) {
+      if (retry-- == KODRETRY) {/* no, first time through? */
+				/* yes, get other process' PID */
+	if (!fstat (fd,&sbuf) && (i = min (sbuf.st_size,MAILTMPLEN)) &&
+	    (read (fd,tmp,i) == i) && (i = atol (tmp))) {
+	  kill (i,SIGUSR2);	/* send the Kiss Of Death */
+	  sprintf (tmp,"Trying to get mailbox lock from process %ld",i);
+	  mm_log (tmp,NIL);
+	}
+	else retry = 0;		/* give up */
+      }
+      close (fd);		/* get a new handle next time around */
+      if (retry) sleep (1);	/* wait a second before trying again */
+      else mm_log ("Mailbox is open by another process, access is readonly",
+		   WARN);
     }
     else {			/* got the lock, nobody else can alter state */
-      LOCAL->ld = i;		/* note lock's fd */
-      chmod (LOCAL->lname,0666);/* some folks don't have fchmod() */
+      LOCAL->ld = fd;		/* note lock's fd */
+      chmod (LOCAL->lname,0666);/* make sure mode OK (don't use fchmod()) */
+				/* note our PID in the lock */
+      sprintf (tmp,"%d",getpid ());
+      write (fd,tmp,strlen (tmp));
+      fsync (fd);		/* make sure it's available */
+      retry = 0;		/* no more need to try */
     }
   }
+
 				/* parse mailbox */
   stream->nmsgs = stream->recent = 0;
 				/* will we be able to get write access? */
@@ -814,6 +836,14 @@ long bezerk_ping (MAILSTREAM *stream)
   char lock[MAILTMPLEN];
   struct stat sbuf;
   int fd;
+				/* does he want to give up readwrite? */
+  if (stream->readonly && LOCAL->ld) {
+    flock (LOCAL->ld,LOCK_UN);	/* yes, release the lock */
+    close (LOCAL->ld);		/* close the lock file */
+    LOCAL->ld = NIL;		/* no more lock fd */
+    unlink (LOCAL->lname);	/* delete it */
+    fs_give ((void **) &LOCAL->lname);
+  }
 				/* make sure it is alright to do this at all */
   if (LOCAL && LOCAL->ld && !stream->lock) {
 				/* get current mailbox size */
@@ -827,8 +857,7 @@ long bezerk_ping (MAILSTREAM *stream)
   }
   return LOCAL ? T : NIL;	/* return if still alive */
 }
-
-
+
 /* Berkeley mail check mailbox
  * Accepts: MAIL stream
  * No-op for readonly files, since read/writer can expunge it from under us!
@@ -1634,8 +1663,8 @@ int bezerk_copy_messages (MAILSTREAM *stream,char *mailbox)
     mm_log (LOCAL->buf,ERROR);
     return NIL;
   }
-  if (fd = bezerk_lock (bezerk_file (file,mailbox),O_WRONLY|O_APPEND|O_CREAT,
-			S_IREAD|S_IWRITE,lock,LOCK_EX) < 0) {
+  if ((fd = bezerk_lock (bezerk_file (file,mailbox),O_WRONLY|O_APPEND|O_CREAT,
+			 S_IREAD|S_IWRITE,lock,LOCK_EX)) < 0) {
     sprintf (LOCAL->buf,"Can't open destination mailbox: %s",strerror (errno));
     mm_log (LOCAL->buf,ERROR);
     return NIL;

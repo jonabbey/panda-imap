@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 November 1988
- * Last Edited:	10 December 1992
+ * Last Edited:	25 January 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -37,14 +37,14 @@
 
 static char *copyright = "\
  MS user interface is:\n\
-  Copyright 1992 University of Washington\n\
+  Copyright 1993 University of Washington\n\
  Electronic Mail C-Client is:\n\
-  Copyright 1992 University of Washington\n\
+  Copyright 1993 University of Washington\n\
   Original version Copyright 1988 The Leland Stanford Junior University\n\
  CCMD command interface is:\n\
   Copyright 1986, 1987 Columbia University in the City of New York";
 static char *author = "Mark Crispin";
-static char *version = "7.85";
+static char *version = "7.86";
 static char *bug_mailbox = "MRC";
 static char *bug_host = "CAC.Washington.EDU";
 static char *hostlist[] = {	/* SMTP server host list */
@@ -80,7 +80,7 @@ static char *newslist[] = {	/* News server host list */
 /* Drivers we use */
 
 extern DRIVER imapdriver,bezerkdriver,tenexdriver,mboxdriver,mhdriver,
- newsdriver,dummydriver,dawzdriver;
+ newsdriver,nntpdriver,dummydriver,dawzdriver;
 
 
 /* Size of temporary buffers */
@@ -380,6 +380,7 @@ short ms_init ()
   mail_link (&mboxdriver);	/* link in mbox mail driver */
   mail_link (&bezerkdriver);	/* install the Berkeley mail driver */
   mail_link (&newsdriver);	/* install the news driver */
+  mail_link (&nntpdriver);	/* install the NNTP client driver */
   mail_link (&dummydriver);	/* install dummy driver */
 #endif
   mm_mailbox ("INBOX");		/* INBOX is always known!! */

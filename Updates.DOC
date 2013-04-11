@@ -349,3 +349,33 @@ Note: Dates in this revision history indicate when the work was completed.
 		is an IMAP mailbox that can't be opened for some reason.
 
 11 February 1993 [news.c] Fix bug with handling newsgroups not in .newsrc
+
+11 February 1993 [tenex.c] Validate target type in tenex_copy_messages().
+
+15 February 1993 [bezerk.c/h] Implement Kiss Of Death for mbox streams which
+		have the read-write lock.
+
+16 February 1993 [nntpc*.c] Fix missing error return in open code.
+
+16 February 1993 [sm_unix.c] Fix bogus protection when creating subscription
+		database.
+
+16 February 1993 [nntpc*.c] NNTP client find code was quite bogus.
+
+18 February 1993 [rfc822.c] Fix crash caused by empty Content-Type: line.
+
+19 February 1993 [SendWindow.m] Change OCTET-DATA to OCTET-STREAM.
+
+27 February 1993 [mail.c] Repeal naming rules wretched compromise.
+
+2 March 1993	[makefile.a32, os_a32.c] Make it build properly on RS/6000.
+
+3 March 1993	[bezerk.c] Fix embarassing bug in bezerk_copy_messages.
+
+4 March 1993	[nntpcdos.c] Call nntp_read() instead of non-ex news_read()
+
+9 March 1993	[os_hpp.c] Change rsh call to remsh.
+
+9 March 1993	[nntpc*.c] Implement half-opens.
+
+15 March 1993	[news.c] Fix brain-damage in find bboards.

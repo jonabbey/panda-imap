@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	3 December 1992
+ * Last Edited:	15 February 1993
  *
  * Copyright 1992 by the University of Washington
  *
@@ -53,7 +53,7 @@
 
 /* Autologout timer */
 #define TIMEOUT 60*30
-
+#define KODTIMER 60*2
 
 /* Size of temporary buffers */
 #define TMPLEN 8192
@@ -68,11 +68,12 @@
 
 /* Global storage */
 
-char *version = "7.0(52)";	/* version number of this server */
+char *version = "7.1(53)";	/* version number of this server */
 struct itimerval timer;		/* timeout state */
 int state = LOGIN;		/* server state */
 int mackludge = 0;		/* MacMS kludge */
 int anonymous = 0;		/* non-zero if anonymous */
+long idletime = 0;		/* time we became idle */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 long nmsgs = 0;			/* number of messages */
 long recent = 0;		/* number of recent messages */
@@ -113,6 +114,7 @@ extern DRIVER bezerkdriver,tenexdriver,imapdriver,newsdriver,dummydriver;
 
 void main  ();
 void clkint  ();
+void kodint  ();
 char *snarf  ();
 void fetch  ();
 void fetch_body  ();
@@ -163,10 +165,12 @@ void main (argc,argv)
   printf ("* %s %s IMAP2bis Service %s at %s\015\012",t,host,version,cmdbuf);
   fflush (stdout);		/* dump output buffer */
   signal (SIGALRM,clkint);	/* prepare for clock interrupt */
+  signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
 				/* initialize timeout interval */
   timer.it_interval.tv_sec = TIMEOUT;
   timer.it_interval.tv_usec = 0;
   do {				/* command processing loop */
+    idletime = time (0);	/* get the idle time now */
 				/* get a command under timeout */
     timer.it_value.tv_sec = TIMEOUT; timer.it_value.tv_usec = 0;
     setitimer (ITIMER_REAL,&timer,NIL);
@@ -174,6 +178,7 @@ void main (argc,argv)
 				/* make sure timeout disabled */
     timer.it_value.tv_sec = timer.it_value.tv_usec = 0;
     setitimer (ITIMER_REAL,&timer,NIL);
+    idletime = 0;		/* not idle any more */
     fs_give ((void **) &lsterr);/* no last error */
 				/* find end of line */
     if (!strchr (cmdbuf,'\012')) fputs (toobig,stdout);
@@ -576,6 +581,21 @@ void clkint ()
   if (state == OPEN) mail_close (stream);
   stream = NIL;
   exit (0);			/* die die die */
+}
+
+
+/* Kiss Of Death interrupt
+ */
+
+void kodint ()
+{
+  long t = time (0);
+  if ((state == OPEN) && idletime && (t > idletime + KODTIMER)) {
+    fputs ("* OK Kiss Of Death received, attempting read-only\015\012",stdout);
+    fflush (stdout);		/* make sure output blatted */
+    stream->readonly = T;	/* make the stream readonly */
+    mail_ping (stream);		/* cause it to stick! */
+  }
 }
 
 /* Snarf an argument

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	10 February 1993
+ * Last Edited:	27 February 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -335,6 +335,7 @@ void mail_find_all_bboard (stream,pat)
  * Accepts: MAIL stream
  *	    mailbox name
  *	    purpose string for error message
+ *	    flag indicating this is not an open
  * Return: driver factory on success, NIL on failure
  */
 
@@ -346,19 +347,11 @@ DRIVER *mail_valid (stream,mailbox,purpose,nopen)
 {
   char tmp[MAILTMPLEN];
   DRIVER *factory;
-  ucase (strcpy (tmp,mailbox));	/* make lowercase copy of name */
-				/* ambiguous, must be same type as INBOX */
-  if (strcmp (tmp,"INBOX") && isalnum (*mailbox))
-    factory = ((inboxdriver ? inboxdriver :
-		(inboxdriver = mail_valid (NIL,"INBOX",NIL,LONGT))) &&
-	       (*inboxdriver->valid) (mailbox)) ? inboxdriver : NIL;
-  else {			/* non-ambiguous name, find factory */
-    for (factory = maildrivers; factory && !(*factory->valid) (mailbox);
-	 factory = factory->next);
+  for (factory = maildrivers; factory && !(*factory->valid) (mailbox);
+       factory = factory->next);
 				/* must match stream and not be dummy */
-    if (factory && ((stream && (stream->dtb != factory)) ||
-		    (nopen && !strcmp (factory->name,"dummy")))) factory = NIL;
-  }
+  if (factory && ((stream && (stream->dtb != factory)) ||
+		  (nopen && !strcmp (factory->name,"dummy")))) factory = NIL;
   if (!factory && purpose) {	/* if want an error message */
     sprintf (tmp,"Can't %s %s: no such mailbox",purpose,mailbox);
     mm_log (tmp,ERROR);
@@ -927,10 +920,7 @@ long mail_append (stream,mailbox,message)
 	char *mailbox;
 	STRING *message;
 {
-  DRIVER *d = maildrivers;
   DRIVER *factory = mail_valid (stream,mailbox,"append to mailbox",LONGT);
-				/* validate stream if given */
-  if (stream && stream->dtb && (factory != stream->dtb)) return NIL;
 				/* do the driver's action */
   return factory ? (factory->append) (stream,mailbox,message) : NIL;
 }

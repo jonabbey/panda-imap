@@ -8,9 +8,9 @@
  *		Internet: dmiller@beta.tricity.wsu.edu
  *
  * Date:	11 May 1989
- * Last Edited:	3 November 1992
+ * Last Edited:	9 March 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -410,7 +410,7 @@ TCPSTREAM *tcp_aopen (host,service)
     dup2 (pipeo[0],0);		/* parent's output is my input */
     close (pipeo[0]); close (pipeo[1]);
 				/* now run it */
-    execl ("/usr/ucb/rsh","rsh",hostname,"exec",service,0);
+    execl ("/usr/ucb/remsh","remsh",hostname,"exec",service,0);
     _exit (1);			/* spazzed */
   }
 

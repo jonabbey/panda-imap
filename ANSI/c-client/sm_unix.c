@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	19 November 1992
- * Last Edited:	8 December 1992
+ * Last Edited:	16 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -61,7 +61,7 @@ long sm_subscribe (char *mailbox)
     }
   }
   SUBSCRIPTIONFILE (tmp);	/* open subscription database */
-  if ((fd = open (tmp,O_RDWR|O_CREAT,NIL)) >= 0) {
+  if ((fd = open (tmp,O_RDWR|O_CREAT,0600)) >= 0) {
     flock (fd,LOCK_EX);		/* wait for exclusive access */
     fstat (fd,&sbuf);		/* get file size and read data */
     read (fd,s = txt = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);

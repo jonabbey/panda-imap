@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	22 January 1993
+ * Last Edited:	18 February 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -669,8 +669,10 @@ void rfc822_parse_content_header (body,name,s)
       body->description = cpystr (s);
     break;
   case 'T':			/* possible Content-Type/Transfer-Encoding */
-    if ((!(strcmp (name+1,"YPE") || body->type || body->subtype ||
-	   body->parameter)) &&	(name = rfc822_parse_word (s,ptspecials))) {
+    if (!(strcmp (name+1,"YPE") || body->type || body->subtype ||
+	  body->parameter)) {
+				/* get type word */
+      if (!(name = rfc822_parse_word (s,ptspecials))) break;
       c = *name;		/* remember delimiter */
       *name = '\0';		/* tie off type */
       ucase (s);		/* search for body type */
@@ -739,7 +741,7 @@ void rfc822_parse_content_header (body,name,s)
       if (t = strchr (ucase (s),' ')) *t = '\0';
 				/* search for body encoding */
       for (i = 0; (i < ENCOTHER) && strcmp (s,body_encodings[i]); i++);
-      body->encoding = i;		/* set body type */
+      body->encoding = i;	/* set body type */
     }
     break;
   default:			/* otherwise unknown */

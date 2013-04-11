@@ -1,6 +1,6 @@
 		   Mailbox Naming Rules in c-client
 			     Mark Crispin
-			   10 November 1992
+			   27 February 1993
 
 
      Mailboxes are named in a manner that there always exists a name,
@@ -30,12 +30,7 @@ identity of the rule-maker for that rule.
 	[MRC]
 	Names which begin with an alphanumeric character, that is,
 	digits 0-9 and letters A-Z and a-z, are defined to be
-	ambiguous names.  c-client will look for ambiguous names
-	ONLY in the same technology as the INBOX mailbox.  For
-	example, if the user's INBOX is in Tenex format, ``foo''
-	can not be used to reference a Berkeley mailbox.  If the
-	user has no INBOX, then ambiguous names can not be used
-	at all.
+	ambiguous names.
 
     The rules below are defined and used by known c-client drivers to
 assist in specifying unambiguous names.  Note that not all of these
@@ -69,19 +64,12 @@ for new rules.
 	 are not yet implemented.]
 
 	[MRC]
-	Names which begin with an ``+'' refer to objects in a
-	filesystem, identified a well-defined manner.  Since there
-	may be multiple drivers which operate on objects in a
-	filesystem, it is necessary to examine the type of object
-	and its contents to determine the appropriate driver.
-	[BUG: This is not yet implemented.  Is it needed?  Should
-	 it supercede the / and ~ rules?]
-
-	[MRC]
-	Names which begin with an ``*'' character refer to locally
-	spooled USENET news.  For example, ``*comp.mail.misc''
-	refers to the newsgroup ``comp.mail.misc'' on the local
-	system.
+	Names which begin with an ``*'' character refer to bboards.
+	For example, ``*comp.mail.misc'' refers to the newsgroup
+	``comp.mail.misc'' on the local system.  Remote names are
+	also allowed; ``*{newshost}comp.mail.misc'' refers to the
+	newsgroup ``comp.mail.misc'' on the system ``newshost'' via
+	IMAP.
 
 	[MRC]
 	Names which begin with an ``{'' character refer to IMAP
@@ -90,6 +78,14 @@ for new rules.
 	 ``{'' <host> [``:'' <port>] ``}'' [<remote mailbox>]
 	where the port defaults to 143 and the remote mailbox
 	defaults to INBOX.
+
+	[MRC]
+	Names which begin with an ``['' character refer to POP or
+	NNTP mailboxes.  Note that the NNTP driver has additional
+	syntax rules.  An NNTP mailbox is of the form:
+	``['' <host> ``]'' [<remote bboard>]
+	<<This rule is controversial and subject to deletion in
+	  favor of expanding the ``{'' rule>>
 
 	[LGL]
 	<<<%Carmel% or whatever defined here>>>

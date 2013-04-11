@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	25 January 1993
+# Last Edited:	2 March 1993
 #
 # Copyright 1993 by the University of Washington
 #
@@ -31,7 +31,7 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
-CFLAGS = -g
+CFLAGS = -g -Dconst= -Dunix=1
 LDFLAGS = -lbsd
 
 mtest: mtest.o c-client.a
@@ -44,10 +44,10 @@ clean:
 
 mtest.o: mail.h smtp.h nntp.h misc.h osdep.h
 
-c-client.a: mail.o bezerk.o tenex.o mbox.o imap2.o news.o nntpclient.o dummy.o\
-	smtp.o nntp.o rfc822.o misc.o osdep.o sm_unix.o
+c-client.a: mail.o bezerk.o tenex.o mbox.o mh.o imap2.o news.o nntpclient.o \
+	dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o sm_unix.o
 	rm -f c-client.a
-	ar rc c-client.a mail.o bezerk.o tenex.o mbox.o imap2.o news.o\
+	ar rc c-client.a mail.o bezerk.o tenex.o mbox.o mh.o imap2.o news.o\
 	nntpclient.o dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o sm_unix.o
 	ranlib c-client.a
 

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	5 November 1992
+ * Last Edited:	2 March 1993
  *
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -54,7 +54,6 @@ TCPSTREAM {
 
 #include "mail.h"
 #include "osdep.h"
-#include <sys/time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -68,11 +67,6 @@ extern char *crypt();
 #include <sys/poll.h>
 #include <sys/select.h>
 #include <sys/lockf.h>
-
-
-extern long timezone;
-extern int daylight;
-extern char *tzname[2];
 
 extern int sys_nerr;
 extern char *sys_errlist[];
@@ -92,9 +86,13 @@ void rfc822_date (char *date)
   gettimeofday (&tv,&tz);	/* get time and timezone poop */
   t = localtime (&tv.tv_sec);	/* convert to individual items */
   tzset ();			/* get timezone from TZ environment stuff */
-  zone = -timezone/60;
+#if 0
+  zone = -timezone/60;		/* doesn't work for some reason */
+#else
+  zone = -tz.tz_minuteswest;	/* but this works fine */
+#endif
 				/* and output it */
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+02d%02d (%s)",
+  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
 	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
 	   tzname[daylight ? t->tm_isdst : 0]);

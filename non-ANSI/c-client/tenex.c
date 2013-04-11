@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	4 December 1992
+ * Last Edited:	11 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -1382,7 +1382,14 @@ int tenex_copy_messages (stream,mailbox)
   FILECACHE *m;
   long j = NIL;
   long i;
-  int fd = open (tenex_file (LOCAL->buf,mailbox),O_WRONLY|O_APPEND|O_CREAT,
+  int fd;
+				/* make sure valid mailbox */
+  if (!tenex_isvalid (mailbox,LOCAL->buf)) {
+    sprintf (LOCAL->buf,"Not a Tenex-format mailbox: %s",mailbox);
+    mm_log (LOCAL->buf,ERROR);
+    return NIL;
+  }
+  fd = open (tenex_file (LOCAL->buf,mailbox),O_WRONLY|O_APPEND|O_CREAT,
 		 S_IREAD|S_IWRITE);
   if (fd < 0) {			/* got file? */
     sprintf (LOCAL->buf,"Unable to open copy mailbox: %s",strerror (errno));

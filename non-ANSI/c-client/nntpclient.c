@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 January 1993
- * Last Edited:	11 February 1993
+ * Last Edited:	9 March 1993
  *
  * Copyright 1993 by the University of Washington.
  *
@@ -146,19 +146,31 @@ void nntp_find_bboards (stream,pat)
 	char *pat;
 {
   void *s = NIL;
-  char *t,*u,tmp[MAILTMPLEN],patx[MAILTMPLEN];
-  lcase (strcpy (patx,pat));	/* make sure compare with lower case */
+  char *t,*u,*bbd,*patx,tmp[MAILTMPLEN],patc[MAILTMPLEN];
+  if (t = strchr (pat,']')) {
+    lcase (strcpy (patc,pat));	/* make sure compare with lower case */
+    strcpy (tmp,pat);		/* copy host name */
+				/* where we write the bboards */
+    bbd = tmp + ((patx = ++t) - pat);
 				/* check all newsgroups from .newsrc */
-  while (t = news_read (&s)) if (u = strchr (t,':')) {
-    *u = '\0';			/* tie off at end of name */
-    if (pmatch (lcase (t),patx)) {
-      sprintf (tmp,"*%s",t);
-      if (nntp_valid (tmp)) mm_bboard (t);
+    while (t = news_read (&s)) if (u = strchr (t,':')) {
+      *u = '\0';		/* tie off at end of name */
+      if (pmatch (lcase (t),patx)) {
+	strcpy (bbd,t);		/* write newsgroup name after hostspec */
+	mm_bboard (tmp);
+      }
     }
+    while (t = sm_read (&s))	/* try subscription manager list */
+      if (*t == '*') {		/* must be a bboard */
+				/* matching ordinary bboard? */
+	if (pmatch (lcase (t + 1),patx)) {
+	  strcpy (bbd,t);	/* write newsgroup name after hostspec */
+	  mm_bboard (tmp);	/* pass to caller */
+	}
+				/* matching glue? */
+	else if (pmatch (t+1,patc)) mm_bboard (t+1);
+      }
   }
-  while (t = sm_read (&s))	/* try subscription manager list */
-    if (pmatch (lcase (t + 1),patx) &&
-	(nntp_valid (t) || ((*t == '*') && t[1] == '{'))) mm_bboard (t + 1);
 }
 
 /* NNTP mail find list of all mailboxes
@@ -184,15 +196,17 @@ void nntp_find_all_bboards (stream,pat)
 	char *pat;
 {
   char *s,*t,tmp[MAILTMPLEN],patx[MAILTMPLEN];
-  lcase (strcpy (patx,pat));	/* make sure compare with lower case */
+  if (stream && LOCAL && LOCAL->nntpstream && (pat = strchr (pat,']'))) {
+    lcase (strcpy (patx,pat+1));/* make sure compare with lower case */
 				/* ask server for all active newsgroups */
-  if (!(smtp_send (LOCAL->nntpstream,"LIST","ACTIVE") == NNTPGLIST)) return;
+    if (!(smtp_send (LOCAL->nntpstream,"LIST","ACTIVE") == NNTPGLIST)) return;
 				/* process data until we see final dot */
-  while ((s = tcp_getline (LOCAL->nntpstream->tcpstream)) && *s != '.') {
+    while ((s = tcp_getline (LOCAL->nntpstream->tcpstream)) && *s != '.') {
 				/* tie off after newsgroup name */
-    if (t = strchr (s,' ')) *t = '\0';
+      if (t = strchr (s,' ')) *t = '\0';
 				/* report to main program if have match */
-    if (pmatch (lcase (s),patx)) mm_bboard (s);
+      if (pmatch (lcase (s),patx)) mm_bboard (s);
+    }
   }
 }
 
@@ -304,7 +318,8 @@ MAILSTREAM *nntp_mopen (stream)
 	MAILSTREAM *stream;
 {
   int fd;
-  long i,nmsgs,j,k;
+  long i,j,k;
+  long nmsgs = 0;
   long recent = 0;
   char c,*s,*t,*name,tmp[MAILTMPLEN],host[MAILTMPLEN];
   void *sdb = NIL;
@@ -356,12 +371,14 @@ MAILSTREAM *nntp_mopen (stream)
       }
     }
     if (nstream) {		/* now try to open newsgroup */
-      if ((smtp_send (nstream,"GROUP",name) != NNTPGOK) ||
-	  ((nmsgs = atol (nstream->reply + 4)) < 0) ||
-	  (smtp_send (nstream,"LISTGROUP",name) != NNTPGOK)) {
+      if ((!stream->halfopen) &&/* open the newsgroup if not halfopen */
+	  ((smtp_send (nstream,"GROUP",name) != NNTPGOK) ||
+	   ((nmsgs = atol (nstream->reply + 4)) < 0) ||
+	   (smtp_send (nstream,"LISTGROUP",name) != NNTPGOK))) {
 	mm_log (nstream->reply,ERROR);
 	smtp_close (nstream);	/* punt stream */
 	nstream = NIL;
+	return NIL;
       }
 				/* newsgroup open, instantiate local data */
       stream->local = fs_get (sizeof (NNTPLOCAL));
@@ -386,11 +403,13 @@ MAILSTREAM *nntp_mopen (stream)
       LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
       stream->sequence++;	/* bump sequence number */
       stream->readonly = T;	/* make sure higher level knows readonly */
-      if (!((s = tcp_getline (nstream->tcpstream)) && (*s == '.'))) {
+      if (!(stream->halfopen ||
+	    ((s = tcp_getline (nstream->tcpstream)) && (*s == '.')))) {
 	mm_log ("NNTP article listing protocol failure",ERROR);
 	nntp_close (stream);	/* do close action */
       }
-      else {			/* all looks well! */
+				/* all looks well! */
+      else if (!stream->halfopen) {
 	fs_give ((void **) &s);	/* flush the dot line */
 				/* notify upper level that messages exist */
 	mail_exists (stream,nmsgs);

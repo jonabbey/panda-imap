@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	23 December 1992
+ * Last Edited:	15 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -46,6 +46,7 @@
 
 /* Build parameters */
 
+#define KODRETRY 15		/* kiss-of-death retry in seconds */
 #define LOCKTIMEOUT 5		/* lock timeout in minutes */
 #define CHUNK 8192		/* read-in chunk size */
 
