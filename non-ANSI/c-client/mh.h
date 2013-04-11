@@ -13,7 +13,7 @@
  *		Internet: cohen@bucrf16.bu.edu
  *
  * Date:	23 February 1992
- * Last Edited:	8 June 1992
+ * Last Edited:	2 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -38,7 +38,7 @@
 
 /* Build parameters */
 
-#define MHRC strcat (strcpy (tmp,getpwuid (geteuid ())->pw_dir),"/.mhrc")
+#define MHRC strcat (strcpy (tmp,myhomedir ()),"/.mhrc")
 
 
 /* Command bits from mh_getflags() */
@@ -53,7 +53,6 @@
 
 typedef struct mh_local {
   unsigned int dirty : 1;	/* disk copy of .mhrc needs updating */
-  char *host;			/* local host name */
   char *dir;			/* spool directory name */
   char *buf;			/* temporary buffer */
   unsigned long buflen;		/* current size of temporary buffer */

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	8 June 1992
+ * Last Edited:	2 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -45,7 +45,6 @@
 	
 typedef struct news_local {
   unsigned int dirty : 1;	/* disk copy of .newsrc needs updating */
-  char *host;			/* local host name */
   char *dir;			/* spool directory name */
   char *name;			/* local mailbox name */
   char *buf;			/* temporary buffer */

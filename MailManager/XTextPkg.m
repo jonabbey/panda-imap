@@ -1,6 +1,8 @@
 /*	This file is part of the XText package (version 0.8)
 	Mike Dixon, April 1992
 	
+	Last Modified: Mark Crispin 28 September 1992
+
 	Copyright (c) 1992 Xerox Corporation.  All rights reserved.
 
 	Use and copying of this software and preparation of derivative works based
@@ -233,7 +235,7 @@ struct WindowGuts { @defs(Window); };
 	return editor;
 }
 
-- initFrame:(const NXRect *)frameRect text:(const char *)theText
+- initFrame:(const NXRect *)frameRect text:(const STR)theText
 	alignment:(int)mode
 {
 	[super initFrame:frameRect text:theText alignment:mode];
@@ -347,7 +349,7 @@ struct WindowGuts { @defs(Window); };
 
 @implementation XText
 
-- initFrame:(const NXRect *)frameRect text:(const char *)theText
+- initFrame:(const NXRect *)frameRect text:(const STR)theText
 	alignment:(int)mode
 {
 	// i don't understand why the compiler whines without the (char *) here
@@ -815,7 +817,7 @@ void initbase_emacs(actionTbl actions, NXZone *zone)
 // (end of XTScroller.m)
 // (beginning of XTAction_parser.m)
 #import <sys/types.h>
-#import <nextdev/keycodes.h>
+#import <bsd/dev/m68k/keycodes.h>
 #import <stdlib.h>
 
 /*  This file contains all the routines to parse the argument to the

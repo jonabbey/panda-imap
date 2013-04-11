@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	9 September 1992
+ * Last Edited:	2 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -47,7 +47,7 @@
 /* Build parameters */
 
 #define LOCKTIMEOUT 5		/* lock timeout in minutes */
-#define CHUNK 65536		/* read-in chunk size */
+#define CHUNK 8192		/* read-in chunk size */
 
 
 /* Test for valid header */
@@ -90,7 +90,6 @@ typedef struct bezerk_local {
   unsigned int dirty : 1;	/* disk copy needs updating */
   int ld;			/* lock file descriptor */
   char *name;			/* local file name for recycle case */
-  char *host;			/* local host name */
   char *lname;			/* lock file name */
   off_t filesize;		/* file size parsed */
   time_t filetime;		/* last file time */

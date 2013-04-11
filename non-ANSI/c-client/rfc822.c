@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	31 August 1992
+ * Last Edited:	24 October 1992
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -45,8 +45,8 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <time.h>
-#include "osdep.h"
 #include "mail.h"
+#include "osdep.h"
 #include "rfc822.h"
 #include "misc.h"
 
@@ -346,25 +346,23 @@ char *rfc822_default_subtype (type)
  *	    pointer to return body
  *	    pointer to header
  *	    header byte count
- *	    pointer to body
- *	    body byte count
+ *	    pointer to body stringstruct
  *	    pointer to local host name
  *	    pointer to scratch buffer
  */
 
-void rfc822_parse_msg (en,bdy,s,i,b,j,host,tmp)
+void rfc822_parse_msg (en,bdy,s,i,bs,host,tmp)
 	ENVELOPE **en;
 	BODY **bdy;
 	char *s;
 	unsigned long i;
-	 		       char *b;
-	unsigned long j;
+	 		       STRING *bs;
 	char *host;
 	char *tmp;
 {
   char c,*t,*d;
   ENVELOPE *env = (*en = mail_newenvelope ());
-  BODY *body = (*bdy = mail_newbody ());
+  BODY *body = bdy ? (*bdy = mail_newbody ()) : NIL;
   long MIMEp = NIL;		/* flag that MIME semantics are in effect */
   while (i > 0 && *s != '\n') {	/* until end of header */
     t = tmp;			/* initialize buffer pointer */
@@ -404,11 +402,9 @@ void rfc822_parse_msg (en,bdy,s,i,b,j,host,tmp)
 	if (!strcmp (tmp+1,"C")) rfc822_parse_adrlist (&env->cc,d,host);
 	else if ((tmp[1] == 'O') && (tmp[2] == 'N') && (tmp[3] == 'T') &&
 		 (tmp[4] == 'E') && (tmp[5] == 'N') && (tmp[6] == 'T') &&
-		 (tmp[7] == '-')) {
-				/* parse if MIME in effect */
-	  if (MIMEp || (search (s,i,"\012MIME-Version",(long) 13)))
-	    rfc822_parse_content_header (body,tmp+8,d);
-	}
+		 (tmp[7] == '-') && body &&
+		 (MIMEp || (search (s,i,"\012MIME-Version",(long) 13))))
+	  rfc822_parse_content_header (body,tmp+8,d);
 	break;
       case 'D':			/* possible Date: */
 	if (!env->date && !strcmp (tmp+1,"ATE")) env->date = cpystr (d);
@@ -462,7 +458,7 @@ void rfc822_parse_msg (en,bdy,s,i,b,j,host,tmp)
   if (!env->sender) env->sender = rfc822_cpy_adr (env->from);
   if (!env->reply_to) env->reply_to = rfc822_cpy_adr (env->from);
 				/* now parse the body */
-  rfc822_parse_content (body,b,j,host,tmp);
+  if (body) rfc822_parse_content (body,bs,host,tmp);
 }
 
 /* Parse a message body content
@@ -473,46 +469,22 @@ void rfc822_parse_msg (en,bdy,s,i,b,j,host,tmp)
  *	    pointer to scratch buffer
  */
 
-void rfc822_parse_content (body,b,i,h,t)
+void rfc822_parse_content (body,bs,h,t)
 	BODY *body;
-	char *b;
-	unsigned long i;
+	STRING *bs;
 	char *h;
 	char *t;
 {
-  char c,*s,*s1,*d;
-  unsigned long j;
+  char c,c1,*s,*s1;
+  unsigned long pos = GETPOS (bs);
+  unsigned long i = SIZE (bs);
+  unsigned long j,k,m;
   PARAMETER *param;
   PART *part = NIL;
-  body->size.ibytes = i;	/* note body byte size in all cases */
+  body->size.ibytes = i;	/* note body size in all cases */
   body->size.bytes = (body->encoding == ENCBASE64 ||
-		      body->encoding == ENCBINARY) ? i : strcrlflen (b,i);
+		      body->encoding == ENCBINARY) ? i : strcrlflen (bs);
   switch (body->type) {		/* see if anything else special to do */
-  case TYPEMESSAGE:		/* encapsulated message */
-    body->contents.msg.env = NIL;
-    body->contents.msg.body = NIL;
-    body->contents.msg.text = NIL;
-    body->contents.msg.offset = 0;
-    if (strcmp (body->subtype,"RFC822")) break;
-    if ((body->encoding == ENCBASE64) || (body->encoding == ENCQUOTEDPRINTABLE)
-	|| (body->encoding == ENCOTHER)) {
-      mm_log ("Unparsable encapsulated message contents",PARSE);
-      return;
-    }
-    c = '\n';			/* initial default assumption is newline */
-    for (s = b,j = 0; (i > j) && ((c != '\n') || (*s != '\n')); s++,j++)
-      if (*s != '\015') c = *s;	/* hunt for blank line */
-    if (i > j) {		/* unless no more text */
-      s++; j++;			/* body starts after this */
-    }
-				/* note body text offset */
-    body->contents.msg.offset = j;
-				/* parse the body */
-    rfc822_parse_msg (&body->contents.msg.env,&body->contents.msg.body,b,j,
-		      s,i - j,h,t);
-				/* count number of lines */
-    for (s = b,j = 0; i > j; s++,j++) if (*s == '\n') body->size.lines++;
-    break;
   case TYPETEXT:		/* text content */
     if (!body->subtype)		/* default subtype */
       body->subtype = cpystr (rfc822_default_subtype (body->type));
@@ -522,101 +494,149 @@ void rfc822_parse_content (body,b,i,h,t)
       body->parameter->value = cpystr ("US-ASCII");
     }
 				/* count number of lines */
-    for (s = b,j = 0; i > j; s++,j++) if (*s == '\n') body->size.lines++;
+    while (i--) if ((NXT (bs)) == '\n') body->size.lines++;
+    break;
+
+  case TYPEMESSAGE:		/* encapsulated message */
+    body->contents.msg.env = NIL;
+    body->contents.msg.body = NIL;
+    body->contents.msg.text = NIL;
+    body->contents.msg.offset = pos;
+				/* encapsulated RFC-822 message? */
+    if (!strcmp (body->subtype,"RFC822")) {
+      if ((body->encoding == ENCBASE64) ||
+	  (body->encoding == ENCQUOTEDPRINTABLE)
+	  || (body->encoding == ENCOTHER)) {
+	mm_log ("Nested encoding of message contents",PARSE);
+	return;
+      }
+				/* hunt for blank line */
+      for (c = '\012',j = 0; (i > j) && ((c != '\012') || (CHR(bs) != '\012'));
+	   NXT (bs),j++) if (CHR (bs) != '\015') c = CHR (bs);
+      if (i > j) NXT (bs);	/* unless no more text, body starts here */
+				/* note body text offset and header size */
+      j = (body->contents.msg.offset = GETPOS (bs)) - pos;
+      SETPOS (bs,pos);		/* copy header string */
+      s = (char *) fs_get (j + 1);
+      for (s1 = s,k = j; k--; *s1++ = NXT (bs));
+      s[j] = '\0';		/* tie off string (not really necessary) */
+				/* now parse the body */
+      rfc822_parse_msg (&body->contents.msg.env,&body->contents.msg.body,s,j,
+			bs,h,t);
+      fs_give ((void **) &s);	/* free header string */
+      SETPOS (bs,pos);		/* restore position */
+    }
+				/* count number of lines */
+    while (i--) if (NXT (bs) == '\n') body->size.lines++;
     break;
 
   case TYPEMULTIPART:		/* multiple parts */
     if ((body->encoding == ENCBASE64) || (body->encoding == ENCQUOTEDPRINTABLE)
 	|| (body->encoding == ENCOTHER)) {
-      mm_log ("Unparsable multipart contents",PARSE);
+      mm_log ("Nested encoding of multipart contents",PARSE);
       return;
-    }
-    *t = '\0';			/* find cookie */
-    for (param = body->parameter; param && !*t; param = param->next)
+    }				/* find cookie */
+    for (*t = '\0',param = body->parameter; param && !*t; param = param->next)
       if (!strcmp (param->attribute,"BOUNDARY")) strcpy (t,param->value);
     if (!*t) strcpy (t,"-");	/* yucky default */
     j = strlen (t);		/* length of cookie and header */
-				/* find each body part */
-    for (s = b,c = '\012'; (long) i > (long) j; i--,c = *s++)
-      if (((c == '\012') || (c == '\015')) && (*s == '-') && (s[1] == '-') &&
-	  !strncmp (s + 2,t,j)) {
-	s1 = s;			/* have cookie, remember end of previous */
-	i -= (j + 2);		/* skip until after the cookie */
-	switch (*(s += j + 2)) {/* what follows cookie? */
-	case '-':		/* at the end if two dashes */
-	  if ((s[1] == '-') && ((s[2] == '\012') || (s[2] == '\015'))) {
+    c = '\012';			/* initially at beginning of line */
+    while (i > j) switch (c) {	/* examine each line */
+    case '\015':		/* handle CRLF form */
+      if (CHR (bs) == '\012') {	/* following LF? */
+	c = NXT (bs); i--;	/* yes, slurp it */
+      }
+    case '\012':		/* at start of a line, start with -- ? */
+      m = GETPOS (bs);		/* note the position at this point */
+      if (--i && ((c = NXT (bs)) == '-') && --i && ((c = NXT (bs)) == '-')) {
+				/* see if cookie matches */
+	for (k = j,s = t; --i && *s++ == (c = NXT (bs)) && --k;);
+	if (k) break;		/* strings didn't match if non-zero */
+				/* look at what follows cookie */
+	if (--i) switch (c = NXT (bs)) {
+	case '-':		/* at end if two dashes */
+	  if (--i && ((c = NXT (bs)) == '-') &&
+	      (--i ? (((c = NXT (bs)) == '\015') || (c == '\012')) : T)) {
 				/* if have a final part calculate its size */
-	    if (part) part->body.size.bytes = (s1 - b) - part->offset;
-	    i = 2;		/* terminate this scan */
+	    if (part) part->body.size.bytes = m - part->offset;
+	    part = NIL; i = 1;	/* terminate scan */
 	  }
 	  break;
 	case '\015':		/* handle CRLF form */
-	  if (s[1] == '\012') {	/* if following LF */
-	    s++; i--;		/* swallow the CR */
-	  }			/* drop into LF code */
+	  if (i && CHR (bs) == '\012') {
+	    c = NXT (bs); i--;	/* yes, slurp it */
+	  }
 	case '\012':		/* new line */
-	  s++; i--;		/* swallow it */
 	  if (part) {		/* calculate size of previous */
-	    part->body.size.bytes = (s1 - b) - part->offset;
+	    part->body.size.bytes = m - part->offset;
 				/* instantiate next */
 	    part = part->next = mail_newbody_part ();
-	  }
-				/* otherwise start new list */
+	  }			/* otherwise start new list */
 	  else part = body->contents.part = mail_newbody_part ();
-	  part->offset = s - b;	/* note offset from main body */
-	  break;
+				/* note offset from main body */
+	  part->offset = GETPOS (bs);
 	default:		/* whatever it was it wasn't valid */
 	  break;
 	}
       }
+      break;
+    default:			/* not at a line */
+      c = NXT (bs); i--;	/* get next character */
+      break;
+    }				/* calculate size of any final part */
+    if (part) part->body.size.bytes = GETPOS (bs) - part->offset;
 
 				/* parse body parts */
     for (part = body->contents.part; part; part = part->next)
-				/* get size of this part */
+				/* get size of this part, ignore if empty */
       if (i = part->body.size.bytes) {
-	s = b + part->offset;	/* and pointer to its text */
+	SETPOS (bs,part->offset);
 				/* until end of header */
-	while (i > 0 && (*s != '\012') && (*s != '\015')) {
+	while (i > 0 && (CHR (bs) != '\012')) {
 	  s1 = t;		/* initialize buffer pointer */
 	  c = ' ';		/* and previous character */
 	  while (c) {		/* collect text until logical end of line */
-	    switch (*s) {
+	    switch (c1 = NXT (bs)) {
 	    case '\012':	/* newline, possible end of logical line */
+	      if ((i > 0) && (CHR (bs) == '\015')) {
+		NXT (bs); i--;	/* eat any CR following */
+	      }
 				/* tie off unless next line starts with WS */
-	      if (s[1] != ' ' && s[1] != '\t') *s1 = c = '\0';
+	      if (!i || ((CHR (bs) != ' ') && (CHR(bs) != '\t')))
+		*s1 = c = '\0';
 	      break;
-	    case '\015':	/* return, unlikely but just in case */
+	    case '\015':	/* return */
 	    case '\t':		/* tab */
 	    case ' ':		/* insert whitespace if not already there */
 	      if (c != ' ') *s1++ = c = ' ';
 	      break;
 	    default:		/* all other characters */
-	      *s1++ = c = *s;	/* insert the character into the line */
+	      *s1++ = c = c1;	/* insert the character into the line */
 	      break;
 	    }
-	    if (i-- > 0) s++;	/* get next character */
-				/* end of header */
-	    else *s1++ = c = '\0';
+				/* end of data ties off the header */
+	    if (!--i) *s1++ = c = '\0';
 	  }
 				/* find header item type */
-	  if (d = strchr (t,':')) {
-	    *d++ = '\0';	/* tie off header item, point at its data */
+	  if (s = strchr (t,':')) {
+	    *s++ = '\0';	/* tie off header item, point at its data */
 				/* flush whitespace */
-	    while (*d == ' ') d++;
+	    while (*s == ' ') s++;
 	    if (s1 = strchr (ucase (t),' ')) *s1 = '\0';
 	    if ((t[0] == 'C') && (t[1] == 'O') && (t[2] == 'N') &&
 		(t[3] == 'T') && (t[4] == 'E') && (t[5] == 'N') &&
 		(t[6] == 'T') && (t[7] == '-'))
-	      rfc822_parse_content_header (&part->body,t+8,d);
+	      rfc822_parse_content_header (&part->body,t+8,s);
 	  }
-	}
-				/* skip trailing CR */
-	if ((i > 0) && (*s =='\015')) {i--; s++;}
-				/* skip trailing LF */
-	if ((i > 0) && (*s =='\012')) {i--; s++;}
-	part->offset = s - b;	/* calculate new body part offset */
+	}			/* skip trailing (CR)LF */
+	if ((i > 0) && (CHR (bs) =='\015')) {i--; NXT (bs);}
+	if ((i > 0) && (CHR (bs) =='\012')) {i--; NXT (bs);}
+	j = bs->size;		/* save upper level size */
+				/* set size and offset for next level */
+	bs->size = (part->offset = GETPOS (bs)) + i;
 				/* now parse it */
-	rfc822_parse_content (&part->body,s,i,h,t);
+	rfc822_parse_content (&part->body,bs,h,t);
+	bs->size = j;		/* restore current level size */
       }
     break;
   default:			/* nothing special to do in any other case */
@@ -1264,27 +1284,33 @@ long rfc822_output_body (body,f,s)
   char *cookie = NIL;
   char tmp[MAILTMPLEN];
   char *t;
-				/* multipart gets special handling */
-  if (body->type == TYPEMULTIPART) {
+  switch (body->type) {
+  case TYPEMULTIPART:		/* multipart gets special handling */
     part = body->contents.part;	/* first body part */
 				/* find cookie */
     for (param = body->parameter; param && !cookie; param = param->next)
       if (!strcmp (param->attribute,"BOUNDARY")) cookie = param->value;
     if (!cookie) cookie = "-";	/* yucky default */
     do {			/* for each part */
+				/* build cookie */
       sprintf (t = tmp,"--%s\015\012",cookie);
+				/* append mini-header */
       rfc822_write_body_header (&t,&part->body);
-      (*f) (s,tmp);		/* output cookie and mini-header */
-				/* output contents */
-      rfc822_output_body (&part->body,f,s);
+				/* output cookie, mini-header, and contents */
+      if (!((*f) (s,tmp) && rfc822_output_body (&part->body,f,s))) return NIL;
     } while (part = part->next);/* until done */
-    sprintf (tmp,"--%s--\015\012",cookie);
-    (*f) (s,tmp);		/* output trailing cookie */
-    return T;
+				/* output trailing cookie */
+    sprintf (t = tmp,"--%s--",cookie);
+    break;
+  case TYPEMESSAGE:		/* encapsulated message */
+    t = body->contents.msg.text;
+    break;
+  default:			/* all else is text now */
+    t = (char *) body->contents.text;
+    break;
   }
-				/* all else is text now */
-  return (body->contents.text && *body->contents.text) ?
-    (*f) (s,(char *) body->contents.text) && (*f) (s,"\015\012") : T;
+				/* output final stuff */
+  return (t && *t) ? (*f) (s,t) && (*f) (s,"\015\012") : T;
 }
 
 /* Convert BASE64 contents to binary
@@ -1364,7 +1390,7 @@ unsigned char *rfc822_binary (src,srcl,len)
   unsigned char *s = (unsigned char *) src;
   char *v = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   unsigned long i = ((srcl + 2) / 3) * 4;
-  *len = i += i ? 2 * ((i / 60) + ((i % 60) != 0)) : 2;
+  *len = i += 2 * ((i / 60) + 1);
   d = ret = (unsigned char *) fs_get (++i);
 				/* process tuplets */
   for (i = 0; srcl > 2; s += 3, srcl -= 3) {

@@ -1,4 +1,4 @@
-# Program:	Easy Distributed Electronic Mail Manager(Makefile dependencies)
+# Program:	IMAP Makefile - SVR4 version
 #
 # Author:	Mark Crispin
 #		Networks and Distributed Computing
@@ -8,10 +8,10 @@
 #		Seattle, WA  98195
 #		Internet: MRC@CAC.Washington.EDU
 #
-# Date:		28 July 1989
-# Last Edited:	21 May 1991
+# Date:		7 December 1989
+# Last Edited:	13 October 1992
 #
-# Copyright 1991 by the University of Washington
+# Copyright 1992 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -31,11 +31,27 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
-EasyMail_main.o: EasyMail.h
-EasyMail.o:	EasyMail.h
+# Make the IMAP server and client
 
-MAILMANAGER:
-		cd $(MM);make
+all:
+	rm -rf systype ANSI/c-client/Makefile non-ANSI/c-client/Makefile
+	ln -s non-ANSI systype
+	cd systype/c-client; ln -s makefile.sv4 Makefile
+	cd ms;make
+	cd ipopd;make
+	cd imapd;make
 
-C-CLIENT:
-		cd $C;make
+clean:
+	rm -rf systype ANSI/c-client/Makefile non-ANSI/c-client/Makefile
+	cd ANSI/imapd;make clean
+	cd ANSI/ipopd;make clean
+	cd ANSI/ms;make clean
+	cd ANSI/c-client;make -f makefile.nxt clean
+	cd non-ANSI/imapd;make clean
+	cd non-ANSI/ipopd;make clean
+	cd non-ANSI/ms;make clean
+	cd non-ANSI/c-client;make -f makefile.sv4 clean
+
+# A monument to a hack of long ago and far away...
+love:
+	@echo 'not war?'

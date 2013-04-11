@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	20 August 1992
+ * Last Edited:	13 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -36,12 +36,16 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include "mail.h"
 #include "osdep.h"
 #include <time.h>
-#include "mail.h"
 #include "misc.h"
 
+
+/* c-client global data */
+
 DRIVER *maildrivers = NIL;	/* list of mail drivers */
+char *lhostn = NIL;		/* local host name */
 mailgets_t mailgets = NIL;	/* pointer to alternate gets function */
 				/* mail cache manipulation function */
 mailcache_t mailcache = mm_cache;
@@ -164,6 +168,58 @@ void *mm_cache (stream,msgno,op)
   return ret;
 }
 
+/* Dummy string driver for complete in-memory strings */
+
+STRINGDRIVER mail_string = {
+  mail_string_init,		/* initialize string structure */
+  mail_string_next,		/* get next byte in string structure */
+  mail_string_setpos		/* set position in string structure */
+};
+
+
+/* Initialize mail string structure for in-memory string
+ * Accepts: string structure
+ *	    pointer to string
+ *	    size of string
+ */
+
+void mail_string_init (s,data,size)
+	STRING *s;
+	void *data;
+	unsigned long size;
+{
+				/* set initial string pointers */
+  s->chunk = s->curpos = (char *) (s->data = data);
+				/* and sizes */
+  s->size = s->chunksize = s->cursize = size;
+  s->data1 = s->offset = 0;	/* never any offset */
+}
+
+/* Get next character from string
+ * Accepts: string structure
+ * Returns: character, string structure chunk refreshed
+ */
+
+char mail_string_next (s)
+	STRING *s;
+{
+  return *s->curpos++;		/* return the last byte */
+}
+
+
+/* Set string pointer position
+ * Accepts: string structure
+ *	    new position
+ */
+
+void mail_string_setpos (s,i)
+	STRING *s;
+	unsigned long i;
+{
+  s->curpos = s->chunk + i;	/* set new position */
+  s->cursize = s->chunksize - i;/* and new size */
+}
+
 /* Mail routines
  *
  *  mail_xxx routines are the interface between this module and the outside
@@ -254,6 +310,7 @@ MAILSTREAM *mail_open (stream,name,options)
 	if (stream->dtb) (*stream->dtb->close) (stream);
 	stream->dtb = factory;	/* establish factory as our driver */
 	stream->local = NIL;	/* flush old driver's local data */
+	mail_free_cache (stream);
       }
 				/* clean up old mailbox name for recycling */
       if (stream->mailbox) fs_give ((void **) &stream->mailbox);
@@ -500,8 +557,7 @@ void mail_fetchfrom (s,stream,msgno,length)
 {
   char *t;
   char tmp[MAILTMPLEN];
-  BODY *body;
-  ENVELOPE *env = mail_fetchstructure (stream,msgno,&body);
+  ENVELOPE *env = mail_fetchstructure (stream,msgno,NIL);
   memset (s,' ',length);	/* fill it with spaces */
   s[length] = '\0';		/* tie off with null */
 				/* get first from address from envelope */
@@ -527,8 +583,7 @@ void mail_fetchsubject (s,stream,msgno,length)
 	long msgno;
 	long length;
 {
-  BODY *body;
-  ENVELOPE *env = mail_fetchstructure (stream,msgno,&body);
+  ENVELOPE *env = mail_fetchstructure (stream,msgno,NIL);
   memset (s,'\0',length+1);
 				/* copy subject from envelope */
   if (env && env->subject) strncpy (s,env->subject,length);
@@ -673,8 +728,7 @@ void mail_gc (stream,gcflags)
   				/* do the driver's action */
   if (stream->dtb) (*stream->dtb->gc) (stream,gcflags);
 }
-
-
+
 /* Mail output date from elt fields
  * Accepts: character string to write into
  *	    elt to get data data from
@@ -694,6 +748,34 @@ char *mail_date (string,elt)
 	   elt->day,s,elt->year + BASEYEAR,
 	   elt->hours,elt->minutes,elt->seconds,
 	   elt->zoccident ? '-' : '+',elt->zhours,elt->zminutes);
+  return string;
+}
+
+
+/* Mail output cdate format date from elt fields
+ * Accepts: character string to write into
+ *	    elt to get data data from
+ * Returns: the character string
+ */
+
+const char *cdays[] = {"Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"};
+
+char *mail_cdate (string,elt)
+	char *string;
+	MESSAGECACHE *elt;
+{
+  const char *s = (elt->month && elt->month < 13) ?
+    months[elt->month - 1] : (const char *) "???";
+  int m = elt->month;
+  int y = elt->year + BASEYEAR;
+  if (elt->month <= 2) {	/* if before March, */
+    m = elt->month + 9;		/* January = month 10 of previous year */
+    y--;
+  }
+  else m = elt->month - 3;	/* March is month 0 */
+  sprintf (string,"%s %s %2d %02d:%02d:%02d %4d\n",
+	   cdays[(elt->day + ((7+31*m)/12) + y+(y/4)+(y/400)-(y/100)) % 7],s,
+	   elt->day,elt->hours,elt->minutes,elt->seconds,elt->year + BASEYEAR);
   return string;
 }
 

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1989
- * Last Edited:	6 July 1992
+ * Last Edited:	28 September 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -162,7 +162,7 @@
 {
   char tmp[TMPLEN];
   if (mailStream && mailStream->mailbox) {
-    sprintf (tmp,"%s%s -- %d Messages, %d Recent",
+    sprintf (tmp,"%s%s -- %lu Messages, %lu Recent",
 	     [zooming intValue] ? "Zoomed " : "",mailStream->mailbox,
 	     mailStream->nmsgs,mailStream->recent);
     [browser sizeToCells];	// resize the browser to flush it

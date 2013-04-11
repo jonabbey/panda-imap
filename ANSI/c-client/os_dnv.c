@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	21 July 1992
+ * Last Edited:	27 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -53,13 +53,13 @@ TCPSTREAM {
 
 /* Private function prototypes */
 
+#include "mail.h"
 #include "osdep.h"
 #include <time.h>
 #include <sys\timeb.h>
 #include <sys\socket.h>
 #include <netinet\in.h>
 #include <netdb.h>
-#include "mail.h"
 #include "misc.h"
 
 
@@ -138,65 +138,25 @@ void fatal (char *string)
 
 char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
 {
-  long i,j;
-  char *d = src;
-				/* count number of LF's in source string(s) */
-  for (i = srcl,j = 0; j < srcl; j++) if (*d++ == '\012') i++;
-  if (i > *dstl) {		/* resize if not enough space */
+  if (srcl > *dstl) {		/* resize if not enough space */
     fs_give ((void **) dst);	/* fs_resize does an unnecessary copy */
-    *dst = (char *) fs_get ((*dstl = i) + 1);
+    *dst = (char *) fs_get ((*dstl = srcl) + 1);
   }
-  d = *dst;			/* destination string */
-				/* copy strings, inserting CR's before LF's */
-  while (srcl--) switch (*src) {
-  case '\015':			/* unlikely carriage return */
-    *d++ = *src++;		/* copy it and any succeeding linefeed */
-    if (srcl && *src == '\012') {
-      *d++ = *src++;
-      srcl--;
-    }
-    break;
-  case '\012':			/* line feed? */
-    *d++ ='\015';		/* yes, prepend a CR, drop into default case */
-  default:			/* ordinary chararacter */
-    *d++ = *src++;		/* just copy character */
-    break;
-  }
-  *d = '\0';			/* tie off destination */
+				/* copy strings */
+  if (srcl) memcpy (*dst,src,srcl);
+  *(*dst + srcl) = '\0';	/* tie off destination */
   return *dst;			/* return destination */
 }
 
 
-/* Length of string after strcrlflen applied
+/* Length of string after strcrlfcpy applied
  * Accepts: source string
  *	    length of source string
  */
 
-unsigned long strcrlflen (char *src,unsigned long srcl)
+unsigned long strcrlflen (STRING *s)
 {
-  long i = srcl;		/* look for LF's */
-  while (srcl--) switch (*src++) {
-  case '\015':			/* unlikely carriage return */
-    if (srcl && *src == '\012') { src++; srcl--; }
-    break;
-  case '\012':			/* line feed? */
-    i++;
-  default:			/* ordinary chararacter */
-    break;
-  }
-  return i;
-}
-
-/* Server log in (dummy place holder)
- * Accepts: user name string
- *	    password string
- *	    optional place to return home directory
- * Returns: T if password validated, NIL otherwise
- */
-
-long server_login (char *user,char *pass,char **home,int argc,char *argv[])
-{
-  return NIL;
+  return SIZE (s);		/* no-brainer on DOS! */
 }
 
 /* TCP/IP open
@@ -388,13 +348,26 @@ long tcp_getdata (TCPSTREAM *stream)
 
 /* TCP/IP send string as record
  * Accepts: TCP/IP stream
+ *	    string pointer
  * Returns: T if success else NIL
  */
 
 long tcp_soutr (TCPSTREAM *stream,char *string)
 {
+  return tcp_sout (stream,string,(unsigned long) strlen (string));
+}
+
+
+/* TCP/IP send string
+ * Accepts: TCP/IP stream
+ *	    string pointer
+ *	    byte count
+ * Returns: T if success else NIL
+ */
+
+long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
+{
   long i;
-  unsigned long size = strlen (string);
   fd_set fds;
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcps < 0) return NIL;

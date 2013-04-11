@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	9 September 1992
+ * Last Edited:	2 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -46,15 +46,14 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <pwd.h>
 #include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
+#include "mail.h"
 #include "osdep.h"
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include "mail.h"
 #include "bezerk.h"
 #include "rfc822.h"
 #include "misc.h"
@@ -144,7 +143,7 @@ void bezerk_find (stream,pat)
   char *s,*t;
   struct stat sbuf;
 				/* make file name */
-  sprintf (tmp,"%s/.mailboxlist",getpwuid (geteuid ())->pw_dir);
+  sprintf (tmp,"%s/.mailboxlist",myhomedir ());
   if ((fd = open (tmp,O_RDONLY,NIL)) >= 0) {
     fstat (fd,&sbuf);		/* get file size and read data */
     read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
@@ -204,9 +203,11 @@ MAILSTREAM *bezerk_open (stream)
    * new name, and bezerk_close() needs the old name.
    */
   LOCAL->name = cpystr (tmp);	/* local copy for recycle case */
-  gethostname(tmp,MAILTMPLEN);	/* get local host name */
-  LOCAL->host = cpystr ((host_name = gethostbyname (tmp)) ?
-			host_name->h_name : tmp);
+  if (!lhostn) {		/* have local host yet? */
+    gethostname(tmp,MAILTMPLEN);/* get local host name */
+    lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
+		     host_name->h_name : tmp);
+  }
 				/* build name of our lock file */
   LOCAL->lname = cpystr (lockname (tmp,stream->mailbox));
   LOCAL->ld = NIL;		/* no state locking yet */
@@ -214,7 +215,7 @@ MAILSTREAM *bezerk_open (stream)
   LOCAL->filetime = 0;
   LOCAL->msgs = NIL;		/* no cache yet */
   LOCAL->cachesize = 0;
-  LOCAL->buf = (char *) fs_get ((LOCAL->buflen = 2*CHUNK) + 1);
+  LOCAL->buf = (char *) fs_get ((LOCAL->buflen = CHUNK) + 1);
   stream->sequence++;		/* bump sequence number */
 
   LOCAL->dirty = NIL;		/* no update yet */
@@ -322,11 +323,12 @@ ENVELOPE *bezerk_fetchstructure (stream,msgno,body)
 	long msgno;
 	BODY **body;
 {
-  long i = msgno -1;
   ENVELOPE **env;
   BODY **b;
+  STRING bs;
   LONGCACHE *lelt;
-  FILECACHE *m = LOCAL->msgs[i];
+  FILECACHE *m = LOCAL->msgs[msgno - 1];
+  long i = max (m->headersize,m->bodysize);
   if (stream->scache) {		/* short cache */
     if (msgno != stream->msgno){/* flush old poop if a different message */
       mail_free_envelope (&stream->env);
@@ -341,17 +343,19 @@ ENVELOPE *bezerk_fetchstructure (stream,msgno,body)
     env = &lelt->env;		/* get pointers to envelope and body */
     b = &lelt->body;
   }
-  if (!*env) {			/* have envelope poop? */
-				/* make sure enough buffer space */
-    if ((i = max (m->headersize,m->bodysize)) > LOCAL->buflen) {
+  if ((body && !*b) || !*env) {	/* have the poop we need? */
+    mail_free_envelope (env);	/* flush old envelope and body */
+    mail_free_body (b);
+    if (i > LOCAL->buflen) {	/* make sure enough buffer space */
       fs_give ((void **) &LOCAL->buf);
       LOCAL->buf = (char *) fs_get ((LOCAL->buflen = i) + 1);
     }
+    INIT (&bs,mail_string,(void *) m->body,m->bodysize);
 				/* parse envelope and body */
-    rfc822_parse_msg (env,b,m->header,m->headersize,m->body,m->bodysize,
-		      LOCAL->host,LOCAL->buf);
+    rfc822_parse_msg (env,body ? b : NIL,m->header,m->headersize,&bs,lhostn,
+		      LOCAL->buf);
   }
-  *body = *b;			/* return the body */
+  if (body) *body = *b;		/* return the body */
   return *env;			/* return the envelope */
 }
 
@@ -369,11 +373,11 @@ char *bezerk_snarf (stream,msgno,size)
 {
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   FILECACHE *m = LOCAL->msgs[msgno - 1];
-  				/* make sure stream can hold the text */
-  if ((*size = m->headersize + m->bodysize) > LOCAL->buflen) {
+  if (((*size = m->headersize + m->bodysize) > LOCAL->buflen) ||
+      LOCAL->buflen > CHUNK) {	/* make sure stream can hold the text */
 				/* fs_resize would do an unnecessary copy */
     fs_give ((void **) &LOCAL->buf);
-    LOCAL->buf = (char *) fs_get ((LOCAL->buflen = *size) + 1);
+    LOCAL->buf = (char *) fs_get((LOCAL->buflen = max (*size,(long) CHUNK))+1);
   }
 				/* copy the text */
   if (m->headersize) memcpy (LOCAL->buf,m->header,m->headersize);
@@ -451,15 +455,13 @@ char *bezerk_fetchbody (stream,m,s,len)
       if (!pt) return NIL;	/* bad specifier */
 				/* note new body, check valid nesting */
       if (((b = &pt->body)->type == TYPEMULTIPART) && !*s) return NIL;
-      base += offset;		/* calculate new base */
-      offset = pt->offset;	/* and its offset */
+      offset = pt->offset;	/* get new offset */
     }
     else if (i != 1) return NIL;/* otherwise must be section 1 */
 				/* need to go down further? */
     if (i = *s) switch (b->type) {
-    case TYPEMESSAGE:		/* embedded message, calculate new base */
-      base += offset + b->contents.msg.offset;
-      offset = 0;		/* no offset any more */
+    case TYPEMESSAGE:		/* embedded message */
+      offset = b->contents.msg.offset;
       b = b->contents.msg.body;	/* get its body, drop into multipart case */
     case TYPEMULTIPART:		/* multipart, get next section */
       if ((*s++ == '.') && (i = strtol (s,&s,10)) > 0) break;
@@ -819,7 +821,6 @@ void bezerk_abort (stream)
   long i;
   if (LOCAL) {			/* only if a file is open */
     if (LOCAL->name) fs_give ((void **) &LOCAL->name);
-    if (LOCAL->host) fs_give ((void **) &LOCAL->host);
     if (LOCAL->ld) {		/* have a mailbox lock? */
       flock (LOCAL->ld,LOCK_UN);/* yes, release the lock */
       close (LOCAL->ld);	/* close the lock file */
@@ -850,15 +851,11 @@ char *bezerk_file (dst,name)
 	char *dst;
 	char *name;
 {
-  struct passwd *pwd;
-  char *uid;
   strcpy (dst,name);		/* copy the mailbox name */
   if (dst[0] != '/') {		/* pass absolute file paths */
-				/* get user ID and directory */
-    uid = (pwd = getpwuid (geteuid ()))->pw_name;
-    if (strcmp (ucase (dst),"INBOX")) sprintf (dst,"%s/%s",pwd->pw_dir,name);
+    if (strcmp (ucase (dst),"INBOX")) sprintf (dst,"%s/%s",myhomedir (),name);
 				/* INBOX becomes mail spool directory file */
-    else sprintf (dst,MAILFILE,uid);
+    else sprintf (dst,MAILFILE,myusername ());
   }
   return dst;
 }
@@ -1082,7 +1079,6 @@ int bezerk_parse (stream,lock)
 	  return -1;
 	}
 	first = NIL;		/* don't do this again */
-	LOCAL->dirty = T;	/* note stream is now dirty */
       }
 
 				/* found end of message or end of data? */
@@ -1131,6 +1127,10 @@ int bezerk_parse (stream,lock)
   else LOCAL->msgs = (FILECACHE **)
     fs_get ((LOCAL->cachesize = nmsgs + CACHEINCREMENT) *sizeof (FILECACHE *));
 
+  if (LOCAL->buflen > CHUNK) {	/* maybe move where the buffer is in memory*/
+    fs_give ((void **) &LOCAL->buf);
+    LOCAL->buf = (char *) fs_get ((LOCAL->buflen = CHUNK) + 1);
+  }
   for (i = stream->nmsgs, n = m; i < nmsgs; i++) {
     LOCAL->msgs[i] = m = n;	/* set cache, and next cache pointer */
     n = (FILECACHE *) n->header;
@@ -1256,6 +1256,7 @@ int bezerk_parse (stream,lock)
   LOCAL->filetime = sbuf.st_mtime;
   mail_exists (stream,nmsgs);	/* notify upper level of new mailbox size */
   mail_recent (stream,recent);	/* and of change in recent messages */
+  if (recent) LOCAL->dirty = T;	/* mark dirty so O flags are set */
   return fd;			/* return the winnage */
 }
 
@@ -1779,8 +1780,7 @@ char bezerk_search_subject (stream,msgno,d,n)
 	char *d;
 	long n;
 {
-  BODY *b;
-  char *s = bezerk_fetchstructure (stream,msgno,&b)->subject;
+  char *s = bezerk_fetchstructure (stream,msgno,NIL)->subject;
   return s ? search (s,strlen (s),d,n) : NIL;
 }
 
@@ -1802,10 +1802,10 @@ char bezerk_search_bcc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address(LOCAL->buf,bezerk_fetchstructure(stream,msgno,&b)->bcc);
+  rfc822_write_address (LOCAL->buf,
+			bezerk_fetchstructure (stream,msgno,NIL)->bcc);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 
@@ -1816,10 +1816,10 @@ char bezerk_search_cc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,bezerk_fetchstructure(stream,msgno,&b)->cc);
+  rfc822_write_address (LOCAL->buf,
+			bezerk_fetchstructure (stream,msgno,NIL)->cc);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 
@@ -1830,10 +1830,9 @@ char bezerk_search_from (stream,m,d,n)
 	char *d;
 	long n;
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,bezerk_fetchstructure (stream,m,&b)->from);
+  rfc822_write_address (LOCAL->buf,bezerk_fetchstructure (stream,m,NIL)->from);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 
@@ -1844,10 +1843,10 @@ char bezerk_search_to (stream,msgno,d,n)
 	char *d;
 	long n;
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,bezerk_fetchstructure(stream,msgno,&b)->to);
+  rfc822_write_address (LOCAL->buf,
+			bezerk_fetchstructure (stream,msgno,NIL)->to);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 

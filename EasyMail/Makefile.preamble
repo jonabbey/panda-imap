@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		28 July 1989
-# Last Edited:	19 May 1992
+# Last Edited:	30 September 1992
 #
 # Copyright 1992 by the University of Washington
 #
@@ -44,3 +44,6 @@ OTHER_OFILES =	$(MM)/obj/AddressBook.o $(MM)/obj/AddressBookCell.o \
 
 # Force MailManager to be built first
 ALL:	MAILMANAGER all
+
+MAILMANAGER:
+	cd $(MM);make

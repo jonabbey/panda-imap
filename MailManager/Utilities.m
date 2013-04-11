@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1989
- * Last Edited:	6 July 1992
+ * Last Edited:	28 September 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -116,7 +116,7 @@ void headerline (char *text,MAILSTREAM *stream,MESSAGECACHE *elt)
     strcpy (sub,SUBJECT);	// dummy subject
   }	
 				// output what we got
-  sprintf (text,"%s%.6s %s %s (%d chars)",flgs,date,from,sub,i);
+  sprintf (text,"%s%.6s %s %s (%ld chars)",flgs,date,from,sub,i);
 }
 
 // Append a selection string
@@ -132,7 +132,7 @@ void selstr (char *str,char *name,const char *arg)
   strcat (str,name);		// append the start of the string
 				// do it this way if need to be literal
   while (c = *s++) if (c == '"' || c == '\015' || c == '\012') {
-    sprintf (tmp," {%d}\015\012",strlen (arg));
+    sprintf (tmp," {%lu}\015\012",strlen (arg));
     strcat (str,tmp);
     strcat (str,arg);
     return;
@@ -359,7 +359,7 @@ void mm_nocritical (MAILSTREAM *stream)
 long mm_diskerror (MAILSTREAM *stream,long errcode,long serious)
 {
   char tmp[MAILTMPLEN],tmpx[MAILTMPLEN];
-  sprintf (tmp,"Error writing %s%s",stream->mailbox);
+  sprintf (tmp,"Error writing %s",stream->mailbox);
   sprintf (tmpx,"%s%s -- continuing will retry",strerror (errno),
 	   serious ? " -- mailbox possibly damaged" : "");
   NXRunAlertPanel (tmp,tmpx,NIL,NIL,NIL);
@@ -629,7 +629,7 @@ void append_msg (FILE *file,ADDRESS *s,MESSAGECACHE *elt,char *hdr,
     fputc ('\n',file);		// must have a final newline
     break;
   case MTXT:			// Tenex header
-    fprintf (file,"%s,%d;000000000000\n",mail_date (tmp,elt),t - m);
+    fprintf (file,"%s,%ld;000000000000\n",mail_date (tmp,elt),t - m);
     fputs ((char *) m,file);	// blat the text
     break;
   default:			// something badly broken

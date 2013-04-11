@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	21 July 1992
+ * Last Edited:	13 September 1992
  *
  * Copyright 1992 by the University of Washington.
  *
@@ -36,8 +36,8 @@
 
 #include <ctype.h>
 #include <stdio.h>
-#include "osdep.h"
 #include "mail.h"
+#include "osdep.h"
 #include "smtp.h"
 #include "nntp.h"
 #include "rfc822.h"

@@ -13,7 +13,7 @@
  *		Internet: cohen@bucrf16.bu.edu
  *
  * Date:	23 February 1992
- * Last Edited:	20 August 1992
+ * Last Edited:	2 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -38,17 +38,16 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <pwd.h>
 #include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
 #include <sys/types.h>
 #include <sys/dir.h>		/* must be before osdep */
+#include "mail.h"
 #include "osdep.h"
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include "mail.h"
 #include "mh.h"
 #include "rfc822.h"
 #include "misc.h"
@@ -109,11 +108,10 @@ int mh_isvalid (char *name)
  */
 
 char *mh_file (char *dst,char *name)
-{
-				/* absolute path? */
+{				/* absolute path? */
   if (*name == '/') strcpy (dst,name);
 				/* relative path, goes in Mail folder */
-  else sprintf (dst,"%s/Mail/%s",getpwuid (geteuid ())->pw_dir,name);
+  else sprintf (dst,"%s/Mail/%s",myhomedir (),name);
   return dst;
 }
 
@@ -130,7 +128,7 @@ void mh_find (MAILSTREAM *stream,char *pat)
   char *s,*t;
   struct stat sbuf;
                                 /* make file name */
-  sprintf (tmp,"%s/.mailboxlist",getpwuid (geteuid ())->pw_dir);
+  sprintf (tmp,"%s/.mailboxlist",myhomedir ());
   if ((fd = open (tmp,O_RDONLY,NIL)) >= 0) {
     fstat (fd,&sbuf);           /* get file size and read data */
     read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
@@ -179,14 +177,16 @@ MAILSTREAM *mh_open (MAILSTREAM *stream)
     fs_give ((void **) &stream->mailbox);
     stream->mailbox = cpystr (tmp);
   }
+  if (!lhostn) {		/* have local host yet? */
+    gethostname(tmp,MAILTMPLEN);/* get local host name */
+    lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
+		     host_name->h_name : tmp);
+  }
 				/* scan directory */
   if ((nmsgs = scandir (tmp,&names,mh_select,mh_numsort)) >= 0) {
     stream->local = fs_get (sizeof (MHLOCAL));
     LOCAL->dirty = NIL;		/* no update to .mhrc needed yet */
     LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
-    gethostname(tmp,MAILTMPLEN);/* get local host name */
-    LOCAL->host = cpystr ((host_name = gethostbyname (tmp)) ?
-			  host_name->h_name : tmp);
 				/* create cache */
     LOCAL->number = (unsigned long *) fs_get (nmsgs * sizeof (unsigned long));
     LOCAL->header = (char **) fs_get (nmsgs * sizeof (char *));
@@ -252,7 +252,6 @@ void mh_close (MAILSTREAM *stream)
   long i;
   if (LOCAL) {			/* only if a file is open */
     mh_check (stream);		/* dump final checkpoint */
-    if (LOCAL->host) fs_give ((void **) &LOCAL->host);
     if (LOCAL->dir) fs_give ((void **) &LOCAL->dir);
     mh_gc (stream,GC_TEXTS);	/* free local cache */
     fs_give ((void **) &LOCAL->number);
@@ -301,9 +300,9 @@ void mh_fetchflags (MAILSTREAM *stream,char *sequence)
 ENVELOPE *mh_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
 {
   char *h,*t;
-  long i = msgno - 1;
   LONGCACHE *lelt;
   ENVELOPE **env;
+  STRING bs;
   BODY **b;
   if (stream->scache) {		/* short cache */
     if (msgno != stream->msgno){/* flush old poop if a different message */
@@ -319,13 +318,17 @@ ENVELOPE *mh_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
     env = &lelt->env;		/* get pointers to envelope and body */
     b = &lelt->body;
   }
-  if (!*env) {			/* have envelope poop? */
+  if ((body && !*b) || !*env) {	/* have the poop we need? */
+    mail_free_envelope (env);	/* flush old envelope and body */
+    mail_free_body (b);
     h = mh_fetchheader (stream,msgno);
 				/* can't use fetchtext since it'll set seen */
-    t = LOCAL->body[i] ? LOCAL->body[i] : "";
-    rfc822_parse_msg (env,b,h,strlen (h),t,strlen (t),LOCAL->host,LOCAL->buf);
+    t = LOCAL->body[msgno - 1] ? LOCAL->body[msgno - 1] : "";
+    INIT (&bs,mail_string,(void *) t,strlen (t));
+				/* parse envelope and body */
+    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,lhostn,LOCAL->buf);
   }
-  *body = *b;			/* return the body */
+  if (body) *body = *b;		/* return the body */
   return *env;			/* return the envelope */
 }
 
@@ -423,15 +426,13 @@ char *mh_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
       if (!pt) return NIL;	/* bad specifier */
 				/* note new body, check valid nesting */
       if (((b = &pt->body)->type == TYPEMULTIPART) && !*s) return NIL;
-      base += offset;		/* calculate new base */
-      offset = pt->offset;	/* and its offset */
+      offset = pt->offset;	/* get new offset */
     }
     else if (i != 1) return NIL;/* otherwise must be section 1 */
 				/* need to go down further? */
     if (i = *s) switch (b->type) {
-    case TYPEMESSAGE:		/* embedded message, calculate new base */
-      base += offset + b->contents.msg.offset;
-      offset = 0;		/* no offset any more */
+    case TYPEMESSAGE:		/* embedded message */
+      offset = b->contents.msg.offset;
       b = b->contents.msg.body;	/* get its body, drop into multipart case */
     case TYPEMULTIPART:		/* multipart, get next section */
       if ((*s++ == '.') && (i = strtol (s,&s,10)) > 0) break;
@@ -959,8 +960,7 @@ char mh_search_body (MAILSTREAM *stream,long msgno,char *d,long n)
 
 char mh_search_subject (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  BODY *b;
-  char *t = mh_fetchstructure (stream,msgno,&b)->subject;
+  char *t = mh_fetchstructure (stream,msgno,NIL)->subject;
   return t ? search (t,strlen (t),d,n) : NIL;
 }
 
@@ -974,40 +974,36 @@ char mh_search_text (MAILSTREAM *stream,long msgno,char *d,long n)
 
 char mh_search_bcc (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,&b)->bcc);
+  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,NIL)->bcc);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 
 
 char mh_search_cc (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,&b)->cc);
+  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,NIL)->cc);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 
 
 char mh_search_from (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,&b)->from);
+  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,NIL)->from);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 
 
 char mh_search_to (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,&b)->to);
+  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,NIL)->to);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 

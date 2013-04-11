@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	21 July 1992
+ * Last Edited:	27 October 1992
  *
  * Copyright 1992 by the University of Washington.
  *
@@ -52,6 +52,7 @@ TCPSTREAM {
 };
 
 
+#include "mail.h"
 #include "osdep.h"
 #include <sys/time.h>
 #include <sys/socket.h>
@@ -62,7 +63,6 @@ TCPSTREAM {
 extern int errno;		/* just in case */
 #include <pwd.h>
 #include <syslog.h>
-#include "mail.h"
 #include "misc.h"
 extern char *crypt();
 
@@ -180,23 +180,29 @@ char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
 }
 
 
-/* Length of string after strcrlflen applied
+/* Length of string after strcrlfcpy applied
  * Accepts: source string
  *	    length of source string
  */
 
-unsigned long strcrlflen (char *src,unsigned long srcl)
+unsigned long strcrlflen (STRING *s)
 {
-  long i = srcl;		/* look for LF's */
-  while (srcl--) switch (*src++) {
+  unsigned long pos = GETPOS (s);
+  unsigned long i = SIZE (s);
+  unsigned long j = i;
+  while (j--) switch (NXT (s)) {/* search for newlines */
   case '\015':			/* unlikely carriage return */
-    if (srcl && *src == '\012') { src++; srcl--; }
+    if (j && (CHR (s) == '\012')) {
+      NXT (s);			/* eat the line feed */
+      j--;
+    }
     break;
   case '\012':			/* line feed? */
     i++;
   default:			/* ordinary chararacter */
     break;
   }
+  SETPOS (s,pos);		/* restore old position */
   return i;
 }
 
@@ -219,6 +225,29 @@ long server_login (char *user,char *pass,char **home,int argc,char *argv[])
 				/* note home directory */
   if (home) *home = cpystr (pw->pw_dir);
   return T;
+}
+
+/* Return my user name
+ * Returns: my user name
+ */
+
+char *uname = NIL;
+
+char *myusername ()
+{
+  return uname ? uname : (uname = cpystr (getpwuid (geteuid ())->pw_name));
+}
+
+
+/* Return my home directory name
+ * Returns: my home directory name
+ */
+
+char *hdname = NIL;
+
+char *myhomedir ()
+{
+  return hdname ? hdname : (hdname = cpystr (getpwuid (geteuid ())->pw_dir));
 }
 
 
@@ -499,13 +528,26 @@ long tcp_getdata (TCPSTREAM *stream)
 
 /* TCP/IP send string as record
  * Accepts: TCP/IP stream
+ *	    string pointer
  * Returns: T if success else NIL
  */
 
 long tcp_soutr (TCPSTREAM *stream,char *string)
 {
+  return tcp_sout (stream,string,(unsigned long) strlen (string));
+}
+
+
+/* TCP/IP send string
+ * Accepts: TCP/IP stream
+ *	    string pointer
+ *	    byte count
+ * Returns: T if success else NIL
+ */
+
+long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
+{
   int i;
-  unsigned long size = strlen (string);
   fd_set fds;
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcpso < 0) return NIL;
@@ -524,8 +566,7 @@ long tcp_soutr (TCPSTREAM *stream,char *string)
   }
   return T;			/* all done */
 }
-
-
+
 /* TCP/IP close
  * Accepts: TCP/IP stream
  */
@@ -543,7 +584,8 @@ void tcp_close (TCPSTREAM *stream)
   fs_give ((void **) &stream->localhost);
   fs_give ((void **) &stream);	/* flush the stream */
 }
-
+
+
 /* TCP/IP get host name
  * Accepts: TCP/IP stream
  * Returns: host name for this stream

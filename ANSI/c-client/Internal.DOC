@@ -435,9 +435,9 @@ based on the information in address and is therefore the inverse of
 rfc822_parse_adrlist().
 
 void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
-		       char *b,unsigned long j,char *host,char *tmp)
- This function parses the RFC 822 header pointed to by s with count i
-and body pointed to by b with count j into the specified destination
+		       STRING *b,char *host,char *tmp)
+ This function parses the RFC 822 header pointed to by s with body
+pointed to by stringstruct b into the specified destination
 envelope and body pointers, using host as the default host name and
 tmp as a scratch buffer.  This function is intended solely to support
 header parsing for non-IMAP MAIL drivers.  Any parsing errors are

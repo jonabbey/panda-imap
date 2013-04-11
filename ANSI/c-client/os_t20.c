@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	21 July 1992
+ * Last Edited:	27 October 1992
  *
  * Copyright 1992 by Mark Crispin
  *
@@ -52,11 +52,11 @@ TCPSTREAM {
 };
 
 
+#include "mail.h"
 #include <jsys.h>
 #include <time.h>
 #include "osdep.h"
 #include <sys/time.h>
-#include "mail.h"
 #include "misc.h"
 
 /* Write current time in RFC 822 format
@@ -148,14 +148,14 @@ char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
 }
 
 
-/* Length of string after strcrlflen applied
+/* Length of string after strcrlfcpy applied
  * Accepts: source string
  *	    length of source string
  */
 
-unsigned long strcrlflen (char *src,unsigned long srcl)
+unsigned long strcrlflen (STRING *s)
 {
-  return srcl;			/* this is easy on TOPS-20 */
+  return SIZE (s);		/* this is easy on TOPS-20 */
 }
 
 /* Server log in
@@ -319,6 +319,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer)
 
 /* TCP/IP send string as record
  * Accepts: TCP/IP stream
+ *	    string pointer
  * Returns: T if success else NIL
  */
 
@@ -333,6 +334,23 @@ long tcp_soutr (TCPSTREAM *stream,char *string)
 }
 
 
+/* TCP/IP send string
+ * Accepts: TCP/IP stream
+ *	    string pointer
+ *	    byte count
+ * Returns: T if success else NIL
+ */
+
+long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
+{
+  int argblk[5];
+  argblk[1] = stream->jfn;	/* write to TCP */
+  argblk[2] = (int) (string-1);	/* pointer to buffer */
+  argblk[3] = -size;		/* write this many bytes */
+  if (!jsys (SOUTR,argblk)) return NIL;
+  return T;
+}
+
 /* TCP/IP close
  * Accepts: TCP/IP stream
  */
@@ -347,7 +365,8 @@ void tcp_close (TCPSTREAM *stream)
   fs_give ((void **) &stream->localhost);
   fs_give ((void **) &stream);	/* flush the stream */
 }
-
+
+
 /* TCP/IP return host for this stream
  * Accepts: TCP/IP stream
  * Returns: host name for this stream

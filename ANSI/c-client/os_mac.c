@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	21 July 1992
+ * Last Edited:	27 October 1992
  *
  * Copyright 1992 by Mark Crispin
  *
@@ -59,8 +59,8 @@ TCPSTREAM {
   char ibuf[BUFLEN];		/* input buffer */
 };
 
-#include "osdep.h"
 #include "mail.h"
+#include "osdep.h"
 #include "misc.h"
 
 short TCPdriver = 0;		/* MacTCP's reference number */
@@ -169,28 +169,19 @@ char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
 }
 
 
-/* Length of string after strcrlflen applied
+/* Length of string after strcrlfcpy applied
  * Accepts: source string
  *	    length of source string
  */
 
-unsigned long strcrlflen (char *src,unsigned long srcl)
+unsigned long strcrlflen (STRING *s)
 {
-  long i = srcl;		/* look for LF's */
-  while (srcl--) if ((*src == '\015') && (src[1] != '\012')) i++;
+  unsigned long pos = GETPOS (s);
+  unsigned long i = SIZE (s);
+  unsigned long j = i;
+  while (j--) if ((NXT (s) == '\015') && ((CHR (s) != '\012') || !j)) i++;
+  SETPOS (s,pos);		/* restore old position */
   return i;
-}
-
-/* Server log in (dummy place holder)
- * Accepts: user name string
- *	    password string
- *	    optional place to return home directory
- * Returns: T if password validated, NIL otherwise
- */
-
-long server_login (char *user,char *pass,char **home,int argc,char *argv[])
-{
-  return NIL;
 }
 
 /* TCP/IP open
@@ -462,10 +453,24 @@ long tcp_getdata (TCPSTREAM *stream)
 
 /* TCP/IP send string as record
  * Accepts: TCP/IP stream
+ *	    string pointer
  * Returns: T if success else NIL
  */
 
 long tcp_soutr (TCPSTREAM *stream,char *string)
+{
+  return tcp_sout (stream,string,(unsigned long) strlen (string));
+}
+
+
+/* TCP/IP send string
+ * Accepts: TCP/IP stream
+ *	    string pointer
+ *	    byte count
+ * Returns: T if success else NIL
+ */
+
+long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 {
   struct TCPSendPB *sendpb = &stream->pb.csParam.send;
   struct TCPAbortPB *abortpb = &stream->pb.csParam.abort;
@@ -483,7 +488,7 @@ long tcp_soutr (TCPSTREAM *stream,char *string)
   sendpb->urgentFlag = NIL;	/* non-urgent data */
   sendpb->wdsPtr = (Ptr) &wds;
   sendpb->userDataPtr = NIL;
-  wds.length = strlen (string);	/* size of buffer */
+  wds.length = size;		/* size of buffer */
   wds.buffer = string;		/* buffer */
   wds.trailer = 0;		/* tie off buffer */
   PBControlAsync (&stream->pb);	/* now send the data */

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	8 June 1992
+ * Last Edited:	2 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -58,7 +58,6 @@ typedef struct file_cache {
 /* TENEX I/O stream local data */
 
 typedef struct tenex_local {
-  char *host;			/* local host name */
   unsigned int inbox : 1;	/* if this is an INBOX or not */
   int fd;			/* file descriptor for I/O */
   off_t filesize;		/* file size parsed */

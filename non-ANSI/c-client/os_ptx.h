@@ -8,7 +8,7 @@
  *		Internet: donn@cac.washington.edu
  *
  * Date:	11 May 1989
- * Last Edited:	12 August 1992
+ * Last Edited:	27 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -34,12 +34,10 @@
 #define MAILFILE "/usr/mail/%s"
 #define ACTIVEFILE "/usr/lib/news/active"
 #define NEWSSPOOL "/usr/spool/news"
-#define NEWSRC strcat (strcpy (tmp,getpwuid (geteuid ())->pw_dir),"/.newsrc")
+#define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 #define NFSKLUDGE
 
 #include <string.h>
-
-#define const
 
 #include <sys/types.h>
 #include <stdlib.h>
@@ -98,6 +96,7 @@ char *tcp_getline  ();
 long tcp_getbuffer  ();
 long tcp_getdata  ();
 long tcp_soutr  ();
+long tcp_sout  ();
 void tcp_close  ();
 char *tcp_host  ();
 char *tcp_localhost  ();

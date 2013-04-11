@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 February 1989
- * Last Edited:	6 July 1992
+ * Last Edited:	28 September 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -75,7 +75,7 @@
   rfc822_parse_adrlist (&env->from,tmp,(char *) domainname);
   env->reply_to = env->to = env->cc = env->bcc = NIL;
 				// generate message ID
-  sprintf (tmp,"<%s.%d.%d.%s@%s>",[NXApp appName],time (0),getpid (),
+  sprintf (tmp,"<%s.%ld.%d.%s@%s>",[NXApp appName],time (0),getpid (),
 	   localuser,localhost);
   env->message_id = cpystr (tmp);
   env->in_reply_to = NIL;
@@ -534,8 +534,8 @@
 				// start new voice mail, alloc & record
   else if (NXRunAlertPanel ("Record Voice","Hit Voice Mail button when done",
 			    NIL,"Cancel",NIL) &&
-	   (i = SNDAlloc(&sound,MAXSIZE,SND_FORMAT_MULAW_8,SND_RATE_CODEC,1,0))
-	   || (i = SNDStartRecording (sound,69,1,0,NIL,NIL)))
+	   ((i =SNDAlloc(&sound,MAXSIZE,SND_FORMAT_MULAW_8,SND_RATE_CODEC,1,0))
+	    || (i = SNDStartRecording (sound,69,1,0,NIL,NIL))))
     NXRunAlertPanel ("Sound record failed",SNDSoundError (i),NIL,NIL,NIL);
   return self;
 }

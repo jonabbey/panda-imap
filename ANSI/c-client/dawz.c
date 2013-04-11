@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	19 August 1992
+ * Last Edited:	2 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -38,11 +38,11 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include "mail.h"
 #include "osdep.h"
 #include <sys\stat.h>
 #include <dos.h>
 #include <io.h>
-#include "mail.h"
 #include "dawz.h"
 #include "rfc822.h"
 #include "misc.h"
@@ -179,6 +179,8 @@ MAILSTREAM *dawz_open (MAILSTREAM *stream)
     mm_log (tmp,ERROR);
     return NIL;
   }
+				/* hokey default for local host */
+  if (!lhostn) lhostn = cpystr ("localhost");
   stream->local = fs_get (sizeof (DAWZLOCAL));
 				/* canonicalize the stream mailbox name */
   fs_give ((void **) &stream->mailbox);
@@ -230,6 +232,81 @@ void dawz_fetchflags (MAILSTREAM *stream,char *sequence)
   return;			/* no-op for local mail */
 }
 
+/* Dawz string driver for file stringstructs */
+
+STRINGDRIVER dawz_string = {
+  dawz_string_init,		/* initialize string structure */
+  dawz_string_next,		/* get next byte in string structure */
+  dawz_string_setpos		/* set position in string structure */
+};
+
+
+/* Cache buffer for file stringstructs */
+
+#define DOSCHUNKLEN 4096
+char dos_chunk[DOSCHUNKLEN];
+
+
+/* Drive-dependent data passed to init method */
+
+typedef struct dawz_data {
+  int fd;			/* file data */
+  unsigned long pos;		/* initial position */
+} DAWZDATA;
+
+
+/* Initialize dawz string structure for file stringstruct
+ * Accepts: string structure
+ *	    pointer to string
+ *	    size of string
+ */
+
+void dawz_string_init (STRING *s,void *data,unsigned long size)
+{
+  DAWZDATA *d = (DAWZDATA *) data;
+  s->data = (void *) d->fd;	/* note fd */
+  s->data1 = d->pos;		/* note file offset */
+  s->size = size;		/* note size */
+  s->curpos = s->chunk = dos_chunk;
+  s->chunksize = (unsigned long) DOSCHUNKLEN;
+  s->offset = 0;		/* initial position */
+				/* and size of data */
+  s->cursize = min ((long) DOSCHUNKLEN,size);
+				/* move to that position in the file */
+  lseek (d->fd,d->pos,SEEK_SET);
+  read (d->fd,s->chunk,(unsigned int) s->cursize);
+}
+
+/* Get next character from file stringstruct
+ * Accepts: string structure
+ * Returns: character, string structure chunk refreshed
+ */
+
+char dawz_string_next (STRING *s)
+{
+  char c = *s->curpos++;	/* get next byte */
+				/* move to next chunk */
+  SETPOS (s,s->offset + s->chunksize);
+  return c;			/* return the byte */
+}
+
+
+/* Set string pointer position for file stringstruct
+ * Accepts: string structure
+ *	    new position
+ */
+
+void dawz_string_setpos (STRING *s,unsigned long i)
+{
+  s->offset = i;		/* set new offset */
+				/* set size of data */
+  s->cursize = min ((long) DOSCHUNKLEN,s->size);
+  s->curpos = s->chunk;		/* reset position */
+				/* move to that position in the file */
+  lseek ((int) s->data,s->data1 + s->offset,SEEK_SET);
+  read ((int) s->data,s->curpos,(unsigned int) s->cursize);
+}
+
 /* Dawz mail fetch structure
  * Accepts: MAIL stream
  *	    message # to fetch
@@ -239,16 +316,20 @@ void dawz_fetchflags (MAILSTREAM *stream,char *sequence)
  * Fetches the "fast" information as well
  */
 
-#define MAXHDR (unsigned long) 8*MAILTMPLEN
+#define MAXHDR (unsigned long) 4*MAILTMPLEN
 
 ENVELOPE *dawz_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
 {
   LONGCACHE *lelt;
   ENVELOPE **env;
   BODY **b;
-  char *hdr,*tmp;
+  STRING bs;
+  DAWZDATA d;
   unsigned long hdrsize;
   unsigned long hdrpos = dawz_header (stream,msgno,&hdrsize);
+  unsigned long textsize = mail_elt (stream,msgno)->rfc822_size - hdrsize;
+				/* limit header size */
+  if (hdrsize > MAXHDR) hdrsize = MAXHDR;
   if (stream->scache) {		/* short cache */
     if (msgno != stream->msgno){/* flush old poop if a different message */
       mail_free_envelope (&stream->env);
@@ -263,26 +344,28 @@ ENVELOPE *dawz_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
     env = &lelt->env;		/* get pointers to envelope and body */
     b = &lelt->body;
   }
-  if (!*env) {			/* have envelope poop? */
-				/* limit header size */
-    if (hdrsize > MAXHDR) hdrsize = MAXHDR;
-    hdr = (char *) fs_get (hdrsize + 1);
-    tmp = (char *) fs_get (hdrsize + 1);
+
+  if ((body && !*b) || !*env) {	/* have the poop we need? */
+    char *hdr = (char *) fs_get (hdrsize + 1);
+    char *tmp = (char *) fs_get (MAXHDR);
+    mail_free_envelope (env);	/* flush old envelope and body */
+    mail_free_body (b);
 				/* get to header position */
     lseek (LOCAL->fd,hdrpos,SEEK_SET);
 				/* read the text */
     if (read (LOCAL->fd,hdr,(unsigned int) hdrsize)) {
       if (hdr[hdrsize-1] != '\012') hdr[hdrsize-1] = '\012';
       hdr[hdrsize] = '\0';	/* make sure tied off */
+      d.fd = LOCAL->fd;		/* set initial stringstruct */
+      d.pos = hdrpos + hdrsize;
+      INIT (&bs,dawz_string,(void *) &d,textsize);
 				/* parse envelope and body */
-      rfc822_parse_msg (env,b,hdr,hdrsize,"",(unsigned long) 0,"DOS",tmp);
-				/* fake body size */
-      (*b)->bytes = mail_elt (stream,msgno)->rfc822_size - hdrsize;
+      rfc822_parse_msg (env,body ? b : NIL,hdr,hdrsize,&bs,lhostn,tmp);
     }
     fs_give ((void **) &tmp);
     fs_give ((void **) &hdr);
   }
-  *body = *b;			/* return the body */
+  if (body) *body = *b;		/* return the body */
   return *env;			/* return the envelope */
 }
 
@@ -1084,8 +1167,7 @@ char dawz_search_body (MAILSTREAM *stream,long msgno,char *d,long n)
 
 char dawz_search_subject (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  BODY *body;
-  char *s = dawz_fetchstructure (stream,msgno,&body)->subject;
+  char *s = dawz_fetchstructure (stream,msgno,NIL)->subject;
   return s ? search (s,(long) strlen (s),d,n) : NIL;
 }
 
@@ -1098,10 +1180,9 @@ char dawz_search_text (MAILSTREAM *stream,long msgno,char *d,long n)
 char dawz_search_bcc (MAILSTREAM *stream,long msgno,char *d,long n)
 {
   char tmp[8*MAILTMPLEN];
-  BODY *b;
   tmp[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (tmp,dawz_fetchstructure(stream,msgno,&b)->bcc);
+  rfc822_write_address (tmp,dawz_fetchstructure (stream,msgno,NIL)->bcc);
   return search (tmp,(long) strlen (tmp),d,n);
 }
 
@@ -1109,10 +1190,9 @@ char dawz_search_bcc (MAILSTREAM *stream,long msgno,char *d,long n)
 char dawz_search_cc (MAILSTREAM *stream,long msgno,char *d,long n)
 {
   char tmp[8*MAILTMPLEN];
-  BODY *b;
   tmp[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (tmp,dawz_fetchstructure (stream,msgno,&b)->cc);
+  rfc822_write_address (tmp,dawz_fetchstructure (stream,msgno,NIL)->cc);
   return search (tmp,(long) strlen (tmp),d,n);
 }
 
@@ -1120,10 +1200,9 @@ char dawz_search_cc (MAILSTREAM *stream,long msgno,char *d,long n)
 char dawz_search_from (MAILSTREAM *stream,long msgno,char *d,long n)
 {
   char tmp[8*MAILTMPLEN];
-  BODY *b;
   tmp[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address(tmp,dawz_fetchstructure(stream,msgno,&b)->from);
+  rfc822_write_address (tmp,dawz_fetchstructure (stream,msgno,NIL)->from);
   return search (tmp,(long) strlen (tmp),d,n);
 }
 
@@ -1131,10 +1210,9 @@ char dawz_search_from (MAILSTREAM *stream,long msgno,char *d,long n)
 char dawz_search_to (MAILSTREAM *stream,long msgno,char *d,long n)
 {
   char tmp[8*MAILTMPLEN];
-  BODY *b;
   tmp[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (tmp,dawz_fetchstructure (stream,msgno,&b)->to);
+  rfc822_write_address (tmp,dawz_fetchstructure (stream,msgno,NIL)->to);
   return search (tmp,(long) strlen (tmp),d,n);
 }
 

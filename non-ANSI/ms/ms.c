@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 November 1988
- * Last Edited:	23 July 1992
+ * Last Edited:	1 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -44,7 +44,7 @@ static char *copyright = "\
  CCMD command interface is:\n\
   Copyright 1986, 1987 Columbia University in the City of New York";
 static char *author = "Mark Crispin";
-static char *version = "7.82";
+static char *version = "7.83";
 static char *bug_mailbox = "MRC";
 static char *bug_host = "CAC.Washington.EDU";
 static char *hostlist[] = {	/* SMTP server host list */
@@ -69,8 +69,8 @@ static char *newslist[] = {	/* News server host list */
 #endif
 #include <sys/types.h>
 #include "ccmd.h"
-#include "osdep.h"
 #include "mail.h"
+#include "osdep.h"
 #include "smtp.h"
 #include "nntp.h"
 #include "rfc822.h"
@@ -847,7 +847,7 @@ Forwards the specified messages with optional comments to another mailbox.\n");
     char *text;
     char *s;
     ENVELOPE *msg;
-    BODY *body,*b;
+    BODY *body;
     pval parseval;
     fdb *used;
     static fdb linfdb = {_CMTXT,CM_SDH,NIL,NIL,NIL,NIL,NIL};
@@ -879,7 +879,7 @@ Forwards the specified messages with optional comments to another mailbox.\n");
 	      mail_fetchfrom (tmp+1,stream,msgno,FROMLEN);
 	      for (s = tmp+FROMLEN; *s == ' '; --s) *s = '\0';
 	      *++s = ':'; *++s = ' ';
-	      strcpy (++s,(mail_fetchstructure (stream,msgno,&b))->subject);
+	      strcpy (++s,(mail_fetchstructure (stream,msgno,NIL))->subject);
 	      msg->subject = cpystr (tmp);
 	    }
 	    i += j;		/* current text size */
@@ -1309,7 +1309,6 @@ static keytab reatab = {(sizeof (readcmds)/sizeof (keywrd)),readcmds};
 void c_read (help)
 	short help;
 {
-  BODY *b;
   pval parseval;
   fdb *used;
   static fdb cmdfdb = {_CMKEY,NIL,NIL,(pdat) &(reatab),"Command, ","NEXT",NIL};
@@ -1319,7 +1318,7 @@ The READ command enters read sub-mode on the specified messages.\n");
   else if (do_sequence ("UNSEEN")) for (current=1; current <= nmsgs; ++current)
     if (mail_elt (stream,current)->spare) {
 				/* make sure we have flags & envelope */
-      mail_fetchstructure (stream,current,&b);
+      mail_fetchstructure (stream,current,NIL);
       if (mail_elt (stream,current)->deleted)
 	cmxprintf (" Message %d deleted\n",current);
       else {
@@ -1711,7 +1710,7 @@ Forwards this message with optional comments to another mailbox.\n");
     char *hdr,*text;
     char *s;
     ENVELOPE *msg;
-    BODY *body,*b;
+    BODY *body;
     ADDRESS *adr = NIL;
     noise ("MESSAGE TO");
     linfdb._cmhlp = "list of forward recipients in RFC 822 format";
@@ -1730,7 +1729,7 @@ Forwards this message with optional comments to another mailbox.\n");
     mail_fetchfrom (tmp+1,stream,current,FROMLEN);
     for (s = tmp+FROMLEN; *s == ' '; --s) *s = '\0';
     *++s = ':'; *++s = ' ';
-    strcpy (++s,(mail_fetchstructure (stream,current,&b))->subject);
+    strcpy (++s,(mail_fetchstructure (stream,current,NIL))->subject);
     msg->subject = cpystr (tmp);/* set up subject */
 				/* get header of message */
     hdr = cpystr (mail_fetchheader (stream,current));
@@ -2943,8 +2942,8 @@ void answer_message (msgno,allflag)
 	int allflag;
 {
   char tmp[TMPLEN];
-  BODY *body,*b;
-  ENVELOPE *env = mail_fetchstructure (stream,msgno,&b);
+  BODY *body;
+  ENVELOPE *env = mail_fetchstructure (stream,msgno,NIL);
   ENVELOPE *msg;
   if (env && env->reply_to) {	/* if reply address */
     msg = send_init ();		/* get a message block */
@@ -3003,11 +3002,10 @@ void header_message (file,msgno)
   char tmp[TMPLEN],frm[FROMLEN+1];
   char flgs[5];
   char date[7];
-  BODY *b;
   MESSAGECACHE *c = mail_elt (stream,msgno);
   flgs[4] = (date[6] = '\0');	/* tie off constant width strings */
 				/* make sure it's in the cache */
-  mail_fetchstructure (stream,msgno,&b);
+  mail_fetchstructure (stream,msgno,NIL);
 				/* get system flags */
 				/* If recent, then either "recent" or "new"
 				   otherwise, either "seen" or "unseen" */
@@ -3103,8 +3101,7 @@ void type_message (file,msgno)
   int i,j;
   char *text;
   char c;
-  BODY *b;
-  ENVELOPE *env = mail_fetchstructure (stream,msgno,&b);
+  ENVELOPE *env = mail_fetchstructure (stream,msgno,NIL);
 				/* make sure we get some text */
   if (text = mail_fetchtext (stream,msgno)) {
 				/* output the poop */

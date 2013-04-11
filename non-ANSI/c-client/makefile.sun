@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	14 March 1992
+# Last Edited:	13 October 1992
 #
 # Copyright 1992 by the University of Washington
 #
@@ -31,7 +31,7 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
-CFLAGS = -g
+CFLAGS = -g -Dconst=
 LDFLAGS = -ldl
 
 mtest: mtest.o c-client.a

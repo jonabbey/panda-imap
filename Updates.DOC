@@ -160,5 +160,77 @@ Note: Dates in this revision history indicate when the work was completed.
 31 August 1992	[ReadWindow.nib, SendWindow.nib] Make EasyMail build again (it
 		had been broken since the EMACS editing stuff was added).
 
-9 September 1992[bezerk.h/c] Fixed bad file closing bug when recycling a
+ 9 September 1992
+		[bezerk.h/c] Fixed bad file closing bug when recycling a
 		bezerk stream.
+
+21 September 1992
+		[lots of files] Major surgery to MIME parser to use a new
+		concept called a `stringstruct' instead of char * strings.
+		Stringstructs invoke a driver as necessary to get at string
+		data; this is so we can do MIME parsing on machine such as
+		DOS without enough memory to hold the entire message.  This
+		involved major changes to rfc822_parse_content() in rfc822.c,
+		changes to driver calling conventions, and lots of nasty little
+		changes in lots of other files.  Nearly two months of effort
+		went into this.  Ugh.
+
+22 September 1992 [mtest.c]
+		Add B command to mtest to display body structure, both as an
+		example to implementors of how to run through the structures
+		and to make it possible for me to test this stuff on DOS.
+
+22 September 1992 [mail.c]
+		Fixed missing cache flush when recycling to a mailbox of a
+		different type.
+
+22 September 1992 [dawz.c, os_d??.c]
+		Added stringstruct/MIME parsing capability to dawz driver.
+
+28 September 1992 [os_???.c/h] Add myusername() and myhomedir() functions to
+		avoid repeated getpw???() calls in c-client.
+
+30 September 1992 [bezerk.c] Memory performance improvements.
+
+30 September 1992 [MailManager, EasyMail] Conversion to NeXTSTEP 3.0.
+
+ 1 October 1992	[bezerk.c, dawz.c, imap2.c, mail.c, mh.c, mtest.c, news.c,
+		 rfc822.c, tenex.c] Allow NIL for body argument to
+		mail_fetchstructure() meaning not to do MIME parsing.
+
+ 4 October 1992 [ReadWindow.m] Fix IMAP MIME reading broken by 3.0 conversion.
+
+ 7 October 1992 [makefile.a32, os_a32.c/h, makefile.dwa os_dwa.c/h]
+		Added AIX 3.2 (for RS/6000) and Waterloo DOS ports.
+
+13 October 1992	[mail.c/h] Added mail_cdate() to write cdate-format date/time.
+
+13 October 1992 [makefile.sv4, os_sv4.c/h] Added SVR4 port.
+
+13 October 1992	[dummy.c] Fix bug causing segmentation violation when you open
+		a non-existant mailbox.
+
+13 October 1992 [makefile.*] Move const deletion to non-ANSI makefiles to
+		clean up confusion about when it's done and remove an include
+		ordering dependency.
+
+21 October 1992	[mail.c/h, bezerk.c, dawz.c, dummy.c, imap2.c, mbox.c, mh.c,
+		 news.c, tenex.c] Defined prototype streams for use with
+		mail_find(), mail_create(), etc. when no stream is actually
+		open on a particular driver.
+
+22 October 1992	[mail.c/h, bezerk.c, dawz.c, dummy.c, imap2.c, mbox.c, mh.c,
+		 news.c, tenex.c] Added OP_PROTOTYPE to tell mail_open() to
+		return the driver's prototype stream instead of a real stream.
+
+22 October 1992	[mail.c/h, imap2.c] Added OP_HALFOPEN flag and halfopen stream
+		status, to request (and indicate) half-open IMAP streams that
+		have connections but no mailbox selected.
+
+26 October 1992	[imap2.c] Properly implement "+" response from IMAP.
+
+26 October 1992 [imapd.c] Fix disasterous bug in IMAP server literals.
+
+27 October 1992	[os_ptx.c, os_sv4.c] Fix DST handling on SysV like systems.
+
+27 October 1992	[os*.c/h] Add tcp_sout() for IMAP APPEND support.

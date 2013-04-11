@@ -8,7 +8,7 @@
  *		Internet: donn@cac.washington.edu
  *
  * Date:	11 May 1989
- * Last Edited:	13 August 1992
+ * Last Edited:	27 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -84,37 +84,20 @@ char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 void rfc822_date (date)
 	char *date;
 {
-  int zone;
-  char *zonename;
+  int zone,dstnow;
   struct tm *t;
-  int time_sec;
-
-  /*
-	In DYNIX/ptx, we don't have gettimeofday() or timezone().
-	There are two external variables that interact to provide
-	a time zone name:
-		extern char *tzname[2] = {normal, daylight}
-		extern int daylight = 0 (normally) or 1 (in the summer)
-
-	Another external variable
-		extern long timezone
-	contains the difference in seconds from UTC.
-
-	These have to be initialized by running tzset ().  Whether
-	they are initialized correctly at that point depends on the
-	correctness of the TZ environment variable, which is normally
-	set in /etc/TIMEZONEZ.
-  */
-  time_sec = time (0);
+  int time_sec = time (0);
   t = localtime (&time_sec);	/* convert to individual items */
-				/* use this for older systems */
-  tzset ();
-  zone = (t->tm_isdst ? 60 : 0) - ((daylight == 0 ? timezone : altzone) / 60);
-  zonename = tzname[daylight != 0];
+  tzset ();			/* initialize timezone/daylight variables */
+				/* see if it is DST now */
+  dstnow = daylight && t->tm_isdst;
+				/* get timezone value */
+  zone = - (dstnow ? altzone : timezone) / 60;
 				/* and output it */
   sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,zonename);
+	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
+	   tzname[dstnow]);
 }
 
 /* Get a block of free storage
@@ -210,25 +193,30 @@ char *strcrlfcpy (dst,dstl,src,srcl)
 }
 
 
-/* Length of string after strcrlflen applied
+/* Length of string after strcrlfcpy applied
  * Accepts: source string
  *	    length of source string
  */
 
-unsigned long strcrlflen (src,srcl)
-	char *src;
-	unsigned long srcl;
+unsigned long strcrlflen (s)
+	STRING *s;
 {
-  long i = srcl;		/* look for LF's */
-  while (srcl--) switch (*src++) {
+  unsigned long pos = GETPOS (s);
+  unsigned long i = SIZE (s);
+  unsigned long j = i;
+  while (j--) switch (NXT (s)) {/* search for newlines */
   case '\015':			/* unlikely carriage return */
-    if (srcl && *src == '\012') { src++; srcl--; }
+    if (j && (CHR (s) == '\012')) {
+      NXT (s);			/* eat the line feed */
+      j--;
+    }
     break;
   case '\012':			/* line feed? */
     i++;
   default:			/* ordinary chararacter */
     break;
   }
+  SETPOS (s,pos);		/* restore old position */
   return i;
 }
 
@@ -259,6 +247,29 @@ int server_login (user,pass,home)
 				/* note home directory */
   if (home) *home = cpystr (pw->pw_dir);
   return T;
+}
+
+/* Return my user name
+ * Returns: my user name
+ */
+
+char *uname = NIL;
+
+char *myusername ()
+{
+  return uname ? uname : (uname = cpystr (getpwuid (geteuid ())->pw_name));
+}
+
+
+/* Return my home directory name
+ * Returns: my home directory name
+ */
+
+char *hdname = NIL;
+
+char *myhomedir ()
+{
+  return hdname ? hdname : (hdname = cpystr (getpwuid (geteuid ())->pw_dir));
 }
 
 
@@ -555,6 +566,7 @@ long tcp_getdata (stream)
 
 /* TCP/IP send string as record
  * Accepts: TCP/IP stream
+ *	    string pointer
  * Returns: T if success else NIL
  */
 
@@ -562,8 +574,23 @@ int tcp_soutr (stream,string)
 	TCPSTREAM *stream;
 	char *string;
 {
+  return tcp_sout (stream,string,(unsigned long) strlen (string));
+}
+
+
+/* TCP/IP send string
+ * Accepts: TCP/IP stream
+ *	    string pointer
+ *	    byte count
+ * Returns: T if success else NIL
+ */
+
+long tcp_sout (stream,string,size)
+	TCPSTREAM *stream;
+	char *string;
+	unsigned long size;
+{
   int i;
-  unsigned long size = strlen (string);
   struct pollfd pollfd;
   int pollstatus;
   pollfd.fd = stream->tcpso;	/* initialize selection vector */
@@ -584,8 +611,7 @@ int tcp_soutr (stream,string)
   }
   return T;			/* all done */
 }
-
-
+
 /* TCP/IP close
  * Accepts: TCP/IP stream
  */
@@ -604,7 +630,8 @@ void tcp_close (stream)
   fs_give ((void **) &stream->localhost);
   fs_give ((void **) &stream);	/* flush the stream */
 }
-
+
+
 /* TCP/IP get host name
  * Accepts: TCP/IP stream
  * Returns: host name for this stream
@@ -778,15 +805,23 @@ int flock (fd, operation)
 	int operation;
 {
   int func;
-				/* translate to flock() operation */
-  if (operation & LOCK_UN) func = F_ULOCK;
-  else if (operation & (LOCK_EX|LOCK_SH))
+  off_t offset = lseek (fd,0,L_INCR);
+  switch (operation & ~LOCK_NB){/* translate to lockf() operation */
+  case LOCK_EX:			/* exclusive */
+  case LOCK_SH:			/* shared */
     func = (operation & LOCK_NB) ? F_TLOCK : F_LOCK;
-  else {
+    break;
+  case LOCK_UN:			/* unlock */
+    func = F_ULOCK;
+    break;
+  default:			/* default */
     errno = EINVAL;
     return -1;
   }
-  return lockf (fd,func,0);	/* do the lockf() */
+  lseek (fd,0,L_SET);		/* position to start of the file */
+  func = lockf (fd,func,0);	/* do the lockf() */
+  lseek (fd,offset,L_SET);	/* restore prior position */
+  return func;
 }
 
 

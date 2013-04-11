@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	21 July 1992
+ * Last Edited:	26 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -35,6 +35,7 @@
 
 /* Parameter files */
 
+#include "mail.h"
 #include "osdep.h"
 #include <stdio.h>
 #include <ctype.h>
@@ -46,7 +47,6 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/dir.h>		/* makes news.h happy */
-#include "mail.h"
 #include "misc.h"
 #include "news.h"		/* moby sigh */
 
@@ -68,7 +68,7 @@
 
 /* Global storage */
 
-char *version = "6.7(46)";	/* version number of this server */
+char *version = "6.7(49)";	/* version number of this server */
 struct itimerval timer;		/* timeout state */
 int state = LOGIN;		/* server state */
 int mackludge = 0;		/* MacMS kludge */
@@ -159,7 +159,7 @@ void main (int argc,char *argv[])
     state = SELECT;		/* enter select state */
     t = "PREAUTH";		/* pre-authorized */
   }
-  printf ("* %s %s IMAP2+ Service %s at %s\015\012",t,host,version,cmdbuf);
+  printf ("* %s %s IMAP2bis Service %s at %s\015\012",t,host,version,cmdbuf);
   fflush (stdout);		/* dump output buffer */
   signal (SIGALRM,clkint);	/* prepare for clock interrupt */
 				/* initialize timeout interval */
@@ -175,8 +175,8 @@ void main (int argc,char *argv[])
     setitimer (ITIMER_REAL,&timer,NIL);
     fs_give ((void **) &lsterr);/* no last error */
 				/* find end of line */
-    if (!strchr (cmdbuf,'\012')) printf (toobig);
-    else if (!(tag = strtok (cmdbuf," \015\012"))) printf (nulcmd);
+    if (!strchr (cmdbuf,'\012')) fputs (toobig,stdout);
+    else if (!(tag = strtok (cmdbuf," \015\012"))) fputs (nulcmd,stdout);
     else if (!(cmd = strtok (NIL," \015\012")))
       printf ("%s BAD Missing command\015\012",tag);
     else {			/* parse command */
@@ -188,7 +188,7 @@ void main (int argc,char *argv[])
       if (!strcmp (cmd,"LOGOUT")) {
 	if (state == OPEN) mail_close (stream);
 	stream = NIL;
-	printf ("* BYE %s IMAP2 server terminating connection\015\012",host);
+	printf("* BYE %s IMAP2bis server terminating connection\015\012",host);
 	state = LOGOUT;
       }
 
@@ -201,7 +201,7 @@ void main (int argc,char *argv[])
 	  if (!((i = atoi (s)) && i > 0 && i <= 4))
 	    response = "%s BAD Unknown version\015\012";
 	  else if (mackludge = (i == 4))
-	    printf ("* OK The MacMS kludge is enabled\015\012");
+	    fputs ("* OK The MacMS kludge is enabled\015\012",stdout);
 	}
       }
       else if (!strcmp (cmd,"NOOP")) {
@@ -295,7 +295,8 @@ void main (int argc,char *argv[])
 	      else {
 		*t++ = '\015';	/* reappend CR/LF */
 		*t++ = '\012';
-		printf (argrdy);/* tell client ready for argument */
+		fputs (argrdy,stdout);
+		fflush (stdout);/* dump output buffer */
 				/* copy the literal */
 		while (i--) *t++ = getchar ();
 				/* start a timeout */
@@ -431,7 +432,7 @@ void main (int argc,char *argv[])
 
 void clkint ()
 {
-  printf ("* BYE Autologout; idle for too long\015\012");
+  fputs ("* BYE Autologout; idle for too long\015\012",stdout);
   fflush (stdout);		/* make sure output blatted */
 				/* try to gracefully close the stream */
   if (state == OPEN) mail_close (stream);
@@ -464,7 +465,8 @@ char *snarf (char **arg)
 				/* validate end of literal */
       if (*c++ != '}' || *c++) return NIL;
       if ((i + 10) > (TMPLEN - (c - cmdbuf))) return NIL;
-      printf (argrdy);		/* tell client ready for argument */
+      fputs (argrdy,stdout);	/* tell client ready for argument */
+      fflush (stdout);		/* dump output buffer */
       t = c;			/* get it */
       while (i--) *t++ = getchar ();
       *t++ = NIL;		/* make sure string tied off */
@@ -504,6 +506,7 @@ void fetch (char *s,char *t)
   char c,*v;
   long i,k;
   BODY *b;
+  int parse_bodies = NIL;
   void (*f[MAXFETCH]) ();
   char *fa[MAXFETCH];
   if (!mail_sequence (stream,s)) {
@@ -526,22 +529,24 @@ void fetch (char *s,char *t)
   if ((*t == '(') && (*s == ')') && t++) *s = '\0';
   k = 0;			/* initial index */
   if (s = strtok (t," ")) do {	/* parse attribute list */
-    if (*s == 'B' && s[1] == 'O' && s[2] == 'D' && s[3] == 'Y') switch (s[4]) {
-    case '\0':			/* entire body */
-      f[k++] = fetch_body;
-      break;
-    case '[':			/* body segment */
-      if ((v = strchr (s + 5,']')) && (!(*v = v[1]))) {
-	fa[k] = s + 5;		/* set argument */
-	f[k++] = fetch_body_part;
-	break;			/* valid body segment */
-      }				/* else fall into default case */
-    default:			/* bogus */
-      response = badatt;
-      return;
+    if (*s == 'B' && s[1] == 'O' && s[2] == 'D' && s[3] == 'Y') {
+      parse_bodies = T;		/* we will need to parse bodies */
+      switch (s[4]) {
+      case '\0':		/* entire body */
+	f[k++] = fetch_body;
+	break;
+      case '[':			/* body segment */
+	if ((v = strchr (s + 5,']')) && (!(*v = v[1]))) {
+	  fa[k] = s + 5;	/* set argument */
+	  f[k++] = fetch_body_part;
+	  break;		/* valid body segment */
+	}			/* else fall into default case */
+      default:			/* bogus */
+	response = badatt;
+	return;
+      }
     }
-    else
-    if (!strcmp (s,"ENVELOPE")) f[k++] = fetch_envelope;
+    else if (!strcmp (s,"ENVELOPE")) f[k++] = fetch_envelope;
     else if (!strcmp (s,"FLAGS")) f[k++] = fetch_flags;
     else if (!strcmp (s,"INTERNALDATE")) f[k++] = fetch_internaldate;
     else if (!strcmp (s,"RFC822")) f[k++] = fetch_rfc822;
@@ -565,7 +570,7 @@ void fetch (char *s,char *t)
 				/* for each requested message */
   for (i = 1; i <= nmsgs; i++) if (mail_elt (stream,i)->sequence) {
 				/* parse envelope, set body, do warnings */
-    mail_fetchstructure (stream,i,&b);
+    mail_fetchstructure (stream,i,parse_bodies ? &b : NIL);
     printf ("* %d FETCH (",i);	/* leader */
     (*f[0]) (i,fa[0]);		/* do first attribute */
     for (k = 1; f[k]; k++) {	/* for each subsequent attribute */
@@ -587,8 +592,7 @@ void fetch_body (long i,char *s)
   BODY *body;
   mail_fetchstructure (stream,i,&body);
   fputs ("BODY ",stdout);	/* output attribute */
-  if (body) pbody (body);	/* output body */
-  else fputs ("NIL",stdout);	/* no body */
+  pbody (body);			/* output body */
 }
 
 
@@ -621,20 +625,9 @@ void fetch_body_part (long i,char *s)
 
 void fetch_envelope (long i,char *s)
 {
-  BODY *body;
-  ENVELOPE *env = mail_fetchstructure (stream,i,&body);
+  ENVELOPE *env = mail_fetchstructure (stream,i,NIL);
   fputs ("ENVELOPE ",stdout);	/* output attribute */
-  if (env) {			/* have an envelope? */
-				/* disgusting MacMS kludge */
-    if (mackludge) printf ("%d ",cstring (env->date) + cstring (env->subject) +
-			   caddr (env->from) + caddr (env->sender) +
-			   caddr (env->reply_to) + caddr (env->to) +
-			   caddr (env->cc) + caddr (env->bcc) +
-			   cstring (env->in_reply_to) +
-			   cstring (env->message_id));
-    penv (env);			/* output envelope */
-  }
-  else fputs ("NIL",stdout);	/* no envelope */
+  penv (env);			/* output envelope */
 }
 
 /* Fetch flags
@@ -749,27 +742,37 @@ void fetch_rfc822_text (long i,char *s)
 
 void penv (ENVELOPE *env)
 {
-  putchar ('(');		/* delimiter */
-  pstring (env->date);		/* output envelope fields */
-  putchar (' ');
-  pstring (env->subject);
-  putchar (' ');
-  paddr (env->from);
-  putchar (' ');
-  paddr (env->sender);
-  putchar (' ');
-  paddr (env->reply_to);
-  putchar (' ');
-  paddr (env->to);
-  putchar (' ');
-  paddr (env->cc);
-  putchar (' ');
-  paddr (env->bcc);
-  putchar (' ');
-  pstring (env->in_reply_to);
-  putchar (' ');
-  pstring (env->message_id);
-  putchar (')');		/* end of envelope */
+  if (env) {			/* only if there is an envelope */
+				/* disgusting MacMS kludge */
+    if (mackludge) printf ("%d ",cstring (env->date) + cstring (env->subject) +
+			   caddr (env->from) + caddr (env->sender) +
+			   caddr (env->reply_to) + caddr (env->to) +
+			   caddr (env->cc) + caddr (env->bcc) +
+			   cstring (env->in_reply_to) +
+			   cstring (env->message_id));
+    putchar ('(');		/* delimiter */
+    pstring (env->date);	/* output envelope fields */
+    putchar (' ');
+    pstring (env->subject);
+    putchar (' ');
+    paddr (env->from);
+    putchar (' ');
+    paddr (env->sender);
+    putchar (' ');
+    paddr (env->reply_to);
+    putchar (' ');
+    paddr (env->to);
+    putchar (' ');
+    paddr (env->cc);
+    putchar (' ');
+    paddr (env->bcc);
+    putchar (' ');
+    pstring (env->in_reply_to);
+    putchar (' ');
+    pstring (env->message_id);
+    putchar (')');		/* end of envelope */
+  }
+  else fputs ("NIL",stdout);	/* no envelope */
 }
 
 /* Print body
@@ -778,53 +781,56 @@ void penv (ENVELOPE *env)
 
 void pbody (BODY *body)
 {
-  PARAMETER *param;
-  PART *part;
-  putchar ('(');		/* delimiter */
+  if (body) {			/* only if there is a body */
+    PARAMETER *param;
+    PART *part;
+    putchar ('(');		/* delimiter */
 				/* multipart type? */
-  if (body->type == TYPEMULTIPART) {
-    for (part = body->contents.part; part; part = part->next)
-      pbody (&(part->body));	/* print each part */
-    putchar (' ');		/* space delimiter */
-    pstring (body->subtype);	/* and finally the subtype */
-  }
-  else {			/* non-multipart body type */
-    pstring ((char *) body_types[body->type]);
-    putchar (' ');
-    pstring (body->subtype);
-    if (param = body->parameter) {
-      fputs (" (",stdout);
-      do {
-	pstring (param->attribute);
-	putchar (' ');
-	pstring (param->value);
-	if (param = param->next) putchar (' ');
-      } while (param);
-      fputs (") ",stdout);
+    if (body->type == TYPEMULTIPART) {
+      for (part = body->contents.part; part; part = part->next)
+	pbody (&(part->body));	/* print each part */
+      putchar (' ');		/* space delimiter */
+      pstring (body->subtype);	/* and finally the subtype */
     }
-    else fputs (" NIL ",stdout);
-    pstring (body->id);
-    putchar (' ');
-    pstring (body->description);
-    putchar (' ');
-    pstring ((char *) body_encodings[body->encoding]);
-    printf (" %d",body->size.bytes);
-    switch (body->type) {	/* extra stuff depends upon body type */
-    case TYPEMESSAGE:
+    else {			/* non-multipart body type */
+      pstring ((char *) body_types[body->type]);
+      putchar (' ');
+      pstring (body->subtype);
+      if (param = body->parameter) {
+	fputs (" (",stdout);
+	do {
+	  pstring (param->attribute);
+	  putchar (' ');
+	  pstring (param->value);
+	  if (param = param->next) putchar (' ');
+	} while (param);
+	fputs (") ",stdout);
+      }
+      else fputs (" NIL ",stdout);
+      pstring (body->id);
+      putchar (' ');
+      pstring (body->description);
+      putchar (' ');
+      pstring ((char *) body_encodings[body->encoding]);
+      printf (" %d",body->size.bytes);
+      switch (body->type) {	/* extra stuff depends upon body type */
+      case TYPEMESSAGE:
 				/* can't do this if not RFC822 */
-      if (strcmp (body->subtype,"RFC822")) break;
-      putchar (' ');
-      penv (body->contents.msg.env);
-      putchar (' ');
-      pbody (body->contents.msg.body);
-    case TYPETEXT:
-      printf (" %d",body->size.lines);
-      break;
-    default:
-      break;
+	if (strcmp (body->subtype,"RFC822")) break;
+	putchar (' ');
+	penv (body->contents.msg.env);
+	putchar (' ');
+	pbody (body->contents.msg.body);
+      case TYPETEXT:
+	printf (" %d",body->size.lines);
+	break;
+      default:
+	break;
+      }
     }
+    putchar (')');		/* end of body */
   }
-  putchar (')');		/* end of body */
+  else fputs ("NIL",stdout);	/* no body */
 }
 
 /* Print string
@@ -1060,7 +1066,8 @@ void mm_nocritical (MAILSTREAM *stream)
 long mm_diskerror (MAILSTREAM *stream,long errcode,long serious)
 {
   if (serious) {		/* try your damnest if clobberage likely */
-    printf ("* BAD Retrying to fix probable mailbox damage!\015\012");
+    fputs ("* BAD Retrying to fix probable mailbox damage!\015\012",stdout);
+    fflush (stdout);		/* dump output buffer */
 				/* make damn sure timeout disabled */
     timer.it_value.tv_sec = timer.it_value.tv_usec = 0;
     setitimer (ITIMER_REAL,&timer,NIL);

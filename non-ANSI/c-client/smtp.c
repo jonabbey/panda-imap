@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	21 July 1992
+ * Last Edited:	2 October 1992
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -43,8 +43,8 @@
 
 #include <ctype.h>
 #include <stdio.h>
-#include "osdep.h"
 #include "mail.h"
+#include "osdep.h"
 #include "smtp.h"
 #include "rfc822.h"
 #include "misc.h"
@@ -65,6 +65,8 @@ SMTPSTREAM *smtp_open (hostlist,debug)
   if (!(hostlist && *hostlist)) mm_log ("Missing MTP service host",ERROR);
   else do {			/* try to open connection */
     if (tcpstream = tcp_open (*hostlist,SMTPTCPPORT)) {
+				/* default local host */
+      if (!lhostn) lhostn = cpystr (tcp_localhost (tcpstream));
       stream = (SMTPSTREAM *) fs_get (sizeof (SMTPSTREAM));
       stream->tcpstream = tcpstream;
       stream->debug = debug;

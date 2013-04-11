@@ -7,7 +7,7 @@
 #		Internet: dmiller@beta.tricity.wsu.edu
 #
 # Date:		11 May 1989
-# Last Edited:	19 May 1992
+# Last Edited:	13 October 1992
 #
 # Copyright 1992 by the University of Washington
 #
@@ -28,8 +28,8 @@
 # (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-CC=cc
-CFLAGS = -g 
+CC = cc
+CFLAGS = -g -Dconst=
 LDFLAGS = -lnet 
 
 mtest: mtest.o c-client.a

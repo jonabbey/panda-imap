@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	1 February 1992
+ * Last Edited:	13 September 1992
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -85,8 +85,8 @@ void rfc822_cat (char *dest,char *src,const char *specials);
 void rfc822_write_body_header (char **header,BODY *body);
 char *rfc822_default_subtype (unsigned short type);
 void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
-		       char *b, unsigned long j,char *host,char *tmp);
-void rfc822_parse_content (BODY *body,char *b,unsigned long i,char *h,char *t);
+		       STRING *bs,char *host,char *tmp);
+void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t);
 void rfc822_parse_content_header (BODY *body,char *name,char *s);
 void rfc822_parse_adrlist (ADDRESS **lst,char *string,char *host);
 ADDRESS *rfc822_parse_address (char **string,char *defaulthost);

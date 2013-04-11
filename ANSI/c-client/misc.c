@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	21 July 1992
+ * Last Edited:	13 September 1992
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -43,8 +43,8 @@
 
 
 #include <ctype.h>
-#include "osdep.h"
 #include "mail.h"
+#include "osdep.h"
 #include "misc.h"
 
 /* Convert string to all uppercase

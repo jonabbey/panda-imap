@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	21 July 1992
+ * Last Edited:	27 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -36,14 +36,12 @@
 #define MAILFILE "/usr/spool/mail/%s"
 #define ACTIVEFILE "/usr/lib/news/active"
 #define NEWSSPOOL "/usr/spool/news"
-#define NEWSRC strcat (strcpy (tmp,getpwuid (geteuid ())->pw_dir),"/.newsrc")
+#define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 #define NFSKLUDGE
 
 #include <strings.h>
 #include <sys/types.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
-
-#define const
 
 typedef unsigned long size_t;
 
@@ -86,6 +84,7 @@ char *tcp_getline  ();
 long tcp_getbuffer  ();
 long tcp_getdata  ();
 long tcp_soutr  ();
+long tcp_sout  ();
 void tcp_close  ();
 char *tcp_host  ();
 char *tcp_localhost  ();

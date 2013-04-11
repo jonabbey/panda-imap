@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	23 July 1992
+ * Last Edited:	27 October 1992
  *
  * Copyright 1992 by the University of Washington.
  *
@@ -37,7 +37,7 @@
 #define MAILFILE "/usr/spool/mail/%s"
 #define ACTIVEFILE "/usr/lib/news/active"
 #define NEWSSPOOL "/usr/spool/news"
-#define NEWSRC strcat (strcpy (tmp,getpwuid (geteuid ())->pw_dir),"/.newsrc")
+#define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 
 #include <stdlib.h>
 #include <string.h>
@@ -105,8 +105,10 @@ void fs_resize (void **block,size_t size);
 void fs_give (void **block);
 void fatal (char *string);
 char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl);
-unsigned long strcrlflen (char *src,unsigned long srcl);
+unsigned long strcrlflen (STRING *s);
 long server_login (char *user,char *pass,char **home,int argc,char *argv[]);
+char *myusername ();
+char *myhomedir ();
 char *lockname (char *tmp,char *fname);
 TCPSTREAM *tcp_open (char *host,int port);
 TCPSTREAM *tcp_aopen (char *host,char *service);
@@ -114,6 +116,7 @@ char *tcp_getline (TCPSTREAM *stream);
 long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer);
 long tcp_getdata (TCPSTREAM *stream);
 long tcp_soutr (TCPSTREAM *stream,char *string);
+long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
 void tcp_close (TCPSTREAM *stream);
 char *tcp_host (TCPSTREAM *stream);
 char *tcp_localhost (TCPSTREAM *stream);

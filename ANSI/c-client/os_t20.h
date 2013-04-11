@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	21 July 1992
+ * Last Edited:	27 October 1992
  *
  * Copyright 1992 by Mark Crispin
  *
@@ -74,13 +74,14 @@ void fs_resize (void **block,size_t size);
 void fs_give (void **block);
 void fatal (char *string);
 char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl);
-unsigned long strcrlflen (char *src,unsigned long srcl);
+unsigned long strcrlflen (STRING *s);
 long server_login (char *user,char *pass,char **home,int argc,char *argv[]);
 TCPSTREAM *tcp_open (char *host,int port);
 TCPSTREAM *tcp_aopen (char *host,char *service);
 char *tcp_getline (TCPSTREAM *stream);
 long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer);
 long tcp_soutr (TCPSTREAM *stream,char *string);
+long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
 void tcp_close (TCPSTREAM *stream);
 char *tcp_host (TCPSTREAM *stream);
 char *tcp_localhost (TCPSTREAM *stream);

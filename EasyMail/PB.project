@@ -1,0 +1,28 @@
+INSTALLDIR = /LocalApps;
+APPICON = EasyMail.tiff;
+GENERATEMAIN = YES;
+DOCICONFILES = ();
+FILESTABLE = {
+    M_FILES = (EasyMail_main.m);
+    OTHER_LINKED = ();
+    H_FILES = (EasyMail.h);
+    CLASSES = (EasyMail.m);
+    IMAGES = ();
+    PSW_FILES = ();
+    C_FILES = ();
+    OTHER_SOURCES = ();
+    PSWM_FILES = ();
+    SOUNDS = ();
+    OTHER_LIBS = (Media_s, NeXT_s);
+    INTERFACES = (AddressBook.nib, AddressHelpPanel.nib, EasyMail.nib, FilePanel.nib, HelpPanel.nib, InfoPanel.nib, MBoxWindow.nib, Preferences.nib, ReadHelpPanel.nib, ReadWindow.nib, SendHelpPanel.nib, SendWindow.nib);
+};
+APPCLASS = EasyMail;
+MAINNIB = EasyMail;
+DOCEXTENSIONS = ();
+PROJECTTYPE = Application;
+LOCALIZABLE_FILES = {
+};
+PROJECTVERSION = 1.1;
+PROJECTNAME = EasyMail;
+SYSTEMEXTENSIONS = ();
+LANGUAGE = English;

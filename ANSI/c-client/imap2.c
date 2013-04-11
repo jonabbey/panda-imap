@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	23 August 1992
+ * Last Edited:	2 October 1992
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -43,13 +43,13 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include "mail.h"
 #include "osdep.h"
 #if unix
 #include <pwd.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #endif
-#include "mail.h"
 #include "imap2.h"
 #include "misc.h"
 
@@ -111,7 +111,7 @@ void map_find (MAILSTREAM *stream,char *pat)
     char tmp[MAILTMPLEN];
     char *s,*t;
     struct stat sbuf;
-    sprintf (tmp,"%s/.mailboxlist",getpwuid (geteuid ())->pw_dir);
+    sprintf (tmp,"%s/.mailboxlist",myhomedir ());
     if ((fd = open (tmp,O_RDONLY,NIL)) >= 0) {
       fstat (fd,&sbuf);		/* get file size and read data */
       read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
@@ -217,6 +217,7 @@ MAILSTREAM *map_open (MAILSTREAM *stream)
 	    map_close (stream);	/* clean up */
 	  }
 	  else {		/* only so many tries to login */
+	    if (!lhostn) lhostn = cpystr (tcp_localhost (LOCAL->tcpstream));
 	    for (i = 0; i < MAXLOGINTRIALS; ++i) {
 	      *pwd = 0;		/* get password */
 	      mm_login (tcp_host (LOCAL->tcpstream),username,pwd,i);
@@ -324,7 +325,8 @@ void map_fetchfast (MAILSTREAM *stream,char *sequence)
     mm_log (LOCAL->tmp,ERROR);
   }
 }
-
+
+
 /* Mail Access Protocol fetch flags
  * Accepts: MAIL stream
  *	    sequence
@@ -338,9 +340,8 @@ void map_fetchflags (MAILSTREAM *stream,char *sequence)
     mm_log (LOCAL->tmp,ERROR);
   }
 }
-
-
-/* Mail Access Protocol fetch envelope
+
+/* Mail Access Protocol fetch structure
  * Accepts: MAIL stream
  *	    message # to fetch
  *	    pointer to return body
@@ -376,20 +377,21 @@ ENVELOPE *map_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
       while (i < j && !mail_lelt (stream,i+1)->env) i++;
     sprintf (seq,"%ld:%ld",msgno,i);
   }
-  if (!*env) {			/* if we don't have an envelope */
-    if (LOCAL->use_body) {	/* build "FETCH seq FULL" if can do */
-      if (!(strcmp ((reply = imap_send (stream,"FETCH",seq,"FULL"))->key,
-		    "BAD"))) LOCAL->use_body = NIL;
-    }
-				/* can't, send "FETCH seq ALL" instead */
-    if (!LOCAL->use_body) reply = imap_send (stream,"FETCH",seq,"ALL");
+				/* have the poop we need? */
+  if ((body && !*b && LOCAL->use_body) || !*env) {
+    mail_free_envelope (env);	/* flush old envelope and body */
+    mail_free_body (b);
+    if (!(body && LOCAL->use_body &&
+	  (LOCAL->use_body =
+	   (strcmp ((reply = imap_send(stream,"FETCH",seq,"FULL"))->key,"BAD")?
+	    T : NIL)))) reply = imap_send (stream,"FETCH",seq,"ALL");
     if (!imap_OK (stream,reply)) {
       sprintf (LOCAL->tmp,"Fetch envelope rejected: %.80s",reply->text);
       mm_log (LOCAL->tmp,ERROR);
       return NIL;
     }
   }
-  *body = *b;			/* return the body */
+  if (body) *body = *b;		/* return the body */
   return *env;			/* return the envelope */
 }
 
@@ -586,13 +588,7 @@ void map_search (MAILSTREAM *stream,char *criteria)
       }
     if (LOCAL->tmp[0]) {	/* anything to pre-fetch? */
       s = cpystr (LOCAL->tmp);	/* yes, copy sequence */
-      if (LOCAL->use_body) {	/* fetch bodies if can do */
-	if (!(strcmp ("BAD",	/* pre-fetch the searched messages */
-		      (reply = imap_send (stream,"FETCH",s,"FULL"))->key)))
-	  LOCAL->use_body = NIL;/* remember if we can't */
-      }
-      if (!LOCAL->use_body) reply = imap_send (stream,"FETCH",s,"ALL");
-      if (!imap_OK (stream,reply)) {
+      if (!imap_OK (stream,reply = imap_send (stream,"FETCH",s,"ALL"))) {
 	sprintf (LOCAL->tmp,"Search pre-fetch rejected: %.80s",reply->text);
 	mm_log (LOCAL->tmp,ERROR);
       }

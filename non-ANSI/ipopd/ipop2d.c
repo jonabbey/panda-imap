@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	21 July 1992
+ * Last Edited:	13 September 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -36,11 +36,11 @@
 
 /* Parameter files */
 
+#include "mail.h"
 #include "osdep.h"
 #include <stdio.h>
 #include <ctype.h>
 #include <pwd.h>
-#include "mail.h"
 #include "misc.h"
 
 

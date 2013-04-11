@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	17 February 1989
- * Last Edited:	26 June 1992
+ * Last Edited:	28 September 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -381,7 +381,8 @@ id read_action;
 				// create the browser
   browser = [Matrix newFrame:&frame mode:NX_RADIOMODE prototype:cell
 	     numRows:1 numCols:1];
-  [browser allowEmptySel:T];	// allow empty selection
+				// allow empty selection
+  [browser setEmptySelectionEnabled:T];
   [cell calcCellSize:&size];	// get the minimum cell size
   size.width = 2000;		// make cells superwide
   [browser setCellSize:&size];	// set the cell size

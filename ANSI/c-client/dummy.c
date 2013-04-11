@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	12 July 1992
+ * Last Edited:	13 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -38,10 +38,9 @@
 #include <ctype.h>
 #include <errno.h>
 extern int errno;		/* just in case */
-#include <pwd.h>
+#include "mail.h"
 #include "osdep.h"
 #include <sys/file.h>
-#include "mail.h"
 #include "dummy.h"
 #include "misc.h"
 
@@ -90,7 +89,7 @@ DRIVER *dummy_valid (char *name)
   case '\0':			/* missing name? */
     return &dummydriver;
   default:			/* relative file name */
-    sprintf (s,"%s/%s",(getpwuid (geteuid ()))->pw_dir,name);
+    sprintf (s,"%s/%s",myhomedir (),name);
   case '/':			/* absolute file name, can we open the file? */
     if ((fd = open (s,O_RDONLY,NIL)) < 0) return &dummydriver;
     close (fd);			/* must be bogus format file */

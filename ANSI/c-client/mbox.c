@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	23 July 1992
+ * Last Edited:	28 September 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -35,15 +35,14 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <pwd.h>
 #include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
+#include "mail.h"
 #include "osdep.h"
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include "mail.h"
 #include "mbox.h"
 #include "bezerk.h"
 #include "misc.h"
@@ -103,7 +102,7 @@ DRIVER *mbox_valid (char *name)
 				/* only consider INBOX */
   if (!strcmp (ucase (strcpy (s,name)),"INBOX")) {
 				/* make what the file name would be */
-    sprintf (s,"%s/mbox",getpwuid (geteuid ())->pw_dir);
+    sprintf (s,"%s/mbox",myhomedir ());
 				/* file exist? */
     if ((stat(s,&sbuf) == 0) && (fd = open (s,O_RDONLY,NIL)) >= 0) {
 				/* allow empty or valid file */
@@ -138,7 +137,7 @@ MAILSTREAM *mbox_open (MAILSTREAM *stream)
   unsigned long recent = 0;
   char tmp[MAILTMPLEN];
 				/* change mailbox file name */
-  sprintf (tmp,"%s/mbox",getpwuid (geteuid ())->pw_dir);
+  sprintf (tmp,"%s/mbox",myhomedir ());
   fs_give ((void **) &stream->mailbox);
   stream->mailbox = cpystr (tmp);
   stream->silent = T;		/* don't babble on this stream */
@@ -169,7 +168,7 @@ long mbox_ping (MAILSTREAM *stream)
   if (LOCAL && !stream->readonly && !stream->lock) {
     mm_critical (stream);	/* go critical */
 				/* calculate name of bezerk file */
-    sprintf (LOCAL->buf,MAILFILE,getpwuid (geteuid ())->pw_name);
+    sprintf (LOCAL->buf,MAILFILE,myhomedir ());
     if ((sfd = bezerk_lock (LOCAL->buf,O_RDWR,NIL,slock,LOCK_EX)) >= 0) {
       fstat (sfd,&sbuf);	/* get size of the poop */
       if (size = sbuf.st_size){ /* non-empty? */

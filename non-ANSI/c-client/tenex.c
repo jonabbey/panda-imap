@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	22 July 1992
+ * Last Edited:	2 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -36,15 +36,14 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <pwd.h>
 #include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
+#include "mail.h"
 #include "osdep.h"
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include "mail.h"
 #include "tenex.h"
 #include "rfc822.h"
 #include "misc.h"
@@ -131,7 +130,7 @@ void tenex_find (stream,pat)
   char *s,*t;
   struct stat sbuf;
 				/* make file name */
-  sprintf (tmp,"%s/.mailboxlist",getpwuid (geteuid ())->pw_dir);
+  sprintf (tmp,"%s/.mailboxlist",myhomedir ());
   if ((fd = open (tmp,O_RDONLY,NIL)) >= 0) {
     fstat (fd,&sbuf);		/* get file size and read data */
     read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
@@ -180,10 +179,9 @@ MAILSTREAM *tenex_open (stream)
     if (stream->flagstring) fs_give ((void **) &stream->flagstring);
     for (i = 0; i < NUSERFLAGS; ++i) stream->user_flags[i] = NIL;
 				/* open .imapinit or .mminit file */
-    if ((fd = open (strcat (strcpy (tmp,getpwuid (geteuid ())->pw_dir),
-			    "/.imapinit"),O_RDONLY,NIL)) < 0)
-      fd = open (strcat (strcpy (tmp,getpwuid (geteuid ())->pw_dir),
-			 "/.mminit"),O_RDONLY,NIL);
+    if ((fd = open (strcat (strcpy (tmp,myhomedir ()),"/.imapinit"),
+		    O_RDONLY,NIL)) < 0)
+      fd = open (strcat (strcpy (tmp,myhomedir ()),"/.mminit"),O_RDONLY,NIL);
     if (fd >= 0) {		/* got an init file? */
       fstat (fd,&sbuf);		/* yes, get size */
       read (fd,(s = stream->flagstring = (char *) fs_get (sbuf.st_size + 1)),
@@ -230,9 +228,11 @@ MAILSTREAM *tenex_open (stream)
 				/* canonicalize the stream mailbox name */
   fs_give ((void **) &stream->mailbox);
   stream->mailbox = cpystr (tmp);
-  gethostname (tmp,MAILTMPLEN);	/* get local host name */
-  LOCAL->host = cpystr ((host_name = gethostbyname (tmp)) ?
-			host_name->h_name : tmp);
+  if (!lhostn) {		/* have local host yet? */
+    gethostname(tmp,MAILTMPLEN);/* get local host name */
+    lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
+		     host_name->h_name : tmp);
+  }
 				/* bind and lock the file */
   flock (LOCAL->fd = fd,LOCK_SH);
   LOCAL->filesize = 0;		/* initialize parsed file size */
@@ -258,7 +258,6 @@ void tenex_close (stream)
 {
   long i;
   if (stream && LOCAL) {	/* only if a file is open */
-    if (LOCAL->host) fs_give ((void **) &LOCAL->host);
     flock (LOCAL->fd,LOCK_UN);	/* unlock local file */
     close (LOCAL->fd);		/* close the local file */
 				/* free local cache */
@@ -314,11 +313,12 @@ ENVELOPE *tenex_fetchstructure (stream,msgno,body)
 	long msgno;
 	BODY **body;
 {
-  long i = msgno -1;
   LONGCACHE *lelt;
   ENVELOPE **env;
   BODY **b;
-  FILECACHE *m = LOCAL->msgs[i];
+  STRING bs;
+  FILECACHE *m = LOCAL->msgs[msgno - 1];
+  long i = max (m->headersize,m->bodysize);
   if (stream->scache) {		/* short cache */
     if (msgno != stream->msgno){/* flush old poop if a different message */
       mail_free_envelope (&stream->env);
@@ -333,18 +333,19 @@ ENVELOPE *tenex_fetchstructure (stream,msgno,body)
     env = &lelt->env;		/* get pointers to envelope and body */
     b = &lelt->body;
   }
-  if (!*env) {			/* have envelope poop? */
-				/* make sure enough buffer space */
-    if ((i = max (m->headersize,m->bodysize)) > LOCAL->buflen) {
+  if ((body && !*b) || !*env) {	/* have the poop we need? */
+    mail_free_envelope (env);	/* flush old envelope and body */
+    mail_free_body (b);
+    if (i > LOCAL->buflen) {	/* make sure enough buffer space */
       fs_give ((void **) &LOCAL->buf);
       LOCAL->buf = (char *) fs_get ((LOCAL->buflen = i) + 1);
     }
+    INIT (&bs,mail_string,(void *) (LOCAL->text + m->body),m->bodysize);
 				/* parse envelope and body */
-    rfc822_parse_msg (env,b,LOCAL->text + m->header,m->headersize,
-		      LOCAL->text + m->body,m->bodysize,
-		      LOCAL->host,LOCAL->buf);
+    rfc822_parse_msg (env,body ? b : NIL,LOCAL->text + m->header,m->headersize,
+		      &bs,lhostn,LOCAL->buf);
   }
-  *body = *b;			/* return the body */
+  if (body) *body = *b;		/* return the body */
   return *env;			/* return the envelope */
 }
 
@@ -416,15 +417,13 @@ char *tenex_fetchbody (stream,m,s,len)
       if (!pt) return NIL;	/* bad specifier */
 				/* note new body, check valid nesting */
       if (((b = &pt->body)->type == TYPEMULTIPART) && !*s) return NIL;
-      base += offset;		/* calculate new base */
-      offset = pt->offset;	/* and its offset */
+      offset = pt->offset;	/* get new offset */
     }
     else if (i != 1) return NIL;/* otherwise must be section 1 */
 				/* need to go down further? */
     if (i = *s) switch (b->type) {
     case TYPEMESSAGE:		/* embedded message, calculate new base */
-      base += offset + b->contents.msg.offset;
-      offset = 0;		/* no offset any more */
+      offset = b->contents.msg.offset;
       b = b->contents.msg.body;	/* get its body, drop into multipart case */
     case TYPEMULTIPART:		/* multipart, get next section */
       if ((*s++ == '.') && (i = strtol (s,&s,10)) > 0) break;
@@ -635,7 +634,7 @@ long tenex_ping (stream)
 
     mm_critical (stream);	/* go critical */
 				/* calculate name of bezerk file */
-    sprintf (LOCAL->buf,MAILFILE,getpwuid (geteuid ())->pw_name);
+    sprintf (LOCAL->buf,MAILFILE,myusername ());
     stat (LOCAL->buf,&sbuf);	/* see if anything there */
 				/* non-empty and we can lock our file? */
     if (sbuf.st_size && !flock (LOCAL->fd,LOCK_EX|LOCK_NB)) {
@@ -842,12 +841,11 @@ char *tenex_file (dst,name)
 	char *dst;
 	char *name;
 {
-  char *home = getpwuid (geteuid ())->pw_dir;
   strcpy (dst,name);		/* copy the mailbox name */
   if (*dst != '/') {		/* pass absolute file paths */
-    if (strcmp (ucase (dst),"INBOX")) sprintf (dst,"%s/%s",home,name);
+    if (strcmp (ucase (dst),"INBOX")) sprintf (dst,"%s/%s",myhomedir (),name);
 				/* INBOX becomes ~USER/mail.txt file */
-    else sprintf (dst,"%s/mail.txt",home);
+    else sprintf (dst,"%s/mail.txt",myhomedir ());
   }
   return dst;
 }
@@ -1225,7 +1223,7 @@ void tenex_update_status (stream,msgno,syncflag)
       fatal ("Bad mailbox flag syntax!");
     j = elt->user_flags;	/* get user flags */
 				/* reverse bits (dontcha wish we had CIRC?) */
-    while (j) k |= 1 << 29 - find_rightmost_bit (&j);
+    while (j) k |= 1 << (29 - find_rightmost_bit (&j));
 				/* print new flag string */
     sprintf (LOCAL->buf,"%010lo%02o",k,
 	     (fSEEN * elt->seen) + (fDELETED * elt->deleted) +
@@ -1442,8 +1440,7 @@ char tenex_search_subject (stream,msgno,d,n)
 	char *d;
 	long n;
 {
-  BODY *body;
-  char *s = tenex_fetchstructure (stream,msgno,&body)->subject;
+  char *s = tenex_fetchstructure (stream,msgno,NIL)->subject;
   return s ? search (s,strlen (s),d,n) : NIL;
 }
 
@@ -1465,10 +1462,10 @@ char tenex_search_bcc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,tenex_fetchstructure(stream,msgno,&b)->bcc);
+  rfc822_write_address (LOCAL->buf,
+			tenex_fetchstructure (stream,msgno,NIL)->bcc);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 
@@ -1479,10 +1476,10 @@ char tenex_search_cc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,tenex_fetchstructure (stream,msgno,&b)->cc);
+  rfc822_write_address (LOCAL->buf,
+			tenex_fetchstructure (stream,msgno,NIL)->cc);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 
@@ -1493,10 +1490,10 @@ char tenex_search_from (stream,msgno,d,n)
 	char *d;
 	long n;
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address(LOCAL->buf,tenex_fetchstructure(stream,msgno,&b)->from);
+  rfc822_write_address (LOCAL->buf,
+			tenex_fetchstructure (stream,msgno,NIL)->from);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 
@@ -1507,10 +1504,10 @@ char tenex_search_to (stream,msgno,d,n)
 	char *d;
 	long n;
 {
-  BODY *b;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,tenex_fetchstructure (stream,msgno,&b)->to);
+  rfc822_write_address (LOCAL->buf,
+			tenex_fetchstructure (stream,msgno,NIL)->to);
   return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
 }
 

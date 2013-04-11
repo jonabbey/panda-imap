@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	12 July 1992
+ * Last Edited:	13 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -342,6 +342,45 @@ DRIVER {
   void (*gc) (MAILSTREAM *stream,long gcflags);
 };
 
+/* String structure */
+
+#define STRINGDRIVER struct string_driver
+
+typedef struct mailstring {
+  void *data;			/* driver-dependent data */
+  unsigned long data1;		/* driver-dependent data */
+  unsigned long size;		/* total length of string */
+  char *chunk;			/* base address of chunk */
+  unsigned long chunksize;	/* size of chunk */
+  unsigned long offset;		/* offset of this chunk in base */
+  char *curpos;			/* current position in chunk */
+  unsigned long cursize;	/* number of bytes remaining in chunk */
+  STRINGDRIVER *dtb;		/* driver that handles this type of string */
+} STRING;
+
+
+/* Dispatch table for string driver */
+
+STRINGDRIVER {
+				/* initialize string driver */
+  void (*init) (STRING *s,void *data,unsigned long size);
+				/* get next character in string */
+  char (*next) (STRING *s);
+				/* set position in string */
+  void (*setpos) (STRING *s,unsigned long i);
+};
+
+
+/* Stringstruct access routines */
+
+#define INIT(s,d,data,size) ((*((s)->dtb = &d)->init) (s,data,size))
+#define SIZE(s) (s->size - GETPOS (s))
+#define CHR(s) (*s->curpos)
+#define NXT(s) (--s->cursize ? *s->curpos++ : (*s->dtb->next) (s))
+#define GETPOS(s) (s->offset + (s->curpos - s->chunk))
+#define SETPOS(s,i) (*s->dtb->setpos) (s,i)
+
+
 /* Other symbols */
 
 extern const char *months[];	/* month name strings */
@@ -353,6 +392,7 @@ typedef long (*readfn_t) (void *stream,unsigned long size,char *buffer);
 typedef char *(*mailgets_t) (readfn_t f,void *stream,unsigned long size);
 typedef void *(*mailcache_t) (MAILSTREAM *stream,long msgno,long op);
 
+extern char *lhostn;
 extern mailgets_t mailgets;
 extern mailcache_t mailcache;
 
@@ -374,6 +414,10 @@ extern mailcache_t mailcache;
 #define mm_nocritical mmncrt
 #define mm_diskerror mmderr
 #define mm_fatal mmfatl
+#define mail_string mstr
+#define mail_string_init mstrin
+#define mail_string_next mstrnx
+#define mail_string_setpos mstrsp
 #define mail_link mllink
 #define mail_find mlfind
 #define mail_find_bboards mlfndb
@@ -402,6 +446,7 @@ extern mailcache_t mailcache;
 #define mail_move mlmove
 #define mail_gc mailgc
 #define mail_date mldate
+#define mail_cdate mlcdat
 #define mail_parse_date mlpdat
 #define mail_searched mlsrch
 #define mail_exists mlexist
@@ -446,6 +491,10 @@ void mm_fatal (char *string);
 char *mm_gets (readfn_t f,void *stream,unsigned long size);
 void *mm_cache (MAILSTREAM *stream,long msgno,long op);
 
+extern STRINGDRIVER mail_string;
+void mail_string_init (STRING *s,void *data,unsigned long size);
+char mail_string_next (STRING *s);
+void mail_string_setpos (STRING *s,unsigned long i);
 void mail_link (DRIVER *driver);
 void mail_find (MAILSTREAM *stream,char *pat);
 void mail_find_bboards (MAILSTREAM *stream,char *pat);
@@ -464,6 +513,7 @@ void mail_fetchfrom (char *s,MAILSTREAM *stream,long msgno,long length);
 void mail_fetchsubject (char *s,MAILSTREAM *stream,long msgno,long length);
 LONGCACHE *mail_lelt (MAILSTREAM *stream,long msgno);
 MESSAGECACHE *mail_elt (MAILSTREAM *stream,long msgno);
+
 void mail_setflag (MAILSTREAM *stream,char *sequence,char *flag);
 void mail_clearflag (MAILSTREAM *stream,char *sequence,char *flag);
 void mail_search (MAILSTREAM *stream,char *criteria);
@@ -474,6 +524,7 @@ long mail_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long mail_move (MAILSTREAM *stream,char *sequence,char *mailbox);
 void mail_gc (MAILSTREAM *stream,long gcflags);
 char *mail_date (char *string,MESSAGECACHE *elt);
+char *mail_cdate (char *string,MESSAGECACHE *elt);
 long mail_parse_date (MESSAGECACHE *elt,char *string);
 void mail_searched (MAILSTREAM *stream,long msgno);
 void mail_exists (MAILSTREAM *stream,long nmsgs);

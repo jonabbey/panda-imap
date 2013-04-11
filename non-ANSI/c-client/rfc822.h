@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	1 February 1992
+ * Last Edited:	13 September 1992
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -102,7 +102,7 @@ char *rfc822_contents  ();
 #ifndef TCPSTREAM
 #define TCPSTREAM void
 #endif
-typedef long (*soutr_t)  ();
+typedef long (*soutr_t) ();
 long rfc822_output  ();
 void rfc822_encode_body  ();
 long rfc822_output_body  ();

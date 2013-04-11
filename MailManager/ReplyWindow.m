@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 June 1989
- * Last Edited:	9 June 1992
+ * Last Edited:	28 September 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -129,7 +129,7 @@
   MAILSTREAM *stream = handle ? mail_stream (handle) : NIL;
   if (stream && lelt->elt.msgno) {
 				// mark message as answered
-    sprintf (tmp,"%d",lelt->elt.msgno);
+    sprintf (tmp,"%lu",lelt->elt.msgno);
     mail_setflag (stream,tmp,"\\Answered");
 				// update status in main window
     [(getstreamprop (stream))->window updateTitle];

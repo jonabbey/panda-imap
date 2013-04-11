@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	19 July 1992
+ * Last Edited:	22 September 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -68,6 +68,10 @@ MAILSTREAM *dawz_open (MAILSTREAM *stream);
 void dawz_close (MAILSTREAM *stream);
 void dawz_fetchfast (MAILSTREAM *stream,char *sequence);
 void dawz_fetchflags (MAILSTREAM *stream,char *sequence);
+void dawz_string_init (STRING *s,void *data,unsigned long size);
+char dawz_string_next (STRING *s);
+STRINGDRIVER mail_string;
+void dawz_string_setpos (STRING *s,unsigned long i);
 ENVELOPE *dawz_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body);
 char *dawz_fetchheader (MAILSTREAM *stream,long msgno);
 char *dawz_fetchtext (MAILSTREAM *stream,long msgno);

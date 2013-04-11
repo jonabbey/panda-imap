@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	22 July 1992
+ * Last Edited:	1 October 1992
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -44,6 +44,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <signal.h>
+#include "mail.h"
 #include "osdep.h"
 #if unix
 #include <pwd.h>
@@ -53,7 +54,6 @@
 #include <MacTCPCommonTypes.h>
 #include <AddressXlation.h>
 #endif
-#include "mail.h"
 #include "rfc822.h"
 #include "smtp.h"
 #include "nntp.h"
@@ -80,6 +80,7 @@ static char *newslist[] = {	/* Netnews server host list */
 void main  ();
 void mm  ();
 void header  ();
+void display_body  ();
 void status  ();
 void prompt  ();
 void smtptest  ();
@@ -165,133 +166,147 @@ void mm (stream,debug)
   char *arg;
   long i;
   long last = 0;
+  BODY *body;
   status (stream);		/* first report message status */
   while (stream) {
     prompt ("MTest>",cmd);	/* prompt user, get command */
 				/* get argument */
     if (arg = strchr (cmd,' ')) *arg++ = '\0';
     switch (*ucase (cmd)) {	/* dispatch based on command */
-      case 'C':			/* Check command */
-	mail_check (stream);
-	status (stream);
+    case 'B':			/* Body command */
+      if (arg) last = atoi (arg);
+      else if (last == 0 ) {
+	puts ("?Missing message number");
 	break;
-      case 'D':			/* Delete command */
-	if (arg) last = atoi (arg);
-	else {
-	  if (last == 0) {
-	    puts ("?Missing message number");
-	    break;
-	  }
-	  arg = cmd;
-	  sprintf (arg,"%ld",last);
-	}
-	if (last > 0 && last <= stream->nmsgs)
-	  mail_setflag (stream,arg,"\\DELETED");
-	else puts ("?Bad message number");
-	break;
-      case 'E':			/* Expunge command */
-	mail_expunge (stream);
-	last = 0;
-	break;
-      case 'F':			/* Find command */
-	puts ("Known mailboxes:");
-	mail_find (stream,"*");
-	puts ("Known bboards:");
-	mail_find_bboards (stream,"*");
-	break;
-      case 'G':
-	mail_gc (stream,GC_ENV|GC_TEXTS|GC_ELT);
-	break;
-      case 'H':			/* Headers command */
-	if (arg) {
-	  if (!(last = atoi (arg))) {
-	    mail_search (stream,arg);
-	    for (i = 1; i <= stream->nmsgs; ++i)
-	      if (mail_elt (stream,i)->searched) header (stream,i);
-	    break;
-	  }
-	}
-	else if (last == 0) {
+      }
+      if (last > 0 && last <= stream->nmsgs) {
+	mail_fetchstructure (stream,last,&body);
+	if (body) display_body (body,NIL,(long) 0);
+	else puts ("%No body information available");
+      }
+      else puts ("?Bad message number");
+      break;
+    case 'C':			/* Check command */
+      mail_check (stream);
+      status (stream);
+      break;
+    case 'D':			/* Delete command */
+      if (arg) last = atoi (arg);
+      else {
+	if (last == 0) {
 	  puts ("?Missing message number");
 	  break;
 	}
-	if (last > 0 && last <= stream->nmsgs) header (stream,last);
-	else puts ("?Bad message number");
-	break;
-      case 'M':
-	prompt ("Destination: ",cmdx);
-	mail_move (stream,arg,cmdx);
-	break;
-      case 'N':			/* New mailbox command */
-	if (!arg) {
-	  puts ("?Missing mailbox");
+	arg = cmd;
+	sprintf (arg,"%ld",last);
+      }
+      if (last > 0 && last <= stream->nmsgs)
+	mail_setflag (stream,arg,"\\DELETED");
+      else puts ("?Bad message number");
+      break;
+    case 'E':			/* Expunge command */
+      mail_expunge (stream);
+      last = 0;
+      break;
+    case 'F':			/* Find command */
+      puts ("Known mailboxes:");
+      mail_find (stream,"*");
+      puts ("Known bboards:");
+      mail_find_bboards (stream,"*");
+      break;
+    case 'G':
+      mail_gc (stream,GC_ENV|GC_TEXTS|GC_ELT);
+      break;
+    case 'H':			/* Headers command */
+      if (arg) {
+	if (!(last = atoi (arg))) {
+	  mail_search (stream,arg);
+	  for (i = 1; i <= stream->nmsgs; ++i)
+	    if (mail_elt (stream,i)->searched) header (stream,i);
 	  break;
 	}
+      }
+      else if (last == 0) {
+	puts ("?Missing message number");
+	break;
+      }
+      if (last > 0 && last <= stream->nmsgs) header (stream,last);
+      else puts ("?Bad message number");
+      break;
+    case 'M':
+      prompt ("Destination: ",cmdx);
+      mail_move (stream,arg,cmdx);
+      break;
+    case 'N':			/* New mailbox command */
+      if (!arg) {
+	puts ("?Missing mailbox");
+	break;
+      }
 				/* get the new mailbox */
-	while (!(stream = mail_open (stream,arg,debug)))
-	  prompt ("Mailbox: ",arg);
-	last = 0;
-	status (stream);
+      while (!(stream = mail_open (stream,arg,debug)))
+	prompt ("Mailbox: ",arg);
+      last = 0;
+      status (stream);
+      break;
+    case 'Q':			/* Quit command */
+      mail_close (stream);
+      stream = NIL;
+      break;
+    case 'S':			/* Send command */
+      smtptest (debug);
+      break;
+    case 'T':			/* Type command */
+      if (arg) last = atoi (arg);
+      else if (last == 0 ) {
+	puts ("?Missing message number");
 	break;
-      case 'Q':			/* Quit command */
-	mail_close (stream);
-	stream = NIL;
-	break;
-      case 'S':			/* Send command */
-	smtptest (debug);
-	break;
-      case 'T':			/* Type command */
-	if (arg) last = atoi (arg);
-	else if (last == 0 ) {
+      }
+      if (last > 0 && last <= stream->nmsgs) {
+	printf ("%s",mail_fetchheader (stream,last));
+	puts (mail_fetchtext (stream,last));
+      }
+      else puts ("?Bad message number");
+      break;
+    case 'U':			/* Undelete command */
+      if (arg) last = atoi (arg);
+      else {
+	if (last == 0 ) {
 	  puts ("?Missing message number");
 	  break;
 	}
-	if (last > 0 && last <= stream->nmsgs) {
-	  printf ("%s",mail_fetchheader (stream,last));
-	  puts (mail_fetchtext (stream,last));
-	}
-	else puts ("?Bad message number");
-	break;
-      case 'U':			/* Undelete command */
-	if (arg) last = atoi (arg);
-	else {
-	  if (last == 0 ) {
-	    puts ("?Missing message number");
-	    break;
-	  }
-	  arg = cmd;
-	  sprintf (arg,"%ld",last);
-	}
-	if (last > 0 && last <= stream->nmsgs)
-	  mail_clearflag (stream,arg,"\\DELETED");
-	else puts ("?Bad message number");
-	break;
-      case 'X':			/* Xit command */
-	mail_expunge (stream);
-	mail_close (stream);
-	stream = NIL;
-	break;
-      case '+':
-	mail_debug (stream); debug = T;
-	break;
-      case '-':
-	mail_nodebug (stream); debug = NIL;
-	break;
-      case '?':			/* ? command */
-	puts ("Check, Delete, Expunge, Find, GC, Headers, Move, New Mailbox,");
-	puts (" Quit, Send, Type, Undelete, Xit,");
-	puts (" +, -, or <RETURN> for next message");
-	break;
-      case '\0':		/* null command (type next message) */
-	if (last > 0 && last++ < stream->nmsgs) {
-	  printf ("%s",mail_fetchheader (stream,last));
-	  puts (mail_fetchtext (stream,last));
-	}
-	else puts ("%No next message");
-	break;
-      default:			/* bogus command */
-	printf ("?Unrecognized command: %s\n",cmd);
-	break;
+	arg = cmd;
+	sprintf (arg,"%ld",last);
+      }
+      if (last > 0 && last <= stream->nmsgs)
+	mail_clearflag (stream,arg,"\\DELETED");
+      else puts ("?Bad message number");
+      break;
+    case 'X':			/* Xit command */
+      mail_expunge (stream);
+      mail_close (stream);
+      stream = NIL;
+      break;
+    case '+':
+      mail_debug (stream); debug = T;
+      break;
+    case '-':
+      mail_nodebug (stream); debug = NIL;
+      break;
+    case '?':			/* ? command */
+      puts ("Body, Check, Delete, Expunge, Find, GC, Headers, Move,");
+      puts (" New Mailbox, Quit, Send, Type, Undelete, Xit,");
+      puts (" +, -, or <RETURN> for next message");
+      break;
+    case '\0':		/* null command (type next message) */
+      if (last > 0 && last++ < stream->nmsgs) {
+	printf ("%s",mail_fetchheader (stream,last));
+	puts (mail_fetchtext (stream,last));
+      }
+      else puts ("%No next message");
+      break;
+    default:			/* bogus command */
+      printf ("?Unrecognized command: %s\n",cmd);
+      break;
     }
   }
 }
@@ -308,9 +323,8 @@ void header (stream,msgno)
   long i;
   char tmp[256];
   char *t;
-  BODY *body;
   MESSAGECACHE *cache = mail_elt (stream,msgno);
-  mail_fetchstructure (stream,msgno,&body);
+  mail_fetchstructure (stream,msgno,NIL);
   tmp[0] = cache->recent ? (cache->seen ? 'R': 'N') : ' ';
   tmp[1] = (cache->recent | cache->seen) ? ' ' : 'U';
   tmp[2] = cache->flagged ? 'F' : ' ';
@@ -333,6 +347,58 @@ void header (stream,msgno)
   mail_fetchsubject (t = tmp + strlen (tmp),stream,msgno,(long) 25);
   sprintf (t += strlen (t)," (%ld chars)",cache->rfc822_size);
   puts (tmp);
+}
+
+/* MM display body
+ * Accepts: BODY structure pointer
+ *	    prefix string
+ *	    index
+ */
+
+void display_body (body,pfx,i)
+	BODY *body;
+	char *pfx;
+	long i;
+{
+  char tmp[256];
+  char *s = tmp;
+  PARAMETER *par;
+  PART *part;			/* multipart doesn't have a row to itself */
+  if (body->type == TYPEMULTIPART) {
+				/* if not first time, extend prefix */
+    if (pfx) sprintf (tmp,"%s%ld.",pfx,++i);
+    else tmp[0] = '\0';
+    for (i = 0,part = body->contents.part; part; part = part->next)
+      display_body (&part->body,tmp,i++);
+  }
+  else {			/* non-multipart, output oneline descriptor */
+    if (!pfx) pfx = "";		/* dummy prefix if top level */
+    sprintf (s," %s%ld %s",pfx,++i,body_types[body->type]);
+    if (body->subtype) sprintf (s += strlen (s),"/%s",body->subtype);
+    if (body->description) sprintf (s += strlen (s)," (%s)",body->description);
+    if (par = body->parameter) do
+      sprintf (s += strlen (s),";%s=%s",par->attribute,par->value);
+    while (par = par->next);
+    if (body->id) sprintf (s += strlen (s),", id = %s",body->id);
+    switch (body->type) {	/* bytes or lines depending upon body type */
+    case TYPEMESSAGE:		/* encapsulated message */
+    case TYPETEXT:		/* plain text */
+      sprintf (s += strlen (s)," (%ld lines)",body->size.lines);
+      break;
+    default:
+      sprintf (s += strlen (s)," (%ld bytes)",body->size.bytes);
+      break;
+    }
+    puts (tmp);			/* output this line */
+				/* encapsulated message? */
+    if (body->type == TYPEMESSAGE && (body = body->contents.msg.body)) {
+      if (body->type == TYPEMULTIPART) display_body (body,pfx,i-1);
+      else {			/* build encapsulation prefix */
+	sprintf (tmp,"%s%ld.",pfx,i);
+	display_body (body,tmp,(long) 0);
+      }
+    }
+  }
 }
 
 /* MM status report

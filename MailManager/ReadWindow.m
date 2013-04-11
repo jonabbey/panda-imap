@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 February 1989
- * Last Edited:	6 July 1992
+ * Last Edited:	30 September 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -342,10 +342,10 @@
     switch (body->type) {	// bytes or lines depending upon body type
     case TYPEMESSAGE:		// encapsulated message
     case TYPETEXT:		// plain text
-      sprintf (s += strlen (s)," (%d lines)",body->size.lines);
+      sprintf (s += strlen (s)," (%lu lines)",body->size.lines);
       break;
     default:
-      sprintf (s += strlen (s)," (%d bytes)",body->size.bytes);
+      sprintf (s += strlen (s)," (%lu bytes)",body->size.bytes);
       break;
     }
     [[[browser cellAt:r++ :0] setStringValue:tmp] setTag:(int) body];
@@ -456,18 +456,16 @@
 		  encoding:b->encoding]))
       mm_log ("Can't open memory stream for image",ERROR);
     else {			// try to run program to display subtype
-      id speaker = [NXApp appSpeaker];
-      port_t prt = NXPortFromName (NX_WORKSPACEREQUEST, NULL);
-      [speaker setSendPort:prt];// allocate WorkSpace port
+      id workspace = [Application workspace];
 				// make filename with subtype as extension
       sprintf (tmp,"/tmp/imageXXXXXX.%s",strcmp (b->subtype,"POSTSCRIPT") ?
 	       lcase (strcpy (tmp+100,b->subtype)) : "ps");
 				// save data to file
       NXSaveToFile (file,NXGetTempFilename (tmp,strchr (tmp,'X') - tmp));
 				// see if file type known to WorkSpace
-      [speaker getFileInfoFor:tmp app:&s type:&t ilk:&j ok:&i];
+      i = [workspace getInfoForFile:tmp application:&s type:&t];
 				// run app if valid, have app, and app not Edit
-      if ((i != NO) && s && strcmp(s,"Edit")) [speaker openTempFile:tmp ok:&i];
+      if ((i != NO) && s && strcmp (s,"Edit"))i = [workspace openTempFile:tmp];
       else i = NO;		// make sure we see it as a failure
       if (i == NO) {		// lost?
 	NXRunAlertPanel (NIL,"Unable to display image of type %s",
@@ -483,8 +481,6 @@
       }
 				// close memory file
       NXCloseMemory (file,NX_FREEBUFFER);
-				// flush port
-      port_deallocate (task_self (),prt);
     }
     break;
 
@@ -736,7 +732,7 @@
 				// stream and message must be valid
   if (stream && sequence->lelt->elt.msgno) {
 				// make string form
-    sprintf (seq,"%d",sequence->lelt->elt.msgno);
+    sprintf (seq,"%lu",sequence->lelt->elt.msgno);
 				// only allow clearing this
     if (![answered intValue]) mail_clearflag (stream,seq,"\\Answered");
   }
@@ -763,7 +759,7 @@
 				// stream and message must be valid
   if (stream && sequence->lelt->elt.msgno) {
 				// make string form
-    sprintf (seq,"%d",sequence->lelt->elt.msgno);
+    sprintf (seq,"%lu",sequence->lelt->elt.msgno);
 				// set state per the switch
     if ([deleted intValue]) mail_setflag (stream,seq,"\\Deleted");
     else mail_clearflag (stream,seq,"\\Deleted");
@@ -780,7 +776,7 @@
 				// stream and message must be valid
   if (stream && sequence->lelt->elt.msgno) {
 				// make string form
-    sprintf (seq,"%d",sequence->lelt->elt.msgno);
+    sprintf (seq,"%lu",sequence->lelt->elt.msgno);
 				// set state per the switch
     if ([flagged intValue]) mail_setflag (stream,seq,"\\Flagged");
     else mail_clearflag (stream,seq,"\\Flagged");
@@ -798,7 +794,7 @@
 				// stream and message must be valid
   if (stream && sequence->lelt->elt.msgno) {
 				// make string form
-    sprintf (seq,"%d",sequence->lelt->elt.msgno);
+    sprintf (seq,"%lu",sequence->lelt->elt.msgno);
 				// set state per the switch
     if ([seen intValue]) mail_setflag (stream,seq,"\\Seen");
     else mail_clearflag (stream,seq,"\\Seen");
@@ -846,7 +842,7 @@
   if (stream && sequence->lelt->elt.msgno &&
        (keys = [(getstreamprop (stream))->window getKeywords])) {
 				// make string form of this sequence
-    sprintf (seq,"%d",sequence->lelt->elt.msgno);
+    sprintf (seq,"%lu",sequence->lelt->elt.msgno);
 				// set the flag, if we can
     if (set) mail_setflag (stream,seq,keys);
     else mail_clearflag (stream,seq,keys);
@@ -916,7 +912,7 @@
       }
     }
     else {			// want remote copy, make string form of msgno
-      sprintf (seq,"%d",lelt->elt.msgno);
+      sprintf (seq,"%lu",lelt->elt.msgno);
 				// now do the copy
       if (del) mail_move (stream,seq,dest+1);
       else mail_copy (stream,seq,dest+1);
