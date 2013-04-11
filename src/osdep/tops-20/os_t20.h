@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	13 June 1995
+ * Last Edited:	15 December 1998
  *
- * Copyright 1995 by Mark Crispin
+ * Copyright 1998 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,6 +41,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/file.h>
+#include <unistd.h>
 
 #include "env_t20.h"
 #include "fs.h"
@@ -49,4 +50,3 @@
 #include "tcp.h"
 
 long gethostid (void);
-long getpid (void);

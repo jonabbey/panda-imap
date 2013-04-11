@@ -4,7 +4,7 @@ ANSWER:
 
      Although one can never be sure of what will happen at some future
 time, there is strong historical precedent for presuming that the
-present Gregorian calendar will still be in affect by the year 2000.
+present Gregorian calendar will still be in effect by the year 2000.
 Since we also hope that c-client will still be around by then, we have
 chosen to adhere to these precedents.
  
@@ -27,7 +27,7 @@ synchronization with the seasons.
      The best approximation that was possible in antiquity was a
 19-year period, with 7 of these 19 years having 13 months (leap
 months).  This scheme was adopted as the basis for the religious
-calendar used by the Jews.  (The Arabs also used this calendar until
+calendar used by the Hebrews.  (The Arabs also used this calendar until
 Mohammed forbade shifting from 12 months to 13 months.)
  
      When Rome emerged as a world power, the difficulties of making a

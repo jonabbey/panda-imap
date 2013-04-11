@@ -1,5 +1,5 @@
 /*
- * Program:	Authenticator linkage -- VMS version
+ * Program:	MD5 check password
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -9,10 +9,10 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:	7 December 1995
- * Last Edited:	7 October 1996
+ * Date:	1 August 1988
+ * Last Edited:	9 December 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -32,6 +32,23 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
+
+/* Check password
+ * Accepts: login passwd struct
+ *	    password string
+ *	    argument count
+ *	    argument vector
+ * Returns: passwd struct if password validated, NIL otherwise
+ */
 
-#define server_login(user,pass,argc,argv) NIL
-#include "auth_log.c"
+struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
+{
+  char *p;
+				/* verify password */
+  if (!(p = auth_md5_pwd (pw->pw_name)) || strcmp (pass,p)) pw = NIL;
+  if (p) {
+    memset (p,0,strlen (p));	/* erase sensitive information */
+    fs_give ((void **) &p);	/* flush erased password */
+  }
+  return pw;
+}

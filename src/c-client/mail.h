@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	19 August 1998
+ * Last Edited:	1 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -112,6 +112,10 @@
 #define SET_EXPUNGEATPING (long) 124
 #define GET_PARSEPHRASE (long) 125
 #define SET_PARSEPHRASE (long) 126
+#define GET_ALTDRIVER (long) 127
+#define SET_ALTDRIVER (long) 128
+#define GET_ALTDRIVERNAME (long) 129
+#define SET_ALTDRIVERNAME (long) 130
 	/* 2xx: environment */
 #define GET_USERNAME (long) 201
 #define SET_USERNAME (long) 202
@@ -164,6 +168,24 @@
 #define SET_IMAPENVELOPE (long) 417
 #define GET_IMAPREFERRAL (long) 418
 #define SET_IMAPREFERRAL (long) 419
+#define GET_ALTIMAPNAME (long) 420
+#define SET_ALTIMAPNAME (long) 421
+#define GET_ALTIMAPPORT (long) 422
+#define SET_ALTIMAPPORT (long) 423
+#define GET_ALTPOPNAME (long) 424
+#define SET_ALTPOPNAME (long) 425
+#define GET_ALTPOPPORT (long) 426
+#define SET_ALTPOPPORT (long) 427
+#define GET_ALTNNTPNAME (long) 428
+#define SET_ALTNNTPNAME (long) 429
+#define GET_ALTNNTPPORT (long) 430
+#define SET_ALTNNTPPORT (long) 431
+#define GET_ALTSMTPNAME (long) 432
+#define SET_ALTSMTPNAME (long) 433
+#define GET_ALTSMTPPORT (long) 434
+#define SET_ALTSMTPPORT (long) 435
+#define GET_SMTPPORT (long) 436
+#define SET_SMTPPORT (long) 437
 
 	/* 5xx: local file drivers */
 #define GET_MBXPROTECTION (long) 500
@@ -204,6 +226,12 @@
 #define SET_ONETIMEEXPUNGEATPING (long) 535
 #define GET_USERHASNOLIFE (long) 536
 #define SET_USERHASNOLIFE (long) 537
+#define GET_FTPPROTECTION (long) 538
+#define SET_FTPPROTECTION (long) 539
+#define GET_PUBLICPROTECTION (long) 540
+#define SET_PUBLICPROTECTION (long) 541
+#define GET_SHAREDPROTECTION (long) 542
+#define SET_SHAREDPROTECTION (long) 543
 
 /* Driver flags */
 
@@ -280,6 +308,7 @@
 #define SE_NOPREFETCH (long) 4	/* no search prefetching */
 #define SO_FREE (long) 8	/* free sort program after finished */
 #define SO_NOSERVER (long) 16	/* don't do server-based sort */
+#define SE_RETAIN (long) 32	/* retain previous search results */
 
 
 /* Status options */
@@ -364,7 +393,8 @@ STRINGLIST {
 #define NETMAXMBX 256
 #define NETMAXSRV 21
 typedef struct net_mailbox {
-  char host[NETMAXHOST];	/* host name */
+  char host[NETMAXHOST];	/* host name (may be canonicalized) */
+  char orighost[NETMAXHOST];	/* host name before canonicalization */
   char user[NETMAXUSER];	/* user name */
   char mailbox[NETMAXMBX];	/* mailbox name */
   char service[NETMAXSRV];	/* service name */
@@ -372,6 +402,7 @@ typedef struct net_mailbox {
   unsigned int anoflag : 1;	/* anonymous */
   unsigned int dbgflag : 1;	/* debug flag */
   unsigned int secflag : 1;	/* secure flag */
+  unsigned int altflag : 1;	/* alt driver flag */
 } NETMBX;
 
 /* Item in an address list */
@@ -968,6 +999,7 @@ NAMESPACE {
 #define AUTHENTICATOR struct mail_authenticator
 
 AUTHENTICATOR {
+  unsigned int secflag : 1;	/* secure authenticator */
   char *name;			/* name of this authenticator */
   authcheck_t valid;		/* authenticator valid on this system */
   authclient_t client;		/* client function that supports it */
@@ -1185,6 +1217,8 @@ MESSAGECACHE *mail_elt (MAILSTREAM *stream,unsigned long msgno);
 void mail_flag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
 void mail_search_full (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,
 		       long flags);
+void mail_search_default (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,
+			  long flags);
 long mail_ping (MAILSTREAM *stream);
 void mail_check (MAILSTREAM *stream);
 void mail_expunge (MAILSTREAM *stream);
@@ -1285,7 +1319,7 @@ void mail_free_threadnode (THREADNODE **thr);
 void auth_link (AUTHENTICATOR *auth);
 char *mail_auth (char *mechanism,authresponse_t resp,int argc,char *argv[]);
 AUTHENTICATOR *mail_lookup_auth (unsigned long i);
-unsigned int mail_lookup_auth_name (char *mechanism);
+unsigned int mail_lookup_auth_name (char *mechanism,long secflag);
 
 NETSTREAM *net_open (NETDRIVER *dv,char *host,char *service,unsigned long prt);
 NETSTREAM *net_aopen (NETDRIVER *dv,NETMBX *mb,char *service,char *usrbuf);

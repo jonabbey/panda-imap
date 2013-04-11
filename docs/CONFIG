@@ -38,7 +38,7 @@ home directory.  You will want to change routine env_init(), changing
 the line that reads:
       myHomeDir = cpystr (home);/* use real home directory */
 to be:
-      sprintf (tmp,"%s/mail",tmp);
+      sprintf (tmp,"%s/mail",home);
       myHomeDir = cpystr (tmp);
 
      Ignore all references in env_unix.c to a configuration file; that
@@ -116,12 +116,7 @@ EXTRAAUTHENTICATORS variables.
 
      Drivers are code modules that support different mailbox storage
 technologies.  By default, all drivers are enabled.  There is little
-benefit to be gained by disabling a driver, with one exception.  The
-mbox driver implements the behavior of automatically moving new mail
-from the spool directory to the "mbox" file on the user's home
-directory, if and *only* if the "mbox" exists and is in mailbox
-format.  The mbox driver is listed under EXTRADRIVERS; if you wish to
-disable it just remove it from that list and rebuild.
+benefit to be gained by disabling a driver.
 
      Authenticators are code modules that support authentication
 technology for the server (password file lookup, Kerberos, S/Key,

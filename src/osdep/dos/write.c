@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	26 May 1995
- * Last Edited:	13 August 1997
+ * Last Edited:	9 December 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -57,7 +57,10 @@ long maxposint = (long)((((unsigned long) 1) << ((sizeof(int) * 8) - 1)) - 1);
 long safe_write (int fd,char *buf,long nbytes)
 {
   long i,j;
-  if (nbytes > 0) for (i = nbytes; i; i -= j,buf += i)
-    if ((j = write (fd,buf,(int) min (maxposint,i))) < 0) return j;
+  if (nbytes > 0) for (i = nbytes; i; i -= j,buf += i) {
+    while (((j = write (fd,buf,(int) min (maxposint,i))) < 0) &&
+	   (errno == EINTR));
+    if (j < 0) return j;
+  }
   return nbytes;
 }

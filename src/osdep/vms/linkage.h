@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	13 June 1995
- * Last Edited:	7 October 1996
+ * Last Edited:	15 December 1998
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -38,3 +38,4 @@ extern DRIVER nntpdriver;
 extern DRIVER pop3driver;
 extern DRIVER dummydriver;
 extern AUTHENTICATOR auth_log;
+extern AUTHENTICATOR auth_md5;

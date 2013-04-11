@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	19 August 1998
+ * Last Edited:	10 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -55,6 +55,11 @@ static userprompt_t mailusername = NIL;
 static long is_nt = -1;		/* T if NT, NIL if not NT, -1 unknown */
 
 #include "write.c"		/* include safe writing routines */
+
+
+/* Get all authenticators */
+
+#include "auths.c"
 
 /* Environment manipulate parameters
  * Accepts: function code
@@ -210,17 +215,27 @@ void CALLBACK clock_ticked (UINT IDEvent,UINT uReserved,DWORD dwUser,
 {
   if (alarm_rang && !--alarm_countdown) (*alarm_rang) ();
 }
-
-
-/* Set server traps
- * Accepts: clock interrupt handler
+
+/* Initialize server
+ * Accepts: server name for syslog or NIL
+ *	    /etc/services service name or NIL
+ *	    alternate /etc/services service name or NIL
+ *	    SASL service name or NIL
+ *	    clock interrupt handler
  *	    kiss-of-death interrupt handler
  *	    hangup interrupt handler
  *	    termination interrupt handler
  */
 
-void server_traps (void *clkint,void *kodint,void *hupint,void *trmint)
+void server_init (char *server,char *service,char *altservice,char *sasl,
+		  void *clkint,void *kodint,void *hupint,void *trmint)
 {
+  if (server) {			/* set server name in syslog */
+    openlog (server,LOG_PID,LOG_MAIL);
+    fclose (stderr);		/* possibly save a process ID */
+  }
+				/* set SASL name */
+  if (sasl) mail_parameters (NIL,SET_SERVICENAME,(void *) sasl);
   alarm_rang = clkint;		/* note the clock interrupt */
   timeBeginPeriod (1000);	/* set the timer interval */
   timeSetEvent (1000,1000,clock_ticked,NIL,TIME_PERIODIC);
@@ -529,7 +544,6 @@ int lockname (char *lock,char *fname,int op)
 
 void unlockfd (int fd,char *lock)
 {
-  unlink (lock);		/* delete the file */
   flock (fd,LOCK_UN);		/* unlock it */
   close (fd);			/* close it */
 }

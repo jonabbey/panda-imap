@@ -1,5 +1,5 @@
 @ECHO OFF
-REM Program:	Authenticator Linkage Generator auxillary for NT
+REM Program:	Authenticator Linkage Generator auxillary for NT/Win9x
 
 REM Author:	Mark Crispin
 REM		Networks and Distributed Computing
@@ -10,9 +10,9 @@ REM		Seattle, WA  98195
 REM		Internet: MRC@CAC.Washington.EDU
 
 REM Date:	6 December 1995
-REM Last Edited:6 December 1995
+REM Last Edited:14 January 1999
 
-REM Copyright 1995 by the University of Washington
+REM Copyright 1999 by the University of Washington
 
 REM  Permission to use, copy, modify, and distribute this software and its
 REM documentation for any purpose and without fee is hereby granted, provided
@@ -33,5 +33,6 @@ REM WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ECHO extern AUTHENTICATOR auth_%1; >> LINKAGE.H
 REM Note the introduction of the caret to quote the ampersand in NT
-ECHO   auth_link (^&auth_%1);		/* link in the %1 authenticator */ >> LINKAGE.C
+if "%OS%" == "Windows_NT" ECHO   auth_link (^&auth_%1);		/* link in the %1 authenticator */ >> LINKAGE.C
+if "%OS%" == "" ECHO   auth_link (&auth_%1);		/* link in the %1 authenticator */ >> LINKAGE.C
 ECHO #include "auth_%1.c" >> AUTHS.C

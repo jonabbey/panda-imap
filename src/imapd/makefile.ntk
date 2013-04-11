@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		5 November 1990
-# Last Edited:	28 April 1998
+# Last Edited:	20 November 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -32,6 +32,7 @@
 
 
 ALERT=\\imapd.alert
+USERALERT=alert.txt
 ANO=\\anonymous.newsgroups
 
 #  The "Manage Mail" menu item of Netscape Messager puts up an error message
@@ -52,7 +53,7 @@ CCLIENTLIB = $C\cclient.lib
 K5 =  \k5\lib
 K5LIB = $(K5)\comerr32.lib $(K5)\gssapi32.lib $(K5)\krb5_32.lib
 LIBS = $(CCLIENTLIB) $(K5LIB) wsock32.lib winmm.lib advapi32.lib
-CFLAGS= -I$C /MT /W3 /DWIN32 -nologo $(EXTRACFLAGS) -DALERTFILE=\"$(ALERT)\" -DANOFILE=\"$(ANO)\"
+CFLAGS= -I$C /MT /W3 /DWIN32 -nologo $(EXTRACFLAGS) -DALERTFILE=\"$(ALERT)\" -DUSERALERTFILE=\"$(USERALERT)\" -DANOFILE=\"$(ANO)\"
 
 imapd: $(CCLIENTLIB) imapd.obj
 	LINK /NOLOGO /DEF:imapd.def imapd.obj $(LIBS)

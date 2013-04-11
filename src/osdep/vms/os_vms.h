@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	24 July 1997
+ * Last Edited:	15 December 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,6 +36,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unixio.h>
+#include <file.h>
+#include <stat.h>
 
 #define L_SET SEEK_SET
 #define L_INCR SEEK_CUR

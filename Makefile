@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	6 August 1998
+# Last Edited:	27 January 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -31,18 +31,17 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
+# *** TEMPORARY FOR PINE 4.10 BUILD ***
+GSSDIR=/usr/local
+# *** TEMPORARY FOR PINE 4.10 BUILD ***
+
 # Normal command to build IMAP toolkit:
 #  make <port> [EXTRAAUTHENTICATORS=xxx] [EXTRADRIVERS=xxx] [PASSWDTYPE=xxx]
-#
-# For example:
-#	make os4 EXTRAAUTHENTICATORS=gss
-# builds for Digital Unix (OSF/1) version 4 with GSSAPI/Kerberos V additional
-# authentication.
 
 
-# The following extra authenticators are defined:
-# krb	Kerberos IV (client-only)
-# gss	GSSAPI/Kerberos V
+# Extra authenticators (e.g. OTP, Kerberos, etc.).  Adds linkage for
+# auth_xxx.c and executes Makefile.xxx, where xxx is the name of the
+# authenticator.  Some authenticators are only available from third parties.
 
 EXTRAAUTHENTICATORS=
 
@@ -55,27 +54,121 @@ EXTRADRIVERS=mbox
 
 
 # The following plaintext login types are defined:
-# afs	AFS authentication
-# dce	DCE authentication
-# krb	Kerberos IV (must also have krb as an extra authentication)
+# afs	AFS authentication database
+# dce	DCE authentication database
+# md5	MD5 database (must also have md5 as an authenticator)
 # nul	no plaintext authentication (note: this will break some secure
 #	 authenticators -- don't use without checking first!!)
-# std	system standard
+# std	system standard (typically passwd file), determined by port
 
 PASSWDTYPE=std
 
 
-# Directory locations.  I didn't want to put this stuff here, but the Pine
-# guys insisted...
+# The following special compilation flags are defined.  None of these flags are
+# recommended.
+#
+# -DDISABLE_POP_PROXY=1
+#	By default, the ipop[23]d servers offer POP->IMAP proxy access,
+#	which allow a POP client to access mail on an IMAP server by using the
+#	POP server as a go-between.  Setting this option disables this
+#	facility.
+#
+# -DDISABLE_REVERSE_DNS_LOOKUP=1
+#	Never do gethostbyaddr() calls on sockets in the client and server.
+#	By default, the servers (ipop[23]d and imapd) will do gethostbyaddr()
+#	on the local and remote sockets so that imapd can identify itself
+#	properly (this is important when the same CPU hosts multiple virtual
+#	hosts on different IP addresss) and also includes the client's name
+#	when it writes to the syslog.  There are also client gethostbyaddr()
+#	calls, used primarily by authentication mechanisms.
+#
+#	Setting this option disables all gethostbyaddr() calls.  The returned
+#	"host name" string for the socket is just the bracketed [12.34.56.78]
+#	form, as if the reverse DNS lookup failed.
+#
+#	WARNING: Some authentication mechanisms, e.g. Kerberos V, depend upon
+#	the host names being right, and if you set this option, it won't work.
+#
+#	You should only do this if you are encountering server performance
+#	problems due to a misconfigured DNS, e.g. long startup delays or
+#	client timeouts.
+#
+# -DIGNORE_LOCK_EACCES_ERRORS=1
+#	Disable the "Mailbox vulnerable -- directory must have 1777 protection"
+#	warning which occurs if an attempt to create a mailbox lock file
+#	fails due to an EACCES error.
+#
+#	WARNING: If the mail delivery program uses mailbox lock files and the
+#	mail spool directory is not protected 1777, there is no protection
+#	against mail being delivered while the mailbox is being rewritten in a
+#	checkpoint or an expunge.  The result is a corrupted mailbox file
+#	and/or lost mail.  The warning message is the *ONLY* indication that
+#	the user will receive that this could be happening.  Disabling the
+#	warning just sweeps the problem under the rug.
+#
+#	There are only a small minority of BSD-style systems in which the mail
+#	delivery program does not use mailbox lock files.  Linux is *NOT* one
+#	of these systems.  Do *NOT* set this option on Linux or SVR4.
+#
+# -DSVR4_DISABLE_FLOCK=1
+#	Disable emulation of the BSD flock() system call on SVR4 systems in all
+#	unconditionally.  By default, this only happens for NFS files (to avoid
+#	problems with the broken "statd" and "lockd" daemons).
+#
+#	WARNING: This disables protection against two processes accessing the
+#	same mailbox file simultaneously, and can result in corrupted
+#	mailboxes, aborted sessions, and core dumps.
+#
+#	There should be no reason ever to do this, since the flock() emulation
+#	checks for NFS files.
+#
+# -DOLDFILESUFFIX="xxx"
+#	Change the default suffix appended to the backup .newsrc file from
+#	"old".
+#
+# -DSTRICT_RFC822_TIMEZONES=1
+#	Disable recognition of the UTC (0000), MET (+0100), EET (+0200),
+#	JST (+0900), ADT (-0300), AST (-0400), YDT (-0800), YST (-0900), and
+#	HST (-1000) symbolic timezones.
+#
+# -DBRITISH_SUMMER_TIME=1
+#	Enables recognition of non-standard symbolic timezone BST as +0100.
+#
+# -DBERING_STANDARD_TIME=1
+#	Enables recognition of non-standard symbolic timezone BST as -1100.
+#
+# -DNEWFOUNDLAND_STANDARD_TIME=1
+#	Enables recognition of non-standard symbolic timezone NST as -0330.
+#
+# -DNOME_STANDARD_TIME=1
+#	Enables recognition of non-standard symbolic timezone NST as -1100.
+#
+# -DSAMOA_STANDARD_TIME=1
+#	Enables recognition of non-standard symbolic timezone SST as -1100.
+#				
+# -DY4KBUGFIX=1
+#	Turn on the Y4K bugfix (yes, that's year 4000).  It isn't well-known,
+#	but century years evenly divisible by 4000 are *not* leap years in the
+#	Gregorian calendar.  A lot of "Y2K compilant" software does not know
+#	about this rule.  Remember to turn this on sometime in the next 2000
+#	years.
+#
+# -DUSEORTHODOXCALENDAR=1
+#	Use the more accurate Eastern Orthodox calendar instead of the
+#	Gregorian calendar.  The century years which are leap years happen
+#	at alternating 400 and 500 year intervals without shifts every 4000
+#	years.  The Orthodox and Gregorian calendars diverge by 1 day for
+#	gradually-increasing intervals, starting at 2800-2900, and becoming
+#	permanent at 48,300.
 
-AFSDIR=/usr/afsws
-GSSDIR=/usr/local
+EXTRASPECIALS=
 
 
-# Miscellaneous command line options passed down to the c-client Makefile
+# Miscellaneous command options passed down to the c-client Makefile
 
 EXTRACFLAGS=
 EXTRALDFLAGS=
+
 
 # Normal commands
 
@@ -96,8 +189,11 @@ TOUCH=touch
 BUILDOPTIONS= EXTRACFLAGS="$(EXTRACFLAGS)"\
  EXTRALDFLAGS="$(EXTRALDFLAGS)"\
  EXTRADRIVERS="$(EXTRADRIVERS)" EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS)"\
- PASSWDTYPE=$(PASSWDTYPE) AFSDIR=$(AFSDIR) GSSDIR=$(GSSDIR)
-BUILD=$(MAKE) build $(BUILDOPTIONS) EXTRASPECIALS="$(EXTRASPECIALS)"
+ PASSWDTYPE=$(PASSWDTYPE)
+#BUILD=$(MAKE) build $(BUILDOPTIONS)
+# *** TEMPORARY FOR PINE 4.10 BUILD ***
+BUILD=$(MAKE) build $(BUILDOPTIONS) GSSDIR=$(GSSDIR)
+# *** TEMPORARY FOR PINE 4.10 BUILD ***
 
 
 # Make the IMAP Toolkit
@@ -127,6 +223,7 @@ all:	c-client rebuild bundled
 # bsd	generic BSD
 # bsf	FreeBSD
 # bsi	BSD/i386
+# bso	OpenBSD (yes, yet another one...)
 # cvx	Convex
 # d-g	Data General DG/UX prior to 5.4 (d41 port no longer exists)
 # d54	Data General DG/UX 5.4
@@ -137,6 +234,7 @@ all:	c-client rebuild bundled
 # gas	GCC Altos SVR4
 # gh9   GCC HP-UX 9.x
 # ghp	GCC HP-UX 10.x
+# gs5	GCC 2.7.1 (95q4 from Skunkware _not_ 98q2!) SCO Open Server 5.0.x
 # gso	GCC Solaris
 # gsu	GCC SUN-OS
 # gul	GCC RISC Ultrix (DEC-5000)
@@ -145,11 +243,13 @@ all:	c-client rebuild bundled
 # hxd	HP-UX 10.x with DCE security
 # isc	Interactive Systems
 # lnx	Linux with traditional passwords and crypt() in the C library
+# lnp	Linux with Pluggable Authentication Modules (PAM)
 # lyn	LynxOS
 # mct	MachTen
 # mnt	Atari ST Mint (not MacMint)
 # neb	NetBSD/FreeBSD
 # nxt	NEXTSTEP
+# nx3	NEXTSTEP 3.x
 # osf	OSF/1
 # os4	OSF/1 (Digital UNIX) 4
 # ptx	PTX
@@ -183,7 +283,7 @@ c-client:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsf bsi d-g d54 drs epx gas gh9 ghp gso gsu gul hpp hpx lnx lyn mct mnt neb nxt osf os4 ptx qnx sc5 sco sgi shp sl4 sl5 slx snx sol sos uw2: an
+a32 a41 aix bs3 bsf bsi bso d-g d54 drs epx gas gh9 ghp gs5 gso gsu gul hpp hpx lnp lyn mct mnt neb nxt nx3 osf os4 ptx qnx sc5 sco sgi shp sl4 sl5 slx snx sol sos uw2: an
 	$(BUILD) OS=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
@@ -192,6 +292,32 @@ a32 a41 aix bs3 bsf bsi d-g d54 drs epx gas gh9 ghp gso gsu gul hpp hpx lnx lyn 
 
 aos art asv aux bsd cvx dpx dyn isc pyr s40 sv4 ult vul vu2: ua
 	$(BUILD) OS=$@
+
+# Linux shadow password support doesn't build on traditional systems, but most
+# Linux systems are shadow these days.
+
+lnx:	lnxmd5 an
+	$(BUILD) OS=$@
+
+lnxmd5:
+	@sh -c '(test $(PASSWDTYPE) = md5) || make lnxok'
+
+lnxok:
+	@echo You are building for traditional Linux.  Most modern Linux
+	@echo systems require that you build using make slx.  Do you want
+	@echo to continue this build?  Type y or n please:
+	@sh -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
+	@echo OK, I will remember that you really want to build for
+	@echo traditional Linux.  You will nott see this message again.
+	@echo If you discover that you can not log in to the POP and IMAP
+	@echo servers, then do the following commands:
+	@echo % rm lnxok
+	@echo % make clean
+	@echo % make slx
+	@echo If slx does not work, try sl4 or sl5.  Be sure to do a
+	@echo make clean between each try!
+	@touch lnxok
+
 
 # SUN-OS makes you load libdl by hand...
 
@@ -251,7 +377,7 @@ an ua:
 	$(TOOLS)/$@ "$(LN)" src/c-client c-client
 	$(TOOLS)/$@ "$(LN)" src/ansilib c-client
 	$(TOOLS)/$@ "$(LN)" src/charset c-client
-	$(LN) `pwd`/src/kerberos/* c-client
+	sh -c '(test -d src/kerberos) && ($(LN) `pwd`/src/kerberos/* c-client) || true'
 	$(TOOLS)/$@ "$(LN)" src/osdep/$(SYSTEM) c-client
 	$(TOOLS)/$@ "$(LN)" src/mtest mtest
 	$(TOOLS)/$@ "$(LN)" src/ipopd ipopd
@@ -262,14 +388,18 @@ build:	OSTYPE rebuild rebuildclean bundled
 
 OSTYPE:
 	@echo Building c-client for $(OS)...
-	$(CD) c-client;$(MAKE) $(OS) BUILDOPTIONS='$(BUILDOPTIONS)' \
-	 EXTRASPECIALS="$(EXTRASPECIALS)"
+	echo $(EXTRASPECIALS) > c-client/EXTRASPECIALS
+# *** TEMPORARY FOR PINE 4.10 BUILD ***
+	echo GSSDIR=$(GSSDIR) >> c-client/EXTRASPECIALS
+# *** TEMPORARY FOR PINE 4.10 BUILD ***
+	$(CD) c-client;$(MAKE) $(OS) BUILDOPTIONS='$(BUILDOPTIONS)' $(EXTRASPECIALS)
 	echo $(OS) > OSTYPE
 	$(TOUCH) rebuild
 
 rebuild:
 	@echo Rebuilding c-client for `cat OSTYPE`...
-	$(CD) c-client;$(MAKE) all CC=`cat CCTYPE` CFLAGS="`cat CFLAGS`"
+	$(TOUCH) c-client/EXTRASPECIALS
+	$(CD) c-client;$(MAKE) all CC=`cat CCTYPE` CFLAGS="`cat CFLAGS`" `cat EXTRASPECIALS`
 
 rebuildclean:
 	sh -c '$(RM) rebuild || true'

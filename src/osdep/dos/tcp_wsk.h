@@ -9,7 +9,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	22 January 1997
+ * Last Edited:	18 November 1998
  *
  * Copyright 1997 by the University of Washington
  *
@@ -39,7 +39,7 @@
 #include <windows.h>
 #define _INC_WINDOWS
 #include <winsock.h>
-
+#define tcpsi tcps		/* for compatibility code */
 
 /* TCP I/O stream (must be before osdep.h is included) */
 

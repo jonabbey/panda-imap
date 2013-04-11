@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	20 February 1998
+ * Last Edited:	18 November 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -51,5 +51,4 @@
 #include "nl_nt.c"
 #include "env_nt.c"
 #include "tcp_nt.c"
-#include "auths.c"
 #include "yunchan.c"

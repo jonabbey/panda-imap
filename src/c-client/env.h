@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	22 May 1998
+ * Last Edited:	8 October 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -40,7 +40,8 @@ void rfc822_date (char *date);
 void rfc822_timezone (char *s,void *t);
 void internal_date (char *date);
 long server_input_wait (long seconds);
-void server_traps (void *clkint,void *kodint,void *hupint,void *trmint);
+void server_init (char *server,char *service,char *altservice,char *sasl,
+		  void *clkint,void *kodint,void *hupint,void *trmint);
 long server_login (char *user,char *pass,int argc,char *argv[]);
 long authserver_login (char *user,int argc,char *argv[]);
 long anonymous_login (int argc,char *argv[]);

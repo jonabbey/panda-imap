@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	8 September 1998
+ * Last Edited:	4 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -69,7 +69,7 @@ DRIVER newsdriver = {
   news_open,			/* open mailbox */
   news_close,			/* close mailbox */
   news_fast,			/* fetch message "fast" attributes */
-  NIL,				/* fetch message flags */
+  news_flags,			/* fetch message flags */
   NIL,				/* fetch overview */
   NIL,				/* fetch message envelopes */
   news_header,			/* fetch message header */
@@ -436,6 +436,21 @@ void news_fast (MAILSTREAM *stream,char *sequence,long flags)
     for (i = 1; i <= stream->nmsgs; i++)
       if (mail_elt (stream,i)->sequence) news_header (stream,i,&j,NIL);
 }
+
+
+/* News fetch flags
+ * Accepts: MAIL stream
+ *	    sequence
+ *	    option flags
+ */
+
+void news_flags (MAILSTREAM *stream,char *sequence,long flags)
+{
+  unsigned long i;
+  if ((flags & FT_UID) ?	/* validate all elts */
+      mail_uid_sequence (stream,sequence) : mail_sequence (stream,sequence))
+    for (i = 1; i <= stream->nmsgs; i++) mail_elt (stream,i)->valid = T;
+}
 
 /* News fetch message header
  * Accepts: MAIL stream
@@ -456,7 +471,8 @@ char *news_header (MAILSTREAM *stream,unsigned long msgno,
   MESSAGECACHE *elt;
   *length = 0;			/* default to empty */
   if (flags & FT_UID) return "";/* UID call "impossible" */
-  elt = mail_elt (stream,msgno);/* get elt */
+				/* get elt */
+  (elt = mail_elt (stream,msgno))->valid = T;
   if (!elt->private.msg.header.text.data) {
 				/* build message file name */
     sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);

@@ -1,6 +1,6 @@
-Updated: 18 August 1998
+Updated: 16 December 1998
 
-The following are known problems/deficiencies in the IMAP 4.3 toolkit:
+The following are known problems/deficiencies in the IMAP 4.5 toolkit:
  . Bugs:
    . Case-independent searching only works for the 26 Roman alphabetics and
       not for any other characters
@@ -21,14 +21,10 @@ The following are known problems/deficiencies in the IMAP 4.3 toolkit:
       supported)
    . No support for use of TURN, ETRN, and pipelining.
    . No support for enhanced status codes
- . POP3 and IMAP server limitations:
-   . No Kerberos 4 server support (Kerberos 5 is fully supported on UNIX and
-      NT)
  . UNIX limitations:
    . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
       unix
-   . Supported SASL mechanisms: LOGIN, ANONYMOUS, GSSAPI, KERBEROS_V4 (client
-      only)
+   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS, GSSAPI
    . Sticky UIDs are not supported in the mh, mtx, and tenex drivers
    . Creation of keywords is not supported in the mh, mtx, and tenex drivers
    . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
@@ -36,14 +32,14 @@ The following are known problems/deficiencies in the IMAP 4.3 toolkit:
  . Amiga limitations:
    . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
       unix
-   . Supported SASL mechanisms: LOGIN, ANONYMOUS
+   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
    . Sticky UIDs are not supported in the mh, mtx, and tenex drivers
    . Creation of keywords is not supported in the mh, mtx, and tenex drivers
    . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
       mailboxes to have inferior names
  . NT limitations:
    . Supported local file formats: mbx, mtx, tenex, unix
-   . Supported SASL mechanisms: LOGIN, ANONYMOUS, GSSAPI
+   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS, GSSAPI
    . Sticky UIDs are not supported in the mtxnt and tenexnt drivers
    . Creation of keywords is not supported in the mtxnt and tenexnt drivers
    . No support for TCP open timeouts
@@ -51,7 +47,7 @@ The following are known problems/deficiencies in the IMAP 4.3 toolkit:
       inferior names
  . DOS limitations:
    . Supported local file formats: bezerk, mtx
-   . Supported SASL mechanisms: LOGIN, ANONYMOUS
+   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
    . Supported TCPs: B&W, Novell, PC-NFs, PC/TCP, Waterloo, Winsock
    . Sticky UIDs are not supported on local files
    . Creation of keywords are not supported on local files
@@ -62,23 +58,23 @@ The following are known problems/deficiencies in the IMAP 4.3 toolkit:
       names
    . Does not work well unless a mailgets routine is armed when fetching
       texts.
+ . Mac limitations:
+   . No local file drivers
+   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
+ . TOPS-20 limitations:
+   . No local file drivers
+   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
+   . No support for any TCP timeouts
+ . VMS limitations:
+   . No local file drivers
+   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
+   . Supported TCPs: Multinet, Netlib
+   . No support for any TCP timeouts on VMS Netlib
+   . No support for TCP open timeouts on VMS Multinet
  . Windows CE limitations:
    . No local file drivers
-   . Supported SASL mechanisms: LOGIN, ANONYMOUS
+   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
    . No support for TCP open timeouts
    . Not finished, only builds c-client library
  . OS/2 limitations:
    . Not finished, does not build
- . Mac limitations:
-   . No local file drivers
-   . Supported SASL mechanisms: LOGIN, ANONYMOUS
- . TOPS-20 limitations:
-   . No local file drivers
-   . Supported SASL mechanisms: LOGIN, ANONYMOUS
-   . No support for any TCP timeouts
- . VMS limitations:
-   . No local file drivers
-   . Supported SASL mechanisms: LOGIN, ANONYMOUS
-   . Supported TCPs: Multinet, Netlib
-   . No support for any TCP timeouts on VMS Netlib
-   . No support for TCP open timeouts on VMS Multinet

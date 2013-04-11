@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 February 1998
+ * Last Edited:	28 September 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -55,6 +55,7 @@ static unsigned int rndm = 0;	/* initial `random' number */
 
 #define server_login(user,pass,argc,argv) NIL
 #define myusername() ""
+#deinfe MD5ENABLE "\\.nosuch.."
 
 /* Environment manipulate parameters
  * Accepts: function code
@@ -282,4 +283,25 @@ MAILSTREAM *default_proto (long type)
 {
   extern MAILSTREAM DEFAULTPROTO;
   return &DEFAULTPROTO;		/* return default driver's prototype */
+}
+
+/* Emulator for BSD syslog() routine
+ * Accepts: priority
+ *	    message
+ *	    parameters
+ */
+
+void syslog (int priority,const char *message,...)
+{
+}
+
+
+/* Emulator for BSD openlog() routine
+ * Accepts: identity
+ *	    options
+ *	    facility
+ */
+
+void openlog (const char *ident,int logopt,int facility)
+{
 }

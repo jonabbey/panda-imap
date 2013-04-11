@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	28 January 1998
+ * Last Edited:	5 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -53,8 +53,9 @@ long loginpw (struct passwd *pw,int argc,char *argv[])
       seteuid (euid);		/* not approved, restore root euid */
     else {			/* approved */
       seteuid (euid);		/* restore former root euid first */
-      ret = (setsid () >= 0) &&	/* log the guy in */
-	!setusercontext (lc,pw,pw->pw_uid,LOGIN_SETALL&~LOGIN_SETPATH);
+      setsid ();		/* ensure we are session leader */
+				/* log the guy in */
+      ret = !setusercontext (lc,pw,pw->pw_uid,LOGIN_SETALL&~LOGIN_SETPATH);
     }
   }
   return ret;

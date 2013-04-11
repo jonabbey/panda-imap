@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	31 August 1998
+ * Last Edited:	13 October 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -47,9 +47,6 @@
 #define IMAPLOOKAHEAD 20	/* envelope lookahead */
 #define IMAPUIDLOOKAHEAD 1000	/* UID lookahead */
 #define IMAPTCPPORT (long) 143	/* assigned TCP contact port */
-#define IMAPSSLPORT (long) 993	/* assigned TCP contact port for SSL IMAP */
-				/* not recommended contact port for SSL IMAP */
-#define IMAPALTSSLPORT (long) 585
 
 
 /* Parsed reply message from imap_reply */

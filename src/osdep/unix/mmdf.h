@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1993
- * Last Edited:	28 August 1998
+ * Last Edited:	22 October 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -135,7 +135,7 @@
  * SysV		From user Wed Dec  2 05:53 PST 1992
  * rn		From user Wed Dec  2 05:53:22 PST 1992
  *		From user Wed Dec  2 05:53 -0700 1992
- *		From user Wed Dec  2 05:53:22 -0700 1992
+ * emacs	From user Wed Dec  2 05:53:22 -0700 1992
  *		From user Wed Dec  2 05:53 1992 PST
  *		From user Wed Dec  2 05:53:22 1992 PST
  *		From user Wed Dec  2 05:53 1992 -0700

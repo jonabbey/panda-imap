@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	31 August 1998
+ * Last Edited:	2 October 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -103,7 +103,7 @@ MAILSTREAM mhproto = {&mhdriver};
 DRIVER *mh_valid (char *name)
 {
   char tmp[MAILTMPLEN];
-  return mh_isvalid (name,tmp,NIL) ? &mhdriver : NIL;
+  return mh_isvalid (name,tmp,T) ? &mhdriver : NIL;
 }
 
 /* MH mail test for valid mailbox

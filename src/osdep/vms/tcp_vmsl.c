@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	29 July 1998
+ * Last Edited:	28 September 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -345,4 +345,14 @@ char *mylocalhost ()
 char *tcp_canonical (char *name)
 {
   return name;
+}
+
+
+/* TCP/IP get client host name (server calls only)
+ * Returns: client host name
+ */
+
+char *tcp_clienthost ()
+{
+  return "UNKNOWN";
 }

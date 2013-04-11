@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	31 December 1997
+ * Last Edited:	28 September 1998
  *
- * Copyright 1997 by Mark Crispin
+ * Copyright 1998 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -206,4 +206,25 @@ char *myhomedir ()
 MAILSTREAM *default_proto (long type)
 {
   return NIL;			/* no default prototype */
+}
+
+/* Emulator for BSD syslog() routine
+ * Accepts: priority
+ *	    message
+ *	    parameters
+ */
+
+void syslog (int priority,const char *message,...)
+{
+}
+
+
+/* Emulator for BSD openlog() routine
+ * Accepts: identity
+ *	    options
+ *	    facility
+ */
+
+void openlog (const char *ident,int logopt,int facility)
+{
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	7 December 1995
+ * Last Edited:	15 December 1998
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -54,4 +54,11 @@ extern int errno;		/* just in case */
 #include "nl_vms.c"
 #include "env_vms.c"
 #include "tcp_vms.c"
-#include "auths.c"
+
+#define server_login(user,pass,argc,argv) NIL
+#define authserver_login(user,argc,argv) NIL
+#define myusername() ""		/* dummy definition to prevent build errors */
+#define MD5ENABLE ""
+
+#include "auth_md5.c"
+#include "auth_log.c"

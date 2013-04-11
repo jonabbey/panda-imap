@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	16 December 1997
+# Last Edited:	24 November 1998
 #
-# Copyright 1997 by the University of Washington
+# Copyright 1998 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -33,7 +33,7 @@
 
 OS = wsk
 EXTRAAUTHENTICATORS=
-DEFAULTAUTHENTICATORS=log
+DEFAULTAUTHENTICATORS=md5 log
 EXTRADRIVERS = 
 DRIVERS = imap nntp pop3 mtx bezerk
 DEFAULTDRIVER = mtx

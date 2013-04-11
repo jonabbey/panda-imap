@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 Februrary 1998
+ * Last Edited:	24 November 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -52,6 +52,7 @@ static NAMESPACE *nslist[3] = {&nshome,NIL,NIL};
 
 #define server_login(user,pass,argc,argv) NIL
 #define myusername() ""
+#define MD5ENABLE "\\.nosuch.."
 
 
 /* Get all authenticators */
@@ -280,4 +281,25 @@ char *dos_default_gets (readfn_t f,void *stream,unsigned long size,
     if (rp) (*rp) (md,rdi += j);
   }
   return ret;
+}
+
+/* Emulator for BSD syslog() routine
+ * Accepts: priority
+ *	    message
+ *	    parameters
+ */
+
+void syslog (int priority,const char *message,...)
+{
+}
+
+
+/* Emulator for BSD openlog() routine
+ * Accepts: identity
+ *	    options
+ *	    facility
+ */
+
+void openlog (const char *ident,int logopt,int facility)
+{
 }

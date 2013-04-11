@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		5 November 1990
-# Last Edited:	14 April 1998
+# Last Edited:	20 November 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -32,6 +32,7 @@
 
 
 ALERT=/etc/imapd.alert
+USERALERT=.imapalert
 ANO=/etc/anonymous.newsgroups
 SHELL= /bin/sh
 
@@ -53,8 +54,8 @@ SHELL= /bin/sh
 C = ../c-client
 CCLIENTLIB = $C/c-client.a
 CC = `cat $C/CCTYPE`
-CFLAGS = -I$C `cat $C/CFLAGS` -DALERTFILE=\"$(ALERT)\" -DANOFILE=\"$(ANO)\" \
-	$(EXTRACFLAGS)
+CFLAGS = -I$C `cat $C/CFLAGS` $(EXTRACFLAGS) -DANOFILE=\"$(ANO)\" \
+	-DALERTFILE=\"$(ALERT)\" -DUSERALERTFILE=\"$(USERALERT)\"
 LDFLAGS = $(CCLIENTLIB) `cat $C/LDFLAGS`
 
 all:	imapd

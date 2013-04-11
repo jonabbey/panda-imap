@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	6 December 1995
+ * Last Edited:	16 December 1998
  *
- * Copyright 1995 by Mark Crispin
+ * Copyright 1998 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -43,6 +43,7 @@
 #include <limits.h>
 #include <time.h>
 #include <stdio.h>
+#include <fcntl.h>
 #define tcp_port MacTCP_port
 #include <MacTCPCommonTypes.h>
 #include <AddressXlation.h>
@@ -72,4 +73,12 @@ short resolveropen = 0;		/* TCP's resolver open */
 #include "ftl_mac.c"
 #include "nl_mac.c"
 #include "tcp_mac.c"
-#include "auths.c"
+
+#define open(a,b,c) open (a,b)
+#define server_login(user,pass,argc,argv) NIL
+#define authserver_login(user,argc,argv) NIL
+#define myusername() ""		/* dummy definition to prevent build errors */
+#define MD5ENABLE ""
+
+#include "auth_md5.c"
+#include "auth_log.c"

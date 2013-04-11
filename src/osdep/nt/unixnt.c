@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	10 August 1998
+ * Last Edited:	22 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -139,7 +139,8 @@ long unix_isvalid (char *name,char *tmp)
   struct utimbuf times;
   errno = EINVAL;		/* assume invalid argument */
 				/* must be non-empty file */
-  if ((t = dummy_file (file,name)) && !stat (t,&sbuf)) {
+  if ((t = dummy_file (file,name)) && !stat (t,&sbuf) &&
+      ((sbuf.st_mode & S_IFMT) == S_IFREG)) {
     if (!sbuf.st_size)errno = 0;/* empty file */
     else if ((fd = open (file,O_BINARY|O_RDONLY,NIL)) >= 0) {
 				/* error -1 for invalid format */
@@ -336,7 +337,13 @@ long unix_rename (MAILSTREAM *stream,char *old,char *newname)
 	  *s = '\0';		/* tie off to get just superior */
 				/* name doesn't exist, create it */
 	  if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	      !dummy_create (stream,tmp)) return NIL;
+	      !dummy_create (stream,tmp)) {
+	    flock (ld,LOCK_UN);	/* release c-client lock */
+	    close (ld);		/* close c-client lock */
+	    unlink (lock);	/* and delete it */
+	    mm_nocritical (stream);
+	    return ret;		/* return success or failure */
+	  }
 	  *s = c;		/* restore full name */
 	}
 	if (rename (file,tmp))
@@ -1019,11 +1026,11 @@ void unix_unlock (int fd,MAILSTREAM *stream,char *lock)
 int unix_parse (MAILSTREAM *stream,char *lock,int op)
 {
   int zn;
-  unsigned long i,j,k;
+  unsigned long i,j,k,m;
   char c,*s,*t,*u,tmp[MAILTMPLEN],date[30];
   int ti = 0,pseudoseen = NIL;
-  unsigned long prevuid = 0;
   unsigned long nmsgs = stream->nmsgs;
+  unsigned long prevuid = nmsgs ? mail_elt (stream,nmsgs)->private.uid : 0;
   unsigned long recent = stream->recent;
   unsigned long oldnmsgs = stream->nmsgs;
   short silent = stream->silent;
@@ -1111,7 +1118,7 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 	}
 	else date[18] = date[19] = '0';
 				/* yy -- advance over timezone if necessary */
-	if (zn == ti) ti += (((t[zn] == '+') || (t[zn] == '-')) ? 6 : 4);
+	if (zn == ti) ti += (((t[zn+1] == '+') || (t[zn+1] == '-')) ? 6 : 4);
 	date[7] = t[ti + 1]; date[8] = t[ti + 2];
 	date[9] = t[ti + 3]; date[10] = t[ti + 4];
 				/* zzz */
@@ -1240,15 +1247,18 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 				/* make sure not duplicated */
 		  if (elt->private.uid)
 		    sprintf (tmp,"Message %lu UID %lu already has UID %lu",
-			     elt->msgno - 1,j,elt->private.uid);
+			     pseudoseen ? elt->msgno - 1 : elt->msgno,
+			     j,elt->private.uid);
 				/* make sure UID doesn't go backwards */
 		  else if (j <= prevuid)
 		    sprintf (tmp,"Message %lu UID %lu less than %lu",
-			     elt->msgno - 1,j,prevuid + 1);
+			     pseudoseen ? elt->msgno - 1 : elt->msgno,
+			     j,prevuid + 1);
 				/* or skip by mailbox's recorded last */
 		  else if (j > stream->uid_last)
 		    sprintf (tmp,"Message %lu UID %lu greater than last %lu",
-			     elt->msgno - 1,j,stream->uid_last);
+			     pseudoseen ? elt->msgno - 1 : elt->msgno,
+			     j,stream->uid_last);
 		  else {	/* normal UID case */
 		    prevuid = elt->private.uid = j;
 		    break;		/* exit this cruft */
@@ -1296,7 +1306,8 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 	    }
 				/* otherwise fall into default case */
 	  default:		/* ordinary header line */
-	    elt->rfc822_size += i + 1;
+	    elt->rfc822_size += i + 
+	      (((i < 2) || (s[i - 2] != '\015')) ? 1 : 0);
 	    break;
 	  }
 	} while (i && (*t != '\015') && (*t != '\012'));
@@ -1309,7 +1320,7 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 	  (elt->private.msg.text.offset =
 	   (LOCAL->filesize + GETPOS (&bs)) - elt->private.special.offset) -
 	     elt->private.special.text.size;
-	k = 0;			/* no previous line size yet */
+	k = m = 0;		/* no previous line size yet */
 				/* note current position */
 	j = LOCAL->filesize + GETPOS (&bs);
 	if (i) do {		/* look for next message */
@@ -1318,7 +1329,7 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 	    VALID (s,t,ti,zn);	/* yes, parse line */
 	    if (!ti) {		/* not a header line, add it to message */
 	      elt->rfc822_size += 
-		k = i + (((i > 1) && s[i - 2] == '\015') ? 0 : 1);
+		k = i + (m = (((i < 2) || s[i - 2] != '\015') ? 1 : 0));
 				/* update current position */
 	      j = LOCAL->filesize + GETPOS (&bs);
 	    }
@@ -1327,7 +1338,7 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 	elt->private.msg.text.text.size = j -
 	  (elt->private.special.offset + elt->private.msg.text.offset);
 	if (k == 2) {		/* last line was blank? */
-	  elt->private.msg.text.text.size -= 2;
+	  elt->private.msg.text.text.size -= (m ? 1 : 2);
 	  elt->rfc822_size -= 2;
 	}
       } while (i);		/* until end of buffer */
@@ -1504,6 +1515,7 @@ long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp)
 {
   unsigned long i,j;
   int e,retry;
+  struct stat sbuf;
   FILE *f;
   MESSAGECACHE *elt;
   unsigned long recent = stream->recent;
@@ -1523,8 +1535,17 @@ long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp)
   else for (i = 1; i <= stream->nmsgs; i++)
     if (!unix_write_message (f,stream,mail_elt (stream,i),&size))
       return unix_punt_scratch (f);
-				/* writing remaining data */
-  if (fflush (f)) return unix_punt_scratch (f);
+				/* write remaining data */
+  if (fflush (f) || fstat (fileno (f),&sbuf)) return unix_punt_scratch (f);
+				/* make damn sure stdio isn't lying */
+  if (size != (unsigned long) sbuf.st_size) {
+    char tmp[MAILTMPLEN];
+    sprintf (tmp,"Checkpoint file size mismatch (%lu != %lu)",size,
+	     sbuf.st_size);
+    mm_log (tmp,ERROR);
+    fclose (f);			/* flush the output file */
+    return NIL;
+  }
 				/* does the mailbox need to grow? */
   if (size > (unsigned long) LOCAL->filesize) {
 				/* am I paranoid or what? */
@@ -1574,7 +1595,7 @@ long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp)
     retry = NIL;		/* no need to retry yet */
     fseek (f,0,L_SET);		/* rewind files */
     lseek (LOCAL->fd,0,L_SET);
-    for (i = size; i; i -= j) {
+    for (i = size; i; i -= j)
       if (!((j = fread (LOCAL->buf,1,min ((long) CHUNK,i),f)) &&
 	    (write (LOCAL->fd,LOCAL->buf,j) >= 0))) {
 	sprintf (LOCAL->buf,"Mailbox rewrite error: %s",strerror (e = errno));
@@ -1583,7 +1604,6 @@ long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp)
 	retry = T;		/* must retry */
 	break;
       }
-    }
   } while (retry);		/* in case need to retry */
   fclose (f);			/* finished with scratch file */
 				/* make sure tied off */

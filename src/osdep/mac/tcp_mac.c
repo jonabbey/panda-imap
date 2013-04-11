@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	29 July 1998
+ * Last Edited:	16 December 1998
  *
  * Copyright 1998 by Mark Crispin
  *
@@ -509,6 +509,7 @@ char *tcp_localhost (TCPSTREAM *stream)
 
 char *tcp_canonical (char *name)
 {
+  int i;
   struct hostInfo hst;
 				/* look like domain literal? */
   if (name[0] == '[' && name[i = (strlen (name))-1] == ']') return name;
@@ -526,4 +527,14 @@ char *tcp_canonical (char *name)
     if (hst.rtnCode) return name;
   }
   return hst.cname;		/* success */
+}
+
+
+/* TCP/IP get client host name (server calls only)
+ * Returns: client host name
+ */
+
+char *tcp_clienthost ()
+{
+  return "UNKNOWN";
 }

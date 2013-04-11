@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 December 1997
+ * Last Edited:	28 September 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -52,3 +52,15 @@ unsigned long unix_crlfcpy (char **dst,unsigned long *dstl,char *src,
 			    unsigned long srcl);
 unsigned long unix_crlflen (STRING *s);
 #define getpid random
+
+
+/* syslog() emulation */
+
+#define LOG_MAIL	(2<<3)	/* mail system */
+#define LOG_AUTH	(4<<3)	/* security/authorization messages */
+#define LOG_ALERT	1	/* action must be taken immediately */
+#define LOG_INFO	6	/* informational */
+#define LOG_PID		0x01	/* log the pid with each message */
+
+void openlog (const char *ident,int logopt,int facility);
+void syslog (int priority,const char *message,...);

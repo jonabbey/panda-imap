@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	1 September 1998
+ * Last Edited:	29 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -45,11 +45,6 @@
 #include "netmsg.h"
 #include "flstring.h"
 #include "utf8.h"
-
-
-				/* driver parameters */
-static long nntp_defaultport = 0;
-static long nntp_maxlogintrials = MAXLOGINTRIALS;
 
 /* Driver dispatch used by MAIL */
 
@@ -75,7 +70,7 @@ DRIVER nntpdriver = {
   nntp_mopen,			/* open mailbox */
   nntp_mclose,			/* close mailbox */
   nntp_fetchfast,		/* fetch message "fast" attributes */
-  NIL,				/* fetch message flags */
+  nntp_flags,			/* fetch message flags */
   nntp_overview,		/* fetch overview */
   NIL,				/* fetch message structure */
   nntp_header,			/* fetch message header */
@@ -98,6 +93,13 @@ DRIVER nntpdriver = {
 
 				/* prototype stream */
 MAILSTREAM nntpproto = {&nntpdriver};
+
+
+				/* driver parameters */
+static long nntp_maxlogintrials = MAXLOGINTRIALS;
+static long nntp_port = 0;
+static long nntp_altport = 0;
+static char *nntp_altname = NIL;
 
 /* NNTP validate mailbox
  * Accepts: mailbox name
@@ -145,10 +147,22 @@ void *nntp_parameters (long function,void *value)
     value = (void *) nntp_maxlogintrials;
     break;
   case SET_NNTPPORT:
-    nntp_defaultport = (long) value;
+    nntp_port = (long) value;
     break;
   case GET_NNTPPORT:
-    value = (void *) nntp_defaultport;
+    value = (void *) nntp_port;
+    break;
+  case SET_ALTNNTPPORT:
+    nntp_altport = (long) value;
+    break;
+  case GET_ALTNNTPPORT:
+    value = (void *) nntp_altport;
+    break;
+  case SET_ALTNNTPNAME:
+    nntp_altname = (char *) value;
+    break;
+  case GET_ALTNNTPNAME:
+    value = (void *) nntp_altname;
     break;
   default:
     value = NIL;		/* error case */
@@ -193,9 +207,10 @@ void nntp_list (MAILSTREAM *stream,char *ref,char *pat)
   }
 				/* ask server for open newsgroups */
   else if (nntp_canonicalize (ref,pat,pattern) &&
-      ((stream && LOCAL && LOCAL->nntpstream) ||
-       (stream = mail_open (NIL,pattern,OP_HALFOPEN))) &&
-      (nntp_send (LOCAL->nntpstream,"LIST","ACTIVE") == NNTPGLIST)) {
+	   ((stream && LOCAL && LOCAL->nntpstream) ||
+	    (stream = mail_open (NIL,pattern,OP_HALFOPEN))) &&
+	   ((nntp_send (LOCAL->nntpstream,"LIST","ACTIVE") == NNTPGLIST) ||
+	    (nntp_send (LOCAL->nntpstream,"LIST",NIL) == NNTPGLIST))) {
 				/* namespace format name? */
     if (*(lcl = strchr (strcpy (name,pattern),'}') + 1) == '#') lcl += 6;
 				/* process data until we see final dot */
@@ -455,18 +470,16 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   if (!nstream) {		/* open NNTP now if not already open */
     char *hostlist[2];
     hostlist[0] = strcpy (tmp,mb.host);
-    if (mb.port || nntp_defaultport)
-      sprintf (tmp + strlen (tmp),":%ld",mb.port ? mb.port : nntp_defaultport);
+    if (mb.port || nntp_port)
+      sprintf (tmp + strlen (tmp),":%ld",mb.port ? mb.port : nntp_port);
+    if (mb.altflag) sprintf (tmp + strlen (tmp),"/%s",(char *)
+			     mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
+    if (mb.user) sprintf (tmp + strlen (tmp),"/user=%s",mb.user);
     hostlist[1] = NIL;
     nstream = nntp_open (hostlist,OP_READONLY+(stream->debug ? OP_DEBUG:NIL));
   }
   if (!nstream) return NIL;	/* didn't get an NNTP session */
 
-				/* have a session, log in if have user name */
-  if (mb.user[0] && !nntp_send_auth_work (nstream,&mb,tmp)) {
-    nntp_close (nstream);	/* punt stream */
-    return NIL;
-  }
 				/* always zero messages if halfopen */
   if (stream->halfopen) nmsgs = 0;
 				/* otherwise open the newsgroup */
@@ -495,10 +508,13 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   stream->uid_validity = 0xbeefface;
 				/* copy host name */
   LOCAL->host = cpystr (net_host (nstream->netstream));
-  sprintf (tmp,"{%s:%lu/nntp%s%s}",LOCAL->host,net_port (nstream->netstream),
-	   LOCAL->user ? "/user=" : "",LOCAL->user ? LOCAL->user : "");
-  if (stream->halfopen) strcat (tmp,"<no_mailbox>");
-  else sprintf (tmp + strlen (tmp),"#news.%s",mbx);
+  sprintf (tmp,"{%s:%lu/nntp",LOCAL->host,net_port (nstream->netstream));
+  if (mb.altflag) sprintf (tmp + strlen (tmp),"/%s",(char *)
+			   mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
+  if (mb.secflag) strcat (tmp,"/secure");
+  if (LOCAL->user) sprintf (tmp + strlen (tmp),"/user=%s",LOCAL->user);
+  if (stream->halfopen) strcat (tmp,"}<no_mailbox>");
+  else sprintf (tmp + strlen (tmp),"}#news.%s",mbx);
   fs_give ((void **) &stream->mailbox);
   stream->mailbox = cpystr (tmp);
 
@@ -604,6 +620,20 @@ void nntp_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
     }
 }
 
+/* NNTP fetch flags
+ * Accepts: MAIL stream
+ *	    sequence
+ *	    option flags
+ */
+
+void nntp_flags (MAILSTREAM *stream,char *sequence,long flags)
+{
+  unsigned long i;
+  if ((flags & FT_UID) ?	/* validate all elts */
+      mail_uid_sequence (stream,sequence) : mail_sequence (stream,sequence))
+    for (i = 1; i <= stream->nmsgs; i++) mail_elt (stream,i)->valid = T;
+}
+
 /* NNTP fetch overview
  * Accepts: MAIL stream
  *	    UID sequence
@@ -694,6 +724,7 @@ char *nntp_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
       elt->private.msg.header.text.size = 0;
     }
   }
+  elt->valid = T;		/* make elt valid now */
 				/* return size of text */
   *size = elt->private.msg.header.text.size;
   return elt->private.msg.header.text.data ?
@@ -766,12 +797,8 @@ void nntp_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt)
 unsigned long *nntp_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 			  SORTPGM *pgm,long flags)
 {
-  unsigned long i;
-  char c,*s,*t,*v,tmp[MAILTMPLEN];
-  SORTPGM *pg;
-  SORTCACHE **sc,*r;
-  MESSAGECACHE telt;
-  ADDRESS *adr = NIL;
+  unsigned long i,start,last;
+  SORTCACHE **sc;
   mailcache_t mailcache = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
   unsigned long *ret = NIL;
   if (spg) {			/* only if a search needs to be done */
@@ -784,86 +811,19 @@ unsigned long *nntp_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 				/* initialize progress counters */
   pgm->nmsgs = pgm->progress.cached = 0;
 				/* pass 1: count messages to sort */
-  for (i = 1; i <= stream->nmsgs; ++i)
-    if (mail_elt (stream,i)->searched) pgm->nmsgs++;
-  if (pgm->nmsgs) {		/* pass 2: load sort cache */
-    for (pg = pgm; pg; pg = pg->next) switch (pg->function) {
-    case SORTARRIVAL:		/* sort by arrival date */
-    case SORTSIZE:		/* sort by message size */
-    case SORTDATE:		/* sort by date */
-    case SORTFROM:		/* sort by first from */
-    case SORTSUBJECT:		/* sort by subject */
-      break;
-    case SORTTO:		/* sort by first to */
-      mm_notify (stream,"[NNTPSORT] Can't do To-field sorting in NNTP",WARN);
-      break;
-    case SORTCC:		/* sort by first cc */
-      mm_notify (stream,"[NNTPSORT] Can't do cc-field sorting in NNTP",WARN);
-      break;
-    default:
-      fatal ("Unknown sort function");
-    }
-    sprintf (tmp,"%ld-%ld",mail_uid (stream,1),mail_uid(stream,stream->nmsgs));
-
-    if (((SORTCACHE *) (*mailcache) (stream,i,CH_SORTCACHE))->date)
-      sc = nntp_sort_loadcache (stream,pgm,flags);
-    else if (nntp_send (LOCAL->nntpstream,"XOVER",tmp) == NNTPOVER) {
-      while ((s = net_getline (LOCAL->nntpstream->netstream)) &&
-	     strcmp (s,".")) {
-				/* death to embedded newlines */
-	for (t = v = s; c = *v++;) if ((c != '\012') && (c != '\015')) *t++= c;
-	*t++ = '\0';		/* tie off resulting string */
-				/* parse XOVER response */
-	if ((i = mail_msgno (stream,atol (s))) &&
-	    (t = strchr (s,'\t')) && (v = strchr (++t,'\t'))) {
-	  SIZEDTEXT src,dst;
-	  *v++ = '\0';		/* tie off subject */
-	  r = (SORTCACHE *) (*mailcache) (stream,i,CH_SORTCACHE);
-	  while (*t) {		/* flush leading "re:" and whitespace */
-	    while ((*t == ' ') || (*t == '\t')) t++;
-	    if (((*t == 'R') || (*t == 'r')) &&
-		((t[1] == 'E') || (t[1] == 'e')) && (t[2] == ':')) t += 3;
-	    else break;
-	  }
-				/* have a subject? */
-	  if (src.size = strlen ((char *) (src.data = (unsigned char *) t))) {
-				/* make copy, convert MIME2 if needed */
-	    if (utf8_mime2text (&src,&dst) && (src.data != dst.data))
-	      t = (r->subject = (char *) dst.data) + dst.size;
-	    else t = (r->subject = cpystr ((char *) src.data)) + src.size;
-				/* flush trailing "(fwd) and whitespace */
-	    while (t > r->subject) {
-	      while ((t[-1] == ' ') || (t[-1] == '\t')) t--;
-	      if ((t >= (r->subject + 5)) && (t[-5] == '(') &&
-		  ((t[-4] == 'F') || (t[-4] == 'f')) &&
-		  ((t[-3] == 'W') || (t[-3] == 'w')) &&
-		  ((t[-2] == 'D') || (t[-2] == 'd')) &&	(t[-1] == ')')) t -= 5;
-	      else break;
-	    }
-	    *t = '\0';		/* tie off subject string */
-	  }
-
-	  if (t = strchr (v,'\t')) {
-	    *t++ = '\0';	/* tie off from */
-	    if (adr = rfc822_parse_address (&adr,adr,&v,BADHOST)) {
-	      r->from = adr->mailbox;
-	      adr->mailbox = NIL;
-	      mail_free_address (&adr);
-	    }
-	    if (v = strchr (t,'\t')) {
-	      *v++ = '\0';	/* tie off date */
-	      if (mail_parse_date (&telt,t)) r->date = mail_longdate (&telt);
-	      if ((v = strchr (v,'\t')) && (v = strchr (++v,'\t')))
-		r->size = atol (++v);
-	    }
-	  }
-	}
-	fs_give ((void **) &s);
+  for (i = 1,start = last = 0; i <= stream->nmsgs; ++i)
+    if (mail_elt (stream,i)->searched) {
+      pgm->nmsgs++;
+				/* have this in the sortcache already? */
+      if (!((SORTCACHE *) (*mailcache) (stream,i,CH_SORTCACHE))->date) {
+				/* no, record as last message */
+	last = mail_uid (stream,i);
+				/* and as first too if needed */
+	if (!start) start = last;
       }
-      if (s) fs_give ((void **) &s);
-      sc = nntp_sort_loadcache (stream,pgm,flags);
     }
-    else sc = mail_sort_loadcache (stream,pgm);
+  if (pgm->nmsgs) {		/* pass 2: load sort cache */
+    sc = nntp_sort_loadcache (stream,pgm,start,last,flags);
 				/* pass 3: sort messages */
     if (!pgm->abort) ret = mail_sort_cache (stream,pgm,sc,flags);
     fs_give ((void **) &sc);	/* don't need sort vector any more */
@@ -874,16 +834,105 @@ unsigned long *nntp_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 /* Mail load sortcache
  * Accepts: mail stream, already searched
  *	    sort program
+ *	    first UID to XOVER
+ *	    last UID to XOVER
  *	    option flags
  * Returns: vector of sortcache pointers matching search
  */
 
-SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,long flags)
+SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,long start,
+				 long last,long flags)
 {
-  SORTCACHE *r;
-  unsigned long i = (pgm->nmsgs) * sizeof (SORTCACHE *);
-  SORTCACHE **sc = (SORTCACHE **) memset (fs_get ((size_t) i),0,(size_t) i);
+  unsigned long i;
+  char c,*s,*t,*v,tmp[MAILTMPLEN];
+  SORTPGM *pg;
+  SORTCACHE **sc,*r;
+  SIZEDTEXT src,dst;
+  MESSAGECACHE telt;
+  ADDRESS *adr = NIL;
   mailcache_t mailcache = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
+				/* verify that the sortpgm is OK */
+  for (pg = pgm; pg; pg = pg->next) switch (pg->function) {
+  case SORTARRIVAL:		/* sort by arrival date */
+  case SORTSIZE:		/* sort by message size */
+  case SORTDATE:		/* sort by date */
+  case SORTFROM:		/* sort by first from */
+  case SORTSUBJECT:		/* sort by subject */
+    break;
+  case SORTTO:			/* sort by first to */
+    mm_notify (stream,"[NNTPSORT] Can't do To-field sorting in NNTP",WARN);
+    break;
+  case SORTCC:			/* sort by first cc */
+    mm_notify (stream,"[NNTPSORT] Can't do cc-field sorting in NNTP",WARN);
+    break;
+  default:
+    fatal ("Unknown sort function");
+  }
+
+  if (start) {			/* messages need to be loaded in sortcache? */
+				/* yes, build range */
+    if (start != last) sprintf (tmp,"%lu-%lu",start,last);
+    else sprintf (tmp,"%lu",start);
+				/* get it from the NNTP server */
+    if (!nntp_send (LOCAL->nntpstream,"XOVER",tmp) == NNTPOVER)
+				/* ugh, have to get it the slow way */
+      return mail_sort_loadcache (stream,pgm);
+    while ((s = net_getline (LOCAL->nntpstream->netstream)) && strcmp (s,".")){
+				/* death to embedded newlines */
+      for (t = v = s; c = *v++;) if ((c != '\012') && (c != '\015')) *t++ = c;
+      *t++ = '\0';		/* tie off resulting string */
+				/* parse XOVER response */
+      if ((i = mail_msgno (stream,atol (s))) &&
+	  (t = strchr (s,'\t')) && (v = strchr (++t,'\t'))) {
+	*v++ = '\0';		/* tie off subject */
+	r = (SORTCACHE *) (*mailcache) (stream,i,CH_SORTCACHE);
+	while (*t) {		/* flush leading "re:" and whitespace */
+	  while ((*t == ' ') || (*t == '\t')) t++;
+	  if (((*t == 'R') || (*t == 'r')) &&
+	      ((t[1] == 'E') || (t[1] == 'e')) && (t[2] == ':')) t += 3;
+	  else break;
+	}
+				/* have a subject? */
+	if (src.size = strlen ((char *) (src.data = (unsigned char *) t))) {
+				/* make copy, convert MIME2 if needed */
+	  if (utf8_mime2text (&src,&dst) && (src.data != dst.data))
+	    t = (r->subject = (char *) dst.data) + dst.size;
+	  else t = (r->subject = cpystr ((char *) src.data)) + src.size;
+				/* flush trailing "(fwd) and whitespace */
+	  while (t > r->subject) {
+	    while ((t[-1] == ' ') || (t[-1] == '\t')) t--;
+	    if ((t >= (r->subject + 5)) && (t[-5] == '(') &&
+		((t[-4] == 'F') || (t[-4] == 'f')) &&
+		((t[-3] == 'W') || (t[-3] == 'w')) &&
+		((t[-2] == 'D') || (t[-2] == 'd')) && (t[-1] == ')')) t -= 5;
+	    else break;
+	  }
+	  *t = '\0';		/* tie off subject string */
+	}
+	if (t = strchr (v,'\t')) {
+	  *t++ = '\0';		/* tie off from */
+	  if (adr = rfc822_parse_address (&adr,adr,&v,BADHOST)) {
+	    r->from = adr->mailbox;
+	    adr->mailbox = NIL;
+	    mail_free_address (&adr);
+	  }
+	  if (v = strchr (t,'\t')) {
+	    *v++ = '\0';	/* tie off date */
+	    if (mail_parse_date (&telt,t)) r->date = mail_longdate (&telt);
+	    if ((v = strchr (v,'\t')) && (v = strchr (++v,'\t')))
+	      r->size = atol (++v);
+	  }
+	}
+      }
+      fs_give ((void **) &s);
+    }
+    if (s) fs_give ((void **) &s);
+  }
+
+				/* calculate size of sortcache index */
+  i = pgm->nmsgs * sizeof (SORTCACHE *);
+				/* instantiate the index */
+  sc = (SORTCACHE **) memset (fs_get ((size_t) i),0,(size_t) i);
 				/* see what needs to be loaded */
   for (i = 1; !pgm->abort && (i <= stream->nmsgs); i++)
     if ((mail_elt (stream,i))->searched) {
@@ -997,7 +1046,7 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
   SENDSTREAM *stream = NIL;
   NETSTREAM *netstream;
   NETMBX mb;
-  char tmp[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN];
   long reply;
   if (!(hostlist && *hostlist)) mm_log ("Missing NNTP service host",ERROR);
   else do {			/* try to open connection */
@@ -1007,12 +1056,15 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
       mm_log (tmp,ERROR);
     }
     else {			/* did user supply port or service? */
-      if (mb.port) netstream = net_open (dv,mb.host,NIL,mb.port);
-      else if (nntp_defaultport)/* is there a configured override? */
-	netstream = net_open (dv,mb.host,NIL,nntp_defaultport);
-      else netstream = net_open (dv,mb.host,service,port);
-
-      if (netstream) {
+      if (mb.port || nntp_port)
+	sprintf (s = tmp,"%.1000s:%ld",mb.host,mb.port ? mb.port : nntp_port);
+      else s = mb.host;		/* simple host name */
+				/* try to open ordinary connection */
+      if (netstream = mb.altflag ?
+	  net_open ((NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),s,
+		    (char *) mail_parameters (NIL,GET_ALTNNTPNAME,NIL),
+		    (unsigned long) mail_parameters(NIL,GET_ALTNNTPPORT,NIL)):
+	  net_open (dv,s,mb.service,port)) {
 	stream = (SENDSTREAM *) fs_get (sizeof (SENDSTREAM));
 				/* initialize stream */
 	memset ((void *) stream,0,sizeof (SENDSTREAM));
@@ -1037,7 +1089,13 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
       }
     }
   } while (!stream && *++hostlist);
-			/* in case server demands MODE READER */
+
+				/* have a session, log in if have user name */
+  if (mb.user[0] && !nntp_send_auth_work (stream,&mb,tmp)) {
+    nntp_close (stream);	/* punt stream */
+    return NIL;
+  }
+				/* in case server demands MODE READER */
   if (stream) switch ((int) nntp_send_work (stream,"MODE","READER")) {
   case NNTPWANTAUTH:		/* server wants auth first, do so and retry */
   case NNTPWANTAUTH2:
@@ -1060,9 +1118,11 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 SENDSTREAM *nntp_close (SENDSTREAM *stream)
 {
   if (stream) {			/* send "QUIT" */
-    nntp_send (stream,"QUIT",NIL);
+    if (stream->netstream) {	/* only if a living stream */
+      nntp_send (stream,"QUIT",NIL);
 				/* close NET connection */
-    net_close (stream->netstream);
+      net_close (stream->netstream);
+    }
     if (stream->reply) fs_give ((void **) &stream->reply);
     fs_give ((void **) &stream);/* flush the stream */
   }
@@ -1135,6 +1195,7 @@ long nntp_send (SENDSTREAM *stream,char *command,char *args)
       nntp_send (stream,"QUIT",NIL);
 				/* close net connection */
       net_close (stream->netstream);
+      stream->netstream = NIL;
     }
   default:			/* all others just return */
     break;

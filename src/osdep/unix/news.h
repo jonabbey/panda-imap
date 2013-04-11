@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	1 September 1998
+ * Last Edited:	4 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -68,6 +68,7 @@ int news_select (struct direct *name);
 int news_numsort (const void *d1,const void *d2);
 void news_close (MAILSTREAM *stream,long options);
 void news_fast (MAILSTREAM *stream,char *sequence,long flags);
+void news_flags (MAILSTREAM *stream,char *sequence,long flags);
 char *news_header (MAILSTREAM *stream,unsigned long msgno,
 		   unsigned long *length,long flags);
 long news_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);

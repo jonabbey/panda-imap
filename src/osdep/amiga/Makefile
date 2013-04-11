@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	14 April 1998
+# Last Edited:	29 November 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -48,7 +48,23 @@ ACTIVEFILE=/UULib/News/Active
 SPOOLDIR=/usr/spool
 MAILSPOOL=/AmiTCP/Mail
 NEWSSPOOL=/UUNews
-STDPROTO=unixproto
+
+
+# Default formats for creating new mailboxes and for empty mailboxes in the
+# default namespace; must be set to the associated driver's prototype.
+#
+# The CREATEPROTO is the default format for new mailbox creation.
+# The EMPTYPROTO is the default format for handling zero-byte files.
+#
+# Normally, this is set by the individual port.
+#
+# NOTE: namespace formats (e.g. mh and news) can not be set as a default format
+# since they do not exist in the default namespace.  Also, it is meaningless to
+# set certain other formats (e.g. mbx and mx) as the EMPTYPROTO since these
+# formats can never be empty files.
+
+CREATEPROTO=unixproto
+EMPTYPROTO=unixproto
 
 
 # Commands possibly overriden by the individual port
@@ -62,7 +78,7 @@ RM=rm -f
 
 # Standard distribution build parameters
 
-DEFAULTAUTHENTICATORS=log
+DEFAULTAUTHENTICATORS=md5 log
 DEFAULTDRIVERS=imap nntp pop3 mh mx mbx tenex mtx mmdf unix news phile
 
 
@@ -195,7 +211,8 @@ once:
 	./mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)
 	echo $(CC) > CCTYPE
 	echo $(CFLAGS) > CFLAGS
-	echo -DSTDPROTO=$(STDPROTO) -DMAILSPOOL=\"$(MAILSPOOL)\" \
+	echo -DCREATEPROTO=$(CREATEPROTO) -DEMPTYPROTO=$(EMPTYPROTO) \
+	 -DMAILSPOOL=\"$(MAILSPOOL)\" \
 	 -DACTIVEFILE=\"$(ACTIVEFILE)\" -DNEWSSPOOL=\"$(NEWSSPOOL)\" \
 	 -DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" > OSCFLAGS
 	echo $(BASELDFLAGS) $(EXTRALDFLAGS) > LDFLAGS
@@ -205,6 +222,9 @@ once:
 
 
 # Password checkers
+
+ckpmd5:	# MD5 database (must have md5 AUTHENTICATOR as well)
+	$(LN) ckp_md5.c osdepckp.c
 
 ckpstd:	# Port standard
 	$(LN) ckp_$(CHECKPW).c osdepckp.c

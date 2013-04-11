@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	26 August 1998
+ * Last Edited:	15 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -71,6 +71,12 @@ static long mbx_protection = 0600;
 static long dir_protection = 0700;
 				/* default lock file protection */
 static long lock_protection = 0666;
+				/* default ftp file protection */
+static long ftp_protection = 0644;
+				/* default public file protection */
+static long public_protection = 0666;
+				/* default shared file protection */
+static long shared_protection = 0660;
 static long disableFcntlLock =	/* flock() emulator is a no-op */
 #ifdef SVR4_DISABLE_FLOCK
   T
@@ -230,6 +236,24 @@ void *env_parameters (long function,void *value)
   case GET_LOCKPROTECTION:
     value = (void *) lock_protection;
     break;
+  case SET_FTPPROTECTION:
+    ftp_protection = (long) value;
+    break;
+  case GET_FTPPROTECTION:
+    value = (void *) ftp_protection;
+    break;
+  case SET_PUBLICPROTECTION:
+    public_protection = (long) value;
+    break;
+  case GET_PUBLICPROTECTION:
+    value = (void *) public_protection;
+    break;
+  case SET_SHAREDPROTECTION:
+    shared_protection = (long) value;
+    break;
+  case GET_SHAREDPROTECTION:
+    value = (void *) shared_protection;
+    break;
   case SET_DISABLEFCNTLLOCK:
     disableFcntlLock = (long) value;
     break;
@@ -242,6 +266,7 @@ void *env_parameters (long function,void *value)
   case GET_LOCKEACCESERROR:
     value = (void *) lockEaccesError;
     break;
+
   case SET_USERHASNOLIFE:
     has_no_life = value ? T : NIL;
     break;
@@ -311,22 +336,50 @@ void internal_date (char *date)
   do_date (date,NIL,"%02d-%s-%d %02d:%02d:%02d %+03d%02d",NIL);
 }
 
-/* Set server traps
- * Accepts: clock interrupt handler
+/* Initialize server
+ * Accepts: server name for syslog or NIL
+ *	    /etc/services service name or NIL
+ *	    alternate /etc/services service name or NIL
+ *	    SASL service name or NIL
+ *	    clock interrupt handler
  *	    kiss-of-death interrupt handler
  *	    hangup interrupt handler
  *	    termination interrupt handler
  */
 
-void server_traps (void *clkint,void *kodint,void *hupint,void *trmint)
+void server_init (char *server,char *service,char *altservice,char *sasl,
+		  void *clkint,void *kodint,void *hupint,void *trmint)
 {
+  long port;
+  struct servent *sv;
+  struct sockaddr_in sin;
+  int sinlen = sizeof (struct sockaddr_in);
+  /* Don't use tcp_clienthost() since reverse DNS problems may slow down the
+   * greeting message and cause the client to time out.
+   */
+  char *client = getpeername (0,(struct sockaddr *) &sin,(void *) &sinlen) ?
+    "UNKNOWN" : inet_ntoa (sin.sin_addr);
+  if (server) {			/* set server name in syslog */
+    openlog (server,LOG_PID,LOG_MAIL);
+    fclose (stderr);		/* possibly save a process ID */
+  }
+  if (service && altservice && ((port = tcp_serverport ()) >= 0)) {
+    if ((sv = getservbyname (service,"tcp")) && (port == ntohs (sv->s_port)))
+      syslog (LOG_DEBUG,"%s service init from %s",service,client);
+    else if ((sv = getservbyname (altservice,"tcp")) &&
+	     (port == ntohs (sv->s_port)))
+      syslog (LOG_DEBUG,"%s alternative service init from %s",
+	      altservice,client);
+    else syslog (LOG_DEBUG,"port %ld service init from %s",port,client);
+  }
+				/* set SASL name */
+  if (sasl) mail_parameters (NIL,SET_SERVICENAME,(void *) sasl);
   arm_signal (SIGALRM,clkint);	/* prepare for clock interrupt */
   arm_signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
   arm_signal (SIGHUP,hupint);	/* prepare for hangup */
   arm_signal (SIGTERM,trmint);	/* prepare for termination */
 }
-
-
+
 /* Wait for stdin input
  * Accepts: timeout in seconds
  * Returns: T if have input on stdin, else NIL
@@ -341,7 +394,8 @@ long server_input_wait (long seconds)
   tmo.tv_sec = seconds; tmo.tv_usec = 0;
   return select (1,&rfd,0,0,&tmo) ? LONGT : NIL;
 }
-
+
+
 /* Server log in
  * Accepts: user name string
  *	    password string
@@ -411,12 +465,12 @@ long anonymous_login (int argc,char *argv[])
 
 long pw_login (struct passwd *pw,char *user,char *home,int argc,char *argv[])
 {
+  long ret = NIL;
+  char *h = home ? cpystr (home) : NIL;
   if (pw->pw_uid && ((pw->pw_uid == geteuid ()) || loginpw (pw,argc,argv)) &&
-      env_init (user,home)) {
-    chdir (myhomedir ());	/* placate those who would be upset */
-    return LONGT;
-  }
-  return NIL;
+      (ret = env_init (user,home))) chdir (myhomedir ());
+  if (h) fs_give ((void **) &h);/* flush temporary home directory */
+  return ret;			/* return status */
 }
 
 /* Initialize environment
@@ -427,7 +481,8 @@ long pw_login (struct passwd *pw,char *user,char *home,int argc,char *argv[])
 
 long env_init (char *user,char *home)
 {
-  extern MAILSTREAM STDPROTO;
+  extern MAILSTREAM CREATEPROTO;
+  extern MAILSTREAM EMPTYPROTO;
   struct passwd *pw;
   struct stat sbuf;
   char *s,tmp[MAILTMPLEN];
@@ -477,8 +532,8 @@ long env_init (char *user,char *home)
   if (!anonymous && !sharedHome && (pw = getpwnam ("imapshared")))
     sharedHome = cpystr (pw->pw_dir);
 				/* force default prototype to be set */
-  if (!createProto) createProto = &STDPROTO;
-  if (!appendProto) appendProto = &STDPROTO;
+  if (!createProto) createProto = &CREATEPROTO;
+  if (!appendProto) appendProto = &EMPTYPROTO;
 				/* re-do open action to get flags */
   (*createProto->dtb->open) (NIL);
   endpwent ();			/* close pw database */
@@ -653,17 +708,14 @@ char *mailboxfile (char *dst,char *name)
 /* Lock file name
  * Accepts: scratch buffer
  *	    file name
- * Returns: file descriptor of lock or -1 if error
+ *	    type of locking operation (LOCK_SH or LOCK_EX)
+ * Returns: file descriptor of lock or negative if error
  */
 
-int lockname (char *lock,char *fname)
+int lockname (char *lock,char *fname,int op)
 {
-  char *s = strrchr (fname,'/');
   struct stat sbuf;
-  if (stat (fname,&sbuf))	/* get file status */
-    sprintf (lock,"/tmp/.%s",s ? s : fname);
-  else locksbuf (lock,(void *) &sbuf);
-  return lock_work (lock);
+  return stat (fname,&sbuf) ? -1 : lock_work (lock,&sbuf,op);
 }
 
 
@@ -671,60 +723,63 @@ int lockname (char *lock,char *fname)
  * Accepts: file descriptor
  *	    lock file name buffer
  *	    type of locking operation (LOCK_SH or LOCK_EX)
- * Returns: file descriptor of lock or -1 if failure
+ * Returns: file descriptor of lock or negative if error
  */
 
 int lockfd (int fd,char *lock,int op)
 {
-  int ld;
   struct stat sbuf;
-				/* get data for this file */
-  if (fstat (fd,&sbuf)) return -1;
-  locksbuf (lock,(void *) &sbuf);
-				/* get the lock */
-  while (((ld = lock_work (lock)) < 0) && (errno == EEXIST));
-  if (ld >= 0) flock (ld,op);	/* did we get it? */
-  else syslog (LOG_INFO,"Mailbox lock file %s open failure: %s",lock,
-	       strerror (errno));
-  return ld;			/* return locking file descriptor */
-}
-
-
-/* Make temporary lock file name
- * Accepts: lock file name buffer
- *	    pointer to stat() buffer
- */
-
-void locksbuf (char *lock,void *sb)
-{
-  struct stat *sbuf = (struct stat *) sb;
-				/* make temporary lock file name */
-  sprintf (lock,"/tmp/.%lx.%lx",(long) sbuf->st_dev,(long) sbuf->st_ino);
+  return fstat (fd,&sbuf) ? -1 : lock_work (lock,&sbuf,op);
 }
 
 /* Lock file name worker
  * Accepts: lock file name
- * Returns: file descriptor or -1 if error
+ *	    pointer to stat() buffer
+ *	    type of locking operation (LOCK_SH or LOCK_EX)
+ * Returns: file descriptor of lock or negative if error
  */
 
-int lock_work (char *lock)
+int lock_work (char *lock,void *sb,int op)
 {
+  struct stat lsb,fsb;
+  struct stat *sbuf = sb;
   int fd;
-  long nlinks = chk_notsymlink (lock);
-  if (!nlinks) return -1;	/* fail if symbolic link */
-  if (nlinks > 1) {		/* extra hard link to the file? */
-    mm_log ("SECURITY ALERT: hard link to lock name!",ERROR);
-    syslog (LOG_CRIT,"SECURITY PROBLEM: lock file %s has a hard link",lock);
-    return -1;
+  int prot = (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL);
+				/* make temporary lock file name */
+  sprintf (lock,"/tmp/.%lx.%lx",(long) sbuf->st_dev,(long) sbuf->st_ino);
+  while (T) {			/* until get a good lock */
+    do switch ((int) chk_notsymlink (lock)) {
+    case 1:			/* exists just once */
+      if (((fd = open (lock,O_RDWR,prot)) >= 0) || (errno != ENOENT) ||
+	  (chk_notsymlink (lock) >= 0)) break;
+    case -1:			/* name doesn't exist */
+      fd = open (lock,O_RDWR|O_CREAT|O_EXCL,prot);
+      break;
+    default:			/* multiple hard links */
+      mm_log ("hard link to lock name",ERROR);
+      syslog (LOG_CRIT,"SECURITY PROBLEM: hard link to lock name: %.80s",lock);
+    case 0:			/* symlink (already did syslog) */
+      return -1;		/* fail: no lock file */
+    } while ((fd < 0) && (errno == EEXIST));
+    if (fd < 0) {		/* failed to get file descriptor */
+      syslog (LOG_INFO,"Mailbox lock file %s open failure: %s",lock,
+	      strerror (errno));
+      return -1;		/* fail: can't open lock file */
+    }
+    if (flock (fd,op)) {	/* lock the file */
+      close (fd);		/* failed, give up on lock */
+      return -1;		/* fail: can't lock */
+    }
+				/* make sure this lock is good for us */
+    if (!lstat (lock,&lsb) && ((lsb.st_mode & S_IFMT) != S_IFLNK) &&
+	!fstat (fd,&fsb) && (lsb.st_dev == fsb.st_dev) &&
+	(lsb.st_ino == fsb.st_ino) && (fsb.st_nlink == 1)) break;
+    close (fd);			/* lock not right, drop fd and try again */
   }
-  if ((fd = open (lock,O_RDWR | O_CREAT | ((nlinks < 0) ? O_EXCL : NIL),
-		  (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) >= 0)
-				/* make sure mode OK (don't use fchmod()) */
-    chmod (lock,(int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
-  return fd;
+  chmod (lock,prot);		/* make sure mode OK (don't use fchmod()) */
+  return fd;			/* success */
 }
-
-
+
 /* Check to make sure not a symlink
  * Accepts: file name
  * Returns: -1 if doesn't exist, NIL if symlink, else number of hard links
@@ -737,8 +792,9 @@ long chk_notsymlink (char *name)
   if (lstat (name,&sbuf)) return -1;
 				/* forbid symbolic link */
   if ((sbuf.st_mode & S_IFMT) == S_IFLNK) {
-    mm_log ("SECURITY ALERT: symbolic link on lock name!",ERROR);
-    syslog (LOG_CRIT,"SECURITY PROBLEM: lock file %s is a symbolic link",name);
+    mm_log ("symbolic link on lock name",ERROR);
+    syslog (LOG_CRIT,"SECURITY PROBLEM: symbolic link on lock name: %.80s",
+	    name);
     return NIL;
   }
   return (long) sbuf.st_nlink;	/* return number of hard links */
@@ -756,6 +812,50 @@ void unlockfd (int fd,char *lock)
   if (!flock (fd,LOCK_EX|LOCK_NB)) unlink (lock);
   flock (fd,LOCK_UN);		/* unlock it */
   close (fd);			/* close it */
+}
+
+/* Set proper file protection for mailbox
+ * Accepts: mailbox name
+ *	    actual file path name
+ * Returns: T, always
+ */
+
+long set_mbx_protections (char *mailbox,char *path)
+{
+  struct stat sbuf;
+  int mode = (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL);
+  if (*mailbox == '#') {	/* possible namespace? */
+      if (((mailbox[1] == 'f') || (mailbox[1] == 'F')) &&
+	  ((mailbox[2] == 't') || (mailbox[2] == 'T')) &&
+	  ((mailbox[3] == 'p') || (mailbox[3] == 'P')) &&
+	  (mailbox[4] == '/'))
+	mode = (int) mail_parameters (NIL,GET_FTPPROTECTION,NIL);
+      else if (((mailbox[1] == 'p') || (mailbox[1] == 'P')) &&
+	       ((mailbox[2] == 'u') || (mailbox[2] == 'U')) &&
+	       ((mailbox[3] == 'b') || (mailbox[3] == 'B')) &&
+	       ((mailbox[4] == 'l') || (mailbox[4] == 'L')) &&
+	       ((mailbox[5] == 'i') || (mailbox[5] == 'I')) &&
+	       ((mailbox[6] == 'c') || (mailbox[6] == 'C')) &&
+	       (mailbox[7] == '/'))
+	mode = (int) mail_parameters (NIL,GET_PUBLICPROTECTION,NIL);
+      else if (((mailbox[1] == 's') || (mailbox[1] == 'S')) &&
+	       ((mailbox[2] == 'h') || (mailbox[2] == 'H')) &&
+	       ((mailbox[3] == 'a') || (mailbox[3] == 'A')) &&
+	       ((mailbox[4] == 'r') || (mailbox[4] == 'R')) &&
+	       ((mailbox[5] == 'e') || (mailbox[5] == 'E')) &&
+	       ((mailbox[6] == 'd') || (mailbox[6] == 'D')) &&
+	       (mailbox[7] == '/'))
+	mode = (int) mail_parameters (NIL,GET_SHAREDPROTECTION,NIL);
+  }
+				/* if a directory */
+  if (!stat (path,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR)) {
+				/* set owner search if allow read or write */
+    if (mode & 0600) mode |= 0100;
+    if (mode & 060) mode |= 010;/* set group search if allow read or write */
+    if (mode & 06) mode |= 01;	/* set world search if allow read or write */
+  }
+  chmod (path,mode);		/* set the new protection, ignore failure */
+  return LONGT;
 }
 
 /* Determine default prototype stream to user
@@ -807,7 +907,8 @@ void dorc (char *file,long flag)
 {
   int i;
   char *s,*t,*k,tmp[MAILTMPLEN],tmpx[MAILTMPLEN];
-  extern MAILSTREAM STDPROTO;
+  extern MAILSTREAM CREATEPROTO;
+  extern MAILSTREAM EMPTYPROTO;
   DRIVER *d;
   FILE *f = fopen (file,"r");
 				/* no file or ill-advised usage */
@@ -835,8 +936,8 @@ void dorc (char *file,long flag)
 	  if (!strcmp (lcase (k),"same-as-inbox"))
 	    createProto = ((d = mail_valid (NIL,"INBOX",NIL)) &&
 			    strcmp (d->name,"dummy")) ?
-			      ((*d->open) (NIL)) : &STDPROTO;
-	  else if (!strcmp (k,"system-standard")) createProto = &STDPROTO;
+			      ((*d->open) (NIL)) : &CREATEPROTO;
+	  else if (!strcmp (k,"system-standard")) createProto = &CREATEPROTO;
 	  else {		/* see if a driver name */
 	    for (d = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL);
 		 d && strcmp (d->name,k); d = d->next);
@@ -851,8 +952,8 @@ void dorc (char *file,long flag)
 	  if (!strcmp (lcase (k),"same-as-inbox"))
 	    appendProto = ((d = mail_valid (NIL,"INBOX",NIL)) &&
 			    strcmp (d->name,"dummy")) ?
-			      ((*d->open) (NIL)) : &STDPROTO;
-	  else if (!strcmp (k,"system-standard")) appendProto = &STDPROTO;
+			      ((*d->open) (NIL)) : &EMPTYPROTO;
+	  else if (!strcmp (k,"system-standard")) appendProto = &EMPTYPROTO;
 	  else {		/* see if a driver name */
 	    for (d = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL);
 		 d && strcmp (d->name,k); d = d->next);
@@ -949,6 +1050,12 @@ void dorc (char *file,long flag)
 	  mail_parameters (NIL,SET_DIRPROTECTION,(void *) atol (k));
 	else if (!strcmp (s,"set lock-protection"))
 	  mail_parameters (NIL,SET_LOCKPROTECTION,(void *) atol (k));
+	else if (!strcmp (s,"set ftp-protection"))
+	  mail_parameters (NIL,SET_FTPPROTECTION,(void *) atol (k));
+	else if (!strcmp (s,"set public-protection"))
+	  mail_parameters (NIL,SET_PUBLICPROTECTION,(void *) atol (k));
+	else if (!strcmp (s,"set shared-protection"))
+	  mail_parameters (NIL,SET_SHAREDPROTECTION,(void *) atol (k));
 	else if (!strcmp (s,"set disable-fcntl-locking"))
 	  mail_parameters (NIL,SET_DISABLEFCNTLLOCK,(void *) atol (k));
 	else if (!strcmp (s,"set lock-eacces-error"))

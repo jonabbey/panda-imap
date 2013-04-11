@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	24 May 1995
- * Last Edited:	21 June 1998
+ * Last Edited:	15 December 1998
  *
  * Copyright 1998 by Mark Crispin
  *
@@ -31,9 +31,14 @@
 
 #define auth_link a_link
 #define auth_log a_log
+#define auth_md5 a_md5
 #define auth_login_client al_cli
 #define auth_login_server al_ser
+#define auth_md5_valid a5_val
+#define auth_md5_client a5_cli
+#define auth_md5_server a5_ser
 #define authenticate a_auth
+#define authserver_login a_serv
 #define body_encodings bencds
 #define body_types btypes
 #define default_proto d_prot
@@ -57,6 +62,7 @@
 #define dummy_rename d_ren
 #define dummy_scan d_scan
 #define dummy_search d_srch
+#define dummy_subscribe d_subs
 #define dummy_valid d_val
 #define env_parameters e_parm
 #define fatal fatal
@@ -272,6 +278,9 @@
 #define mail_valid_net mv_net
 #define mail_valid_net_parse mvn_pr
 #define mailboxfile mbxfil
+#define md5_init m5_ini
+#define md5_update m5_upd
+#define md5_final m5_fin
 #define mime2_decode m2_dec
 #define mime2_text m2_txt
 #define mime2_token m2_tok
@@ -362,6 +371,9 @@
 #define nntp_unsubscribe n_uns
 #define nntp_valid n_val
 #define pop3_append p_appn
+#define pop3_auth p_auth
+#define pop3_cache p_cach
+#define pop3_challenge p_chal
 #define pop3_check p_chck
 #define pop3_close p_clos
 #define pop3_copy p_copy
@@ -381,6 +393,7 @@
 #define pop3_ping p_ping
 #define pop3_rename p_ren
 #define pop3_reply p_rep
+#define pop3_response p_resp
 #define pop3_scan p_scan
 #define pop3_send p_send
 #define pop3_send_num ps_num
@@ -425,10 +438,14 @@
 #define rfc822_timezone r_tz
 #define rfc822_write_address_full rw_adr
 #define rfc822_write_body_header rwbh_8
+#define server_input_wait s_iwat
 #define server_login s_log
+#define server_init s_init
 #define sm_read sm_rd
 #define sm_subscribe sm_sub
 #define sm_unsubscribe sm_uns
+#define smtp_auth s_auth
+#define smtp_challenge s_chal
 #define smtp_close s_clos
 #define smtp_debug s_dbug
 #define smtp_ehlo s_ehlo
@@ -438,7 +455,11 @@
 #define smtp_open_full s_open
 #define smtp_rcpt s_rcpt
 #define smtp_reply s_repl
+#define smtp_response s_resp
 #define smtp_send s_send
+#define smtp_send_auth ss_aut
+#define smtp_send_auth_work ss_atw
+#define smtp_send_work ss_wrk
 #define smtp_soutr s_str
 #define strcrlfcpy sc_cpy
 #define strcrlflen sc_len
@@ -455,6 +476,8 @@
 #define tcp_parameters t_parameters
 #define tcp_port t_port
 #define tcp_remotehost t_rhst
+#define tcp_serverhost t_shst
+#define tcp_serverport t_sprt
 #define tcp_sout t_sout
 #define tcp_soutr t_str
 #define textcpy txcopy

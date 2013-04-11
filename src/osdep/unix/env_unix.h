@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	28 April 1998
+ * Last Edited:	10 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -50,12 +50,12 @@ char *myusername_full (unsigned long *flags);
   myusername_full (NIL)
 char *sysinbox ();
 char *mailboxdir (char *dst,char *dir,char *name);
-int lockname (char *lock,char *fname);
+int lockname (char *lock,char *fname,int op);
 int lockfd (int fd,char *lock,int op);
-void locksbuf (char *lock,void *sbuf);
-int lock_work (char *lock);
+int lock_work (char *lock,void *sbuf,int op);
 long chk_notsymlink (char *name);
 void unlockfd (int fd,char *lock);
+long set_mbx_protections (char *mailbox,char *path);
 MAILSTREAM *user_flags (MAILSTREAM *stream);
 char *default_user_flag (unsigned long i);
 void dorc (char *file,long flag);

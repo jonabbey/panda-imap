@@ -1,5 +1,5 @@
 @ECHO OFF
-REM Program:	Driver Linkage Generator auxillary for NT
+REM Program:	Driver Linkage Generator auxillary for NT/Win9x
 
 REM Author:	Mark Crispin
 REM		Networks and Distributed Computing
@@ -10,9 +10,9 @@ REM		Seattle, WA  98195
 REM		Internet: MRC@CAC.Washington.EDU
 
 REM Date:	11 October 1989
-REM Last Edited: 9 October 1995
+REM Last Edited:14 January 1999
 
-REM Copyright 1995 by the University of Washington
+REM Copyright 1999 by the University of Washington
 
 REM  Permission to use, copy, modify, and distribute this software and its
 REM documentation for any purpose and without fee is hereby granted, provided
@@ -33,4 +33,5 @@ REM WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ECHO extern DRIVER %1driver; >> LINKAGE.H
 REM Note the introduction of the caret to quote the ampersand in NT
-ECHO   mail_link (^&%1driver);	/* link in the %1 driver */ >> LINKAGE.C
+if "%OS%" == "Windows_NT" ECHO   mail_link (^&%1driver);	/* link in the %1 driver */ >> LINKAGE.C
+if "%OS%" == "" ECHO   mail_link (&%1driver);	/* link in the %1 driver */ >> LINKAGE.C

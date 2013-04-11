@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 July 1998
+ * Last Edited:	25 October 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -111,7 +111,14 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   struct hostent *he;
   char hostname[MAILTMPLEN];
   char tmp[MAILTMPLEN];
-  struct servent *sv = service ? getservbyname (service,"tcp") : NIL;
+  struct servent *sv = NIL;
+  if (service) {		/* service specified? */
+    if (*service == '*') {	/* yes, special alt driver kludge? */
+      ctrp = NIL;		/* yes, don't do open timeout */
+      sv = getservbyname (service + 1,"tcp");
+    }
+    else sv = getservbyname (service,"tcp");
+  }
 				/* user service name port */
   if (sv) port = ntohs (sin.sin_port = sv->s_port);
  				/* copy port number in network format */
@@ -570,6 +577,7 @@ char *tcp_clienthost ()
  */
 
 static char *myServerHost = NIL;
+static long myServerPort = -1;
 
 char *tcp_serverhost ()
 {
@@ -579,27 +587,44 @@ char *tcp_serverhost ()
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
 				/* get socket address */
-    if (getsockname (0,(struct sockaddr *) &sin,&sinlen)) s = mylocalhost ();
+    if (getsockname (0,(struct sockaddr *) &sin,(void *) &sinlen))
+      s = mylocalhost ();
+    else {
 #ifndef DISABLE_REVERSE_DNS_LOOKUP
-    /* Guarantees that the server will have the same string as the client does
-     * from calling tcp_remotehost ().
-     */
-    else if (he = gethostbyaddr ((char *) &sin.sin_addr,
-				 sizeof (struct in_addr),sin.sin_family))
-      s = he->h_name;
+      myServerPort = ntohs (sin.sin_port);
+      /* Guarantees that the server will have the same string as the client
+       * does from calling tcp_remotehost ().
+       */
+      if (he = gethostbyaddr ((char *) &sin.sin_addr,
+			      sizeof (struct in_addr),sin.sin_family))
+	s = he->h_name;
+      else
 #else
-    /* Not recommended.  In any mechanism (e.g. Kerberos) in which both client
-     * and server must agree on the name of the server system, this may cause
-     * a spurious mismatch.  This is particularly important when multiple
-     * server systems are co-located on the same CPU with different IP
-     * addresses; the gethostbyaddr() call will return the name of the proper
-     * server system name and avoid canonicalizing it to a default name.
-     */
+      /* Not recommended.  In any mechanism (e.g. Kerberos) in which both
+       * client and server must agree on the name of the server system, this
+       * may cause a spurious mismatch.  This is particularly important when
+       * multiple server systems are co-located on the same CPU with different
+       * IP addresses; the gethostbyaddr() call will return the name of the
+       * proper server system name and avoid canonicalizing it to a default
+       * name.
+       */
 #endif
-    else sprintf (s = tmp,"[%s]",inet_ntoa (sin.sin_addr));
+      sprintf (s = tmp,"[%s]",inet_ntoa (sin.sin_addr));
+    }
     myServerHost = cpystr (s);
   }
   return myServerHost;
+}
+
+
+/* TCP/IP get server port number (server calls only)
+ * Returns: server port number
+ */
+
+long tcp_serverport ()
+{
+  if (!myServerHost) tcp_serverhost ();
+  return myServerPort;
 }
 
 /* TCP/IP return canonical form of host name

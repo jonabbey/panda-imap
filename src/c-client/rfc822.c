@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	1 September 1998
+ * Last Edited:	10 September 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -1682,20 +1682,21 @@ unsigned char *rfc822_qprint (unsigned char *src,unsigned long srcl,
   unsigned char *s = src;
   unsigned char c,e;
   *len = 0;			/* in case we return an error */
-  while ((s - src) < srcl) {	/* until run out of characters */
+				/* until run out of characters */
+  while (((unsigned long) (s - src)) < srcl) {
     switch (c = *s++) {		/* what type of character is it? */
     case '=':			/* quoting character */
-      if ((s - src) < srcl) switch (c = *s++) {
+      if (((unsigned long) (s - src)) < srcl) switch (c = *s++) {
       case '\0':		/* end of data */
 	s--;			/* back up pointer */
 	break;
       case '\015':		/* non-significant line break */
 	t = d;			/* accept any leading spaces */
-	if (((s - src) < srcl) && (*s == '\012')) s++;
+	if ((((unsigned long) (s - src)) < srcl) && (*s == '\012')) s++;
 	break;
       default:			/* two hex digits then */
-	if (!(isxdigit (c) && ((s - src) < srcl) && (e = *s++) &&
-	      isxdigit (e))) {
+	if (!(isxdigit (c) && (((unsigned long) (s - src)) < srcl) &&
+	      (e = *s++) && isxdigit (e))) {
 	  fs_give ((void **) &ret);
 	  return NIL;
 	}

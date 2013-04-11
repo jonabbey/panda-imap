@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 June 1995
+ * Last Edited:	19 January 1999
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,8 +40,10 @@
 
 void *fs_get (size_t size)
 {
+  int i = mail_parameters (NIL,GET_ALARMSAVE,NIL) ? (int) max (alarm(0),1) : 0;
   void *block = malloc (size ? size : (size_t) 1);
   if (!block) fatal ("Out of free storage");
+  if (i) alarm (i);
   return (block);
 }
 
@@ -53,8 +55,10 @@ void *fs_get (size_t size)
 
 void fs_resize (void **block,size_t size)
 {
+  int i = mail_parameters (NIL,GET_ALARMSAVE,NIL) ? (int) max (alarm(0),1) : 0;
   if (!(*block = realloc (*block,size ? size : (size_t) 1)))
     fatal ("Can't resize free storage");
+  if (i) alarm (i);
 }
 
 
@@ -64,6 +68,8 @@ void fs_resize (void **block,size_t size)
 
 void fs_give (void **block)
 {
+  int i = mail_parameters (NIL,GET_ALARMSAVE,NIL) ? (int) max (alarm(0),1) : 0;
   free (*block);
   *block = NIL;
+  if (i) alarm (i);
 }

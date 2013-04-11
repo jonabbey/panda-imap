@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	25 May 1995
- * Last Edited:	25 May 1995
+ * Last Edited:	28 September 1998
  *
- * Copyright 1995 by Mark Crispin
+ * Copyright 1998 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,3 +36,15 @@
 /* Function prototypes */
 
 #include "env.h"
+
+
+/* syslog() emulation */
+
+#define LOG_MAIL	(2<<3)	/* mail system */
+#define LOG_AUTH	(4<<3)	/* security/authorization messages */
+#define LOG_ALERT	1	/* action must be taken immediately */
+#define LOG_INFO	6	/* informational */
+#define LOG_PID		0x01	/* log the pid with each message */
+
+void openlog (const char *ident,int logopt,int facility);
+void syslog (int priority,const char *message,...);

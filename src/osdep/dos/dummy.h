@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	13 November 1996
+ * Last Edited:	8 October 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,6 +40,7 @@ void *dummy_parameters (long function,void *value);
 void dummy_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
 void dummy_list (MAILSTREAM *stream,char *ref,char *pat);
 void dummy_lsub (MAILSTREAM *stream,char *ref,char *pat);
+long dummy_subscribe (MAILSTREAM *stream,char *mailbox);
 void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 		      long level);
 long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,

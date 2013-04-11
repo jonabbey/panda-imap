@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	3 September 1998
+ * Last Edited:	27 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,6 +42,7 @@
 #include "misc.h"
 #include "rfc822.h"
 #include "utf8.h"
+#include "smtp.h"
 
 /* c-client global data */
 
@@ -49,6 +50,10 @@
 static DRIVER *maildrivers = NIL;
 				/* list of authenticators */
 static AUTHENTICATOR *mailauthenticators = NIL;
+				/* alternative network driver pointer */
+static NETDRIVER *mailaltdriver = NIL;
+				/* alternative network driver name */
+static char *mailaltdrivername = NIL;
 				/* pointer to alternate gets function */
 static mailgets_t mailgets = NIL;
 				/* pointer to read progress function */
@@ -322,6 +327,17 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
   case GET_EXPUNGEATPING:
     value = (void *) expungeatping;
     break;
+  case SET_ALTDRIVER:
+    mailaltdriver = (NETDRIVER *) value;
+  case GET_ALTDRIVER:
+    ret = (void *) mailaltdriver;
+    break;
+  case SET_ALTDRIVERNAME:
+    mailaltdrivername = (char *) value;
+  case GET_ALTDRIVERNAME:
+    ret = (void *) mailaltdrivername;
+    break;
+
   default:
     if (stream && stream->dtb)	/* if have stream, do for its driver only */
       ret = (*stream->dtb->parameters) (function,value);
@@ -329,6 +345,7 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
     else for (d = maildrivers; d; d = d->next)
       if (r = (d->parameters) (function,value)) ret = r;
 				/* then do global values */
+    if (r = smtp_parameters (function,value)) ret = r;
     if (r = env_parameters (function,value)) ret = r;
     if (r = tcp_parameters (function,value)) ret = r;
     break;
@@ -400,7 +417,8 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
 	(i < NETMAXHOST) && (t = strchr (v,'}')) && ((j = t - v)<MAILTMPLEN) &&
 	(strlen (t+1) < (size_t) NETMAXMBX))) return NIL;
   strncpy (mb->host,name,i);	/* set host name */
-  mb->host[i] = '\0';		/* tie it off */
+  strncpy (mb->orighost,name,i);
+  mb->host[i] = mb->orighost[i] = '\0';
   strcpy (mb->mailbox,t+1);	/* set mailbox name */
   if (t - v) {			/* any switches or port specification? */
     strncpy (t = tmp,v,j);	/* copy it */
@@ -441,6 +459,8 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
 	if (!strcmp (s,"anonymous")) mb->anoflag = T;
 	else if (!strcmp (s,"debug")) mb->dbgflag = T;
 	else if (!strcmp (s,"secure")) mb->secflag = T;
+	else if (mailaltdriver && mailaltdrivername &&
+		 !strcmp (s,mailaltdrivername)) mb->altflag = T;
 				/* service switches below here */
 	else if (*mb->service) return NIL;
 	else if (!strncmp (s,"imap",4) &&
@@ -1751,42 +1771,52 @@ void mail_search_full (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,
 		       long flags)
 {
   unsigned long i;
-				/* clear search vector */
-  for (i = 1; i <= stream->nmsgs; ++i) mail_elt (stream,i)->searched = NIL;
+  if (!(flags & SE_RETAIN))	/* clear search vector unless retaining */
+    for (i = 1; i <= stream->nmsgs; ++i) mail_elt (stream,i)->searched = NIL;
   if (pgm && stream->dtb) {	/* must have a search program and driver */
 				/* do the driver's action if requested */
-    if (stream->dtb->search) (*stream->dtb->search) (stream,charset,pgm,flags);
-    else {			/* convert if charset not US-ASCII or UTF-8 */
-      if (charset && *charset &&
-	  !(((charset[0] == 'U') || (charset[0] == 'u')) &&
-	    ((((charset[1] == 'S') || (charset[1] == 's')) &&
-	      (charset[2] == '-') &&
-	      ((charset[3] == 'A') || (charset[3] == 'a')) &&
-	      ((charset[4] == 'S') || (charset[4] == 's')) &&
-	      ((charset[5] == 'C') || (charset[5] == 'c')) &&
-	      ((charset[6] == 'I') || (charset[6] == 'i')) &&
-	      ((charset[7] == 'I') || (charset[7] == 'i')) && !charset[8]) ||
-	     (((charset[1] == 'T') || (charset[1] == 't')) &&
-	      ((charset[2] == 'F') || (charset[2] == 'f')) &&
-	      (charset[3] == '-') && (charset[4] == '8') && !charset[5])))) {
-	if (utf8_text (NIL,charset,NIL,T)) utf8_searchpgm (pgm,charset);
-	else {			/* charset unknown */
-	  if (flags & SE_FREE) mail_free_searchpgm (&pgm);
-	  return;
-	}
-      }
-      for (i = 1; i <= stream->nmsgs; ++i)
-      if (mail_search_msg (stream,i,pgm)) {
-	if (flags & SE_UID) mm_searched (stream,mail_uid (stream,i));
-	else {			/* mark as searched, notify mail program */
-	  mail_elt (stream,i)->searched = T;
-	  if (!stream->silent) mm_searched (stream,i);
-	}
-      }
-    }
+    if (!(flags & SO_NOSERVER) && stream->dtb->search)
+      (*stream->dtb->search) (stream,charset,pgm,flags);
+    else mail_search_default (stream,charset,pgm,flags);
   }
 				/* flush search program if requested */
   if (flags & SE_FREE) mail_free_searchpgm (&pgm);
+}
+
+
+/* Mail search for messages default handler
+ * Accepts: mail stream
+ *	    character set
+ *	    search program
+ *	    option flags
+ */
+
+void mail_search_default (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,
+			  long flags)
+{
+  unsigned long i;
+  if (charset && *charset &&	/* convert if charset not US-ASCII or UTF-8 */
+      !(((charset[0] == 'U') || (charset[0] == 'u')) &&
+	((((charset[1] == 'S') || (charset[1] == 's')) &&
+	  (charset[2] == '-') &&
+	  ((charset[3] == 'A') || (charset[3] == 'a')) &&
+	  ((charset[4] == 'S') || (charset[4] == 's')) &&
+	  ((charset[5] == 'C') || (charset[5] == 'c')) &&
+	  ((charset[6] == 'I') || (charset[6] == 'i')) &&
+	  ((charset[7] == 'I') || (charset[7] == 'i')) && !charset[8]) ||
+	 (((charset[1] == 'T') || (charset[1] == 't')) &&
+	  ((charset[2] == 'F') || (charset[2] == 'f')) &&
+	  (charset[3] == '-') && (charset[4] == '8') && !charset[5])))) {
+    if (utf8_text (NIL,charset,NIL,T)) utf8_searchpgm (pgm,charset);
+    else return;		/* charset unknown */
+  }
+  for (i = 1; i <= stream->nmsgs; ++i) if (mail_search_msg (stream,i,pgm)) {
+    if (flags & SE_UID) mm_searched (stream,mail_uid (stream,i));
+    else {			/* mark as searched, notify mail program */
+      mail_elt (stream,i)->searched = T;
+      if (!stream->silent) mm_searched (stream,i);
+    }
+  }
 }
 
 /* Mail ping mailbox
@@ -2059,9 +2089,7 @@ char *mail_cdate (char *string,MESSAGECACHE *elt)
 	   days[(int)(elt->day+2+((7+31*m)/12)+y+(y/4)
 #ifndef USEORTHODOXCALENDAR	/* Gregorian calendar */
 		      +(y / 400) - (y / 100)
-#if 0				/* this software will be an archeological
-				 * relic before this ever happens...
-				 */
+#ifdef Y4KBUGFIX
 		      - (y / 4000)
 #endif
 #else				/* Orthodox calendar */
@@ -2145,8 +2173,15 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
     case (('D'-'A') * 1024) + (('E'-'A') * 32) + ('C'-'A'): m = 12; break;
     default: return NIL;	/* unknown month */
     }
-    if ((s[4] == *s) &&	(y = strtoul ((const char *) s+5,&s,10)) &&
-	(*s == '\0' || *s == ' ')) break;
+    if (s[4] == *s) s += 5;	/* advance to year */
+    else {			/* first three were OK, possibly full name */
+      mi = *s;			/* note delimiter, skip alphas */
+      for (s += 4; isalpha (*s); s++);
+				/* error if delimiter not here */
+      if (mi != *s++) return NIL;
+    }
+    if ((y = strtoul ((const char *) s,&s,10)) && (*s == '\0' || *s == ' '))
+      break;			/* successfully parsed year */
   default: return NIL;		/* unknown date format */
   }
 				/* minimal validity check of date */
@@ -2205,15 +2240,11 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
    *  RFC-822 only recognizes UT, GMT, 1-letter military timezones, and the
    * 4 CONUS timezones and their summer time variants.  [Sorry, Canadian
    * Atlantic Provinces, Alaska, and Hawaii.]
-   *
-   *  Timezones that are not valid in RFC-822 are under #if 1 conditionals.
-   * Timezones which are frequently encountered, but are ambiguous, are
-   * under #if 0 conditionals for documentation purposes.
    */
   switch (ms) {			/* determine the timezone */
 				/* Universal */
   case (('U'-'A')*1024)+(('T'-'A')*32):
-#if 1
+#ifndef STRICT_RFC822_TIMEZONES
   case (('U'-'A')*1024)+(('T'-'A')*32)+'C'-'A':
 #endif
 				/* Greenwich */
@@ -2221,16 +2252,16 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
   case 'Z': elt->zhours = 0; break;
 
     /* oriental (from Greenwich) timezones */
-#if 1
+#ifndef STRICT_RFC822_TIMEZONES
 				/* Middle Europe */
   case (('M'-'A')*1024)+(('E'-'A')*32)+'T'-'A':
 #endif
-#if 0	/* conflicts with Bering */
+#ifdef BRITISH_SUMMER_TIME
 				/* British Summer */
   case (('B'-'A')*1024)+(('S'-'A')*32)+'T'-'A':
 #endif
   case 'A': elt->zhours = 1; break;
-#if 1
+#ifndef STRICT_RFC822_TIMEZONES
 				/* Eastern Europe */
   case (('E'-'A')*1024)+(('E'-'A')*32)+'T'-'A':
 #endif
@@ -2241,7 +2272,7 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
   case 'F': elt->zhours = 6; break;
   case 'G': elt->zhours = 7; break;
   case 'H': elt->zhours = 8; break;
-#if 1
+#ifndef STRICT_RFC822_TIMEZONES
 				/* Japan */
   case (('J'-'A')*1024)+(('S'-'A')*32)+'T'-'A':
 #endif
@@ -2253,16 +2284,16 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
 	/* occidental (from Greenwich) timezones */
   case 'N': elt->zoccident = 1; elt->zhours = 1; break;
   case 'O': elt->zoccident = 1; elt->zhours = 2; break;
-#if 1
+#ifndef STRICT_RFC822_TIMEZONES
   case (('A'-'A')*1024)+(('D'-'A')*32)+'T'-'A':
 #endif
   case 'P': elt->zoccident = 1; elt->zhours = 3; break;
-#if 0	/* conflicts with Nome */
+#ifdef NEWFOUNDLAND_STANDARD_TIME
 				/* Newfoundland */
   case (('N'-'A')*1024)+(('S'-'A')*32)+'T'-'A':
     elt->zoccident = 1; elt->zhours = 3; elt->zminutes = 30; break;
 #endif
-#if 1
+#ifndef STRICT_RFC822_TIMEZONES
 				/* Atlantic */
   case (('A'-'A')*1024)+(('S'-'A')*32)+'T'-'A':
 #endif
@@ -2283,24 +2314,28 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
   case 'T': elt->zoccident = 1; elt->zhours = 7; break;
 				/* Pacific */
   case (('P'-'A')*1024)+(('S'-'A')*32)+'T'-'A':
-#if 1
+#ifndef STRICT_RFC822_TIMEZONES
   case (('Y'-'A')*1024)+(('D'-'A')*32)+'T'-'A':
 #endif
   case 'U': elt->zoccident = 1; elt->zhours = 8; break;
-#if 1
+#ifndef STRICT_RFC822_TIMEZONES
 				/* Yukon */
   case (('Y'-'A')*1024)+(('S'-'A')*32)+'T'-'A':
 #endif
   case 'V': elt->zoccident = 1; elt->zhours = 9; break;
-#if 1
+#ifndef STRICT_RFC822_TIMEZONES
 				/* Hawaii */
   case (('H'-'A')*1024)+(('S'-'A')*32)+'T'-'A':
 #endif
   case 'W': elt->zoccident = 1; elt->zhours = 10; break;
-#if 0	/* conflicts with Newfoundland, British Summer, and Singapore */
 				/* Nome/Bering/Samoa */
+#ifndef NOME_STANDARD_TIME
   case (('N'-'A')*1024)+(('S'-'A')*32)+'T'-'A':
+#endif
+#ifndef BERING_STANDARD_TIME
   case (('B'-'A')*1024)+(('S'-'A')*32)+'T'-'A':
+#endif
+#ifndef SAMOA_STANDARD_TIME
   case (('S'-'A')*1024)+(('S'-'A')*32)+'T'-'A':
 #endif
   case 'X': elt->zoccident = 1; elt->zhours = 11; break;
@@ -2703,8 +2738,8 @@ long mail_search_msg (MAILSTREAM *stream,unsigned long msgno,SEARCHPGM *pgm)
   if (pgm->text && !mail_search_text (stream,msgno,pgm->text,LONGT))return NIL;
   if (pgm->body && !mail_search_text (stream,msgno,pgm->body,NIL)) return NIL;
   if (or = pgm->or) do
-    if (!(mail_search_msg (stream,msgno,pgm->or->first) ||
-	  mail_search_msg (stream,msgno,pgm->or->second))) return NIL;
+    if (!(mail_search_msg (stream,msgno,or->first) ||
+	  mail_search_msg (stream,msgno,or->second))) return NIL;
   while (or = or->next);
   if (not = pgm->not) do if (mail_search_msg (stream,msgno,not->pgm))
     return NIL;
@@ -2723,6 +2758,8 @@ long mail_search_header (SIZEDTEXT *hdr,STRINGLIST *st)
   SIZEDTEXT h;
   long ret = LONGT;
   utf8_mime2text (hdr,&h);	/* make UTF-8 version of header */
+  while (h.size && ((h.data[h.size-1]=='\015') || (h.data[h.size-1]=='\012')))
+    --h.size;			/* slice off trailing newlines */
   do if (!search (h.data,h.size,st->text.data,st->text.size))
     ret = NIL;
   while (ret && (st = st->next));
@@ -2948,7 +2985,7 @@ long mail_search_addr (ADDRESS *adr,STRINGLIST *st)
 	tmp[0] = '\0';
 	rfc822_write_address (tmp,&tadr);
 				/* resize buffer if necessary */
-	if ((k = strlen (tmp)) > (i - txt.size))
+	if (((k = strlen (tmp)) + txt.size) > i)
 	  fs_resize ((void **) &txt.data,SEARCHBUFSLOP + (i += SEARCHBUFLEN));
 				/* add new address */
 	memcpy (txt.data + txt.size,tmp,k);
@@ -3419,11 +3456,11 @@ SORTCACHE **mail_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm)
 	      }
 	    }
 	    break;
-	  case 'F': case 'f':	/* possible "fwd" */
-	    if (((t[1] != 'W') && (t[1] != 'w')) ||
-		((t[2] != 'D') && (t[2] != 'd'))) x = NIL;
-	    else {		/* found fwd, skip leading whitespace */
-	      for (x = t + 3; (*x == ' ') || (*x == '\t'); x++);
+	  case 'F': case 'f':	/* possible "fw" or "fwd" */
+	    if ((t[1] != 'W') && (t[1] != 'w')) x = NIL;
+	    else {		/* found fw, skip "D" and leading whitespace */
+	      for (x = ((t[2] == 'D') || (t[2] == 'd')) ? t + 3 : t + 2;
+		   (*x == ' ') || (*x == '\t'); x++);
 	      switch (*x++) {	/* what comes after? */
 	      case ':':		/* "fwd:" */
 		t = x;
@@ -3572,9 +3609,7 @@ unsigned long mail_longdate (MESSAGECACHE *elt)
     ((unsigned long) ((elt->month + (elt->month > 8))) / 2) +
       elt->year * 365 + (((unsigned long) (elt->year + (BASEYEAR % 4))) / 4) +
 	((yr / 400) - (BASEYEAR / 400)) - ((yr / 100) - (BASEYEAR / 100)) -
-#if 0				/* this software will be an archeological
-				 * relic before this ever happens...
-				 */
+#ifdef Y4KBUGFIX
 	  ((yr / 4000) - (BASEYEAR / 4000)) -
 #endif
 	    ((elt->month < 3) ? !(yr % 4) && ((yr % 100) || !(yr % 400)) : 2);
@@ -4410,10 +4445,11 @@ AUTHENTICATOR *mail_lookup_auth (unsigned long i)
 
 /* Lookup authenticator name
  * Accepts: authenticator name
+ *	    security flag (non-zero to ignore non-secure authenticators)
  * Returns: index in authenticator chain, or 0 if not found
  */
 
-unsigned int mail_lookup_auth_name (char *mechanism)
+unsigned int mail_lookup_auth_name (char *mechanism,long secflag)
 {
   char tmp[MAILTMPLEN];
   int i;
@@ -4422,7 +4458,7 @@ unsigned int mail_lookup_auth_name (char *mechanism)
 				/* make upper case copy of mechanism name */
     ucase (strcpy (tmp,mechanism));
     for (i = 1, auth = mailauthenticators; auth; i++, auth = auth->next)
-      if (!strcmp (auth->name,tmp)) return i;
+      if ((!secflag || auth->secflag) && !strcmp (auth->name,tmp)) return i;
   }
   return 0;
 }

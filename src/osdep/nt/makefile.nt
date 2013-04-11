@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	28 April 1998
+# Last Edited:	24 November 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -34,7 +34,7 @@
 EXTRAAUTHENTICATORS=
 EXTRADRIVERS = 
 EXTRACFLAGS=
-DEFAULTAUTHENTICATORS=log
+DEFAULTAUTHENTICATORS=md5 log
 DRIVERS = imap nntp pop3 mbx mtx tenex unix
 DEFAULTDRIVER = mbx
 CFLAGS= /MT /W3 /Ox /DWIN32 -nologo $(EXTRACFLAGS)
@@ -80,7 +80,7 @@ smtp.obj: mail.h smtp.h rfc822.h misc.h osdep.h smtp.c
 
 os_nt.obj: mail.h osdep.h env_nt.h fs.h ftl.h nl.h tcp.h tcp_nt.h yunchan.h \
 	os_nt.c fs_nt.c ftl_nt.c nl_nt.c env_nt.c tcp_nt.c yunchan.c \
-	mailfile.h auth_log.c
+	mailfile.h auth_md5.c auth_log.c
 
 mbxnt.obj: mail.h mbxnt.h misc.h osdep.h mbxnt.c
 

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	28 August 1998
+ * Last Edited:	1 February 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -229,7 +229,7 @@ long mmdf_create (MAILSTREAM *stream,char *mailbox)
 				/* done if made directory */
     if ((s = strrchr (s,'/')) && !s[1]) ret = T;
     else if ((fd = open (mbx,O_WRONLY,
-		    (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
+			 (int) mail_parameters(NIL,GET_MBXPROTECTION,NIL)))<0){
       sprintf (tmp,"Can't reopen mailbox node %.80s: %s",mbx,strerror (errno));
       mm_log (tmp,ERROR);
       unlink (mbx);		/* delete the file */
@@ -255,7 +255,7 @@ long mmdf_create (MAILSTREAM *stream,char *mailbox)
       else ret = T;		/* success */
     }
   }
-  return ret;
+  return ret ? set_mbx_protections (mailbox,mbx) : NIL;
 }
 
 
@@ -288,44 +288,35 @@ long mmdf_rename (MAILSTREAM *stream,char *old,char *newname)
   if (newname && !((s = dummy_file (tmp,newname)) && *s))
     sprintf (tmp,"Can't rename mailbox %.80s to %.80s: invalid name",
 	     old,newname);
-  else if ((ld = lockname (lock,dummy_file (file,old))) < 0) {
-    syslog (LOG_INFO,"Mailbox lock file %.80s open failure: %s",tmp,
-	    strerror (errno));
-    sprintf (tmp,"Can't get lock for mailbox %.80s",old);
-  }
-  else {			/* lock out other c-clients */
-    if (flock (ld,LOCK_EX|LOCK_NB)) {
-      close (ld);		/* couldn't lock, give up on it then */
-      sprintf (tmp,"Mailbox %.80s is in use by another process",old);
-    }
+  else if ((ld = lockname (lock,dummy_file (file,old),LOCK_EX|LOCK_NB)) < 0)
+    sprintf (tmp,"Mailbox %.80s is in use by another process",old);
+  else {
+    if ((fd = mmdf_lock (file,O_RDWR,S_IREAD|S_IWRITE,lockx,LOCK_EX)) < 0)
+      sprintf (tmp,"Can't lock mailbox %.80s: %s",old,strerror (errno));
     else {
-      if ((fd = mmdf_lock (file,O_RDWR,S_IREAD|S_IWRITE,lockx,LOCK_EX)) < 0)
-	sprintf (tmp,"Can't lock mailbox %.80s: %s",old,strerror (errno));
-      else {
-	if (newname) {		/* want rename? */
+      if (newname) {		/* want rename? */
 				/* found superior to destination name? */
-	  if (s = strrchr (s,'/')) {
-	    c = *++s;		/* remember first character of inferior */
-	    *s = '\0';		/* tie off to get just superior */
+	if (s = strrchr (s,'/')) {
+	  c = *++s;		/* remember first character of inferior */
+	  *s = '\0';		/* tie off to get just superior */
 				/* name doesn't exist, create it */
-	    if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-		!dummy_create (stream,tmp)) return NIL;
-	    *s = c;		/* restore full name */
-	  }
-	  if (rename (file,tmp))
-	    sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",old,newname,
-		     strerror (errno));
-	  else ret = T;		/* set success */
+	  if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
+	      !dummy_create (stream,tmp)) return NIL;
+	  *s = c;		/* restore full name */
 	}
-	else if (unlink (file))
-	  sprintf (tmp,"Can't delete mailbox %.80s: %s",old,strerror (errno));
+	if (rename (file,tmp))
+	  sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",old,newname,
+		   strerror (errno));
 	else ret = T;		/* set success */
-	mmdf_unlock (fd,NIL,lockx);
       }
-      flock (ld,LOCK_UN);	/* release c-client lock */
-      close (ld);		/* close c-client lock */
-      unlink (lock);		/* and delete it */
+      else if (unlink (file))
+	sprintf (tmp,"Can't delete mailbox %.80s: %s",old,strerror (errno));
+      else ret = T;		/* set success */
+      mmdf_unlock (fd,NIL,lockx);
     }
+    flock (ld,LOCK_UN);		/* release c-client lock */
+    close (ld);			/* close c-client lock */
+    unlink (lock);		/* and delete it */
   }
   mm_nocritical (stream);	/* no longer critical */
   if (!ret) mm_log (tmp,ERROR);	/* log error */
@@ -371,14 +362,7 @@ MAILSTREAM *mmdf_open (MAILSTREAM *stream)
 				/* make lock for read/write access */
   if (!stream->rdonly) while (retry) {
 				/* get a new file handle each time */
-    if ((fd = lockname (tmp,LOCAL->name)) < 0) {
-      syslog (LOG_INFO,"Mailbox lock file %.80s open failure: %s",tmp,
-	      strerror (errno));
-      mm_log ("Can't open mailbox lock, access is readonly",WARN);
-      retry = 0;		/* give up */
-    }
-				/* can get the lock? */
-    else if (flock (fd,LOCK_EX|LOCK_NB)) {
+    if ((fd = lockname (tmp,LOCAL->name,LOCK_EX|LOCK_NB)) < 0) {
       if (retry-- == KODRETRY) {/* no, first time through? */
 				/* yes, get other process' PID */
 	if (!fstat (fd,&sbuf) && (i = min (sbuf.st_size,MAILTMPLEN)) &&
@@ -389,7 +373,6 @@ MAILSTREAM *mmdf_open (MAILSTREAM *stream)
 	}
 	else retry = 0;		/* give up */
       }
-      close (fd);		/* get a new handle next time around */
       if (!stream->silent) {	/* nothing if silent stream */
 	if (retry) sleep (1);	/* wait a second before trying again */
 	else mm_log ("Mailbox is open by another process, access is readonly",
@@ -822,8 +805,7 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   struct stat sbuf;
   int fd,ti,zn;
   long f,i,ok;
-  unsigned long j,n,uf;
-  unsigned long size = SIZE (message);
+  unsigned long j,n,uf,size;
   char c,*x,buf[BUFLEN],tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN];
   time_t tp[2],t = time (0);
 				/* default stream to prototype */
@@ -881,17 +863,10 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   while (uf)			/* write user flags */
     sprintf(buf+strlen(buf)," %s",stream->user_flags[find_rightmost_bit(&uf)]);
   strcat (buf,"\n");		/* tie off flags */
-				/* write header */
-  if (write (fd,buf,strlen (buf)) < 0) {
-    sprintf (buf,"Header write failed: %s",strerror (errno));
-    mm_log (buf,ERROR);
-    ftruncate (fd,sbuf.st_size);
-    ok = NIL;
-  }  
-  for (i = 0; ok && size--;) {	/* copy text, tossing out CR's and CTRL/A */
+				/* copy text, tossing out CR's and CTRL/A */
+  for (i = strlen (buf), ok = T, size = SIZE (message); ok && size; --size) {
     if (((c = SNX (message)) != '\015') && (c != MMDFCHR)) buf[i++] = c;
-				/* dump if filled buffer or no more data */
-    if (!size || (i == MAILTMPLEN)) {
+    if (i == MAILTMPLEN) {	/* dump if filled buffer or no more data */
       if ((write (fd,buf,i)) >= 0) i = 0;
       else {
 	sprintf (buf,"Message append failed: %s",strerror (errno));
@@ -902,8 +877,8 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
     }
   }
 				/* write trailing delimiter */
-  if (!(ok && (ok = (write (fd,buf,i) >= 0) &&
-	       (write (fd,mmdfhdr,MMDFHDRLEN) > 0) && !fsync (fd)))) {
+  if (!(ok && (ok = ((!i || (write (fd,buf,i) >= 0)) &&
+		     (write (fd,mmdfhdr,MMDFHDRLEN) > 0) && !fsync (fd))))) {
     sprintf (buf,"Message append failed: %s",strerror (errno));
     mm_log (buf,ERROR);
     ftruncate (fd,sbuf.st_size);
@@ -1099,8 +1074,8 @@ int mmdf_parse (MAILSTREAM *stream,char *lock,int op)
   unsigned long i,j,k;
   char c,*s,*t,*u,tmp[MAILTMPLEN],date[30];
   int pseudoseen = NIL;
-  unsigned long prevuid = 0;
   unsigned long nmsgs = stream->nmsgs;
+  unsigned long prevuid = nmsgs ? mail_elt (stream,nmsgs)->private.uid : 0;
   unsigned long recent = stream->recent;
   unsigned long oldnmsgs = stream->nmsgs;
   short silent = stream->silent;
@@ -1201,7 +1176,7 @@ int mmdf_parse (MAILSTREAM *stream,char *lock,int op)
 	  }
 	  else date[18] = date[19] = '0';
 				/* yy -- advance over timezone if necessary */
-	  if (zn == ti) ti += (((t[zn] == '+') || (t[zn] == '-')) ? 6 : 4);
+	  if (zn == ti) ti += (((t[zn+1] == '+') || (t[zn+1] == '-')) ? 6 : 4);
 	  date[7] = t[ti + 1]; date[8] = t[ti + 2];
 	  date[9] = t[ti + 3]; date[10] = t[ti + 4];
 				/* zzz */
@@ -1347,15 +1322,18 @@ int mmdf_parse (MAILSTREAM *stream,char *lock,int op)
 				/* make sure not duplicated */
 		  if (elt->private.uid)
 		    sprintf (tmp,"Message %lu UID %lu already has UID %lu",
-			     elt->msgno - 1,j,elt->private.uid);
+			     pseudoseen ? elt->msgno - 1 : elt->msgno,
+			     j,elt->private.uid);
 				/* make sure UID doesn't go backwards */
 		  else if (j <= prevuid)
 		    sprintf (tmp,"Message %lu UID %lu less than %lu",
-			     elt->msgno - 1,j,prevuid + 1);
+			     pseudoseen ? elt->msgno - 1 : elt->msgno,
+			     j,prevuid + 1);
 				/* or skip by mailbox's recorded last */
 		  else if (j > stream->uid_last)
 		    sprintf (tmp,"Message %lu UID %lu greater than last %lu",
-			     elt->msgno - 1,j,stream->uid_last);
+			     pseudoseen ? elt->msgno - 1 : elt->msgno,
+			     j,stream->uid_last);
 		  else {	/* normal UID case */
 		    prevuid = elt->private.uid = j;
 		    break;		/* exit this cruft */
@@ -1619,6 +1597,7 @@ long mmdf_rewrite (MAILSTREAM *stream,unsigned long *nexp)
   unsigned long i,j;
   int e,retry;
   time_t tp[2];
+  struct stat sbuf;
   FILE *f;
   MESSAGECACHE *elt;
   unsigned long recent = stream->recent;
@@ -1638,8 +1617,16 @@ long mmdf_rewrite (MAILSTREAM *stream,unsigned long *nexp)
   else for (i = 1; i <= stream->nmsgs; i++)
     if (!mmdf_write_message (f,stream,mail_elt (stream,i),&size))
       return mmdf_punt_scratch (f);
-				/* writing remaining data */
-  if (fflush (f)) return mmdf_punt_scratch (f);
+				/* write remaining data */
+  if (fflush (f) || fstat (fileno (f),&sbuf)) return mmdf_punt_scratch (f);
+  if (size != sbuf.st_size) {	/* make damn sure stdio isn't lying */
+    char tmp[MAILTMPLEN];
+    sprintf (tmp,"Checkpoint file size mismatch (%lu != %lu)",size,
+	     sbuf.st_size);
+    mm_log (tmp,ERROR);
+    fclose (f);			/* flush the output file */
+    return NIL;
+  }
   if (size > LOCAL->filesize) {	/* does the mailbox need to grow? */
 				/* am I paranoid or what? */
     if ((i = size - LOCAL->filesize) > LOCAL->buflen) {
@@ -1688,7 +1675,7 @@ long mmdf_rewrite (MAILSTREAM *stream,unsigned long *nexp)
     retry = NIL;		/* no need to retry yet */
     fseek (f,0,L_SET);		/* rewind files */
     lseek (LOCAL->fd,0,L_SET);
-    for (i = size; i; i -= j) {
+    for (i = size; i; i -= j)
       if (!((j = fread (LOCAL->buf,1,min ((long) CHUNK,i),f)) &&
 	    (write (LOCAL->fd,LOCAL->buf,j) >= 0))) {
 	sprintf (LOCAL->buf,"Mailbox rewrite error: %s",strerror (e = errno));
@@ -1697,7 +1684,6 @@ long mmdf_rewrite (MAILSTREAM *stream,unsigned long *nexp)
 	retry = T;		/* must retry */
 	break;
       }
-    }
   } while (retry);		/* in case need to retry */
   fclose (f);			/* finished with scratch file */
 				/* make sure tied off */

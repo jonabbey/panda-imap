@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	12 October 1995
+ * Last Edited:	15 December 1998
  *
- * Copyright 1995 by Mark Crispin
+ * Copyright 1998 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -58,4 +58,17 @@ long server_login (char *user,char *pass,int argc,char *argv[])
   argblk[3] = 0;		/* no special account */
   if (!jsys (LOGIN,argblk)) return NIL;
   return T;
+}
+
+
+/* Authenticated server log in
+ * Accepts: user name string
+ *	    argument count
+ *	    argument vector
+ * Returns: T if password validated, NIL otherwise
+ */
+
+long authserver_login (char *user,int argc,char *argv[])
+{
+  return NIL;			/* how to implement this on TOPS-20??? */
 }

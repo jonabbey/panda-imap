@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	21 August 1998
+ * Last Edited:	23 September 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -255,20 +255,22 @@ long mx_unsubscribe (MAILSTREAM *stream,char *mailbox)
 long mx_create (MAILSTREAM *stream,char *mailbox)
 {
   int fd;
-  char tmp[MAILTMPLEN];
+  char tmp[MAILTMPLEN],mbx[MAILTMPLEN];
   if (mx_isvalid (mailbox,tmp))	/* must not already exist */
     sprintf (tmp,"Can't create mailbox %.80s: mailbox already exists",mailbox);
 				/* create directory */
-  else if (!dummy_create_path (stream,strcat (mx_file (tmp,mailbox),"/")))
+  else if (!dummy_create_path (stream,strcat (mx_file (mbx,mailbox),"/")))
     sprintf (tmp,"Can't create mailbox leaf %.80s: %s",
 	     mailbox,strerror (errno));
 				/* create index file */
   else if (((fd = open (MXINDEX (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,
-			(int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) <0)
-	   || close (fd))
+			(int) mail_parameters (NIL,GET_MBXPROTECTION,mailbox)))
+	    <0 ) || close (fd))
     sprintf (tmp,"Can't create mailbox index %.80s: %s",
 	     mailbox,strerror (errno));
-  else return T;		/* success */
+				/* success */
+  else return set_mbx_protections (mailbox,mbx) &&
+    set_mbx_protections (mailbox,tmp);
   mm_log (tmp,ERROR);		/* some error */
   return NIL;
 }

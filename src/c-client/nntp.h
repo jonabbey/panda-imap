@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	27 August 1998
+ * Last Edited:	9 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -100,6 +100,7 @@ long nntp_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *nntp_mopen (MAILSTREAM *stream);
 void nntp_mclose (MAILSTREAM *stream,long options);
 void nntp_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
+void nntp_flags (MAILSTREAM *stream,char *sequence,long flags);
 long nntp_overview (MAILSTREAM *stream,char *sequence,overview_t ofn);
 char *nntp_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
 		   long flags);
@@ -107,7 +108,8 @@ long nntp_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
 void nntp_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
 unsigned long *nntp_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 			  SORTPGM *pgm,long flags);
-SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,long flags);
+SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,long start,
+				 long last,long flags);
 THREADNODE *nntp_thread (MAILSTREAM *stream,char *type,char *charset,
 			 SEARCHPGM *spg,long flags);
 long nntp_ping (MAILSTREAM *stream);

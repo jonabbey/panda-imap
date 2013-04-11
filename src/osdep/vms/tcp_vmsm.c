@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	29 July 1998
+ * Last Edited:	15 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -89,7 +89,13 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   char hostname[MAILTMPLEN];
   char tmp[MAILTMPLEN];
   struct protoent *pt = getprotobyname ("ip");
-  struct servent *sv = service ? getservbyname (service,"tcp") : NIL;
+  struct servent *sv = NIL;
+  if (service) {		/* service specified? */
+    if (*service == '*') {	/* yes, special alt driver kludge? */
+      sv = getservbyname (service + 1,"tcp");
+    }
+    else sv = getservbyname (service,"tcp");
+  }
 				/* user service name port */
   if (sv) port = ntohs (sin.sin_port = sv->s_port);
  				/* copy port number in network format */
@@ -434,4 +440,14 @@ char *tcp_canonical (char *name)
 				/* note that Unix requires lowercase! */
   else return (he = gethostbyname (lcase (strcpy (host,name)))) ?
     he->h_name : name;
+}
+
+
+/* TCP/IP get client host name (server calls only)
+ * Returns: client host name
+ */
+
+char *tcp_clienthost ()
+{
+  return "UNKNOWN";
 }

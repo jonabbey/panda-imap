@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	13 July 1998
+ * Last Edited:	27 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,6 +42,7 @@
 #include <ctype.h>
 #include <errno.h>
 extern int errno;		/* just in case */
+#include <signal.h>
 #include "misc.h"
 
 
@@ -66,7 +67,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "4.46";		/* server version */
+char *version = "4.51";		/* server version */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -82,7 +83,7 @@ unsigned long *msg = NIL;	/* message translation vector */
 
 /* Function prototypes */
 
-void main (int argc,char *argv[]);
+int main (int argc,char *argv[]);
 void clkint ();
 void kodint ();
 void hupint ();
@@ -97,21 +98,18 @@ short c_nack (char *t);
 
 /* Main program */
 
-void main (int argc,char *argv[])
+int main (int argc,char *argv[])
 {
   char *s,*t;
   char cmdbuf[TMPLEN];
+				/* initialize server */
+  server_init (argv[0],"pop",NIL,NIL,clkint,kodint,hupint,trmint);
 #include "linkage.c"
-  fclose (stderr);		/* possibly save an rsh process */
-  mail_parameters (NIL,SET_SERVICENAME,(void *) "pop");
-  openlog ("ipop2d",LOG_PID,LOG_MAIL);
   /* There are reports of POP2 clients which get upset if anything appears
    * between the "+" and the "POP2" in the greeting.
    */
   printf ("+ POP2 %s v%s server ready\015\012",tcp_serverhost (),version);
   fflush (stdout);		/* dump output buffer */
-				/* set up traps */
-  server_traps (clkint,kodint,hupint,trmint);
   state = AUTH;			/* initial server state */
   while (state != DONE) {	/* command processing loop */
     idletime = time (0);	/* get a command under timeout */
@@ -119,9 +117,11 @@ void main (int argc,char *argv[])
     while (!fgets (cmdbuf,TMPLEN-1,stdin)) {
       if (errno==EINTR) errno=0;/* ignore if some interrupt */
       else {
-	syslog (LOG_INFO,
-		"Connection broken while reading line user=%.80s host=%.80s",
-		user ? user : "???",tcp_clienthost ());
+	char *e = errno ? strerror (errno) : "Command stream end of file";
+	alarm (0);		/* disable all interrupts */
+	server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+	syslog (LOG_INFO,"%s while reading line user=%.80s host=%.80s",
+		e,user ? user : "???",tcp_clienthost ());
 	state = DONE;
 	mail_close (stream);	/* try to close the stream gracefully */
 	stream = NIL;
@@ -132,11 +132,13 @@ void main (int argc,char *argv[])
     idletime = 0;		/* no longer idle */
 				/* find end of line */
     if (!strchr (cmdbuf,'\012')) {
-      puts ("- Command line too long\015");
+      server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      fputs ("- Command line too long\015\012",stdout);
       state = DONE;
     }
     else if (!(s = strtok (cmdbuf," \015\012"))) {
-      puts ("- Missing or null command\015");
+      server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      fputs ("- Missing or null command\015\012",stdout);
       state = DONE;
     }
     else {			/* dispatch based on command */
@@ -154,15 +156,18 @@ void main (int argc,char *argv[])
       else if ((state == NEXT) && !strcmp (s,"NACK")) state = c_nack (t);
       else if ((state == AUTH || state == MBOX || state == ITEM) &&
 	       !strcmp (s,"QUIT")) {
+	server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	state = DONE;		/* done in either case */
-	if (t) puts ("- Bogus argument given to QUIT\015");
+	if (t) fputs ("- Bogus argument given to QUIT\015\012",stdout);
 	else {			/* expunge the stream */
 	  if (stream && nmsgs) stream = mail_close_full (stream,CL_EXPUNGE);
 	  stream = NIL;		/* don't repeat it */
-	  puts ("+ Sayonara\015");/* acknowledge the command */
+				/* acknowledge the command */
+	  fputs ("+ Sayonara\015\012",stdout);
 	}
       }
       else {			/* some other or inappropriate command */
+	server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	printf ("- Bogus or out of sequence command - %s\015\012",s);
 	state = DONE;
       }
@@ -173,7 +178,7 @@ void main (int argc,char *argv[])
   if (stream) mail_close (stream);
   syslog (LOG_INFO,"Logout user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
-  exit (0);			/* all done */
+  return 0;			/* all done */
 }
 
 /* Clock interrupt
@@ -181,7 +186,9 @@ void main (int argc,char *argv[])
 
 void clkint ()
 {
-  puts ("- Autologout; idle for too long\015");
+  alarm (0);		/* disable all interrupts */
+  server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  fputs ("- Autologout; idle for too long\015\012",stdout);
   syslog (LOG_INFO,"Autologout user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
   fflush (stdout);		/* make sure output blatted */
@@ -201,7 +208,9 @@ void kodint ()
 {
 				/* only if in command wait */
   if (idletime && ((time (0) - idletime) > KODTIMEOUT)) {
-    puts ("- Received Kiss of Death\015");
+    alarm (0);		/* disable all interrupts */
+    server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+    fputs ("- Received Kiss of Death\015\012",stdout);
     syslog (LOG_INFO,"Killed (lost mailbox lock) user=%.80s host=%.80s",
 	    user ? user : "???",tcp_clienthost ());
     fflush (stdout);		/* make sure output blatted */
@@ -220,6 +229,8 @@ void kodint ()
 
 void hupint ()
 {
+  alarm (0);		/* disable all interrupts */
+  server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   syslog (LOG_INFO,"Hangup user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
   state = DONE;			/* mark state done in either case */
@@ -236,7 +247,9 @@ void hupint ()
 
 void trmint ()
 {
-  puts ("- Killed\015");
+  alarm (0);		/* disable all interrupts */
+  server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  fputs ("- Killed\015\012",stdout);
   syslog (LOG_INFO,"Killed user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
   fflush (stdout);		/* make sure output blatted */
@@ -259,13 +272,14 @@ short c_helo (char *t,int argc,char *argv[])
   char tmp[TMPLEN];
   if ((!(t && *t && (u = strtok (t," ")) && (p = strtok (NIL,"\015\012")))) ||
       (strlen (p) >= TMPLEN)) {	/* get user name and password */
-    puts ("- Missing user or password\015");
+    fputs ("- Missing user or password\015\012",stdout);
     return DONE;
   }
 				/* copy password, handle quoting */
   for (s = tmp; *p; p++) *s++ = (*p == '\\') ? *++p : *p;
   *s = '\0';			/* tie off string */
   pass = cpystr (tmp);
+#ifndef DISABLE_POP_PROXY
 				/* want remote mailbox? */
   if ((s = strchr (u,':')) && anonymous_login (argc,argv)) {
     *s++ = '\0';		/* separate host name from user name */
@@ -273,14 +287,18 @@ short c_helo (char *t,int argc,char *argv[])
     syslog (LOG_INFO,"IMAP login to host=%.80s user=%.80s host=%.80s",u,user,
 	    tcp_clienthost ());
 				/* initially remote INBOX */
-    sprintf (tmp,"{%.128s}INBOX",u);
+    sprintf (tmp,"{%.128s/user=%.128s}INBOX",u,user);
+				/* disable rimap just in case */
+    mail_parameters (NIL,SET_RSHTIMEOUT,0);
   }
-  else if (!s && server_login (user = cpystr (u),pass,argc,argv)) {
+  else
+#endif
+  if (!s && server_login (user = cpystr (u),pass,argc,argv)) {
     syslog (LOG_INFO,"Login user=%.80s host=%.80s",user,tcp_clienthost ());
     strcpy (tmp,"INBOX");	/* local; attempt login, select INBOX */
   }
   else {
-    puts ("- Bad login\015");
+    fputs ("- Bad login\015\012",stdout);
     return DONE;
   }
   return c_fold (tmp);		/* open default mailbox */
@@ -293,22 +311,32 @@ short c_helo (char *t,int argc,char *argv[])
 
 short c_fold (char *t)
 {
-  unsigned long i,j;
-  char *s,tmp[TMPLEN];
+  unsigned long i,j,flags;
+  char *s,tmp[2*TMPLEN];
+  NETMBX mb;
   if (!(t && *t)) {		/* make sure there's an argument */
-    puts ("- Missing mailbox name\015");
+    fputs ("- Missing mailbox name\015\012",stdout);
     return DONE;
   }
+  myusername_full (&flags);	/* get user type flags */
 				/* expunge old stream */
   if (stream && nmsgs) mail_expunge (stream);
   nmsgs = 0;			/* no more messages */
   if (msg) fs_give ((void **) &msg);
-				/* don't permit proxy to leave IMAP */
-  if (stream && stream->mailbox && (s = strchr (stream->mailbox,'}'))) {
-    strncpy (tmp,stream->mailbox,i = (++s - stream->mailbox));
-    strcpy (tmp+i,t);		/* append mailbox to initial spec */
-    t = tmp;
+#ifndef DISABLE_POP_PROXY
+  if (flags == MU_ANONYMOUS) {	/* don't permit proxy to leave IMAP */
+    if (stream) {		/* not first time */
+      if (!(stream->mailbox && (s = strchr (stream->mailbox,'}'))))
+	fatal ("bad previous mailbox name");
+      strncpy (tmp,stream->mailbox,i = (++s - stream->mailbox));
+      if (i >= TMPLEN) fatal ("ridiculous network prefix");
+      strcpy (tmp+i,t);		/* append mailbox to initial spec */
+      t = tmp;
+    }
+				/* must be net name first time */
+    else if (!mail_valid_net_parse (t,&mb)) fatal ("anonymous folder bogon");
   }
+#endif
 				/* open mailbox, note # of messages */
   if (j = (stream = mail_open (stream,t,NIL)) ? stream->nmsgs : 0) {
     sprintf (tmp,"1:%lu",j);	/* fetch fast information for all messages */
@@ -318,6 +346,12 @@ short c_fold (char *t)
     for (i = 1; i <= j; i++)	/* find undeleted messages, add to vector */
       if (!mail_elt (stream,i)->deleted) msg[++nmsgs] = i;
   }
+#ifndef DISABLE_POP_PROXY
+  if (!stream && (flags == MU_ANONYMOUS)) {
+    fputs ("- Bad login\015\012",stdout);
+    return DONE;
+  }
+#endif
   printf ("#%lu messages in %s\015\012",nmsgs,stream ? stream->mailbox :
 	  "<none>");
   return MBOX;
@@ -334,12 +368,12 @@ short c_read (char *t)
   if (t && *t) {		/* have a message number argument? */
 				/* validity check message number */
     if (((current = strtoul (t,NIL,10)) < 1) || (current > nmsgs)) {
-      puts ("- Invalid message number given to READ\015");
+      fputs ("- Invalid message number given to READ\015\012",stdout);
       return DONE;
     }
   }
   else if (current > nmsgs) {	/* at end of mailbox? */
-    puts ("=0 No more messages\015");
+    fputs ("=0 No more messages\015\012",stdout);
     return MBOX;
   }
 				/* set size if message valid and exists */
@@ -362,7 +396,7 @@ short c_read (char *t)
 short c_retr (char *t)
 {
   if (t) {			/* disallow argument */
-    puts ("- Bogus argument given to RETR\015");
+    fputs ("- Bogus argument given to RETR\015\012",stdout);
     return DONE;
   }
   if (size) {			/* message size valid? */
@@ -376,13 +410,13 @@ short c_retr (char *t)
       }
     }
     fputs (status,stdout);	/* yes, output message */
-    puts ("\015");		/* delimit header from text */
+    fputs ("\015\012",stdout);	/* delimit header from text */
     t = mail_fetch_text (stream,msg[current],NIL,&i,NIL);
     while (i) {			/* blat the text */
       j = fwrite (t,sizeof (char),i,stdout);
       if (i -= j) t += j;	/* advance to incomplete data */
     }
-    puts ("\015");		/* trailer to coddle PCNFS' NFSMAIL */
+    fputs ("\015\012",stdout);	/* trailer to coddle PCNFS' NFSMAIL */
   }
   else return DONE;		/* otherwise go away */
   return NEXT;
@@ -397,7 +431,7 @@ short c_acks (char *t)
 {
   char tmp[TMPLEN];
   if (t) {			/* disallow argument */
-    puts ("- Bogus argument given to ACKS\015");
+    fputs ("- Bogus argument given to ACKS\015\012",stdout);
     return DONE;
   }
 				/* mark message as seen */
@@ -416,7 +450,7 @@ short c_ackd (char *t)
 {
   char tmp[TMPLEN];
   if (t) {			/* disallow argument */
-    puts ("- Bogus argument given to ACKD\015");
+    fputs ("- Bogus argument given to ACKD\015\012",stdout);
     return DONE;
   }
 				/* mark message as seen and deleted */
@@ -435,7 +469,7 @@ short c_ackd (char *t)
 short c_nack (char *t)
 {
   if (t) {			/* disallow argument */
-    puts ("- Bogus argument given to NACK\015");
+    fputs ("- Bogus argument given to NACK\015\012",stdout);
     return DONE;
   }
   return c_read (NIL);		/* end message reading transaction */
@@ -476,7 +510,7 @@ void mm_expunged (MAILSTREAM *stream,unsigned long number)
 {
   if (state != DONE) {		/* ignore if closing */
 				/* this should never happen */
-    puts ("- Mailbox expunged from under me!\015");
+    fputs ("- Mailbox expunged from under me!\015\012",stdout);
     if (stream && !stream->lock) mail_close (stream);
     stream = NIL;
     _exit (1);

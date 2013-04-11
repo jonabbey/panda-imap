@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	6 August 1998
+ * Last Edited:	6 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -121,7 +121,8 @@ int tenex_isvalid (char *name,char *tmp)
   struct utimbuf times;
   errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
-  if ((s = mailboxfile (file,name)) && !stat (s,&sbuf)) {
+  if ((s = mailboxfile (file,name)) && !stat (s,&sbuf) &&
+      ((sbuf.st_mode & S_IFMT) == S_IFREG)) {
     if (!sbuf.st_size)errno = 0;/* empty file */
     else if ((fd = open (file,O_BINARY|O_RDONLY,NIL)) >= 0) {
       memset (tmp,'\0',MAILTMPLEN);
@@ -265,12 +266,13 @@ long tenex_rename (MAILSTREAM *stream,char *old,char *newname)
       *s = '\0';		/* tie off to get just superior */
 				/* name doesn't exist, create it */
       if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	  !dummy_create (stream,tmp)) return NIL;
-      *s = c;			/* restore full name */
+	  !dummy_create (stream,tmp)) ret = NIL;
+      else *s = c;		/* restore full name */
     }
     flock (fd,LOCK_UN);		/* release lock on the file */
     close (fd);			/* pacify NTFS */
-    if (rename (file,tmp)) {	/* rename the file */
+				/* rename the file */
+    if (ret && rename (file,tmp)) {
       sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",old,newname,
 	       strerror (errno));
       mm_log (tmp,ERROR);

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	19 August 1998
+ * Last Edited:	13 October 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -39,7 +39,6 @@
 
 #define MAXLOGINTRIALS 3	/* maximum number of login trials */
 #define POP3TCPPORT (long) 110	/* assigned TCP contact port */
-#define POP3SSLPORT (long) 995	/* assigned TCP contact port for SSL POP3 */
 
 
 /* POP3 I/O stream local data */

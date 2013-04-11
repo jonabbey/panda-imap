@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	14 July 1998
+ * Last Edited:	6 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -62,8 +62,8 @@ DRIVER mboxdriver = {
   unix_lsub,			/* find subscribed mailboxes */
   NIL,				/* subscribe to mailbox */
   NIL,				/* unsubscribe from mailbox */
-  dummy_create,			/* create mailbox */
-  dummy_delete,			/* delete mailbox */
+  unix_create,			/* create mailbox */
+  mbox_delete,			/* delete mailbox */
   mbox_rename,			/* rename mailbox */
   mbox_status,			/* status of mailbox */
   mbox_open,			/* open mailbox */
@@ -109,6 +109,18 @@ DRIVER *mbox_valid (char *name)
   return NIL;			/* can't win (yet, anyway) */
 }
 
+/* MBOX mail delete mailbox
+ * Accepts: MAIL stream
+ *	    mailbox name to delete
+ * Returns: T on success, NIL on failure
+ */
+
+long mbox_delete (MAILSTREAM *stream,char *mailbox)
+{
+  return mbox_rename (stream,mailbox,NIL);
+}
+
+
 /* MBOX mail rename mailbox
  * Accepts: MAIL stream
  *	    old mailbox name
@@ -118,54 +130,11 @@ DRIVER *mbox_valid (char *name)
 
 long mbox_rename (MAILSTREAM *stream,char *old,char *newname)
 {
-  long ret = T;
-  char *s,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
-  int fd,ld;
-				/* get the c-client lock */
-  if ((ld = lockname (lock,dummy_file (file,"~/mbox"))) < 0) {
-    syslog (LOG_INFO,"Mailbox lock file %s open failure: %s",lock,
-	    strerror (errno));
-    sprintf (tmp,"Can't get lock for mailbox %s: %s",file,strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-				/* lock out other c-clients */
-  if (flock (ld,LOCK_EX|LOCK_NB)) {
-    close (ld);			/* couldn't lock, give up on it then */
-    sprintf (tmp,"Mailbox %s is in use by another process",old);
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-				/* lock out non c-client applications */
-  if ((fd = unix_lock (file,O_RDWR,S_IREAD|S_IWRITE,lockx,LOCK_EX)) < 0) {
-    sprintf (tmp,"Can't lock mailbox %s: %s",old,strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  if (newname) {		/* want rename? */
-    if (!((s = dummy_file (tmp,newname)) && *s)) {
-      sprintf (tmp,"Can't rename mailbox %s to %s: invalid name",old,newname);
-      mm_log (tmp,ERROR);
-      ret = NIL;		/* set failure */
-    }
-    if (rename (file,s)) {	/* rename the file */
-      sprintf (tmp,"Can't rename mailbox %s to %s: %s",old,newname,
-	       strerror (errno));
-      mm_log (tmp,ERROR);
-      ret = NIL;		/* set failure */
-    }
-  }
-  else if (unlink (file)) {
-    sprintf (tmp,"Can't delete mailbox %s: %s",old,strerror (errno));
-    mm_log (tmp,ERROR);
-    ret = NIL;			/* set failure */
-  }
-  unix_unlock (fd,NIL,lockx);	/* unlock and close mailbox */
-  flock (ld,LOCK_UN);		/* release c-client lock lock */
-  close (ld);			/* close c-client lock */
-  unlink (lock);		/* and delete it */
+  char tmp[MAILTMPLEN];
+  long ret = unix_rename (stream,"~/mbox",newname);
 				/* recreate file if renamed INBOX */
   if (ret) unix_create (NIL,"mbox");
+  else mm_log (tmp,ERROR);	/* log error */
   return ret;			/* return success */
 }
 
@@ -245,71 +214,76 @@ static int snarfed = 0;		/* number of snarfs */
 
 long mbox_ping (MAILSTREAM *stream)
 {
-  int fd,sfd;
-  char *s;
+  int sfd;
   unsigned long size;
   struct stat sbuf;
-  char lock[MAILTMPLEN],lockx[MAILTMPLEN];
+  char *s,lock[MAILTMPLEN],lockx[MAILTMPLEN];
+				/* time to try snarf and sysinbox non-empty? */
   if (LOCAL && !stream->rdonly && !stream->lock &&
       (time (0) > (LOCAL->lastsnarf + 30)) &&
       !stat (sysinbox (),&sbuf) && sbuf.st_size) {
-    mm_critical (stream);	/* go critical */
+				/* yes, open and lock sysinbox */
     if ((sfd = unix_lock (sysinbox (),O_RDWR,NIL,lockx,LOCK_EX)) >= 0) {
-      fstat (sfd,&sbuf);	/* get size again now that locked */
-      if (size = sbuf.st_size) {/* get size of new mail if any */
-				/* mail in good format? */
-	if (unix_isvalid_fd (sfd,lock) &&
-	    ((fd = unix_lock (stream->mailbox,O_WRONLY|O_APPEND,NIL,lock,
-			      LOCK_EX)) >= 0)) {
-	  lseek (sfd,0,L_SET);	/* rewind file */
-	  read (sfd,s = (char *) fs_get (size + 1),size);
-	  s[size] = '\0';	/* tie it off */
-	  fstat (fd,&sbuf);	/* get current file size before write */
-				/* copy to mbox and empty sysinbx */
-	  if ((write (fd,s,size) < 0) || fsync (fd)) {
-	    sprintf (LOCAL->buf,"New mail move failed: %s",strerror (errno));
-	    mm_log (LOCAL->buf,ERROR);
-	    ftruncate (fd,sbuf.st_size);
-	  }
-	  else if (fstat (sfd,&sbuf) || (size != sbuf.st_size)) {
-	    sprintf (LOCAL->buf,"Lock corruption on %s, old size=%lu now=%lu",
-		     sysinbox (),size,sbuf.st_size);
-	    mm_log (LOCAL->buf,ERROR);
-	    ftruncate (fd,sbuf.st_size);
-	    /* Believe it or not, a Singaporean government system actually had
-	     * symlinks from /var/mail/user to ~user/mbox.  To compound this
-	     * error, they used an SVR4 system; BSD and OSF locks would have
-	     * prevented it but not SVR4 locks.
-	     */
-	    if (!fstat (sfd,&sbuf) && (size == sbuf.st_size))
-	      syslog (LOG_ALERT,"File %s and %s are the same file!",
-		      sysinbox,stream->mailbox);
-	  }
-
-	  else {		/* everything looks OK */
-	    ftruncate (sfd,0);	/* truncate the spool file to zero bytes */
-	    if (!snarfed++) {	/* have we snarfed before? */
-	      sprintf (LOCAL->buf,"Moved %lu bytes of new mail to %s from %s",
-		       size,stream->mailbox,sysinbox ());
-	      if (strcmp ((char *) mail_parameters (NIL,GET_SERVICENAME,NIL),
-			  "unknown"))
-		syslog (LOG_INFO,"%s host= %s",LOCAL->buf,tcp_clienthost ());
-	      else mm_log (LOCAL->buf,WARN);
-	    }
-	  }
-	  unix_unlock (fd,NIL,lock);
-	  fs_give ((void **) &s);/* flush the poop */
-	}
-	else {
-	  sprintf (LOCAL->buf,"Mail drop %s is not in standard Unix format",
-		   sysinbox ());
-	  mm_log (LOCAL->buf,ERROR);
-	}
+				/* locked sysinbox in good format? */
+      if (fstat (sfd,&sbuf) || !(size = sbuf.st_size) ||
+	  !unix_isvalid_fd (sfd,lock)) {
+	sprintf (LOCAL->buf,"Mail drop %s is not in standard Unix format",
+		 sysinbox ());
+	mm_log (LOCAL->buf,ERROR);
       }
-				/* all done with update */
+				/* sysinbox good, parse and excl-lock mbox */
+      else if (unix_parse (stream,lock,LOCK_EX)) {
+	lseek (sfd,0,L_SET);	/* read entire sysinbox into memory */
+	read (sfd,s = (char *) fs_get (size + 1),size);
+	s[size] = '\0';		/* tie it off */
+				/* append to end of mbox */
+	lseek (LOCAL->fd,LOCAL->filesize,L_SET);
+
+				/* copy to mbox */
+	if ((write (LOCAL->fd,s,size) < 0) || fsync (LOCAL->fd)) {
+	  sprintf (LOCAL->buf,"New mail move failed: %s",strerror (errno));
+	  mm_log (LOCAL->buf,ERROR);
+				/* revert mbox to previous size */
+	  ftruncate (LOCAL->fd,LOCAL->filesize);
+	}
+				/* sysinbox better not have changed */
+	else if (fstat (sfd,&sbuf) || (size != sbuf.st_size)) {
+	  sprintf (LOCAL->buf,"Mail drop %s lock failure, old=%lu now=%lu",
+		   sysinbox (),size,sbuf.st_size);
+	  mm_log (LOCAL->buf,ERROR);
+				/* revert mbox to previous size */
+	  ftruncate (LOCAL->fd,LOCAL->filesize);
+	  /* Believe it or not, a Singaporean government system actually had
+	   * symlinks from /var/mail/user to ~user/mbox.  To compound this
+	   * error, they used an SVR4 system; BSD and OSF locks would have
+	   * prevented it but not SVR4 locks.
+	   */
+	  if (!fstat (sfd,&sbuf) && (size == sbuf.st_size))
+	    syslog (LOG_ALERT,"File %s and %s are the same file!",
+		    sysinbox,stream->mailbox);
+	}
+	else {			/* data copied OK */
+	  ftruncate (sfd,0);	/* truncate sysinbox to zero bytes */
+	  if (!snarfed++) {	/* have we snarfed before? */
+				/* syslog if server, else mm_log() */
+	    sprintf (LOCAL->buf,"Moved %lu bytes of new mail to %s from %s",
+		     size,stream->mailbox,sysinbox ());
+	    if (strcmp ((char *) mail_parameters (NIL,GET_SERVICENAME,NIL),
+			"unknown"))
+	      syslog (LOG_INFO,"%s host= %s",LOCAL->buf,tcp_clienthost ());
+	    else mm_log (LOCAL->buf,WARN);
+	  }
+	}
+				/* done with sysinbox text */
+	fs_give ((void **) &s);
+				/* all done with mbox */
+	unix_unlock (LOCAL->fd,stream,lock);
+	mail_unlock (stream);	/* unlock the stream */
+	mm_nocritical (stream);	/* done with critical */
+      }
+				/* all done with sysinbox */
       unix_unlock (sfd,NIL,lockx);
     }
-    mm_nocritical (stream);	/* release critical */
     LOCAL->lastsnarf = time (0);/* note time of last snarf */
   }
   return unix_ping (stream);	/* do the unix routine now */

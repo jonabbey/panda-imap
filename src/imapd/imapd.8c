@@ -1,4 +1,4 @@
-.TH IMAPD 8C "April 26, 1995"
+.TH IMAPD 8C "October 12, 1998"
 .UC 5
 .SH NAME
 IMAPd \- Internet Message Access Protocol server
@@ -7,13 +7,13 @@ IMAPd \- Internet Message Access Protocol server
 .SH DESCRIPTION
 .I imapd
 is a server which supports the
-.B IMAP4
-remote mail access protocol as documented in RFC-1730.
+.B IMAP4rev1
+remote mail access protocol as documented in RFC-2060.
 .I imapd
 is invoked by the internet server (see
 .IR inetd (8)),
 normally for requests to connect to the
-.B IMAP4
+.B IMAP
 port as indicated by the
 .I /etc/services
 file (see

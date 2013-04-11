@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	13 June 1995
- * Last Edited:	7 October 1996
+ * Last Edited:	15 December 1998
  *
  * Copyright 1994 by the University of Washington
  *
@@ -37,4 +37,5 @@
   mail_link (&nntpdriver);		/* link in the nntp driver */
   mail_link (&pop3driver);		/* link in the pop3 driver */
   mail_link (&dummydriver);		/* link in the dummy driver */
+  auth_link (&auth_md5);		/* link in the md5 authenticator */
   auth_link (&auth_log);		/* link in the log authenticator */

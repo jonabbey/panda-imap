@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	11 May 1998
+ * Last Edited:	13 January 1999
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -241,7 +241,8 @@ long search (unsigned char *base,long basec,unsigned char *pat,long patc)
     255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
     };
 				/* validate arguments */
-  if (base && (basec > 0) && pat && (patc > 0) && (basec >= patc)) {
+  if (base && (basec > 0) && pat && (basec >= patc)) {
+    if (patc <= 0) return T;	/* empty pattern always succeeds */
     memset (mask,0,256);	/* initialize search validity mask */
     for (i = 0; i < patc; i++) if (!mask[c = pat[i]]) {
 				/* mark single character if non-alphabetic */

@@ -1,5 +1,5 @@
 /*
- * Program:	Kerberos check password
+ * Program:	MD5 check password
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	26 July 1998
+ * Last Edited:	9 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -43,7 +43,12 @@
 
 struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
 {
-  char *reply;
-  return kerberos_verify_password (pw->pw_name,pass,"imap",&reply) ? pw : NIL;
+  char *p;
+				/* verify password */
+  if (!(p = auth_md5_pwd (pw->pw_name)) || strcmp (pass,p)) pw = NIL;
+  if (p) {
+    memset (p,0,strlen (p));	/* erase sensitive information */
+    fs_give ((void **) &p);	/* flush erased password */
+  }
+  return pw;
 }
-

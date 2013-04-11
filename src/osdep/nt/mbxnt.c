@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	6 August 1998
+ * Last Edited:	6 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -123,6 +123,7 @@ int mbx_isvalid (char *name,char *tmp)
   errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
   if ((s = mbx_file (tmp,name)) && !stat (s,&sbuf) &&
+      ((sbuf.st_mode & S_IFMT) == S_IFREG) &&
       ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0)) {
     errno = -1;			/* bogus format */
     if ((read (fd,hdr,HDRSIZE) == HDRSIZE) &&
@@ -160,10 +161,11 @@ void *mbx_parameters (long function,void *value)
 {
   switch ((int) function) {
   case SET_ONETIMEEXPUNGEATPING:
-    if (((MBXLOCAL *) ((MAILSTREAM *) value)->local)->expunged)
+    if (value && (((MBXLOCAL *) ((MAILSTREAM *) value)->local)->expunged))
       ((MBXLOCAL *) ((MAILSTREAM *) value)->local)->fullcheck = T;
   case GET_ONETIMEEXPUNGEATPING:
-    value = (void *) ((MBXLOCAL *) ((MAILSTREAM *) value)->local)->fullcheck;
+    if (value) value = (void *)
+      ((MBXLOCAL *) ((MAILSTREAM *) value)->local)->fullcheck;
     break;
   }
   return value;
@@ -241,6 +243,7 @@ long mbx_create (MAILSTREAM *stream,char *mailbox)
 	     mbx,strerror (errno));
     mm_log (tmp,ERROR);
     unlink (mbx);		/* delete the file */
+    close (fd);
     return NIL;
   }
   return close (fd) ? NIL : T;	/* close file */
@@ -302,12 +305,13 @@ long mbx_rename (MAILSTREAM *stream,char *old,char *newname)
       *s = '\0';		/* tie off to get just superior */
 				/* name doesn't exist, create it */
       if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	  !dummy_create (stream,tmp)) return NIL;
-      *s = c;			/* restore full name */
+	  !dummy_create (stream,tmp)) ret = NIL;
+      else *s = c;		/* restore full name */
     }
     flock (fd,LOCK_UN);		/* release lock on the file */
     close (fd);			/* pacify NTFS */
-    if (rename (file,tmp)) {	/* rename the file */
+				/* rename the file */
+    if (ret && rename (file,tmp)) {
       sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",old,newname,
 	       strerror (errno));
       mm_log (tmp,ERROR);
@@ -560,7 +564,7 @@ long mbx_ping (MAILSTREAM *stream)
       if (LOCAL->fullcheck) LOCAL->fullcheck = LOCAL->expunged = NIL;
     }
 				/* get parse/append permission */
-    if ((sbuf.st_size != LOCAL->filesize) &&
+    if (((sbuf.st_size != LOCAL->filesize) || !stream->nmsgs) &&
 	((ld = lockname (lock,stream->mailbox,LOCK_EX)) >= 0)) {
       r = mbx_parse (stream);	/* parse new messages in mailbox */
       unlockfd (ld,lock);	/* release shared parse/append permission */

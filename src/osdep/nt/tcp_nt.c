@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	29 July 1998
+ * Last Edited:	12 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -556,6 +556,8 @@ char *tcp_clienthost ()
  * Returns: server host name
  */
 
+static long myServerPort = -1;
+
 char *tcp_serverhost ()
 {
   if (!myServerHost) {
@@ -573,29 +575,45 @@ char *tcp_serverhost ()
 				/* get socket address */
     if ((getsockname (0,(struct sockaddr *) &sin,&sinlen) == SOCKET_ERROR) ||
 	(sinlen <= 0)) s = mylocalhost ();
+    else {
+      myServerPort = ntohs (sin.sin_port);
 #ifndef DISABLE_REVERSE_DNS_LOOKUP
-    /* Guarantees that the server will have the same string as the client does
-     * from calling tcp_remotehost ().
-     */
-    else if (he = gethostbyaddr ((char *) &sin.sin_addr,
-				 sizeof (struct in_addr),sin.sin_family))
-      s = he->h_name;
+      /* Guarantees that the server will have the same string as the client
+       * does from calling tcp_remotehost ().
+       */
+      if (he = gethostbyaddr ((char *) &sin.sin_addr,
+			      sizeof (struct in_addr),sin.sin_family))
+	s = he->h_name;
+      else
 #else
-    /* Not recommended.  In any mechanism (e.g. Kerberos) in which both client
-     * and server must agree on the name of the server system, this may cause
-     * a spurious mismatch.  This is particularly important when multiple
-     * server systems are co-located on the same CPU with different IP
-     * addresses; the gethostbyaddr() call will return the name of the proper
-     * server system name and avoid canonicalizing it to a default name.
-     */
+      /* Not recommended.  In any mechanism (e.g. Kerberos) in which both
+       * client and server must agree on the name of the server system, this
+       * may cause a spurious mismatch.  This is particularly important when
+       * multiple server systems are co-located on the same CPU with different
+       * IP addresses; the gethostbyaddr() call will return the name of the
+       * proper server system name and avoid canonicalizing it to a default
+       * name.
+       */
 #endif
-    else sprintf (s = tmp,"[%s]",inet_ntoa (sin.sin_addr));
+      sprintf (s = tmp,"[%s]",inet_ntoa (sin.sin_addr));
+    }
     myServerHost = cpystr (s);
     if (!myLocalHost) myLocalHost = cpystr (s);
   }
   return myServerHost;
 }
 
+/* TCP/IP get server port number (server calls only)
+ * Returns: server port number
+ */
+
+long tcp_serverport ()
+{
+  if (!myServerHost) tcp_serverhost ();
+  return myServerPort;
+}
+
+
 /* TCP/IP return canonical form of host name
  * Accepts: host name
  * Returns: canonical form of host name

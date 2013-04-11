@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	6 August 1998
+ * Last Edited:	6 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -267,10 +267,11 @@ long mtx_rename (MAILSTREAM *stream,char *old,char *newname)
       *s = '\0';		/* tie off to get just superior */
 				/* name doesn't exist, create it */
       if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	  !dummy_create (stream,tmp)) return NIL;
-      *s = c;			/* restore full name */
+	  !dummy_create (stream,tmp)) ret = NIL;
+      else *s = c;		/* restore full name */
     }
-    if (rename (file,tmp)) {	/* rename the file */
+				/* rename the file */
+    if (ret && rename (file,tmp)) {
       sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",old,newname,
 	       strerror (errno));
       mm_log (tmp,ERROR);
@@ -559,21 +560,24 @@ long mtx_ping (MAILSTREAM *stream)
       r = (mtx_parse (stream)) ? T : NIL;
       unlockfd (ld,lock);	/* release shared parse/append permission */
     }
+    if (LOCAL) {		/* stream must still be alive */
 				/* snarf if this is a read-write inbox */
-    if (stream && LOCAL && LOCAL->inbox && !stream->rdonly) {
-      mtx_snarf (stream);
-      fstat (LOCAL->fd,&sbuf);	/* see if file changed now */
-      if ((sbuf.st_size != LOCAL->filesize) &&
-	  ((ld = lockfd (LOCAL->fd,lock,LOCK_SH)) >= 0)) {
+      if (LOCAL->inbox && !stream->rdonly) {
+	mtx_snarf (stream);
+	fstat (LOCAL->fd,&sbuf);/* see if file changed now */
+	if ((sbuf.st_size != LOCAL->filesize) &&
+	    ((ld = lockfd (LOCAL->fd,lock,LOCK_SH)) >= 0)) {
 				/* parse resulting mailbox */
-	r = (mtx_parse (stream)) ? T : NIL;
-	unlockfd (ld,lock);	/* release shared parse/append permission */
+	  r = (mtx_parse (stream)) ? T : NIL;
+	  unlockfd (ld,lock);	/* release shared parse/append permission */
+	}
       }
-    }
-    else if ((sbuf.st_ctime > sbuf.st_atime)||(sbuf.st_ctime > sbuf.st_mtime)){
-      time_t tp[2];		/* whack the times if necessary */
-      LOCAL->filetime = tp[0] = tp[1] = time (0);
-      utime (stream->mailbox,tp);
+      else if ((sbuf.st_ctime > sbuf.st_atime) ||
+	       (sbuf.st_ctime > sbuf.st_mtime)) {
+	time_t tp[2];		/* whack the times if necessary */
+	LOCAL->filetime = tp[0] = tp[1] = time (0);
+	utime (stream->mailbox,tp);
+      }
     }
   }
   return r;			/* return result of the parse */
@@ -930,8 +934,6 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
     mm_log ("Unable to lock append mailbox",ERROR);
     return NIL;
   }
-  s = (char *) fs_get (size);	/* copy message */
-  for (i = 0; i < size; s[i++] = SNX (message));
 
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
@@ -940,9 +942,12 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   else internal_date (tmp);	/* get current date in IMAP format */
 				/* add remainder of header */
   sprintf (tmp+26,",%ld;%010lo%02lo\015\012",size,uf,f);
-				/* write header */
-  if ((write (fd,tmp,strlen (tmp)) < 0) || ((write (fd,s,size)) < 0) ||
-      fsync (fd)) {
+  size += (i = strlen (tmp));	/* size of buffer */
+  s = (char *) fs_get (size);	/* get buffer for message */
+  strcpy (s,tmp);		/* copy message */
+  while (i < size) s[i++] = SNX (message);
+				/* write message */
+  if ((write (fd,s,size) < 0) || fsync (fd)) {
     sprintf (tmp,"Message append failed: %s",strerror (errno));
     mm_log (tmp,ERROR);
     ftruncate (fd,sbuf.st_size);

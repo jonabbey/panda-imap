@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	7 December 1995
+ * Last Edited:	15 December 1998
  *
- * Copyright 1995 by Mark Crispin
+ * Copyright 1998 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -45,6 +45,8 @@
 #include <sys/time.h>
 #include "misc.h"
 #include <stdio.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include "fs_t20.c"
 #include "ftl_t20.c"
@@ -52,7 +54,10 @@
 #include "env_t20.c"
 #include "tcp_t20.c"
 #include "log_t20.c"
-#include "auths.c"
+
+#define MD5ENABLE "PS:<SYSTEM>CRAM-MD5.PWD"
+#include "auth_md5.c"
+#include "auth_log.c"
 
 /* Emulator for UNIX gethostid() call
  * Returns: host id
@@ -67,16 +72,4 @@ long gethostid ()
   argblk[1] = _APRID;
   jsys (GETAB,argblk);
   return (long) argblk[1];
-}
-
-
-/* Emulator for UNIX getpid() call
- * Returns: process ID
- */
-
-long getpid ()
-{
-  int argblk[5];
-  jsys (GJINF,argblk);
-  return (long) argblk[3];
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	7 August 1998
+ * Last Edited:	27 January 1999
  *
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -32,7 +32,13 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
-
+
+#define PBIN getchar
+#define PSIN(s,n) fgets (s,n,stdin)
+#define PBOUT(c) putchar (c)
+#define PSOUT(s) fputs (s,stdout)
+#define PFLUSH fflush (stdout)
+#define CRLF PSOUT ("\015\012")
 
 /* Parameter files */
 
@@ -72,30 +78,35 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "6.50";		/* server version */
+char *version = "7.59";		/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 long idletime = 0;		/* time we went idle */
 unsigned long nmsgs = 0;	/* current number of messages */
+unsigned long ndele = 0;	/* number of deletes */
 unsigned long last = 0;		/* highest message accessed */
 unsigned long il = 0;		/* initial last message */
+char challenge[128];		/* challenge */
+#ifndef DISABLE_POP_PROXY
 char *host = NIL;		/* remote host name */
+#endif
 char *user = NIL;		/* user name */
 char *pass = NIL;		/* password */
 char *initial = NIL;		/* initial response */
 long *msg = NIL;		/* message translation vector */
-char *sayonara = "+OK Sayonara\015";
+char *sayonara = "+OK Sayonara\015\012";
 
 
 /* Function prototypes */
 
-void main (int argc,char *argv[]);
+int main (int argc,char *argv[]);
 void clkint ();
 void kodint ();
 void hupint ();
 void trmint ();
 int login (char *t,int argc,char *argv[]);
+char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[]);
 char *responder (void *challenge,unsigned long clen,unsigned long *rlen);
 int mbxopen (char *mailbox);
 long blat (char *text,long lines,unsigned long size);
@@ -103,33 +114,50 @@ void rset ();
 
 /* Main program */
 
-void main (int argc,char *argv[])
+int main (int argc,char *argv[])
 {
   unsigned long i,j,k;
   char *s,*t;
   char tmp[TMPLEN];
+				/* initialize server */
+  server_init (argv[0],"pop3","pop3s","pop",clkint,kodint,hupint,trmint);
 #include "linkage.c"
-  fclose (stderr);		/* possibly save an rsh process */
-  mail_parameters (NIL,SET_SERVICENAME,(void *) "pop");
-  openlog ("ipop3d",LOG_PID,LOG_MAIL);
+  challenge[0] = '\0';		/* find the CRAM-MD5 authenticator */
+  if (i = mail_lookup_auth_name ("CRAM-MD5",NIL)) {
+    AUTHENTICATOR *a = mail_lookup_auth (i);
+    if (a->server) {		/* have an MD5 enable file? */
+				/* build challenge -- less than 128 chars */
+      sprintf (challenge,"<%lx.%lx@%.64s>",(long) getpid (),(long) time (0),
+	       tcp_serverhost ());
+    }
+  }
   /* There are reports of POP3 clients which get upset if anything appears
    * between the "+OK" and the "POP3" in the greeting.
    */
-  printf ("+OK POP3 %s v%s server ready\015\012",tcp_serverhost (),version);
-  fflush (stdout);		/* dump output buffer */
-				/* set up traps */
-  server_traps (clkint,kodint,hupint,trmint);
+  PSOUT ("+OK POP3");
+  if (!challenge[0]) {		/* if no MD5 enable, output host name */
+    PBOUT (' ');
+    PSOUT (tcp_serverhost ());
+  }
+  PSOUT (" v");
+  PSOUT (version);
+  PSOUT (" server ready");
+  if (challenge[0]) {		/* if MD5 enable, output challenge here */
+    PBOUT (' ');
+    PSOUT (challenge);
+  }
+  CRLF;
+  PFLUSH;			/* dump output buffer */
 				/* command processing loop */
   while ((state != UPDATE) && (state != LOGOUT)) {
     idletime = time (0);	/* get a command under timeout */
     alarm ((state == TRANSACTION) ? TIMEOUT : LOGINTIMEOUT);
-    while (!fgets (tmp,TMPLEN-1,stdin)) {
+    while (!PSIN (tmp,TMPLEN)) {
       if (errno==EINTR) errno=0;/* ignore if some interrupt */
       else {
 	char *e = errno ? strerror (errno) : "Command stream end of file";
 	alarm (0);		/* disable all interrupts */
-	syslog (LOG_INFO,
-		"%s while reading line user=%.80s host=%.80s",
+	syslog (LOG_INFO,"%s while reading line user=%.80s host=%.80s",
 		e,user ? user : "???",tcp_clienthost ());
 	rset ();		/* try to gracefully close the stream */
 	if (state == TRANSACTION) mail_close (stream);
@@ -141,9 +169,10 @@ void main (int argc,char *argv[])
     alarm (0);			/* make sure timeout disabled */
     idletime = 0;		/* no longer idle */
 
-				/* find end of line */
-    if (!strchr (tmp,'\012')) puts ("-ERR Command line too long\015");
-    else if (!(s = strtok (tmp," \015\012"))) puts ("-ERR Null command\015");
+    if (!strchr (tmp,'\012'))	/* find end of line */
+      PSOUT ("-ERR Command line too long\015\012");
+    else if (!(s = strtok (tmp," \015\012")))
+      PSOUT ("-ERR Null command\015\012");
     else {			/* dispatch based on command */
       ucase (s);		/* canonicalize case */
 				/* snarf argument */
@@ -153,11 +182,15 @@ void main (int argc,char *argv[])
       else switch (state) {	/* else dispatch based on state */
       case AUTHORIZATION:	/* waiting to get logged in */
 	if (!strcmp (s,"USER")) {
+#ifndef DISABLE_POP_PROXY
 	  if (host) fs_give ((void **) &host);
+#endif
 	  if (user) fs_give ((void **) &user);
+	  if (pass) fs_give ((void **) &pass);
 	  if (t && *t) {	/* if user name given */
 				/* skip leading whitespace (bogus clients!) */
 	    while (*t == ' ') ++t;
+#ifndef DISABLE_POP_PROXY
 				/* remote user name? */
 	    if (s = strchr (t,':')) {
 	      *s++ = '\0';	/* tie off host name */
@@ -166,45 +199,74 @@ void main (int argc,char *argv[])
 	    }
 				/* local user name */
 	    else user = cpystr (t);
-	    puts ("+OK User name accepted, password please\015");
+#else
+	    user = cpystr (t);	/* local user name */
+#endif
+	    PSOUT ("+OK User name accepted, password please\015\012");
 	  }
-	  else puts ("-ERR Missing username argument\015");
+	  else PSOUT ("-ERR Missing username argument\015\012");
 	}
-	else if (user && *user && !strcmp (s,"PASS"))
-	  state = login (t,argc,argv);
+	else if (user && *user && !strcmp (s,"PASS")) {
+	  if ((state = login (t,argc,argv)) == TRANSACTION)
+	    syslog (LOG_INFO,"Login user=%.80s host=%.80s nmsgs=%ld/%ld",
+		    user,tcp_clienthost (),nmsgs,stream->nmsgs);
+	}
 
 	else if (!strcmp (s,"AUTH")) {
 	  if (t && *t) {	/* mechanism given? */
+#ifndef DISABLE_POP_PROXY
+	    if (host) fs_give ((void **) &host);
+#endif
 	    if (user) fs_give ((void **) &user);
 	    if (pass) fs_give ((void **) &pass);
 	    s = strtok (t," ");	/* get mechanism name */
 				/* get initial response */
 	    initial = strtok (NIL,"\015\012");
-	    if (user = cpystr (mail_auth (s,responder,argc,argv))) {
-	      state = mbxopen ("INBOX");
-	      syslog (LOG_INFO,"Authenticated user=%.80s host=%.80s",
-		      user,tcp_clienthost ());
-	    }
-	    else {
-	      puts ("-ERR Bad authentication\015");
+	    if (!(user = cpystr (mail_auth (s,responder,argc,argv)))) {
+	      PSOUT ("-ERR Bad authentication\015\012");
 	      syslog (LOG_INFO,"AUTHENTICATE %s failure host=%.80s",s,
 		      tcp_clienthost ());
 	    }
+	    else if ((state = mbxopen ("INBOX")) == TRANSACTION)
+	      syslog (LOG_INFO,"Auth user=%.80s host=%.80s nmsgs=%ld/%ld",
+		      user,tcp_clienthost (),nmsgs,stream->nmsgs);
 	  }
 	  else {
 	    AUTHENTICATOR *auth = mail_lookup_auth (1);
-	    puts ("+OK Supported authentication mechanisms:\015");
+	    PSOUT ("+OK Supported authentication mechanisms:\015\012");
 	    while (auth) {
-	      if (auth->server) printf ("%s\015\012",auth->name);
+	      if (auth->server) {
+		PSOUT (auth->name);
+		CRLF;
+	      }
 	      auth = auth->next;
 	    }
-	    puts (".\015");
+	    PBOUT ('.');
+	    CRLF;
 	  }
 	}
-	else if (!strcmp (s,"APOP")) puts ("-ERR Not supported\015");
+	else if (!strcmp (s,"APOP")) {
+	  if (challenge[0]) {	/* can do it if have an MD5 challenge */
+#ifndef DISABLE_POP_PROXY
+	    if (host) fs_give ((void **) &host);
+#endif
+	    if (user) fs_give ((void **) &user);
+	    if (pass) fs_give ((void **) &pass);
+				/* get user name */
+	    if (!(t && *t && (s = strtok (t," ")) && (t = strtok(NIL,"\012"))))
+	      PSOUT ("-ERR Missing APOP argument\015\012");
+	    else if (!(user = apop_login (challenge,s,t,argc,argv)))
+	      PSOUT ("-ERR Bad APOP\015\012");
+	    else if ((state = mbxopen ("INBOX")) == TRANSACTION)
+	      syslog (LOG_INFO,"APOP user=%.80s host=%.80s nmsgs=%ld/%ld",
+		      user,tcp_clienthost (),nmsgs,stream->nmsgs);
+	  }
+	  else PSOUT ("-ERR Not supported\015\012");
+	}
 				/* (chuckle) */
-	else if (!strcmp (s,"RPOP")) puts ("-ERR Nice try, bunkie\015");
-	else puts ("-ERR Unknown command in AUTHORIZATION state\015");
+	else if (!strcmp (s,"RPOP"))
+	  PSOUT ("-ERR Nice try, bunkie\015\012");
+	else PSOUT ("-ERR Unknown AUTHORIZATION state command\015\012");
 	break;
 
       case TRANSACTION:		/* logged in */
@@ -214,36 +276,47 @@ void main (int argc,char *argv[])
 	      j++;		/* count one more undeleted message */
 	      k += mail_elt (stream,msg[i])->rfc822_size + SLEN;
 	    }
-	  printf ("+OK %lu %lu\015\012",j,k);
+	  sprintf (tmp,"+OK %lu %lu\015\012",j,k);
+	  PSOUT (tmp);
 	}
 	else if (!strcmp (s,"LIST")) {
 	  if (t && *t) {	/* argument do single message */
-	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && (msg[i] > 0))
-	      printf ("+OK %lu %lu\015\012",i,
-		      mail_elt(stream,msg[i])->rfc822_size + SLEN);
-	    else puts ("-ERR No such message\015");
+	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && (msg[i] > 0)) {
+	      sprintf (tmp,"+OK %lu %lu\015\012",i,
+		       mail_elt(stream,msg[i])->rfc822_size + SLEN);
+	      PSOUT (tmp);
+	    }
+	    else PSOUT ("-ERR No such message\015\012");
 	  }
 	  else {		/* entire mailbox */
-	    puts ("+OK Mailbox scan listing follows\015");
-	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++) if (msg[i] > 0)
-	      printf ("%lu %lu\015\012",i,
-		      mail_elt (stream,msg[i])->rfc822_size + SLEN);
-	    puts (".\015");	/* end of list */
+	    PSOUT ("+OK Mailbox scan listing follows\015\012");
+	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++) if (msg[i] > 0) {
+	      sprintf (tmp,"%lu %lu\015\012",i,
+		       mail_elt (stream,msg[i])->rfc822_size + SLEN);
+	      PSOUT (tmp);
+	    }
+	    PBOUT ('.');	/* end of list */
+	    CRLF;
 	  }
 	}
 	else if (!strcmp (s,"UIDL")) {
 	  if (t && *t) {	/* argument do single message */
-	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && (msg[i] > 0))
-	      printf ("+OK %ld %08lx%08lx\015\012",i,stream->uid_validity,
-		      mail_uid (stream,msg[i]));
-	    else puts ("-ERR No such message\015");
+	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && (msg[i] > 0)) {
+	      sprintf (tmp,"+OK %ld %08lx%08lx\015\012",i,stream->uid_validity,
+		       mail_uid (stream,msg[i]));
+	      PSOUT (tmp);
+	    }
+	    else PSOUT ("-ERR No such message\015\012");
 	  }
 	  else {		/* entire mailbox */
-	    puts ("+OK Unique-ID listing follows\015");
-	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++) if (msg[i] > 0)
-	      printf ("%ld %08lx%08lx\015\012",i,stream->uid_validity,
-		      mail_uid (stream,msg[i]));
-	    puts (".\015");	/* end of list */
+	    PSOUT ("+OK Unique-ID listing follows\015\012");
+	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++) if (msg[i] > 0) {
+	      sprintf (tmp,"%ld %08lx%08lx\015\012",i,stream->uid_validity,
+		       mail_uid (stream,msg[i]));
+	      PSOUT (tmp);
+	    }
+	    PBOUT ('.');	/* end of list */
+	    CRLF;
 	  }
 	}
 
@@ -253,23 +326,27 @@ void main (int argc,char *argv[])
 	      MESSAGECACHE *elt;
 				/* update highest message accessed */
 	      if (i > last) last = i;
-	      printf ("+OK %lu octets\015\012",
-		      (elt = mail_elt (stream,msg[i]))->rfc822_size + SLEN);
+	      sprintf (tmp,"+OK %lu octets\015\012",
+		       (elt = mail_elt (stream,msg[i]))->rfc822_size + SLEN);
+	      PSOUT (tmp);
 				/* output header */
 	      t = mail_fetch_header (stream,msg[i],NIL,NIL,&k,FT_PEEK);
 	      blat (t,-1,k);
 				/* output status */
-	      printf (STATUS,elt->seen ? "R" : " ",elt->recent ? " " : "O");
-	      puts ("\015");	/* delimit header and text */
+	      sprintf (tmp,STATUS,elt->seen ? "R" : " ",
+		       elt->recent ? " " : "O");
+	      PSOUT (tmp);
+	      CRLF;		/* delimit header and text */
 				/* output text */
 	      t = mail_fetch_text (stream,msg[i],NIL,&k,NIL);
 	      blat (t,-1,k);
-				/* end of list */
-	      puts ("\015\012.\015");
+	      CRLF;		/* end of list */
+	      PBOUT ('.');
+	      CRLF;
 	    }
-	    else puts ("-ERR No such message\015");
+	    else PSOUT ("-ERR No such message\015\012");
 	  }
-	  else puts ("-ERR Missing message number argument\015");
+	  else PSOUT ("-ERR Missing message number argument\015\012");
 	}
 	else if (!strcmp (s,"DELE")) {
 	  if (t && *t) {	/* must have an argument */
@@ -280,18 +357,23 @@ void main (int argc,char *argv[])
 	      sprintf (tmp,"%ld",msg[i]);
 	      mail_setflag (stream,tmp,"\\Deleted");
 	      msg[i] = -msg[i];	/* note that we deleted this message */
-	      puts ("+OK Message deleted\015");
+	      PSOUT ("+OK Message deleted\015\012");
+	      ndele++;		/* one more message deleted */
 	    }
-	    else puts ("-ERR No such message\015");
+	    else PSOUT ("-ERR No such message\015\012");
 	  }
-	  else puts ("-ERR Missing message number argument\015");
+	  else PSOUT ("-ERR Missing message number argument\015\012");
 	}
 
-	else if (!strcmp (s,"NOOP")) puts ("+OK No-op to you too!\015");
-	else if (!strcmp (s,"LAST")) printf ("+OK %lu\015\012",last);
+	else if (!strcmp (s,"NOOP"))
+	  PSOUT ("+OK No-op to you too!\015\012");
+	else if (!strcmp (s,"LAST")) {
+	  sprintf (tmp,"+OK %lu\015\012",last);
+	  PSOUT (tmp);
+	}
 	else if (!strcmp (s,"RSET")) {
 	  rset ();		/* reset the mailbox */
-	  puts ("+OK Reset state\015");
+	  PSOUT ("+OK Reset state\015\012");
 	}
 	else if (!strcmp (s,"TOP")) {
 	  if (t && *t && (i =strtoul (t,&s,10)) && (i <= nmsgs) &&
@@ -300,45 +382,53 @@ void main (int argc,char *argv[])
 	    while (isspace (*s)) *s++;
 	    if (isdigit (*s)) {	/* make sure line count argument good */
 	      MESSAGECACHE *elt = mail_elt (stream,msg[i]);
+	      j = strtoul (s,NIL,10);
 				/* update highest message accessed */
 	      if (i > last) last = i;
-	      puts ("+OK Top of message follows\015");
+	      PSOUT ("+OK Top of message follows\015\012");
 				/* output header */
 	      t = mail_fetch_header (stream,msg[i],NIL,NIL,&k,FT_PEEK);
 	      blat (t,-1,k);
 				/* output status */
-	      printf (STATUS,elt->seen ? "R" : " ",elt->recent ? " " : "O");
-	      puts ("\015");	/* delimit header and text */
-				/* want any text lines? */
-	      if (j = strtoul (s,NIL,10)) {
+	      sprintf (tmp,STATUS,elt->seen ? "R" : " ",
+		       elt->recent ? " " : "O");
+	      PSOUT (tmp);
+	      CRLF;		/* delimit header and text */
+	      if (j) {		/* want any text lines? */
 				/* output text */
 		t = mail_fetch_text (stream,msg[i],NIL,&k,FT_PEEK);
 				/* tie off final line if full text output */
-		if (j -= blat (t,j,k)) puts ("\015");
+		if (j -= blat (t,j,k)) CRLF;
 	      }
-	      puts (".\015");	/* end of list */
+	      PBOUT ('.');	/* end of list */
+	      CRLF;
 	    }
-	    else puts ("-ERR Bad line count argument\015");
+	    else PSOUT ("-ERR Bad line count argument\015\012");
 	  }
-	  else puts ("-ERR Bad message number argument\015");
+	  else PSOUT ("-ERR Bad message number argument\015\012");
 	}
-	else if (!strcmp (s,"XTND")) puts ("-ERR Sorry I can't do that\015");
-	else puts ("-ERR Unknown command in TRANSACTION state\015");
+	else if (!strcmp (s,"XTND"))
+	  PSOUT ("-ERR Sorry I can't do that\015\012");
+	else PSOUT ("-ERR Unknown TRANSACTION state command\015\012");
 	break;
       default:
-        puts ("-ERR Server in unknown state\015");
+        PSOUT ("-ERR Server in unknown state\015\012");
 	break;
       }
     }
-    fflush (stdout);		/* make sure output finished */
+    PFLUSH;			/* make sure output finished */
   }
-				/* only if update requested */
-  if (stream && (state == UPDATE)) stream = mail_close_full(stream,CL_EXPUNGE);
-  puts (sayonara);		/* "now it's time to say sayonara..." */
-  fflush (stdout);		/* make sure output finished */
-  syslog (LOG_INFO,"Logout user=%.80s host=%.80s",user ? user : "???",
-	  tcp_clienthost ());
-  exit (0);			/* all done */
+  if (stream && (state == UPDATE)) {
+    mail_expunge (stream);
+    syslog (LOG_INFO,"Logout user=%.80s host=%.80s nmsgs=%ld ndele=%ld",
+	    user,tcp_clienthost (),stream->nmsgs,ndele);
+    mail_close (stream);
+  }
+  else syslog (LOG_INFO,"Logout user=%.80s host=%.80s",user ? user : "???",
+	       tcp_clienthost ());
+  PSOUT (sayonara);		/* "now it's time to say sayonara..." */
+  PFLUSH;			/* make sure output finished */
+  return 0;			/* all done */
 }
 
 /* Clock interrupt
@@ -346,10 +436,10 @@ void main (int argc,char *argv[])
 
 void clkint ()
 {
-  puts ("-ERR Autologout; idle for too long\015");
+  PSOUT ("-ERR Autologout; idle for too long\015\012");
   syslog (LOG_INFO,"Autologout user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
-  fflush (stdout);		/* make sure output blatted */
+  PFLUSH;			/* make sure output blatted */
   if (critical) state = LOGOUT;	/* badly hosed if in critical code */
   else {			/* try to gracefully close the stream */
     if ((state == TRANSACTION) && !stream->lock) {
@@ -371,8 +461,8 @@ void kodint ()
 				/* only if idle */
   if (idletime && ((time (0) - idletime) > KODTIMEOUT)) {
     alarm (0);			/* disable all interrupts */
-    server_traps (SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-    puts ("-ERR Received Kiss of Death\015");
+    server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+    PSOUT ("-ERR Received Kiss of Death\015\012");
     syslog (LOG_INFO,"Killed (lost mailbox lock) user=%.80s host=%.80s",
 	    user ? user : "???",tcp_clienthost ());
     if (critical) state =LOGOUT;/* must defer if in critical code */
@@ -395,7 +485,7 @@ void kodint ()
 void hupint ()
 {
   alarm (0);			/* disable all interrupts */
-  server_traps (SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   syslog (LOG_INFO,"Hangup user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
   if (critical) state = LOGOUT;	/* must defer if in critical code */
@@ -417,8 +507,8 @@ void hupint ()
 void trmint ()
 {
   alarm (0);			/* disable all interrupts */
-  server_traps (SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-  puts ("-ERR Killed\015");
+  server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  PSOUT ("-ERR Killed\015\012");
   syslog (LOG_INFO,"Killed user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
   if (critical) state = LOGOUT;	/* must defer if in critical code */
@@ -444,23 +534,26 @@ int login (char *t,int argc,char *argv[])
 				/* flush old passowrd */
   if (pass) fs_give ((void **) &pass);
   if (!(t && *t)) {		/* if no password given */
-    puts ("-ERR Missing password argument\015");
+    PSOUT ("-ERR Missing password argument\015\012");
     return AUTHORIZATION;
   }
   pass = cpystr (t);		/* copy password argument */
+#ifndef DISABLE_POP_PROXY
 				/* remote; build remote INBOX */
   if (host && anonymous_login (argc,argv)) {
     syslog (LOG_INFO,"IMAP login to host=%.80s user=%.80s host=%.80s",host,
 	    user,tcp_clienthost ());
-    sprintf (tmp,"{%.128s}INBOX",host);
+    sprintf (tmp,"{%.128s/user=%.128s}INBOX",host,user);
+				/* disable rimap just in case */
+    mail_parameters (NIL,SET_RSHTIMEOUT,0);
   }
 				/* local; attempt login, select INBOX */
-  else if (!host && server_login (user,pass,argc,argv)) {
-    syslog (LOG_INFO,"Login user=%.80s host=%.80s",user,tcp_clienthost ());
-    strcpy (tmp,"INBOX");
-  }
-  else {
-    puts ("-ERR Bad login\015");/* vague error message to confuse crackers */
+  else if (!host && server_login (user,pass,argc,argv)) strcpy (tmp,"INBOX");
+#else
+  if (server_login (user,pass,argc,argv)) strcpy (tmp,"INBOX");
+#endif
+  else {			/* vague error message to confuse crackers */
+    PSOUT ("-ERR Bad login\015\012");
     return AUTHORIZATION;
   }
   return mbxopen (tmp);
@@ -486,22 +579,22 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
     initial = NIL;		/* no more initial response */
     return (char *) rfc822_base64 (t,strlen (t),rlen ? rlen : &i);
   }
-  fputs ("+ ",stdout);
+  PSOUT ("+ ");
   for (t = rfc822_binary (challenge,clen,&i),j = 0; j < i; j++)
-    if (t[j] > ' ') putchar (t[j]);
+    if (t[j] > ' ') PBOUT (t[j]);
   fs_give ((void **) &t);
-  fputs ("\015\012",stdout);
-  fflush (stdout);		/* dump output buffer */
+  CRLF;
+  PFLUSH;			/* dump output buffer */
   resp[RESPBUFLEN-1] = '\0';	/* last buffer character is guaranteed NUL */
   alarm (LOGINTIMEOUT);		/* get a response under timeout */
   errno = 0;			/* clear error */
 				/* read buffer */
-  while (!fgets (resp,RESPBUFLEN-1,stdin)) {
+  while (!PSIN ((char *) resp,RESPBUFLEN)) {
     if (errno==EINTR) errno = 0;/* ignore if some interrupt */
     else {
       char *e = errno ? strerror (errno) : "command stream end of file";
       alarm (0);		/* disable all interrupts */
-      server_traps (SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
       syslog (LOG_INFO,"%s, while reading authentication host=%.80s",
 	      e,tcp_clienthost ());
       state = UPDATE;
@@ -510,12 +603,12 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
   }
   if (!(t = (unsigned char *) strchr ((char *) resp,'\012'))) {
     int c;
-    while ((c = getchar ()) != '\012') if (c == EOF) {
+    while ((c = PBIN ()) != '\012') if (c == EOF) {
       if (errno==EINTR) errno=0;/* ignore if some interrupt */
       else {
 	char *e = errno ? strerror (errno) : "command stream end of file";
 	alarm (0);		/* disable all interrupts */
-	server_traps (SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+	server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	syslog (LOG_INFO,"%s, while reading auth char user=%.80s host=%.80s",
 		e,user ? user : "???",tcp_clienthost ());
 	state = UPDATE;
@@ -555,12 +648,15 @@ int mbxopen (char *mailbox)
 	  if (elt->seen) il = last = nmsgs;
 	}
       }
-      printf ("+OK Mailbox open, %lu messages\015\012",nmsgs);
+      sprintf (tmp,"+OK Mailbox open, %lu messages\015\012",nmsgs);
+      PSOUT (tmp);
       return TRANSACTION;
     }
-    else sayonara = "-ERR Can't get lock.  Try again or use IMAP instead\015";
+    else sayonara = "-ERR Can't get lock.  Mailbox in use\015\012";
   }
-  else sayonara = "-ERR Unable to open user's INBOX\015";
+  else sayonara = "-ERR Unable to open user's INBOX\015\012";
+  syslog (LOG_INFO,"Error opening or locking INBOX user=%.80s host=%.80s",
+	  user,tcp_clienthost ());
   return UPDATE;
 }
 
@@ -585,14 +681,14 @@ long blat (char *text,long lines,unsigned long size)
 				/* no-op if zero lines or empty string */
   if (!(lines && (size-- > 2))) return 0;
   c = *text++; d = *text++;	/* collect first two bytes */
-  if (c == '.') putchar ('.');	/* double string-leading dot if necessary */
+  if (c == '.') PBOUT ('.');	/* double string-leading dot if necessary */
   while (lines && --size) {	/* copy loop */
     e = *text++;		/* get next byte */
-    putchar (c);		/* output character */
+    PBOUT (c);			/* output character */
     if (c == '\012') {		/* end of line? */
       ret++; --lines;		/* count another line */
 				/* double leading dot as necessary */
-      if (lines && size && (d == '.')) putchar ('.');
+      if (lines && size && (d == '.')) PBOUT ('.');
     }
     c = d; d = e;		/* move to next character */
   }
@@ -620,6 +716,7 @@ void rset ()
     }
     last = il;
   }
+  ndele = 0;			/* no more deleted messages */
 }
 
 /* Co-routines from MAIL library */

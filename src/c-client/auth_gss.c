@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 January 1998
- * Last Edited:	20 August 1998
+ * Last Edited:	1 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -46,6 +46,7 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
 char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[]);
 
 AUTHENTICATOR auth_gss = {
+  T,				/* secure authenticator */
   "GSSAPI",			/* authenticator name */
   auth_gssapi_valid,		/* check if valid */
   auth_gssapi_client,		/* client method */

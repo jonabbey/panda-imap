@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	1 September 1998
+ * Last Edited:	13 October 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -82,6 +82,7 @@
 
 /* Function prototypes */
 
+void *smtp_parameters (long function,void *value);
 SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 			    unsigned long port,long options);
 void *smtp_challenge (void *s,unsigned long *len);

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	31 December 1997
+ * Last Edited:	28 September 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -161,4 +161,25 @@ char *myhomedir ()
 MAILSTREAM *default_proto (long type)
 {
   return NIL;			/* no default prototype */
+}
+
+/* Emulator for BSD syslog() routine
+ * Accepts: priority
+ *	    message
+ *	    parameters
+ */
+
+void syslog (int priority,const char *message,...)
+{
+}
+
+
+/* Emulator for BSD openlog() routine
+ * Accepts: identity
+ *	    options
+ *	    facility
+ */
+
+void openlog (const char *ident,int logopt,int facility)
+{
 }

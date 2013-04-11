@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 July 1998
+ * Last Edited:	6 October 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -58,4 +58,5 @@ unsigned long tcp_port (TCPSTREAM *stream);
 char *tcp_localhost (TCPSTREAM *stream);
 char *tcp_clienthost (void);
 char *tcp_serverhost (void);
+long tcp_serverport (void);
 char *tcp_canonical (char *name);

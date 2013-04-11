@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	29 July 1998
+ * Last Edited:	28 September 1998
  *
  * Copyright 1998 by Mark Crispin
  *
@@ -304,11 +304,11 @@ char *tcp_canonical (char *name)
 				/* look like domain literal? */
   if (name[0] == '[' && name[strlen (name) - 1] == ']') return name;
   argblk[1] = _GTHPN;		/* get IP address and primary name */
-  argblk[2] = (int) (host-1);	/* pointer to host */
+  argblk[2] = (int) (name-1);	/* pointer to host */
   argblk[4] = (int) (tmp-1);	/* pointer to return destination */
   if (!jsys (GTHST,argblk)) {	/* first try DEC's domain way */
     argblk[1] = _GTHPN;		/* get IP address and primary name */
-    argblk[2] = (int) (host-1);
+    argblk[2] = (int) (name-1);
     argblk[4] = (int) (tmp-1);
     if (!jsys (GTDOM,argblk)) {	/* try the CHIVES domain way */
       argblk[1] = _GTHSN;	/* failed, do the host table then */
@@ -320,4 +320,14 @@ char *tcp_canonical (char *name)
     }
   }
   return tmp;
+}
+
+
+/* TCP/IP get client host name (server calls only)
+ * Returns: client host name
+ */
+
+char *tcp_clienthost ()
+{
+  return "UNKNOWN";
 }

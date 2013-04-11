@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	1 September 1998
+ * Last Edited:	13 January 1999
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1998 by the University of Washington
+ * Copyright 1999 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -105,6 +105,8 @@ static unsigned long imap_maxlogintrials = MAXLOGINTRIALS;
 static long imap_lookahead = IMAPLOOKAHEAD;
 static long imap_uidlookahead = IMAPUIDLOOKAHEAD;
 static long imap_defaultport = 0;
+static long imap_altport = 0;
+static char *imap_altname = NIL;
 static long imap_prefetch = IMAPLOOKAHEAD;
 static long imap_closeonerror = NIL;
 static imapenvelope_t imap_envelope = NIL;
@@ -159,11 +161,24 @@ void *imap_parameters (long function,void *value)
   case GET_UIDLOOKAHEAD:
     value = (void *) imap_uidlookahead;
     break;
+
   case SET_IMAPPORT:
     imap_defaultport = (long) value;
     break;
   case GET_IMAPPORT:
     value = (void *) imap_defaultport;
+    break;
+  case SET_ALTIMAPPORT:
+    imap_altport = (long) value;
+    break;
+  case GET_ALTIMAPPORT:
+    value = (void *) imap_altport;
+    break;
+  case SET_ALTIMAPNAME:
+    imap_altname = (char *) value;
+    break;
+  case GET_ALTIMAPNAME:
+    value = (void *) imap_altname;
     break;
   case SET_PREFETCH:
     imap_prefetch = (long) value;
@@ -568,7 +583,7 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
 				/* assume IMAP2bis server */
     LOCAL->imap2bis = LOCAL->rfc1176 = T;
 				/* try rimap open */
-    if (tstream = (stream->anonymous || mb.port) ? NIL :
+    if (tstream = (stream->anonymous || mb.port || mb.altflag) ? NIL :
 	net_aopen (NIL,&mb,"imap",usr)) {
 				/* if success, see if reasonable banner */
       if (net_getbuffer (tstream,(long) 1,c) && (*c == '*')) {
@@ -596,7 +611,11 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
 	sprintf(s = tmp,"%s:%ld",mb.host,mb.port ? mb.port : imap_defaultport);
       else s = mb.host;		/* simple host name */
 				/* try to open ordinary connection */
-      if ((LOCAL->netstream = net_open (NIL,s,"imap",IMAPTCPPORT)) &&
+      if ((LOCAL->netstream = mb.altflag ?
+	   net_open ((NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),s,
+		     (char *) mail_parameters (NIL,GET_ALTIMAPNAME,NIL),
+		     (unsigned long) mail_parameters(NIL,GET_ALTIMAPPORT,NIL)):
+	   net_open (NIL,s,"imap",IMAPTCPPORT)) &&
 	  !imap_OK (stream,reply = imap_reply (stream,NIL))) {
 	mm_log (reply->text,ERROR);
 	return NIL;
@@ -644,12 +663,15 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
     sprintf (tmp,"{%s",net_host (LOCAL->netstream));
     if (!((i = net_port (LOCAL->netstream)) & 0xffff0000))
       sprintf (tmp + strlen (tmp),":%lu",i);
-    if (stream->anonymous) strcat (tmp,"/imap/anonymous}");
+    strcat (tmp,"/imap");
+    if (mb.altflag) sprintf (tmp + strlen (tmp),"/%s",(char *)
+			     mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
+    if (mb.secflag) strcat (tmp,"/secure");
+    if (stream->anonymous) strcat (tmp,"/anonymous}");
     else {			/* record user name */
       if (!LOCAL->user && usr[0]) LOCAL->user = cpystr (usr);
-      if (LOCAL->user) sprintf (tmp + strlen (tmp),"/imap/user=%s}",
+      if (LOCAL->user) sprintf (tmp + strlen (tmp),"/user=%s}",
 				LOCAL->user);
-      else strcat (tmp,"/imap}");
     }
 
     if (!stream->halfopen) {	/* wants to open a mailbox? */
@@ -1395,8 +1417,13 @@ void imap_search (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,long flags)
   else args[0] = &apgm;
 				/* be sure that receiver understands */
   LOCAL->uidsearch = (flags & SE_UID) ? T : NIL;
+  if (!LEVELIMAP4 (stream) &&	/* if old server but new functions... */
+      (charset || LOCAL->uidsearch || pgm->msgno || pgm->uid || pgm->or ||
+       pgm->not || pgm->header || pgm->larger || pgm->smaller ||
+       pgm->sentbefore || pgm->senton || pgm->sentsince || pgm->draft ||
+       pgm->undraft)) mail_search_default (stream,charset,pgm,flags);
 				/* do the SEARCH */
-  if (!imap_OK (stream,reply = imap_send (stream,cmd,args)))
+  else if (!imap_OK (stream,reply = imap_send (stream,cmd,args)))
     mm_log (reply->text,ERROR);
 				/* can never pre-fetch with a short cache */
   else if ((k = imap_prefetch) && !(flags & (SE_NOPREFETCH|SE_UID)) &&
@@ -2110,9 +2137,9 @@ IMAPPARSEDREPLY *imap_send_spgm (MAILSTREAM *stream,char *tag,char **s,
     return reply;
   if (hdr = pgm->header) do {
     for (t = " HEADER "; *t; *(*s)++ = *t++);
-    if (reply = imap_send_astring (stream,tag,s,&hdr->text,NIL)) return reply;
-    *(*s)++ = ' ';
     if (reply = imap_send_astring (stream,tag,s,&hdr->line,NIL)) return reply;
+    *(*s)++ = ' ';
+    if (reply = imap_send_astring (stream,tag,s,&hdr->text,NIL)) return reply;
   }
   while (hdr = hdr->next);
   if (pgo = pgm->or) do {
@@ -2181,7 +2208,7 @@ IMAPPARSEDREPLY *imap_send_slist (MAILSTREAM *stream,char *tag,char **s,
 
 void imap_send_sdate (char **s,char *name,unsigned short date)
 {
-  sprintf (*s," %s %d-%s-%d",name,date & 0x1f,
+  sprintf (*s," %s %2d-%s-%d",name,date & 0x1f,
 	   months[((date >> 5) & 0xf) - 1],BASEYEAR + (date >> 9));
   *s += strlen (*s);
 }
@@ -2745,11 +2772,9 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
 	LOCAL->threader = thread;
       }
       else if (!strncmp (t,"AUTH",4) && ((t[4] == '=') || (t[4] == '-'))) {
-	if (!stream->secure || (strcmp (t+5,"LOGIN") && strcmp (t+5,"PLAIN"))){
-	  if ((i = mail_lookup_auth_name (t+5)) && (--i < MAXAUTHENTICATORS))
-	    LOCAL->use_auth |= (1 << i);
-	  else if (!strcmp (t+5,"ANONYMOUS")) LOCAL->use_authanon = T;
-	}
+	if ((i = mail_lookup_auth_name (t+5,stream->secure)) &&
+	    (--i < MAXAUTHENTICATORS)) LOCAL->use_auth |= (1 << i);
+	else if (!strcmp (t+5,"ANONYMOUS")) LOCAL->use_authanon = T;
       }
 				/* unsupported IMAP4 extension */
       else if (!strcmp (t,"STATUS")) LOCAL->use_status = T;
@@ -2785,8 +2810,6 @@ void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy)
 	stream->uid_validity = strtoul (s,NIL,10);
       else if (!strcmp (LOCAL->tmp,"UIDNEXT"))
 	stream->uid_last = strtoul (s,NIL,10) - 1;
-      else if (!strcmp (LOCAL->tmp,"UIDNOTSTICKY"))
-	stream->uid_nosticky = T;
       else if (!strcmp (LOCAL->tmp,"PERMANENTFLAGS") && (*s == '(') &&
 	       (LOCAL->tmp[i-1] == ')')) {
 	LOCAL->tmp[i-1] = '\0';	/* tie off flags */
@@ -2813,7 +2836,11 @@ void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy)
       }
     }
     else {			/* no arguments */
-      if (!strcmp (LOCAL->tmp,"READ-ONLY")) stream->rdonly = T;
+      if (!strcmp (LOCAL->tmp,"UIDNOTSTICKY")) {
+	ntfy = NIL;
+	stream->uid_nosticky = T;
+      }
+      else if (!strcmp (LOCAL->tmp,"READ-ONLY")) stream->rdonly = T;
       else if (!strcmp (LOCAL->tmp,"READ-WRITE")) stream->rdonly = NIL;
     }
   }
@@ -3194,10 +3221,10 @@ unsigned long imap_parse_user_flag (MAILSTREAM *stream,char *flag)
   char tmp[MAILTMPLEN];
   long i;
 				/* sniff through all user flags */
-  for (i = 0; i < NUSERFLAGS; ++i)
-    if (stream->user_flags[i] &&
-	!strcmp (flag,ucase (strcpy (tmp,stream->user_flags[i]))))
-      return (1 << i);		/* found it! */
+  for (i = 0; i < NUSERFLAGS; ++i) if (stream->user_flags[i]) {
+    sprintf (tmp,"%.1000s",stream->user_flags[i]);
+    if (!strcmp (flag,ucase (tmp))) return (1 << i);
+  }
   return (unsigned long) 0;	/* not found */
 }
 

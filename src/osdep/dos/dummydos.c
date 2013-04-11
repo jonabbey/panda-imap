@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	4 June 1998
+ * Last Edited:	13 November 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -61,7 +61,7 @@ DRIVER dummydriver = {
   dummy_scan,			/* scan mailboxes */
   dummy_list,			/* list mailboxes */
   dummy_lsub,			/* list subscribed mailboxes */
-  NIL,				/* subscribe to mailbox */
+  dummy_subscribe,		/* subscribe to mailbox */
   NIL,				/* unsubscribe from mailbox */
   dummy_create,			/* create mailbox */
   dummy_delete,			/* delete mailbox */
@@ -218,6 +218,25 @@ void dummy_lsub (MAILSTREAM *stream,char *ref,char *pat)
     }
   while (s = sm_read (&sdb));	/* until no more subscriptions */
 }
+
+
+/* Dummy subscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long dummy_subscribe (MAILSTREAM *stream,char *mailbox)
+{
+  char *s,tmp[MAILTMPLEN];
+  struct stat sbuf;
+				/* must be valid local mailbox */
+  if ((s = mailboxfile (tmp,mailbox)) && *s && !stat (s,&sbuf) &&
+      ((sbuf.st_mode & S_IFMT) == S_IFREG)) return sm_subscribe (mailbox);
+  sprintf (tmp,"Can't subscribe %s: not a mailbox",mailbox);
+  mm_log (tmp,ERROR);
+  return NIL;
+}
 
 /* Dummy list mailboxes worker routine
  * Accepts: mail stream
@@ -329,37 +348,55 @@ long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,
 /* Dummy create mailbox
  * Accepts: mail stream
  *	    mailbox name to create
- *	    driver type to use
  * Returns: T on success, NIL on failure
  */
 
 long dummy_create (MAILSTREAM *stream,char *mailbox)
 {
+  char tmp[MAILTMPLEN];
+  return (strcmp (ucase (strcpy (tmp,mailbox)),"INBOX") &&
+	  mailboxfile (tmp,mailbox)) ?
+	    dummy_create_path (stream,tmp) : dummy_badname (tmp,mailbox);
+}
+
+
+/* Dummy create path
+ * Accepts: mail stream
+ *	    path name name to create
+ * Returns: T on success, NIL on failure
+ */
+
+long dummy_create_path (MAILSTREAM *stream,char *path)
+{
   struct stat sbuf;
-  char c,*s,mbx[MAILTMPLEN];
+  char c,*s,tmp[MAILTMPLEN];
+  int fd;
   long ret = NIL;
-  int fd,wantdir;
-  if (!mailboxfile (mbx,mailbox)) return dummy_badname (mbx,mailbox);
-  wantdir = (s = strrchr (mbx,'\\')) && !s[1];
-  if (wantdir) *s = '\0';	/* flush trailing delimiter for directory */
-  if (s = strrchr (mbx,'\\')) {	/* found superior to this name? */
-    c = *++s;			/* remember first character of inferior */
-    *s = '\0';			/* tie off to get just superior */
+  char *t = strrchr (path,'\\');
+  char *pt = (path[1] == ':') ? path + 2 : path;
+  int wantdir = t && !t[1];
+  if (wantdir) *t = '\0';	/* flush trailing delimiter for directory */
+				/* found superior to this name? */
+  if ((s = strrchr (pt,'\\')) && (s != pt)) {
+    strncpy (tmp,path,(size_t) (s - path));
+    tmp[s - path] = '\0';	/* make directory name for stat */
+    c = *++s;			/* tie off in case need to recurse */
+    *s = '\0';
 				/* name doesn't exist, create it */
-    if ((stat (mbx,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	!dummy_create (stream,mbx)) return NIL;
+    if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
+	!dummy_create_path (stream,path)) return NIL;
     *s = c;			/* restore full name */
   }
-				/* want to create directory? */
-  if (wantdir) ret = !mkdir (mbx);
+  if (wantdir) {		/* want to create directory? */
+    ret = !mkdir (path);
+    *t = '\\';			/* restore directory delimiter */
+  }
 				/* create file */
-  else if ((fd = open (mbx,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) >= 0)
+  else if ((fd = open (path,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) >= 0)
     ret = !close (fd);		/* close file */
   if (!ret) {			/* error? */
-    char tmp[MAILTMPLEN];
-    sprintf (tmp,"Can't create mailbox node %s: %s",mbx,strerror (errno));
+    sprintf (tmp,"Can't create mailbox node %s: %s",path,strerror (errno));
     mm_log (tmp,ERROR);
-    return NIL;
   }
   return ret;			/* return status */
 }
@@ -375,7 +412,7 @@ long dummy_delete (MAILSTREAM *stream,char *mailbox)
   struct stat sbuf;
   char *s,tmp[MAILTMPLEN];
   if (!mailboxfile (tmp,mailbox)) return dummy_badname (tmp,mailbox);
-				/* no trailing / (workaround BSD kernel bug) */
+				/* no trailing \ */
   if ((s = strrchr (tmp,'\\')) && !s[1]) *s = '\0';
   if (stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) == S_IFDIR) ?
       rmdir (tmp) : unlink (tmp)) {
@@ -400,9 +437,10 @@ long dummy_rename (MAILSTREAM *stream,char *old,char *newname)
   char c,*s,tmp[MAILTMPLEN],file[MAILTMPLEN];
 				/* make file name */
   if (!mailboxfile (file,old)) return dummy_badname (tmp,old);
-  if (newname && !mailboxfile (tmp,newname))
+				/* no trailing \ allowed */
+  if (!(s = mailboxfile (tmp,newname)) || ((s = strrchr (s,'\\')) && !s[1]))
     return dummy_badname (tmp,newname);
-  if (s = strrchr (tmp,'\\')) {	/* found superior to destination name? */
+  if (s) {			/* found superior to destination name? */
     c = *++s;			/* remember first character of inferior */
     *s = '\0';			/* tie off to get just superior */
 				/* name doesn't exist, create it */
@@ -474,12 +512,24 @@ void dummy_close (MAILSTREAM *stream,long options)
 
 long dummy_ping (MAILSTREAM *stream)
 {
-  char tmp[MAILTMPLEN];
-  MAILSTREAM *test = mail_open (NIL,stream->mailbox,OP_PROTOTYPE);
-				/* swap streams if looks like a new driver */
-  if (test && (test->dtb != stream->dtb))
-    test = mail_open (stream,strcpy (tmp,stream->mailbox),NIL);
-  return test ? T : NIL;
+				/* time to do another test? */
+  if (time (0) >= (stream->gensym + 30)) {
+    MAILSTREAM *test = mail_open (NIL,stream->mailbox,OP_PROTOTYPE);
+    if (!test) return NIL;	/* can't get a prototype?? */
+    if (test->dtb == stream->dtb) {
+      stream->gensym = time (0);/* still hasn't changed */
+      return T;			/* try again later */
+    }
+				/* looks like a new driver? */
+    if (!(test = mail_open (NIL,stream->mailbox,NIL))) return NIL;
+    mail_close ((MAILSTREAM *)	/* flush resources used by dummy stream */
+		memcpy (fs_get (sizeof (MAILSTREAM)),stream,
+			sizeof (MAILSTREAM)));
+				/* swap the streams */
+    memcpy (stream,test,sizeof (MAILSTREAM));
+    fs_give ((void **) &test);	/* flush test now that copied */
+  }
+  return T;
 }
 
 

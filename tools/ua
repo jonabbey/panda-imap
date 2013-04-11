@@ -10,9 +10,11 @@ if [ ! -d $BASE/$3 ]; then
  mkdir $BASE/$3
 fi
 
-if [ -f $BASE/$2/Makefile ]; then
-  $1 $BASE/$2/Makefile $BASE/$3
-fi
+for i in $BASE/$2/Makefile* ; do
+  if [ -f $i ] ; then
+    $1 $i $BASE/$3
+  fi
+done
 
 if [ -f $BASE/$2/drivers ]; then
   $1 $BASE/$2/drivers $BASE/$3

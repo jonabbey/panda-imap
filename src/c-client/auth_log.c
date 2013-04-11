@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 December 1995
- * Last Edited:	2 April 1998
+ * Last Edited:	1 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -39,6 +39,7 @@ long auth_login_client (authchallenge_t challenger,authrespond_t responder,
 char *auth_login_server (authresponse_t responder,int argc,char *argv[]);
 
 AUTHENTICATOR auth_log = {
+  NIL,				/* not secure */
   "LOGIN",			/* authenticator name */
   NIL,				/* always valid */
   auth_login_client,		/* client method */

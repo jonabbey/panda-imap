@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	1 September 1998
+ * Last Edited:	1 December 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -52,8 +52,10 @@
 
 /* Mailer parameters */
 
-long smtp_port = 0;		/* default port override */
-unsigned long smtp_maxlogintrials = MAXLOGINTRIALS;
+static unsigned long smtp_maxlogintrials = MAXLOGINTRIALS;
+static long smtp_port = 0;	/* default port override */
+static long smtp_altport = 0;
+static char *smtp_altname = NIL;
 
 
 /* SMTP limits, current as of most recent draft */
@@ -71,6 +73,46 @@ unsigned long smtp_maxlogintrials = MAXLOGINTRIALS;
  */
 
 #define MAXLOCALPART ((MAILTMPLEN - (SMTPMAXDOMAIN + SMTPMAXPATH + 32)) / 2)
+
+/* Mail Transfer Protocol manipulate driver parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *smtp_parameters (long function,void *value)
+{
+  switch ((int) function) {
+  case SET_MAXLOGINTRIALS:
+    smtp_maxlogintrials = (unsigned long) value;
+    break;
+  case GET_MAXLOGINTRIALS:
+    value = (void *) smtp_maxlogintrials;
+    break;
+  case SET_SMTPPORT:
+    smtp_port = (long) value;
+    break;
+  case GET_SMTPPORT:
+    value = (void *) smtp_port;
+    break;
+  case SET_ALTSMTPPORT:
+    smtp_altport = (long) value;
+    break;
+  case GET_ALTSMTPPORT:
+    value = (void *) smtp_altport;
+    break;
+  case SET_ALTSMTPNAME:
+    smtp_altname = (char *) value;
+    break;
+  case GET_ALTSMTPNAME:
+    value = (void *) smtp_altname;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
+}
 
 /* Mail Transfer Protocol open connection
  * Accepts: network driver
@@ -98,11 +140,15 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
       mm_log (tmp,ERROR);
     }
     else {			/* did user supply port or service? */
-      if (mb.port) netstream = net_open (dv,mb.host,NIL,mb.port);
-      else if (smtp_port)	/* is there a configured override? */
-	netstream = net_open (dv,mb.host,NIL,smtp_port);
-      else netstream = net_open (dv,mb.host,service,port);
-      if (netstream) {
+      if (mb.port || smtp_port)
+	sprintf (s = tmp,"%.1000s:%ld",mb.host,mb.port ? mb.port : smtp_port);
+      else s = mb.host;		/* simple host name */
+				/* try to open ordinary connection */
+      if (netstream = mb.altflag ?
+	  net_open ((NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),s,
+		    (char *) mail_parameters (NIL,GET_ALTSMTPNAME,NIL),
+		    (unsigned long) mail_parameters(NIL,GET_ALTSMTPPORT,NIL)):
+	  net_open (dv,s,mb.service,port)) {
 	stream = (SENDSTREAM *) memset (fs_get (sizeof (SENDSTREAM)),0,
 					sizeof (SENDSTREAM));
 	stream->netstream = netstream;
@@ -480,8 +526,7 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
     else if ((tmp[0] == 'A') && (tmp[1] == 'U') && (tmp[2] == 'T') &&
 	     (tmp[3] == 'H') && ((tmp[4] == ' ') || (tmp[4] == '='))) {
       for (s = strtok (tmp+5," "); s && *s; s = strtok (NIL," "))
-	if ((!mb->secflag || (strcmp (s,"LOGIN") && strcmp (s,"PLAIN"))) &&
-	    (j = mail_lookup_auth_name (s)) &&
+	if ((j = mail_lookup_auth_name (s,mb->secflag)) &&
 	    (--j < (8 * sizeof (ESMTP.auth)))) ESMTP.auth |= (1 << j);
     }
     else if ((tmp[0] == 'D') && (tmp[1] == 'S') && (tmp[2] == 'N') && !tmp[3])

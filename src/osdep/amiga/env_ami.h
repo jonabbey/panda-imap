@@ -1,5 +1,5 @@
 /*
- * Program:	Amiga environment routines
+ * Program:	UNIX environment routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	28 April 1998
+ * Last Edited:	10 December 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -50,18 +50,21 @@ char *myusername_full (unsigned long *flags);
   myusername_full (NIL)
 char *sysinbox ();
 char *mailboxdir (char *dst,char *dir,char *name);
-int lockname (char *lock,char *fname);
+int lockname (char *lock,char *fname,int op);
 int lockfd (int fd,char *lock,int op);
-void locksbuf (char *lock,void *sbuf);
-int lock_work (char *lock);
+int lock_work (char *lock,void *sbuf,int op);
 long chk_notsymlink (char *name);
 void unlockfd (int fd,char *lock);
+long set_mbx_protections (char *mailbox,char *path);
 MAILSTREAM *user_flags (MAILSTREAM *stream);
 char *default_user_flag (unsigned long i);
+void dorc (char *file,long flag);
+long path_create (MAILSTREAM *stream,char *mailbox);
 void grim_pid_reap_status (int pid,int killreq,void *status);
 #define grim_pid_reap(pid,killreq) \
   grim_pid_reap_status (pid,killreq,NIL)
 long safe_write (int fd,char *buf,long nbytes);
+void *arm_signal (int sig,void *action);
 struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[]);
 long loginpw (struct passwd *pw,int argc,char *argv[]);
 long pw_login (struct passwd *pw,char *user,char *home,int argc,char *argv[]);

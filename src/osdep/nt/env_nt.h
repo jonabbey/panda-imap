@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 August 1998
+ * Last Edited:	24 November 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -36,6 +36,7 @@
 
 #define SUBSCRIPTIONFILE(t) sprintf (t,"%s\\MAILBOX.LST",myhomedir ())
 #define SUBSCRIPTIONTEMP(t) sprintf (t,"%s\\MAILBOX.TMP",myhomedir ())
+#define MD5ENABLE "\\cram-md5.pwd"
 
 #define L_SET SEEK_SET
 

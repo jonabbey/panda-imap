@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	2 August 1998
+ * Last Edited:	1 December 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -99,6 +99,8 @@ MAILSTREAM pop3proto = {&pop3driver};
 				/* driver parameters */
 static unsigned long pop3_maxlogintrials = MAXLOGINTRIALS;
 static long pop3_port = 0;
+static long pop3_altport = 0;
+static char *pop3_altname = NIL;
 
 /* POP3 mail validate mailbox
  * Accepts: mailbox name
@@ -134,6 +136,18 @@ void *pop3_parameters (long function,void *value)
     break;
   case GET_POP3PORT:
     value = (void *) pop3_port;
+    break;
+  case SET_ALTPOPPORT:
+    pop3_altport = (long) value;
+    break;
+  case GET_ALTPOPPORT:
+    value = (void *) pop3_altport;
+    break;
+  case SET_ALTPOPNAME:
+    pop3_altname = (char *) value;
+    break;
+  case GET_ALTPOPNAME:
+    value = (void *) pop3_altname;
     break;
   default:
     value = NIL;		/* error case */
@@ -332,19 +346,23 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
   LOCAL->txt = NIL;		/* no file initially */
 
 				/* try to open connection */
-  if (!((LOCAL->netstream = net_open (NIL,s,"pop3",POP3TCPPORT)) &&
-	pop3_reply (stream))) {
-    if (LOCAL->reply) mm_log (LOCAL->reply,ERROR);
-    pop3_close (stream,NIL);	/* failed, clean up */
-  }
-  else {			/* got connection */
+  if ((LOCAL->netstream = mb.altflag ?
+       net_open ((NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),s,
+		 (char *) mail_parameters (NIL,GET_ALTPOPNAME,NIL),
+		 (unsigned long) mail_parameters (NIL,GET_ALTPOPPORT,NIL)) :
+       net_open (NIL,s,"pop3",POP3TCPPORT)) &&
+      pop3_reply (stream)) {
     mm_log (LOCAL->reply,NIL);	/* give greeting */
     if (!pop3_auth (stream,&mb,tmp,usr)) pop3_close (stream,NIL);
     else if (pop3_send (stream,"STAT",NIL)) {
       int silent = stream->silent;
       stream->silent = T;
-      sprintf (tmp,"{%s:%lu/pop3/user=%s}INBOX",net_host (LOCAL->netstream),
-	       net_port (LOCAL->netstream),usr);
+      sprintf (tmp,"{%s:%lu/pop3",net_host (LOCAL->netstream),
+	       net_port (LOCAL->netstream));
+      if (mb.altflag) sprintf (tmp + strlen (tmp),"/%s",(char *)
+			       mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
+      if (mb.secflag) strcat (tmp,"/secure");
+      sprintf (tmp + strlen (tmp),"/user=%s}INBOX",usr);
       fs_give ((void **) &stream->mailbox);
       stream->mailbox = cpystr (tmp);
 				/* notify upper level */
@@ -366,6 +384,10 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
       pop3_close (stream,NIL);	/* too bad */
     }
   }
+  else {			/* connection failed */
+    if (LOCAL->reply) mm_log (LOCAL->reply,ERROR);
+    pop3_close (stream,NIL);	/* failed, clean up */
+  }
   return LOCAL ? stream : NIL;	/* if stream is alive, return to caller */
 }
 
@@ -384,14 +406,16 @@ long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
   AUTHENTICATOR *at;
 				/* get list of authenticators */
   if (pop3_send (stream,"AUTH",NIL)) {
-    while ((t = net_getline(LOCAL->netstream)) && (t[1] || (*t != '.'))) {
-      if ((!stream->secure || (strcmp (t,"LOGIN") && strcmp (t,"PLAIN"))) &&
-	  (i = mail_lookup_auth_name (t)) &&
+    while ((t = net_getline (LOCAL->netstream)) && (t[1] || (*t != '.'))) {
+      if (stream->debug) mm_dlog (t);
+      if ((i = mail_lookup_auth_name (t,stream->secure)) &&
 	  (--i < (8*sizeof (unsigned long)))) auths |= (1 << i);
       fs_give ((void **) &t);
     }
-				/* flush end of text indicator */
-    if (t) fs_give ((void **) &t);
+    if (t) {			/* flush end of text indicator */
+      if (stream->debug) mm_dlog (t);
+      fs_give ((void **) &t);
+    }
   }
 
   if (auths) {			/* got any authenticators? */
