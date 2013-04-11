@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	28 June 1994
+ * Last Edited:	11 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -40,6 +40,7 @@
 #include "osdep.h"
 #include <time.h>
 #include <sys\timeb.h>
+#include <sys\nfs_time.h>
 #include <sys\tk_types.h>
 #include <sys\socket.h>
 #include <netinet\in.h>

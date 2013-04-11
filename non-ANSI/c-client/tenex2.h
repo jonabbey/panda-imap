@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	10 May 1994
+ * Last Edited:	2 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -56,6 +56,10 @@ typedef struct tenex_local {
   time_t filetime;		/* last file time */
   char *buf;			/* temporary buffer */
   unsigned long buflen;		/* current size of temporary buffer */
+  unsigned long hdrmsgno;	/* message number of last header */
+  char *hdr;			/* last header read */
+  unsigned long txtmsgno;	/* message number of last text */
+  char *txt;			/* last text read */
 } TENEXLOCAL;
 
 
@@ -85,7 +89,9 @@ void tenex_fetchfast  ();
 void tenex_fetchflags  ();
 ENVELOPE *tenex_fetchstructure  ();
 char *tenex_fetchheader  ();
+char *tenex_fetchheader_work  ();
 char *tenex_fetchtext  ();
+char *tenex_fetchtext_work  ();
 char *tenex_fetchbody  ();
 unsigned long tenex_header  ();
 void tenex_setflag  ();
@@ -103,6 +109,7 @@ void tenex_gc  ();
 int tenex_lock  ();
 void tenex_unlock  ();
 unsigned long tenex_size  ();
+unsigned long tenex_822size  ();
 char *tenex_file  ();
 long tenex_getflags  ();
 long tenex_parse  ();

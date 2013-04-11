@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	11 November 1993
+ * Last Edited:	9 October 1994
  *
- * Copyright 1993 by Mark Crispin
+ * Copyright 1994 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -31,7 +31,7 @@
 
 /* Copy string with CRLF newlines
  * Accepts: destination string
- *	    pointer to size of destination string
+ *	    pointer to size of destination string buffer
  *	    source string
  *	    length of source string
  * Returns: length of copied string
@@ -42,11 +42,13 @@ unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
 {
   long i,j;
   char *d = src;
-				/* count number of LF's in source string(s) */
-  for (i = srcl,j = 0; j < srcl; j++) if (*d++ == '\012') i++;
-  if (i > *dstl) {		/* resize if not enough space */
-    fs_give ((void **) dst);	/* fs_resize does an unnecessary copy */
+				/* count number of CR's in source string(s) */
+  for (i = srcl,j = 0; j < srcl; j++) if (*d++ == '\015') i++;
+				/* flush destination buffer if too small */
+  if (*dst && (i > *dstl)) fs_give ((void **) dst);
+  if (!*dst) {			/* make a new buffer if needed */
     *dst = (char *) fs_get ((*dstl = i) + 1);
+    if (dstl) *dstl = i;	/* return new buffer length to main program */
   }
   d = *dst;			/* destination string */
   while (srcl--) {		/* copy strings */

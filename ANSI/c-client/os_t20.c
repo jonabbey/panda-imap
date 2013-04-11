@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 1994
+ * Last Edited:	16 September 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -96,6 +96,18 @@ long server_login (char *user,char *pass,char **home,int argc,char *argv[])
   }
   return T;
 }
+
+
+/* TCP/IP manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *tcp_parameters (long function,void *value)
+{
+  return NIL;
+}
 
 /* TCP/IP open
  * Accepts: host name
@@ -120,10 +132,10 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
       return NIL;
     }
   }
-  argblk[1] = monsym (".GTDPN");/* get IP address and primary name */
+  argblk[1] = monsym (".GTHPN");/* get IP address and primary name */
   argblk[2] = (int) (host-1);	/* pointer to host */
   argblk[4] = (int) (tmp-1);
-  if (!jsys (GTDOM,argblk)) {	/* do it the domain way */
+  if (!jsys (GTHST,argblk)) {	/* do it the domain way */
     argblk[1] = _GTHSN;		/* failed, convert string to number */
     if (!jsys (GTHST,argblk)) {	/* and do it by host table */
       sprintf (tmp,"No such host as %s",host);
@@ -155,7 +167,7 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
   argblk[1] = _GTHNS;		/* convert number to string */
   argblk[2] = (int) (tmp-1);
   argblk[3] = -1;		/* want local host */
-  if ((!jsys (GTDOM,argblk)) && !jsys (GTHST,argblk)) strcpy (tmp,"LOCAL");
+  if (!jsys (GTHST,argblk)) strcpy (tmp,"LOCAL");
   stream->localhost = cpystr (tmp);
   stream->jfn = jfn;		/* init JFN */
   return stream;

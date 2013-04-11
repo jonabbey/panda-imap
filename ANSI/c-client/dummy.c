@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	20 July 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -512,10 +512,11 @@ void dummy_search (MAILSTREAM *stream,char *criteria)
 
 long dummy_ping (MAILSTREAM *stream)
 {
+  char tmp[MAILTMPLEN];
   MAILSTREAM *test = mail_open (NIL,stream->mailbox,OP_PROTOTYPE);
 				/* swap streams if looks like a new driver */
   if (test && (test->dtb != stream->dtb))
-    test = mail_open (stream,stream->mailbox,NIL);
+    test = mail_open (stream,strcpy (tmp,stream->mailbox),NIL);
   return test ? T : NIL;
 }
 

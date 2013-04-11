@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	6 September 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -112,7 +112,7 @@ DRIVER *tenex_valid (char *name)
 
 int tenex_isvalid (char *name,char *tmp)
 {
-  int i,fd;
+  int fd;
   int ret = NIL;
   char *s,file[MAILTMPLEN];
   struct stat sbuf;
@@ -120,25 +120,27 @@ int tenex_isvalid (char *name,char *tmp)
   errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
-      (!stat (tenex_file (file,name),&sbuf)) &&
-      ((fd = open (file,O_RDONLY,NIL)) >= 0)) {
-    errno = 0;			/* clear error */
-    if (sbuf.st_size) {		/* allow if non-empty */
-      if ((read (fd,tmp,64) >= 0) && (s = strchr (tmp,'\n')) &&
-	  (s[-1] != '\015')) {
+      !stat (tenex_file (file,name),&sbuf)) {
+    if (!sbuf.st_size) {	/* allow empty file if INBOX */
+      if (!strcmp (ucase (strcpy (tmp,name)),"INBOX")) ret = T;
+      else errno = 0;		/* empty file */
+    }
+    else if ((fd = open (file,O_RDONLY,NIL)) >= 0) {
+      memset (tmp,'\0',MAILTMPLEN);
+      if ((read (fd,tmp,64) >= 0) && (s = strchr (tmp,'\012')) &&
+	  (s[-1] != '\015')) {	/* valid format? */
 	*s = '\0';		/* tie off header */
 				/* must begin with dd-mmm-yy" */
 	ret = (((tmp[2] == '-' && tmp[6] == '-') ||
 		(tmp[1] == '-' && tmp[5] == '-')) &&
 	       (s = strchr (tmp+20,',')) && strchr (s+2,';')) ? T : NIL;
       }
+      else errno = -1;		/* bogus format */
+      close (fd);		/* close the file */
       tp[0] = sbuf.st_atime;	/* preserve atime and mtime */
       tp[1] = sbuf.st_mtime;
       utime (file,tp);		/* set the times */
     }
-				/* allow empty file if INBOX */
-    else if (!strcmp (ucase (strcpy (tmp,name)),"INBOX")) ret = T;
-    close (fd);			/* close the file */
   }
   return ret;			/* return what we should */
 }
@@ -333,22 +335,24 @@ MAILSTREAM *tenex_open (MAILSTREAM *stream)
   }
   user_flags (stream);		/* set up user flags */
 				/* force readonly if bboard */
-  if (*stream->mailbox == '*') stream->readonly = T;
-  if (stream->readonly ||
+  if (*stream->mailbox == '*') stream->rdonly = T;
+  if (stream->rdonly ||
       (fd = open (tenex_file (tmp,stream->mailbox),O_RDWR,NIL)) < 0) {
     if ((fd = open (tenex_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0) {
       sprintf (tmp,"Can't open mailbox: %s",strerror (errno));
       mm_log (tmp,ERROR);
       return NIL;
     }
-    else if (!stream->readonly) {/* got it, but readonly */
+    else if (!stream->rdonly) {	/* got it, but readonly */
       mm_log ("Can't get write access to mailbox, access is readonly",WARN);
-      stream->readonly = T;
+      stream->rdonly = T;
     }
   }
   stream->local = fs_get (sizeof (TENEXLOCAL));
   LOCAL->buf = (char *) fs_get (MAXMESSAGESIZE + 1);
   LOCAL->buflen = MAXMESSAGESIZE;
+  LOCAL->hdr = LOCAL->txt = NIL;/* no cached data yet */
+  LOCAL->hdrmsgno = LOCAL->txtmsgno = 0;
 				/* note if an INBOX or not */
   LOCAL->inbox = !strcmp (ucase (strcpy (LOCAL->buf,stream->mailbox)),"INBOX");
   if (*stream->mailbox != '*') {/* canonicalize the stream mailbox name */
@@ -384,6 +388,8 @@ void tenex_close (MAILSTREAM *stream)
     close (LOCAL->fd);		/* close the local file */
 				/* free local text buffer */
     if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
+    if (LOCAL->hdr) fs_give ((void **) &LOCAL->hdr);
+    if (LOCAL->txt) fs_give ((void **) &LOCAL->txt);
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
     stream->dtb = NIL;		/* log out the DTB */
@@ -398,7 +404,11 @@ void tenex_close (MAILSTREAM *stream)
 
 void tenex_fetchfast (MAILSTREAM *stream,char *sequence)
 {
-  return;			/* no-op for local mail */
+  long i;
+				/* make sure have RFC-822 size for messages */
+  if (stream && LOCAL && mail_sequence (stream,sequence))
+    for (i = 1; i <= stream->nmsgs; i++)
+      if (mail_elt (stream,i)->sequence) tenex_822size (stream,i);
 }
 
 
@@ -431,11 +441,8 @@ ENVELOPE *tenex_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
   ENVELOPE **env;
   BODY **b;
   STRING bs;
-  char *hdr,*text;
-  unsigned long hdrsize;
-  unsigned long hdrpos = tenex_header (stream,msgno,&hdrsize);
-  unsigned long textsize = body ? tenex_size (stream,msgno) - hdrsize : 0;
-  unsigned long i = max (hdrsize,textsize);
+  unsigned long i,hdrsize,textsize;
+  tenex_822size (stream,msgno);	/* make sure we have message size */
   if (stream->scache) {		/* short cache */
     if (msgno != stream->msgno){/* flush old poop if a different message */
       mail_free_envelope (&stream->env);
@@ -453,23 +460,21 @@ ENVELOPE *tenex_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
   if ((body && !*b) || !*env) {	/* have the poop we need? */
     mail_free_envelope (env);	/* flush old envelope and body */
     mail_free_body (b);
-    if (i > LOCAL->buflen) {	/* make sure enough buffer space */
+				/* read the header */
+    tenex_fetchheader_work (stream,msgno,&hdrsize);
+    if (body) {			/* don't bother with text if don't want body */
+      tenex_fetchtext_work (stream,msgno,&textsize);
+      INIT (&bs,mail_string,(void *) LOCAL->txt,textsize);
+    }
+    else textsize = 0;		/* no text then */
+				/* make sure enough space */
+    if ((i = max (hdrsize,textsize)) > LOCAL->buflen) {
       fs_give ((void **) &LOCAL->buf);
       LOCAL->buf = (char *) fs_get ((LOCAL->buflen = i) + 1);
     }
-				/* get to header position */
-    lseek (LOCAL->fd,hdrpos,L_SET);
-				/* read the header and text */
-    read (LOCAL->fd,hdr = (char *) fs_get (hdrsize + 1),hdrsize);
-    read (LOCAL->fd,text = (char *) fs_get (textsize + 1),textsize);
-    hdr[hdrsize] = '\0';	/* make sure tied off */
-    text[textsize] = '\0';	/* make sure tied off */
-    INIT (&bs,mail_string,(void *) text,textsize);
 				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,hdr,hdrsize,&bs,mylocalhost (),
-		      LOCAL->buf);
-    fs_give ((void **) &text);
-    fs_give ((void **) &hdr);
+    rfc822_parse_msg (env,body ? b : NIL,LOCAL->hdr,hdrsize,body ? &bs : NIL,
+		      mylocalhost (),LOCAL->buf);
   }
   if (body) *body = *b;		/* return the body */
   return *env;			/* return the envelope */
@@ -484,19 +489,35 @@ ENVELOPE *tenex_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
 char *tenex_fetchheader (MAILSTREAM *stream,long msgno)
 {
   unsigned long hdrsize;
-  unsigned long hdrpos = tenex_header (stream,msgno,&hdrsize);
-  char *s = (char *) fs_get (1 + hdrsize);
-  s[hdrsize] = '\0';		/* tie off string */
-				/* get to header position */
-  lseek (LOCAL->fd,hdrpos,L_SET);
-  read (LOCAL->fd,s,hdrsize);	/* slurp the data */
+  char *hdr = tenex_fetchheader_work (stream,msgno,&hdrsize);
 				/* copy the string */
-  strcrlfcpy (&LOCAL->buf,&LOCAL->buflen,s,hdrsize);
-  fs_give ((void **) &s);	/* flush readin buffer */
+  strcrlfcpy (&LOCAL->buf,&LOCAL->buflen,hdr,hdrsize);
   return LOCAL->buf;
 }
 
 
+/* Tenex mail fetch message header work
+ * Accepts: MAIL stream
+ *	    message # to fetch
+ *	    pointer to size to return
+ * Returns: message header in RFC822 format
+ */
+
+char *tenex_fetchheader_work (MAILSTREAM *stream,long m,unsigned long *siz)
+{
+  unsigned long pos = tenex_header (stream,m,siz);
+  if (LOCAL->hdrmsgno != m) {	/* is cache correct? */
+    if (LOCAL->hdr) fs_give ((void **) &LOCAL->hdr);
+    LOCAL->hdr = (char *) fs_get (1 + *siz);
+    LOCAL->hdr[*siz] = '\0';	/* tie off string */
+    LOCAL->hdrmsgno = m;	/* note cache */
+    lseek (LOCAL->fd,pos,L_SET);/* get to header position */
+				/* slurp the data */
+    read (LOCAL->fd,LOCAL->hdr,*siz);
+  }
+  return LOCAL->hdr;
+}
+
 /* Tenex mail fetch message text (body only)
  * Accepts: MAIL stream
  *	    message # to fetch
@@ -505,22 +526,41 @@ char *tenex_fetchheader (MAILSTREAM *stream,long msgno)
 
 char *tenex_fetchtext (MAILSTREAM *stream,long msgno)
 {
-  unsigned long hdrsize;
-  unsigned long hdrpos = tenex_header (stream,msgno,&hdrsize);
-  unsigned long textsize = tenex_size (stream,msgno) - hdrsize;
-  char *s = (char *) fs_get (1 + textsize);
-  s[textsize] = '\0';		/* tie off string */
+  unsigned long txtsize;
+  char *txt = tenex_fetchtext_work (stream,msgno,&txtsize);
 				/* mark message as seen */
   tenex_elt (stream,msgno)->seen = T;
 				/* recalculate status */
   tenex_update_status (stream,msgno,T);
-				/* get to text position */
-  lseek (LOCAL->fd,hdrpos + hdrsize,L_SET);
-  read (LOCAL->fd,s,textsize);	/* slurp the data */
 				/* copy the string */
-  strcrlfcpy (&LOCAL->buf,&LOCAL->buflen,s,textsize);
-  fs_give ((void **) &s);	/* flush readin buffer */
+  strcrlfcpy (&LOCAL->buf,&LOCAL->buflen,txt,txtsize);
   return LOCAL->buf;
+}
+
+
+/* Tenex mail fetch message header work
+ * Accepts: MAIL stream
+ *	    message # to fetch
+ *	    pointer to size to return
+ * Returns: message header in RFC822 format
+ */
+
+char *tenex_fetchtext_work (MAILSTREAM *stream,long m,unsigned long *siz)
+{
+  unsigned long hdrsize;
+  unsigned long pos = tenex_header (stream,m,&hdrsize);
+  *siz = tenex_size (stream,m) - hdrsize;
+  if (LOCAL->txtmsgno != m) {	/* is cache correct? */
+    if (LOCAL->txt) fs_give ((void **) &LOCAL->txt);
+    LOCAL->txt = (char *) fs_get (1 + *siz);
+    LOCAL->txt[*siz] = '\0';	/* tie off string */
+    LOCAL->txtmsgno = m;	/* note cache */
+				/* get to text position */
+    lseek (LOCAL->fd,pos + hdrsize,L_SET);
+				/* slurp the data */
+    read (LOCAL->fd,LOCAL->txt,*siz);
+  }
+  return LOCAL->txt;
 }
 
 /* Tenex fetch message body as a structure
@@ -647,7 +687,7 @@ void tenex_setflag (MAILSTREAM *stream,char *sequence,char *flag)
 				/* recalculate status */
       tenex_update_status (stream,i,NIL);
     }
-  if (!stream->readonly) {	/* make sure the update takes */
+  if (!stream->rdonly) {	/* make sure the update takes */
     fsync (LOCAL->fd);
     fstat (LOCAL->fd,&sbuf);	/* get current write time */
     LOCAL->filetime = sbuf.st_mtime;
@@ -685,7 +725,7 @@ void tenex_clearflag (MAILSTREAM *stream,char *sequence,char *flag)
 				/* recalculate status */
       tenex_update_status (stream,i,NIL);
     }
-  if (!stream->readonly) {	/* make sure the update takes */
+  if (!stream->rdonly) {	/* make sure the update takes */
     fsync (LOCAL->fd);
     fstat (LOCAL->fd,&sbuf);	/* get current write time */
     LOCAL->filetime = sbuf.st_mtime;
@@ -823,7 +863,7 @@ long tenex_ping (MAILSTREAM *stream)
       tenex_unlock (ld,lock);	/* release shared parse/append permission */
     }
 				/* snarf if this is a read-write inbox */
-    if (stream && LOCAL && LOCAL->inbox && !stream->readonly) {
+    if (stream && LOCAL && LOCAL->inbox && !stream->rdonly) {
       tenex_snarf (stream);
 				/* get shared parse/append permission */
       if ((ld = tenex_lock (LOCAL->fd,lock,LOCK_SH)) >= 0) {
@@ -872,7 +912,7 @@ void tenex_snarf (MAILSTREAM *stream)
 				/* sizes match and can get bezerk mailbox? */
     if ((sbuf.st_size == LOCAL->filesize) && 
 	(bezerk = mail_open (bezerk,sysinbox (),OP_SILENT)) &&
-	(!bezerk->readonly) && (r = bezerk->nmsgs)) {
+	(!bezerk->rdonly) && (r = bezerk->nmsgs)) {
 				/* yes, go to end of file in our mailbox */
       lseek (LOCAL->fd,sbuf.st_size,L_SET);
 				/* for each message in bezerk mailbox */
@@ -924,7 +964,7 @@ void tenex_expunge (MAILSTREAM *stream)
   MESSAGECACHE *elt;
 				/* do nothing if stream dead */
   if (!tenex_ping (stream)) return;
-  if (stream->readonly) {	/* won't do on readonly files! */
+  if (stream->rdonly) {		/* won't do on readonly files! */
     mm_log ("Expunge ignored on readonly mailbox",WARN);
     return;
   }
@@ -953,6 +993,7 @@ void tenex_expunge (MAILSTREAM *stream)
     tenex_unlock (ld,lock);	/* release exclusive parse/append permission */
     return;
   }
+  tenex_gc (stream,GC_TEXTS);	/* flush texts */
 
   mm_critical (stream);		/* go critical */
   recent = stream->recent;	/* get recent now that pinged and locked */
@@ -1033,7 +1074,7 @@ long tenex_move (MAILSTREAM *stream,char *sequence,char *mailbox)
 				/* recalculate status */
       tenex_update_status (stream,i,NIL);
     }
-  if (!stream->readonly) {	/* make sure the update takes */
+  if (!stream->rdonly) {	/* make sure the update takes */
     fsync (LOCAL->fd);
     fstat (LOCAL->fd,&sbuf);	/* get current write time */
     LOCAL->filetime = sbuf.st_mtime;
@@ -1139,7 +1180,11 @@ long tenex_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 
 void tenex_gc (MAILSTREAM *stream,long gcflags)
 {
-  /* nothing here for now */
+  if (gcflags & GC_TEXTS) {	/* flush texts */
+    LOCAL->hdrmsgno = LOCAL->txtmsgno = 0;
+    if (LOCAL->hdr) fs_give ((void **) &LOCAL->hdr);
+    if (LOCAL->txt) fs_give ((void **) &LOCAL->txt);
+  }
 }
 
 /* Internal routines */
@@ -1191,6 +1236,27 @@ unsigned long tenex_size (MAILSTREAM *stream,long m)
   MESSAGECACHE *elt = mail_elt (stream,m);
   return ((m < stream->nmsgs) ? mail_elt (stream,m+1)->data1 : LOCAL->filesize)
     - (elt->data1 + (elt->data2 >> 24));
+}
+
+
+/* Tenex mail return RFC-822 size in bytes
+ * Accepts: MAIL stream
+ *	    message #
+ * Returns: message size
+ */
+
+unsigned long tenex_822size (MAILSTREAM *stream,long msgno)
+{
+  MESSAGECACHE *elt = mail_elt (stream,msgno);
+  if (!elt->rfc822_size) {	/* have header size yet? */
+    unsigned long i,hdrsiz,txtsiz;
+    char *hdr = tenex_fetchheader_work (stream,msgno,&hdrsiz);
+    char *txt = tenex_fetchtext_work (stream,msgno,&txtsiz);
+    elt->rfc822_size = hdrsiz + txtsiz;
+    while (hdrsiz) if (hdr[--hdrsiz] == '\n') elt->rfc822_size++;
+    while (txtsiz) if (txt[--txtsiz] == '\n') elt->rfc822_size++;
+  }
+  return elt->rfc822_size;
 }
 
 
@@ -1298,62 +1364,54 @@ long tenex_parse (MAILSTREAM *stream)
   while (sbuf.st_size - curpos){/* while there is stuff to parse */
 				/* get to that position in the file */
     lseek (LOCAL->fd,curpos,L_SET);
-    if ((i = read (LOCAL->fd,tmp,64)) <= 0) {
+    if ((i = read (LOCAL->fd,LOCAL->buf,64)) <= 0) {
       sprintf (tmp,"Unable to read internal header at %ld, size = %ld: %s",
 	       curpos,sbuf.st_size,i ? strerror (errno) : "no data read");
       mm_log (tmp,ERROR);
       tenex_close (stream);
       return NIL;
     }
-    tmp[i] = '\0';		/* tie off buffer just in case */
-    if (!(s = strchr (tmp,'\012'))) {
+    LOCAL->buf[i] = '\0';		/* tie off buffer just in case */
+    if (!(s = strchr (LOCAL->buf,'\012'))) {
       sprintf (tmp,"Unable to find end of line at %ld in %ld bytes, text: %s",
-	       curpos,i,tmp);
+	       curpos,i,LOCAL->buf);
       mm_log (tmp,ERROR);
       tenex_close (stream);
       return NIL;
     }
     *s = '\0';			/* tie off header line */
-    i = (s + 1) - tmp;		/* note start of text offset */
-    if (!((s = strchr (tmp,',')) && (t = strchr (s+1,';')))) {
-      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,tmp);
+    i = (s + 1) - LOCAL->buf;	/* note start of text offset */
+    if (!((s = strchr (LOCAL->buf,',')) && (t = strchr (s+1,';')))) {
+      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,
+	       LOCAL->buf);
       mm_log (tmp,ERROR);
       tenex_close (stream);
       return NIL;
     }
     *s++ = '\0'; *t++ = '\0';	/* tie off fields */
+
 				/* intantiate an elt for this message */
-    elt = mail_elt (stream,++nmsgs);
+    (elt = mail_elt (stream,++nmsgs))->valid = T;
     elt->data1 = curpos;	/* note file offset of header */
     elt->data2 = i << 24;	/* as well as offset from header of message */
 				/* parse the header components */
-    if (!(mail_parse_date (elt,tmp) &&
-	  (elt->rfc822_size = msiz = strtol (x = s,&s,10)) && (!(s && *s)) &&
+    if (!(mail_parse_date (elt,LOCAL->buf) &&
+	  (msiz = strtol (x = s,&s,10)) && (!(s && *s)) &&
 	  isdigit (t[0]) && isdigit (t[1]) && isdigit (t[2]) &&
 	  isdigit (t[3]) && isdigit (t[4]) && isdigit (t[5]) &&
 	  isdigit (t[6]) && isdigit (t[7]) && isdigit (t[8]) &&
 	  isdigit (t[9]) && isdigit (t[10]) && isdigit (t[11]) && !t[12])) {
       sprintf (tmp,"Unable to parse internal header elements at %ld: %s,%s;%s",
-	       curpos,tmp,x,t);
+	       curpos,LOCAL->buf,x,t);
       mm_log (tmp,ERROR);
       tenex_close (stream);
       return NIL;
     }
-
-				/* start at first message byte */
-    lseek (LOCAL->fd,curpos + i,L_SET);
 				/* make sure didn't run off end of file */
     if ((curpos += (msiz + i)) > sbuf.st_size) {
       mm_log ("Last message runs past end of file",ERROR);
       tenex_close (stream);
       return NIL;
-    }
-    for (i = msiz; i;) {	/* for all bytes of the message */
-				/* read a buffer's worth */
-      read (LOCAL->fd,LOCAL->buf,j = min (i,LOCAL->buflen));
-      i -= j;			/* account for having read that much */
-				/* now count the CRLFs */
-      while (j) if (LOCAL->buf[--j] == '\n') elt->rfc822_size++;
     }
     c = t[10];			/* remember first system flags byte */
     t[10] = '\0';		/* tie off flags */
@@ -1512,7 +1570,7 @@ void tenex_update_status (MAILSTREAM *stream,long msgno,long syncflag)
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   struct stat sbuf;
   unsigned long j,k = 0;
-  if (!stream->readonly) {	/* not if readonly you don't */
+  if (!stream->rdonly) {	/* not if readonly you don't */
     j = elt->user_flags;	/* get user flags */
 				/* reverse bits (dontcha wish we had CIRC?) */
     while (j) k |= 1 << (29 - find_rightmost_bit (&j));
@@ -1646,21 +1704,11 @@ char tenex_search_since (MAILSTREAM *stream,long msgno,char *d,long n)
 
 char tenex_search_body (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  char ret;
-  unsigned long hdrsize;
-  unsigned long hdrpos = tenex_header (stream,msgno,&hdrsize);
-  unsigned long textsize = tenex_size (stream,msgno) - hdrsize;
-  char *s = (char *) fs_get (1 + textsize);
-  s[textsize] = '\0';		/* tie off string */
+  unsigned long textsize;
+  char *s = tenex_fetchtext_work (stream,msgno,&textsize);
 				/* recalculate status */
   tenex_update_status (stream,msgno,T);
-				/* get to text position */
-  lseek (LOCAL->fd,hdrpos + hdrsize,L_SET);
-  read (LOCAL->fd,s,textsize);	/* slurp the data */
-				/* copy the string */
-  ret = search (s,textsize,d,n);/* do the search */
-  fs_give ((void **) &s);	/* flush readin buffer */
-  return ret;			/* return search value */
+  return search (s,textsize,d,n);
 }
 
 
@@ -1673,17 +1721,9 @@ char tenex_search_subject (MAILSTREAM *stream,long msgno,char *d,long n)
 
 char tenex_search_text (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  char ret;
   unsigned long hdrsize;
-  unsigned long hdrpos = tenex_header (stream,msgno,&hdrsize);
-  char *s = (char *) fs_get (1 + hdrsize);
-  s[hdrsize] = '\0';		/* tie off string */
-				/* get to header position */
-  lseek (LOCAL->fd,hdrpos,L_SET);
-  read (LOCAL->fd,s,hdrsize);	/* slurp the data */
-  ret = search (s,hdrsize,d,n) || tenex_search_body (stream,msgno,d,n);
-  fs_give ((void **) &s);	/* flush readin buffer */
-  return ret;			/* return search value */
+  char *s = tenex_fetchheader_work (stream,msgno,&hdrsize);
+  return search (s,hdrsize,d,n) || tenex_search_body (stream,msgno,d,n);
 }
 
 char tenex_search_bcc (MAILSTREAM *stream,long msgno,char *d,long n)
@@ -1773,28 +1813,30 @@ search_t tenex_search_flag (search_t f,long *n,MAILSTREAM *stream)
 
 search_t tenex_search_string (search_t f,char **d,long *n)
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

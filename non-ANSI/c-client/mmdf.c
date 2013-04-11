@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1993
- * Last Edited:	6 September 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -117,24 +117,25 @@ int mmdf_isvalid (name,tmp)
 	char *name;
 	char *tmp;
 {
-  int i,fd,ti,zn;
+  int fd;
   int ret = NIL;
-  char *s = tmp,*t,file[MAILTMPLEN];
+  char file[MAILTMPLEN];
   struct stat sbuf;
   time_t tp[2];
   errno = EINVAL;		/* assume invalid argument */
 				/* must be non-empty file */
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
-      (!stat (dummy_file (file,name),&sbuf)) &&
-      ((fd = open (file,O_RDONLY,NIL)) >= 0)) {
-    ret = ((sbuf.st_size > 0) && (read (fd,tmp,MAILTMPLEN-1) >= 0) &&
-	   ISMMDF (tmp)) ? T : NIL;
-    tp[0] = sbuf.st_atime;	/* preserve atime and mtime */
-    tp[1] = sbuf.st_mtime;
-    utime (file,tp);		/* set the times */
-    close (fd);			/* close the file */
-				/* no error if file empty */
-    if (!(ret || sbuf.st_size)) errno = 0;
+      !stat (dummy_file (file,name),&sbuf)) {
+    if (!sbuf.st_size)errno = 0;/* empty file */
+    else if ((fd = open (file,O_RDONLY,NIL)) >= 0) {
+      memset (tmp,'\0',MAILTMPLEN);
+      errno = -1;		/* bogus format in case ISMMDF fails */
+      if (read (fd,tmp,MAILTMPLEN-1) >= 0) ret = ISMMDF (tmp) ? T : NIL;
+      close (fd);		/* close the file */
+      tp[0] = sbuf.st_atime;	/* preserve atime and mtime */
+      tp[1] = sbuf.st_mtime;
+      utime (file,tp);		/* set the times */
+    }
   }
   return ret;			/* return what we should */
 }
@@ -362,7 +363,7 @@ MAILSTREAM *mmdf_open (stream)
 				/* canonicalize the stream mailbox name */
   dummy_file (tmp,stream->mailbox);
 				/* force readonly if bboard */
-  if (*stream->mailbox == '*') stream->readonly = T;
+  if (*stream->mailbox == '*') stream->rdonly = T;
   else {			/* canonicalize name */
     fs_give ((void **) &stream->mailbox);
     stream->mailbox = cpystr (tmp);
@@ -389,7 +390,7 @@ MAILSTREAM *mmdf_open (stream)
 
   LOCAL->dirty = NIL;		/* no update yet */
 				/* make lock for read/write access */
-  if (!stream->readonly) while (retry) {
+  if (!stream->rdonly) while (retry) {
 				/* get a new file handle each time */
     if ((fd = open (LOCAL->lname,O_RDWR|O_CREAT,
 		    (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) < 0) {
@@ -442,14 +443,14 @@ MAILSTREAM *mmdf_open (stream)
     fs_give ((void **) &LOCAL->lname);
   }
 				/* abort if can't get RW silent stream */
-  if (stream->silent && !stream->readonly && !LOCAL->ld) mmdf_abort (stream);
+  if (stream->silent && !stream->rdonly && !LOCAL->ld) mmdf_abort (stream);
 				/* parse mailbox */
   else if ((fd = mmdf_parse (stream,tmp,LOCK_SH)) >= 0) {
     mmdf_unlock (fd,stream,tmp);
     mail_unlock (stream);
   }
   if (!LOCAL) return NIL;	/* failure if stream died */
-  stream->readonly = !LOCAL->ld;/* make sure upper level knows readonly */
+  stream->rdonly = !LOCAL->ld;	/* make sure upper level knows readonly */
 				/* notify about empty mailbox */
   if (!(stream->nmsgs || stream->silent)) mm_log ("Mailbox is empty",NIL);
   return stream;		/* return stream alive to caller */
@@ -462,22 +463,10 @@ MAILSTREAM *mmdf_open (stream)
 void mmdf_close (stream)
 	MAILSTREAM *stream;
 {
-  int fd;
   int silent = stream->silent;
-  char lock[MAILTMPLEN];
-  if (LOCAL && LOCAL->ld) {	/* is stream alive? */
-    stream->silent = T;		/* note this stream is dying */
-				/* lock mailbox and parse new messages */
-    if (LOCAL->dirty && (fd = mmdf_parse (stream,lock,LOCK_EX)) >= 0) {
-				/* dump any changes not saved yet */
-      if (mmdf_extend	(stream,fd,"Close failed to update mailbox"))
-	mmdf_save (stream,fd);
-				/* flush locks */
-      mmdf_unlock (fd,stream,lock);
-      mail_unlock (stream);
-    }
-    stream->silent = silent;	/* restore previous status */
-  }
+  stream->silent = T;		/* note this stream is dying */
+  mmdf_check (stream);		/* dump final checkpoint */
+  stream->silent = silent;	/* restore previous status */
   mmdf_abort (stream);		/* now punt the file and local data */
 }
 
@@ -828,7 +817,7 @@ long mmdf_ping (stream)
   struct stat sbuf;
   int fd;
 				/* does he want to give up readwrite? */
-  if (stream->readonly && LOCAL->ld) {
+  if (stream->rdonly && LOCAL->ld) {
     flock (LOCAL->ld,LOCK_UN);	/* yes, release the lock */
     close (LOCAL->ld);		/* close the lock file */
     LOCAL->ld = NIL;		/* no more lock fd */
@@ -861,13 +850,13 @@ void mmdf_check (stream)
   int fd;
 				/* parse and lock mailbox */
   if (LOCAL && LOCAL->ld && ((fd = mmdf_parse (stream,lock,LOCK_EX)) >= 0)) {
-    if (LOCAL->dirty && mmdf_extend (stream,fd,"Unable to update mailbox"))
-      mmdf_save (stream,fd);	/* dump checkpoint if needed */
+				/* dump checkpoint if needed */
+    if (LOCAL->dirty && mmdf_extend (stream,fd,NIL)) mmdf_save (stream,fd);
 				/* flush locks */
     mmdf_unlock (fd,stream,lock);
     mail_unlock (stream);
   }
-  if (LOCAL && LOCAL->ld) mm_log ("Check completed",NIL);
+  if (LOCAL && LOCAL->ld && !stream->silent) mm_log ("Check completed",NIL);
 }
 
 /* MMDF mail expunge mailbox
@@ -1269,6 +1258,7 @@ int mmdf_parse (stream,lock,op)
   struct stat sbuf;
   MESSAGECACHE *elt;
   FILECACHE *m = NIL,*n = NIL;
+  mailcache_t mc = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
   mail_lock (stream);		/* guard against recursion or pingers */
 				/* open and lock mailbox (shared OK) */
   if ((fd = mmdf_lock (LOCAL->name,LOCAL->ld ? O_RDWR : O_RDONLY,NIL,
@@ -1343,10 +1333,10 @@ int mmdf_parse (stream,lock,op)
 				/* calculate message length */
 	  j = ((e ? e : s1 + i) - s) - 1;
 	  if (m) {		/* new cache needed, have previous data? */
-	    n->header = (char *) fs_get (sizeof (FILECACHE) + j + 1);
+	    n->header = (char *) fs_get (sizeof (FILECACHE) + j + 2);
 	    n = (FILECACHE *) n->header;
 	  }
-	  else m = n = (FILECACHE *) fs_get (sizeof (FILECACHE) + j + 1);
+	  else m = n = (FILECACHE *) fs_get (sizeof (FILECACHE) + j + 2);
 				/* copy message data */
 	  memcpy (n->internal,s,j);
 	  n->internal[j] = '\0';
@@ -1379,8 +1369,7 @@ int mmdf_parse (stream,lock,op)
     if (LOCAL->filetime && LOCAL->filetime != sbuf.st_mtime)
       mm_log ("New mailbox modification time but apparently no changes",WARN);
   }
-				/* expand the primary cache */
-  (*mailcache) (stream,nmsgs,CH_SIZE);
+  (*mc) (stream,nmsgs,CH_SIZE);	/* expand the primary cache */
   if (nmsgs>=LOCAL->cachesize) {/* need to expand cache? */
 				/* number of messages plus room to grow */
     LOCAL->cachesize = nmsgs + CACHEINCREMENT;
@@ -1399,15 +1388,16 @@ int mmdf_parse (stream,lock,op)
     n = (FILECACHE *) n->header;
     ti = NIL;			/* valid header not found */
     if (s = m->internal) VALID (s,t,ti,zn);
-				/* totally empty message? */
-    if (!ti && s && !strchr (s,'\n')) {
-      strcat (s,"\n");		/* yes, append newline */
-      VALID (s,t,ti,zn);	/* try to see if it has a header again */
-      m->headersize++;		/* adjust count to reflect the newline */
-    }
+    if (ti) {			/* found a valid header? */
 				/* pointer to message header */
-    if (ti) m->header = s = strchr (t++,'\n') + 1;
-    else m->header = s;
+      if (s = strchr (t++,'\n')) m->header = ++s;
+      else {			/* probably totally empty message */
+	strcat (t-1,"\n");	/* append newline */
+	m->headersize++;	/* adjust count */
+	m->header = s = strchr (t-1,'\n') + 1;
+      }
+    }
+    else m->header = s;		/* assume no internal header here */
     m->headersize -= m->header - m->internal;
     m->body = NIL;		/* assume no body as yet */
     m->bodysize = 0;
@@ -1506,7 +1496,7 @@ int mmdf_parse (stream,lock,op)
       m->body = ++s;		/* start of body is here */
       j = m->body - m->header;	/* new header size */
 				/* calculate body size */
-      m->bodysize = m->headersize - j;
+      m->bodysize = (j <= m->headersize) ? m->headersize - j : 0;
       if (e) {			/* saw status poop? */
 	*e++ = '\n';		/* patch in trailing newline */
 	m->headersize = e - m->header;
@@ -1528,6 +1518,7 @@ int mmdf_parse (stream,lock,op)
 				/* blat remaining number of bytes down */
 	memmove (e,s,m->header + m->headersize - s);
 	m->headersize -= j;	/* update for new size */
+	s = e;			/* back up pointer */
 	e = NIL;		/* no more delete area */
 				/* tie off old cruft */
 	*(m->header + m->headersize) = '\0';
@@ -1565,28 +1556,27 @@ char *mmdf_eom (som,sod,i)
 	long i;
 {
   char *s = (sod > som) ? sod - 1 : sod;
-  char *t;
-  int ti,zn;
   union {
     unsigned long wd;
     char ch[9];
   } wdtest;
-				/* never search if not enough bytes */
-  if (i < MMDFHDRLEN) return NIL;
-  strcpy (wdtest.ch,"AAAA1234");/* constant for word testing */
 				/* move back *two* lines */
   while ((s > som) && *s-- != '\n');
   while ((s > som) && *s-- != '\n');
-  if (wdtest.wd == 0x41414141){ /* do it fast way if on a 32-bit machine */
+  if (i > MMDFHDRLEN + 8) {	/* don't do fast search if very few bytes */
+				/* constant for word testing */
+    strcpy (wdtest.ch,"AAAA1234");
+    if(wdtest.wd == 0x41414141){/* do it fast way if on a 32-bit machine */
 				/* any characters before word boundary? */
-    for (; ((long) s & 3); s++) if (ISMMDF (s)) return s;
-    i = (sod + i) - s;		/* total number of tries */
-    do {			/* word-at-a-time search for CTRL/A */
-      if (0x80808080 & (0x01010101 + (0x7f7f7f7f & ~(MMDFCHRS ^ *(Word *) s))))
-	RETIFMMDFWRD (s);	/* found it! */
-      s += 4;			/* try next word */
-      i -= 4;			/* count a word checked */
-    } while (i > 8);		/* continue until near the end */
+      for (; ((long) s & 3); s++) if (ISMMDF (s)) return s;
+      i = (sod + i) - s;	/* total number of tries */
+      do {			/* word-at-a-time search for CTRL/A */
+	if (0x80808080&(0x01010101+(0x7f7f7f7f&~(MMDFCHRS^*(Word *) s))))
+	  RETIFMMDFWRD (s);	/* found it! */
+	s += 4;			/* try next word */
+	i -= 4;			/* count a word checked */
+      } while (i > 8);		/* continue until near the end */
+    }
   }
   return strstr (s,mmdfhdr);	/* search final bit */
 }
@@ -1604,6 +1594,7 @@ int mmdf_extend (stream,fd,error)
 	char *error;
 {
   struct stat sbuf;
+  MESSAGECACHE *elt;
   FILECACHE *m;
   char tmp[MAILTMPLEN];
   int i,ok;
@@ -1611,12 +1602,14 @@ int mmdf_extend (stream,fd,error)
   char *s;
   int retry;
 				/* calculate estimated size of mailbox */
-  for (i = 0,f = 0; i < stream->nmsgs; i++) {
+  for (i = 0,f = 0; i < stream->nmsgs;) {
     m = LOCAL->msgs[i];		/* get cache pointer */
-				/* update guesstimate */
-    f += 2*MMDFHDRLEN + (m->header - m->internal) + m->headersize +
-      sizeof (STATUS) + m->bodysize + 1;
-    }
+    elt = mail_elt (stream,++i);/* get elt, increment message */
+				/* if not expunging, or not deleted */
+    if (!(error && elt->deleted))
+      f += (m->header - m->internal) + m->headersize + m->bodysize + 1 +
+	sizeof (STATUS) - (elt->seen+elt->deleted+elt->flagged+elt->answered);
+  }
   mm_critical (stream);		/* go critical */
 				/* return now if file large enough */
   if (f <= LOCAL->filesize) return T;
@@ -1636,7 +1629,8 @@ int mmdf_extend (stream,fd,error)
 				/* punt if that's what main program wants */
       if (mm_diskerror (stream,i,NIL)) {
 	mm_nocritical (stream);	/* exit critical */
-	sprintf (tmp,"%s: %s",error,strerror (i));
+	sprintf (tmp,"%s: %s",error ? error : "Unable to update mailbox",
+		 strerror (i));
 	mm_notify (stream,tmp,WARN);
       }
       else retry = T;		/* set to retry */
@@ -1787,8 +1781,10 @@ int mmdf_write_message (fd,m)
   }
   iov[i].iov_base = m->status;	/* pointer/counter to status */
   iov[i++].iov_len = strlen (m->status);
-  iov[i].iov_base = m->body;	/* pointer/counter to text body */
-  iov[i++].iov_len = m->bodysize;
+  if (m->bodysize) {		/* only if a non-empty body */
+    iov[i].iov_base = m->body;	/* pointer/counter to text body */
+    iov[i++].iov_len = m->bodysize;
+  }
   iov[i].iov_base = "\n";	/* pointer/counter to extra newline */
   iov[i++].iov_len = 1;
   iov[i].iov_base = mmdfhdr;	/* write MMDF trailer */
@@ -2203,28 +2199,30 @@ search_t mmdf_search_string (f,d,n)
 	char **d;
 	long *n;
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

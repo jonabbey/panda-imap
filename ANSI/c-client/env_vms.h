@@ -5,7 +5,7 @@
  *		Internet: Yehavi@VMS.huji.ac.il
  *
  * Date:	2 August 1994
- * Last Edited:	4 August 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -32,8 +32,6 @@
 /* Function prototypes */
 
 #include "env.h"
-
-extern char *myLocalHost;
 
 char *myusername ();
 MAILSTREAM *user_flags (MAILSTREAM *stream);

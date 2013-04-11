@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -36,6 +36,17 @@
  * equaled by more `modern' operating systems.
  * Wasureru mon ka!!!!
  */
+
+/* Environment manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *env_parameters (long function,void *value)
+{
+  return NIL;
+}
 
 /* Write current time in RFC 822 format
  * Accepts: destination string

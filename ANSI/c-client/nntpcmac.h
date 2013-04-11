@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 December 1993
- * Last Edited:	2 March 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -32,12 +32,6 @@
  *
  */
 
-/* Build Parameters */
-
-#define NEWSRC(x) strcpy (x,"News State")
-#define NEWNEWSRC(x) strcpy (x,"New News State")
-#define OLDNEWSRC(x) strcpy (x,"Old News State")
-
 /* Constants */
 
 #define NNTPGOK (long) 211	/* NNTP group selection OK */
@@ -66,7 +60,6 @@ typedef struct nntp_local {
   unsigned long *number;	/* news message numbers */
   char **header;		/* message headers */
   char **body;			/* message bodies */
-  char *seen;			/* local seen status */
 } NNTPLOCAL;
 
 
@@ -111,8 +104,6 @@ long nntp_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		  STRING *message);
 void nntp_gc (MAILSTREAM *stream,long gcflags);
 
-char *nntp_read_sdb (FILE **f);
-long nntp_update_sdb (char *name,char *data);
 short nntp_getflags (MAILSTREAM *stream,char *flag);
 char nntp_search_all (MAILSTREAM *stream,long msgno,char *d,long n);
 char nntp_search_answered (MAILSTREAM *stream,long msgno,char *d,long n);

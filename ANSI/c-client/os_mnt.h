@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	23 December 1993
- * Last Edited:	29 May 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -32,7 +32,6 @@
 #define MAILFILE "/usr/spool/mail/%s"
 #define ACTIVEFILE "/usr/lib/news/active"
 #define NEWSSPOOL "/usr/spool/news"
-#define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 
 #include <stdlib.h>
 #include <unistd.h>

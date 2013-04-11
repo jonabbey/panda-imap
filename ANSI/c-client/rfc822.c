@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	18 August 1994
+ * Last Edited:	4 October 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -460,8 +460,7 @@ void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
 
 /* Parse a message body content
  * Accepts: pointer to body structure
- *	    pointer to body
- *	    body byte count
+ *	    body string
  *	    pointer to local host name
  *	    pointer to scratch buffer
  */
@@ -475,7 +474,8 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t)
   PARAMETER *param;
   PART *part = NIL;
   body->size.ibytes = i;	/* note body size in all cases */
-  body->size.bytes = (body->encoding == ENCBINARY) ? i : strcrlflen (bs);
+  body->size.bytes = ((body->encoding == ENCBINARY) ||
+		      (body->type == TYPEMULTIPART)) ? i : strcrlflen (bs);
   switch (body->type) {		/* see if anything else special to do */
   case TYPETEXT:		/* text content */
     if (!body->subtype)		/* default subtype */

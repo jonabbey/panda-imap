@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	27 June 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -99,6 +99,18 @@ char *mylocalhost (void)
   }
   return myLocalHost;
 }
+
+
+/* TCP/IP manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *tcp_parameters (long function,void *value)
+{
+  return NIL;
+}
 
 /* TCP/IP open
  * Accepts: host name
@@ -115,8 +127,6 @@ TCPSTREAM *TCP_open (char *host,char *service,long port)
   long adr,i,j,k,l;
 				/* initialize if first time here */
   if (!sock_initted++) sock_init();
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
   if (s = strchr (host,':')) {	/* port number specified? */
     *s++ = '\0';		/* yes, tie off port */
     port = strtol (s,&s,10);	/* parse port */

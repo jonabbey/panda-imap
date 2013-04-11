@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	4 September 1994
+ * Last Edited:	4 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -46,6 +46,7 @@
 #include <io.h>
 #include "dawz.h"
 #include "rfc822.h"
+#include "dummy.h"
 #include "misc.h"
 
 /* Dawz mail routines */
@@ -116,19 +117,22 @@ long dawz_isvalid (char *name)
   struct stat sbuf;
   errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
-  if ((*name != '{') && mailboxfile (tmp,name) && !stat (tmp,&sbuf) &&
-      ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0)) {
-    errno = 0;			/* clear error */
-    if (sbuf.st_size && (read (fd,tmp,64) >= 0) && (s = strchr (tmp,'\015')) &&
-	s[1] == '\012') {
-      *s = '\0';		/* tie off header */
+  if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
+      mailboxfile (tmp,name) && !stat (tmp,&sbuf)) {
+    if (!sbuf.st_size)errno = 0;/* empty file */
+    else if ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0) {
+      memset (tmp,'\0',MAILTMPLEN);
+      if ((read (fd,tmp,64) >= 0) && (s = strchr (tmp,'\015')) &&
+	  (s[1] == '\012')) {	/* valid format? */
+	*s = '\0';		/* tie off header */
 				/* must begin with dd-mmm-yy" */
-      ret = (((tmp[2] == '-' && tmp[6] == '-') ||
-	      (tmp[1] == '-' && tmp[5] == '-')) &&
-	     (s = strchr (tmp+20,',')) && strchr (s+2,';')) ? T : NIL;
+	ret = (((tmp[2] == '-' && tmp[6] == '-') ||
+		(tmp[1] == '-' && tmp[5] == '-')) &&
+	       (s = strchr (tmp+20,',')) && strchr (s+2,';')) ? T : NIL;
+      }
+      else errno = -1;		/* bogus format */
+      close (fd);		/* close the file */
     }
-    else errno = -1;		/* bogus format */
-    close (fd);			/* close the file */
   }
   return ret;			/* return what we should */
 }
@@ -185,9 +189,7 @@ void dawz_find_all (MAILSTREAM *stream,char *pat)
 
 long dawz_subscribe (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  if (mailboxfile (tmp,mailbox)) return sm_subscribe (mailbox);
-  else return dawz_badname (tmp,mailbox);
+  return dummy_subscribe (stream,mailbox);
 }
 
 
@@ -199,9 +201,7 @@ long dawz_subscribe (MAILSTREAM *stream,char *mailbox)
 
 long dawz_unsubscribe (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  if (mailboxfile (tmp,mailbox)) return sm_unsubscribe (mailbox);
-  else return dawz_badname (tmp,mailbox);
+  return dummy_unsubscribe (stream,mailbox);
 }
 
 
@@ -224,17 +224,7 @@ long dawz_subscribe_bboard (MAILSTREAM *stream,char *mailbox)
 
 long dawz_create (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  int fd;
-  if (!mailboxfile (tmp,mailbox)) return dawz_badname (tmp,mailbox);
-  if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
-				/* failed */
-    sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  close (fd);			/* close the file */
-  return LONGT;			/* return success */
+  return dummy_create (stream,mailbox);
 }
 
 
@@ -246,7 +236,7 @@ long dawz_create (MAILSTREAM *stream,char *mailbox)
 
 long dawz_delete (MAILSTREAM *stream,char *mailbox)
 {
-  return dawz_rename (stream,mailbox,NIL);
+  return dummy_delete (stream,mailbox);
 }
 
 
@@ -259,18 +249,7 @@ long dawz_delete (MAILSTREAM *stream,char *mailbox)
 
 long dawz_rename (MAILSTREAM *stream,char *old,char *new)
 {
-  char tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
-				/* make file name */
-  if (!mailboxfile (file,old)) return dawz_badname (tmp,old);
-  if (new && !mailboxfile (tmp,new)) return dawz_badname (tmp,new);
-				/* do the rename or delete operation */
-  if (new ? rename (file,tmp) : unlink (file)) {
-    sprintf (tmp,"Can't %s mailbox %s: %s",new ? "rename" : "delete",old,
-	     strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  return LONGT;			/* return success */
+  return dummy_rename (stream,old,new);
 }
 
 /* Dawz mail open
@@ -298,7 +277,7 @@ MAILSTREAM *dawz_open (MAILSTREAM *stream)
   }
   if (!mailboxfile (tmp,stream->mailbox))
     return (MAILSTREAM *) dawz_badname (tmp,stream->mailbox);
-  if (((fd = open (tmp,O_BINARY|(stream->readonly ? O_RDONLY:O_RDWR),NIL)) < 0)
+  if (((fd = open (tmp,O_BINARY|(stream->rdonly ? O_RDONLY:O_RDWR),NIL)) < 0)
       && (strcmp (ucase (stream->mailbox),"INBOX") ||
 	  ((fd = open (tmp,O_BINARY|O_RDWR|O_CREAT|O_EXCL,S_IREAD|S_IWRITE))
 	   < 0))) {		/* open, possibly creating INBOX */
@@ -498,12 +477,11 @@ char *dawz_fetchheader (MAILSTREAM *stream,long msgno)
 {
   unsigned long hdrsize;
   unsigned long hdrpos = dawz_header (stream,msgno,&hdrsize);
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
+  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
   if (stream->text) fs_give ((void **) &stream->text);
 				/* get to header position */
   lseek (LOCAL->fd,hdrpos,SEEK_SET);
-  return stream->text = (*mailgets) (dawz_read,stream,hdrsize);
+  return stream->text = (mg ? *mg : mm_gets) (dawz_read,stream,hdrsize);
 }
 
 
@@ -518,8 +496,7 @@ char *dawz_fetchtext (MAILSTREAM *stream,long msgno)
   unsigned long hdrsize;
   unsigned long hdrpos = dawz_header (stream,msgno,&hdrsize);
   unsigned long textsize = mail_elt (stream,msgno)->rfc822_size - hdrsize;
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
+  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
   if (stream->text) fs_give ((void **) &stream->text);
 				/* mark message as seen */
   mail_elt (stream,msgno)->seen = T;
@@ -527,7 +504,7 @@ char *dawz_fetchtext (MAILSTREAM *stream,long msgno)
   dawz_update_status (stream,msgno);
 				/* get to text position */
   lseek (LOCAL->fd,hdrpos + hdrsize,SEEK_SET);
-  return stream->text = (*mailgets) (dawz_read,stream,textsize);
+  return stream->text = (mg ? *mg : mm_gets) (dawz_read,stream,textsize);
 }
 
 /* Dawz fetch message body as a structure
@@ -547,8 +524,7 @@ char *dawz_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
   unsigned long offset = 0;
   unsigned long hdrpos = dawz_header (stream,m,&base);
   MESSAGECACHE *elt = mail_elt (stream,m);
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
+  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
   if (stream->text) fs_give ((void **) &stream->text);
 				/* make sure have a body */
   if (!(dawz_fetchstructure (stream,m,&b) && b && s && *s &&
@@ -580,7 +556,8 @@ char *dawz_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
   elt->seen = T;		/* mark message as seen */
   dawz_update_status (stream,m);/* recalculate status */
   lseek (LOCAL->fd,hdrpos + base + offset,SEEK_SET);
-  return stream->text = (*mailgets) (dawz_read,stream,*len = b->size.bytes);
+  return stream->text =
+    (mg ? *mg : mm_gets) (dawz_read,stream,*len = b->size.bytes);
 }
 
 /* Dawz mail read
@@ -840,7 +817,7 @@ void dawz_expunge (MAILSTREAM *stream)
   char tmp[MAILTMPLEN];
 				/* do nothing if stream dead */
   if (!dawz_ping (stream)) return;
-  if (stream->readonly) {	/* won't do on readonly files! */
+  if (stream->rdonly) {		/* won't do on readonly files! */
     mm_log ("Expunge ignored on readonly mailbox",WARN);
     return;
   }
@@ -1134,7 +1111,7 @@ long dawz_parse (MAILSTREAM *stream)
     }
     *s++ = '\0'; *t++ = '\0';	/* tie off fields */
 				/* intantiate an elt for this message */
-    elt = mail_elt (stream,++nmsgs);
+    (elt = mail_elt (stream,++nmsgs))->valid = T;
     elt->data1 = curpos;	/* note file offset of header */
     elt->data2 = i << 24;	/* as well as offset from header of message */
 				/* parse the header components */
@@ -1241,7 +1218,7 @@ void dawz_update_status (MAILSTREAM *stream,long msgno)
   char tmp[MAILTMPLEN];
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   unsigned long j,k = 0;
-  if (stream->readonly) return;	/* not if readonly you don't */
+  if (stream->rdonly) return;	/* not if readonly you don't */
   j = elt->user_flags;		/* get user flags */
 				/* reverse bits (dontcha wish we had CIRC?) */
   while (j) k |= 1 << 29 - find_rightmost_bit (&j);
@@ -1497,28 +1474,30 @@ search_t dawz_search_flag (search_t f,long *n,MAILSTREAM *stream)
 
 search_t dawz_search_string (search_t f,char **d,long *n)
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

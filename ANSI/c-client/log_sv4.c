@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	30 August 1994
+ * Last Edited:	16 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -49,9 +49,9 @@ long server_login (char *user,char *pass,char **home,int argc,char *argv[])
   if (!pw) pw = getpwnam (lcase (strcpy (tmp,user)));
 				/* no entry for this user or root */
   if (!(pw && pw->pw_uid)) return NIL;
-				/* get shadow password if necessary */
-  if ((*(pwd = pw->pw_passwd) =='x') &&
-      (!pwd[1]) && (sp = getspnam (pw->pw_name))) pwd = sp->sp_pwdp;
+  if ((((*(pwd = pw->pw_passwd) == 'x') && (!pwd[1])) ||
+       ((pwd[0] == '#') && (pwd[1] == '#'))) && (sp = getspnam (pw->pw_name)))
+    pwd = sp->sp_pwdp;		/* get shadow password if necessary */
 				/* validate password and password age */
   if (strcmp (pwd,(char *) crypt (pass,pwd)) ||
       (sp && (sp->sp_lstchg > 0) && (sp->sp_max > 0) &&

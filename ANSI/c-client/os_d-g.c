@@ -1,7 +1,7 @@
 /*
  * Program:	Operating-system dependent routines -- D-G version
  *
- * Author:	Ken Weaverling from code by Mark Crispin
+ * Author:	Mark Crispin
  *		Networks and Distributed Computing
  *		Computing & Communications
  *		University of Washington
@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 1994
+ * Last Edited:	20 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -59,3 +59,26 @@ extern char *crypt();
 #include "log_std.c"
 #include "gr_waitp.c"
 #include "tz_sv4.c"
+
+#undef utime
+
+/* D-G has its own wierd utime() with an incompatible struct utimbuf that does
+ * not match with the traditional time_t [2].  The cretin responsible for this
+ * should be drawn and quartered.
+ */
+
+/* Portable utime() that takes it args like real Unix systems
+ * Accepts: file path
+ *	    traditional utime() argument
+ * Returns: utime() results
+ */
+
+int portable_utime (char *file,time_t timep[2])
+{
+  struct utimbuf times;
+  times.actime = timep[0];	/* copy the portable values */
+  times.modtime = timep[1];
+				/* zap the D-G incompatible values */
+  times.acusec = times.modusec = 0;
+  return utime (file,&times);	/* now call D-G's routine */
+}

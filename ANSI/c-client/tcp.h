@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	28 May 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -43,6 +43,7 @@
 
 /* Function prototypes */
 
+void *tcp_parameters (long function,void *value);
 TCPSTREAM *tcp_open (char *host,char *service,long port);
 TCPSTREAM *tcp_aopen (char *host,char *service);
 char *tcp_getline (TCPSTREAM *stream);

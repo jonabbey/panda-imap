@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	23 December 1993
- * Last Edited:	4 September 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -66,10 +66,6 @@ struct hostent *gethostbyname(char *name);
 short TCPdriver = 0;		/* MacTCP's reference number */
 short resolveropen = 0;		/* TCP's resolver open */
 
-#include "env_mac.c"
-#define do_date alt_do_date
-#define rfc822_date alt_rfc822_date
-#define internal_date alt_internal_date
 #include "env_unix.c"
 #include "fs_mac.c"
 #include "ftl_mac.c"

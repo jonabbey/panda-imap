@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	30 August 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -57,46 +57,70 @@
 #define BYE (long) 4		/* mm_notify stream dying */
 
 #define DELIM '\377'		/* strtok delimiter character */
-#define DELMS "\377"		/* strtok delimiter string */
 
 /* Global and Driver Parameters */
 
-#define SET_MAXLOGINTRIALS 100	/* 1xx: used by network drivers */
-#define GET_MAXLOGINTRIALS 101
-#define SET_LOOKAHEAD 102
-#define GET_LOOKAHEAD 103
-#define SET_IMAPPORT 104
-#define GET_IMAPPORT 105
-#define SET_PREFETCH 106
-#define GET_PREFETCH 107
-#define SET_LOGINFULLNAME 108
-#define GET_LOGINFULLNAME 109
-#define SET_CLOSEONERROR 110
-#define GET_CLOSEONERROR 111
-#define SET_POP3PORT 112
-#define GET_POP3PORT 113
-#define SET_MBXPROTECTION 200	/* 2xx: used by UNIX local file drivers */
-#define GET_MBXPROTECTION 201
-#define SET_SUBPROTECTION 202
-#define GET_SUBPROTECTION 203
-#define SET_LOCKPROTECTION 204
-#define GET_LOCKPROTECTION 205
-#define SET_FROMWIDGET 206
-#define GET_FROMWIDGET 207
-#define GET_OPENTIMEOUT 300	/* 3xx: used by TCP/IP routines */
-#define SET_OPENTIMEOUT 301	/* (not meaningful on UNIX) */
-#define GET_READTIMEOUT 302
-#define SET_READTIMEOUT 303
-#define GET_WRITETIMEOUT 304
-#define SET_WRITETIMEOUT 305
-#define GET_CLOSETIMEOUT 306
-#define SET_CLOSETIMEOUT 307	/* (not meaningful on UNIX) */
-#define SET_NEWSRC 400		/* 4xx: used by DOS local file drivers */
-#define GET_NEWSRC 401
-#define SET_EXTENSION 402
-#define GET_EXTENSION 403
-
-
+	/* 1xx: c-client globals */
+#define GET_DRIVERS (long) 101
+#define SET_DRIVERS (long) 102
+#define GET_GETS (long) 103
+#define SET_GETS (long) 104
+#define GET_CACHE (long) 105
+#define SET_CACHE (long) 106
+	/* 2xx: environment */
+#define GET_USERNAME (long) 201
+#define SET_USERNAME (long) 202
+#define GET_HOMEDIR (long) 203
+#define SET_HOMEDIR (long) 204
+#define GET_LOCALHOST (long) 205
+#define SET_LOCALHOST (long) 206
+#define GET_SYSINBOX (long) 207
+#define SET_SYSINBOX (long) 208
+	/* 3xx: TCP/IP */
+#define GET_OPENTIMEOUT (long) 300
+#define SET_OPENTIMEOUT (long) 301
+#define GET_READTIMEOUT (long) 302
+#define SET_READTIMEOUT (long) 303
+#define GET_WRITETIMEOUT (long) 304
+#define SET_WRITETIMEOUT (long) 305
+#define GET_CLOSETIMEOUT (long) 306
+#define SET_CLOSETIMEOUT (long) 307
+#define GET_TIMEOUT (long) 308
+#define SET_TIMEOUT (long) 309
+	/* 4xx: network drivers */
+#define GET_MAXLOGINTRIALS (long) 400
+#define SET_MAXLOGINTRIALS (long) 401
+#define GET_LOOKAHEAD (long) 402
+#define SET_LOOKAHEAD (long) 403
+#define GET_IMAPPORT (long) 404
+#define SET_IMAPPORT (long) 405
+#define GET_PREFETCH (long) 406
+#define SET_PREFETCH (long) 407
+#define GET_LOGINFULLNAME (long) 408
+#define SET_LOGINFULLNAME (long) 409
+#define GET_CLOSEONERROR (long) 410
+#define SET_CLOSEONERROR (long) 411
+#define GET_POP3PORT (long) 412
+#define SET_POP3PORT (long) 413
+	/* 5xx: UNIX local file drivers */
+#define GET_MBXPROTECTION (long) 500
+#define SET_MBXPROTECTION (long) 501
+#define GET_SUBPROTECTION (long) 502
+#define SET_SUBPROTECTION (long) 503
+#define GET_LOCKPROTECTION (long) 504
+#define SET_LOCKPROTECTION (long) 505
+#define GET_FROMWIDGET (long) 506
+#define SET_FROMWIDGET (long) 507
+#define GET_NEWSACTIVE (long) 508
+#define SET_NEWSACTIVE (long) 509
+#define GET_NEWSSPOOL (long) 510
+#define SET_NEWSSPOOL (long) 511
+	/* 6xx: DOS local file drivers */
+#define GET_NEWSRC (long) 600
+#define SET_NEWSRC (long) 601
+#define GET_EXTENSION (long) 602
+#define SET_EXTENSION (long) 603
+
 /* Open options */
 
 #define OP_DEBUG (long) 1	/* debug protocol negotiations */
@@ -273,7 +297,7 @@ typedef struct message_cache {
   unsigned int answered : 1;	/* system Answered flag */
 			/* flags, lock count (2 bytes) */
   unsigned int xxxx : 1;	/* system flag reserved for future */
-  unsigned int yyyy : 1;	/* system flag reserved for future */
+  unsigned int valid : 1;	/* elt has valid flags */
   unsigned int recent : 1;	/* message is new as of this mailbox open */
   unsigned int searched : 1;	/* message was searched */
   unsigned int sequence : 1;	/* (driver use) message is in sequence */
@@ -353,7 +377,7 @@ typedef struct mail_stream {
   unsigned int lock : 1;	/* stream lock flag */
   unsigned int debug : 1;	/* stream debug flag */
   unsigned int silent : 1;	/* silent stream from Tenex */
-  unsigned int readonly : 1;	/* stream read-only flag */
+  unsigned int rdonly : 1;	/* stream read-only flag */
   unsigned int anonymous : 1;	/* stream anonymous access flag */
   unsigned int scache : 1;	/* stream short cache flag */
   unsigned int halfopen : 1;	/* stream half-open flag */
@@ -481,10 +505,6 @@ typedef long (*readfn_t) (void *stream,unsigned long size,char *buffer);
 typedef char *(*mailgets_t) (readfn_t f,void *stream,unsigned long size);
 typedef void *(*mailcache_t) (MAILSTREAM *stream,long msgno,long op);
 typedef long (*tcptimeout_t) (long time);
-
-extern mailgets_t mailgets;
-extern mailcache_t mailcache;
-extern tcptimeout_t tcptimeout;
 
 #include "linkage.h"
 

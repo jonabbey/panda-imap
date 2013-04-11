@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	30 June 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -33,11 +33,45 @@
  *
  */
 
+				/* TCP timeout handler routine */
+static tcptimeout_t tcptimeout = NIL;
+				/* TCP timeouts, in seconds */
+static long tcptimeout_read = 0;
+static long tcptimeout_write = 0;
+
+/* TCP/IP manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
 
-/* Local function prototypes */
-
-long lookuphost (char **host,struct sockaddr_in *sin);
-long tcp_abort (TCPSTREAM *stream);
+void *tcp_parameters (long function,void *value)
+{
+  switch ((int) function) {
+  case SET_TIMEOUT:
+    tcptimeout = (tcptimeout_t) value;
+    break;
+  case GET_TIMEOUT:
+    value = (void *) tcptimeout;
+    break;
+  case SET_READTIMEOUT:
+    tcptimeout_read = (long) value;
+    break;
+  case GET_READTIMEOUT:
+    value = (void *) tcptimeout_read;
+    break;
+  case SET_WRITETIMEOUT:
+    tcptimeout_write = (long) value;
+    break;
+  case GET_WRITETIMEOUT:
+    value = (void *) tcptimeout_write;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
+}
 
 /* TCP/IP open
  * Accepts: host name
@@ -52,8 +86,6 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
   struct sockaddr_in sin;
   int sock;
   char *s,tmp[MAILTMPLEN];
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
   if (s = strchr (host,':')) {	/* port number specified? */
     *s++ = '\0';		/* yes, tie off port */
     port = strtol (s,&s,10);	/* parse port */
@@ -220,7 +252,7 @@ long tcp_getdata (TCPSTREAM *stream)
   fd_set fds;
   struct timeval tmo;
   time_t t = time (0);
-  tmo.tv_sec = (long) mail_parameters (NIL,(long) GET_READTIMEOUT,NIL);
+  tmo.tv_sec = tcptimeout_read;
   tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcps < 0) return NIL;
@@ -265,7 +297,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   struct timeval tmo;
   fd_set fds;
   time_t t = time (0);
-  tmo.tv_sec = (long) mail_parameters (NIL,(long) GET_WRITETIMEOUT,NIL);
+  tmo.tv_sec = tcptimeout_write;
   tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcps < 0) return NIL;

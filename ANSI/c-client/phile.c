@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	30 August 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -272,7 +272,7 @@ long phile_rename (MAILSTREAM *stream,char *old,char *new)
 
 MAILSTREAM *phile_open (MAILSTREAM *stream)
 {
-  int i,fd;
+  int i,k,fd;
   unsigned long j;
   char *s,tmp[MAILTMPLEN];
   struct passwd *pw;
@@ -288,9 +288,7 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
   }	
 				/* canonicalize the stream mailbox name */
   mailboxfile (tmp,stream->mailbox);
-				/* force readonly if bboard */
-  if (*stream->mailbox == '*') stream->readonly = T;
-  else {			/* canonicalize name */
+  if (*stream->mailbox != '*') {/* canonicalize name */
     fs_give ((void **) &stream->mailbox);
     stream->mailbox = cpystr (tmp);
   }
@@ -303,20 +301,33 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
   stream->local = fs_get (sizeof (PHILELOCAL));
 				/* initialize file information */
   (elt = mail_elt (stream,1))->rfc822_size = sbuf.st_size;
+  elt->valid = elt->recent = T;	/* mark valid flags */
   stream->sequence++;		/* bump sequence number */
 				/* only one message */
   stream->nmsgs = stream->recent = 1;
-  stream->readonly = T;		/* make sure upper level knows readonly */
+  stream->rdonly = T;		/* make sure upper level knows readonly */
 				/* instantiate a new envelope and body */
   LOCAL->env = mail_newenvelope ();
   LOCAL->body = mail_newbody ();
-  t = gmtime (&sbuf.st_mtime);
+
+  t = gmtime (&sbuf.st_mtime);	/* get UTC time and Julian day */
+  i = t->tm_hour * 60 + t->tm_min;
+  k = t->tm_yday;
+  t = localtime(&sbuf.st_mtime);/* get local time */
+				/* calulate time delta */
+  i = t->tm_hour * 60 + t->tm_min - i;
+  if (k = t->tm_yday - k) i += ((k < 0) == (abs (k) == 1)) ? -24*60 : 24*60;
+  k = abs (i);			/* time from UTC either way */
   elt->hours = t->tm_hour; elt->minutes = t->tm_min; elt->seconds = t->tm_sec;
   elt->day = t->tm_mday; elt->month = t->tm_mon + 1;
   elt->year = t->tm_year - (BASEYEAR - 1900);
-  sprintf (tmp,"%s, %d %s %d %02d:%02d:%02d +0000",
+  elt->zoccident = (k == i) ? 0 : 1;
+  elt->zhours = k/60;
+  elt->zminutes = k % 60;
+  sprintf (tmp,"%s, %d %s %d %02d:%02d:%02d %c%02d%02d",
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec);
+	   t->tm_hour,t->tm_min,t->tm_sec,elt->zoccident ? '-' : '+',
+	   elt->zhours,elt->zminutes);
 				/* set up Date field */
   LOCAL->env->date = cpystr (tmp);
 
@@ -1017,28 +1028,30 @@ search_t phile_search_flag (search_t f,char **d)
 
 search_t phile_search_string (search_t f,char **d,long *n)
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

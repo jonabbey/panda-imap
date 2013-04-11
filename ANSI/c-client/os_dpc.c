@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	28 June 1994
+ * Last Edited:	5 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -43,6 +43,7 @@
 #include <4bsddefs.h>
 #include <sys\socket.h>
 #include <errno.h>
+#include <arpa\inet.h>
 #include <netinet\in.h>
 #include <netdb.h>
 #include "misc.h"
@@ -67,7 +68,11 @@ char *mylocalhost (void)
 				/* see if known host name */
     if (!gethostname (tmp,MAILTMPLEN-1)) s = tmp;
 				/* no, try IP address */
-    else if (myip = gethostid ()) sprintf (s = tmp,"[%s]",inet_ntoa (myip));
+    else if (myip = gethostid ()) {
+      struct in_addr in;
+      in.s_addr = myip;
+      sprintf (s = tmp,"[%s]",inet_ntoa (in));
+    }
 				/* older kernel, look harder. */
     else if (getconf ("ifcust","ip-address",tmp+1,MAILTMPLEN-2)) {
       *(s = tmp) = '[';		/* wrap the brackets around it */

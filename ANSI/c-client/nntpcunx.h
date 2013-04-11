@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 January 1993
- * Last Edited:	9 August 1994
+ * Last Edited:	12 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -61,7 +61,6 @@ typedef struct nntp_local {
   unsigned long *number;	/* news message numbers */
   char **header;		/* message headers */
   char **body;			/* message bodies */
-  char *seen;			/* local seen status */
 } NNTPLOCAL;
 
 
@@ -106,8 +105,6 @@ long nntp_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		  STRING *message);
 void nntp_gc (MAILSTREAM *stream,long gcflags);
 
-char *nntp_read_sdb (FILE **f);
-long nntp_update_sdb (char *name,char *data);
 short nntp_getflags (MAILSTREAM *stream,char *flag);
 char nntp_search_all (MAILSTREAM *stream,long msgno,char *d,long n);
 char nntp_search_answered (MAILSTREAM *stream,long msgno,char *d,long n);

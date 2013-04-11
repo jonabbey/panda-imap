@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 September 1993
- * Last Edited:	14 August 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -37,7 +37,6 @@
 #define MAILFILE "/var/spool/mail/%s"
 #define ACTIVEFILE "/usr/lib/news/active"
 #define NEWSSPOOL "/var/spool/news"
-#define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 #define NFSKLUDGE
 
 #include <stdlib.h>

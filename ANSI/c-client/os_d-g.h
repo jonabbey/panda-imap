@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	11 July 1994
+ * Last Edited:	20 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -36,7 +36,6 @@
 #define MAILFILE "/var/mail/%s"
 #define ACTIVEFILE "/local/news/active"
 #define NEWSSPOOL "/var/spool/news"
-#define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 #define NFSKLUDGE
 
 #include <stdlib.h>
@@ -51,6 +50,8 @@
 
 #define flock dg_flock
 
+#define utime portable_utime
+int portable_utime (char *file,time_t timep[2]);
 
 #include "env_unix.h"
 #include "fs.h"

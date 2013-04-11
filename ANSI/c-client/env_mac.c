@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	4 September 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -28,6 +28,41 @@
  * THIS SOFTWARE.
  *
  */
+
+
+static char *myLocalHost = NIL;	/* local host name */
+static char *myNewsrc = NIL;	/* newsrc file name */
+
+/* Environment manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *env_parameters (long function,void *value)
+{
+  switch ((int) function) {
+  case SET_LOCALHOST:
+    myLocalHost = cpystr ((char *) value);
+    break;
+  case GET_LOCALHOST:
+    value = (void *) myLocalHost ? myLocalHost : "random-mac";
+    break;
+  case SET_NEWSRC:
+    if (myNewsrc) fs_give ((void **) &myNewsrc);
+    myNewsrc = cpystr ((char *) value);
+    break;
+  case GET_NEWSRC:
+				/* set news file name if not defined */
+    if (!myNewsrc) myNewsrc = cpystr (".newsrc");
+    value = (void *) myNewsrc;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
+}
 
 /* Write current time
  * Accepts: destination string
@@ -76,6 +111,26 @@ void rfc822_date (char *date)
 void internal_date (char *date)
 {
   do_date (date,"%2d-%b-%Y %H:%M:%S ");
+}
+
+/* Determine default prototype stream to user
+ * Returns: default prototype stream
+ */
+
+MAILSTREAM *default_proto ()
+{
+  extern MAILSTREAM dummyproto;
+  return &dummyproto;		/* return default driver's prototype */
+}
+
+
+/* Return my local host name
+ * Returns: my local host name
+ */
+
+char *mylocalhost (void)
+{
+  return (char *) mail_parameters (NIL,GET_LOCALHOST,NIL);
 }
 
 /* Block until event satisfied

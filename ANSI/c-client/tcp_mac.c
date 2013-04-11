@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	26 June 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -35,6 +35,60 @@
  * Unlike earlier efforts, this version requires no external TCP library.  It
  * also takes advantage of the Map panel in System 7 for the timezone.
  */
+
+				/* TCP timeout handler routine */
+static tcptimeout_t tcptimeout = NIL;
+				/* TCP timeouts, in seconds */
+static long tcptimeout_open = 75;
+static long tcptimeout_read = 0;
+static long tcptimeout_write = 0;
+static long tcptimeout_close = 0;
+
+/* TCP/IP manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *tcp_parameters (long function,void *value)
+{
+  switch ((int) function) {
+  case SET_TIMEOUT:
+    tcptimeout = (tcptimeout_t) value;
+    break;
+  case GET_TIMEOUT:
+    value = (void *) tcptimeout;
+    break;
+  case SET_OPENTIMEOUT:
+    tcptimeout_open = (long) value;
+    break;
+  case GET_OPENTIMEOUT:
+    value = (void *) tcptimeout_open;
+    break;
+  case SET_READTIMEOUT:
+    tcptimeout_read = (long) value;
+    break;
+  case GET_READTIMEOUT:
+    value = (void *) tcptimeout_read;
+    break;
+  case SET_WRITETIMEOUT:
+    tcptimeout_write = (long) value;
+    break;
+  case GET_WRITETIMEOUT:
+    value = (void *) tcptimeout_write;
+    break;
+  case SET_CLOSETIMEOUT:
+    tcptimeout_close = (long) value;
+    break;
+  case GET_CLOSETIMEOUT:
+    value = (void *) tcptimeout_close;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
+}
 
 /* TCP/IP open
  * Accepts: host name
@@ -154,7 +208,7 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
     fatal ("Can't create TCP stream");
   				/* open TCP connection */
   stream->pb.csCode = TCPActiveOpen;
-  openpb->ulpTimeoutValue = (int) mail_parameters (NIL,GET_OPENTIMEOUT,NIL);
+  openpb->ulpTimeoutValue = (int) tcptimeout_open;
   openpb->ulpTimeoutAction = T;
   openpb->validityFlags = timeoutValue|timeoutAction;
 				/* remote host (should try all) */
@@ -307,8 +361,7 @@ long tcp_getdata (TCPSTREAM *stream)
   struct TCPAbortPB *abortpb = &stream->pb.csParam.abort;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     stream->pb.csCode = TCPRcv;	/* receive TCP data */
-    receivepb->commandTimeoutValue =
-      (int) mail_parameters (NIL,GET_READTIMEOUT,NIL);
+    receivepb->commandTimeoutValue = (int) tcptimeout_read;
     receivepb->rcvBuff = stream->ibuf;
     receivepb->rcvBuffLen = BUFLEN;
     receivepb->secondTimeStamp = 0;
@@ -364,7 +417,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
     size -= wds.length;		/* this many words will be output */
     string += wds.length;
     stream->pb.csCode = TCPSend;/* send TCP data */
-    sendpb->ulpTimeoutValue = (int) mail_parameters (NIL,GET_WRITETIMEOUT,NIL);
+    sendpb->ulpTimeoutValue = (int) tcptimeout_write;
     sendpb->ulpTimeoutAction = 0;
     sendpb->validityFlags = timeoutValue|timeoutAction;
     sendpb->pushFlag = T;	/* send the data now */
@@ -393,7 +446,7 @@ void tcp_close (TCPSTREAM *stream)
   struct TCPClosePB *closepb = &stream->pb.csParam.close;
   struct TCPCreatePB *createpb = &stream->pb.csParam.create;
   stream->pb.csCode = TCPClose;	/* close TCP stream */
-  closepb->ulpTimeoutValue = (int) mail_parameters (NIL,GET_CLOSETIMEOUT,NIL);
+  closepb->ulpTimeoutValue = (int) tcptimeout_close;
   closepb->ulpTimeoutAction = 0;
   closepb->validityFlags = timeoutValue|timeoutAction;
   closepb->userDataPtr = NIL;

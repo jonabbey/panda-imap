@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 January 1993
- * Last Edited:	6 September 1994
+ * Last Edited:	9 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -47,6 +47,7 @@ extern int errno;		/* just in case */
 #include "nntpcunx.h"
 #include "rfc822.h"
 #include "misc.h"
+#include "newsrc.h"
 
 /* NNTP mail routines */
 
@@ -133,31 +134,8 @@ void nntp_find (MAILSTREAM *stream,char *pat)
 
 void nntp_find_bboards (MAILSTREAM *stream,char *pat)
 {
-  FILE *f = NIL;
-  char *t,*u,*bbd,*patx,tmp[MAILTMPLEN];
-  if (stream) {			/* use .newsrc if a stream given */
-				/* begin with a host specification? */
-    if (((*pat == '{') || ((*pat == '*') && (pat[1] == '{'))) &&
-	(t = strchr (pat,'}')) && *(patx = ++t)) {
-      if (*pat == '*') pat++;	/* yes, skip leading * (old Pine behavior) */
-      strcpy (tmp,pat);		/* copy host name */
-      bbd = tmp + (patx - pat);	/* where we write the bboards */
-    }
-    else {			/* no host specification */
-      bbd = tmp;		/* no prefix */
-      patx = pat;		/* use entire specification */
-    }
-    while (t = nntp_read_sdb (&f)) {
-      if (u = strchr (t,':')) {	/* subscribed newsgroup? */
-	*u = '\0';		/* tie off at end of name */
-	if (pmatch (t,patx)) {	/* pattern match */
-	  strcpy (bbd,t);	/* write newsgroup name after prefix */
-	  mm_bboard (tmp);
-	}
-      }
-      fs_give ((void **) &t);	/* discard the line */
-    }
-  }
+				/* use .newsrc if a stream given */
+  if (stream && !stream->anonymous) newsrc_find (pat);
 }
 
 /* NNTP mail find list of all mailboxes
@@ -240,7 +218,7 @@ long nntp_unsubscribe (MAILSTREAM *stream,char *mailbox)
 long nntp_subscribe_bboard (MAILSTREAM *stream,char *mailbox)
 {
   char *s = strchr (mailbox,'}');
-  return s ? nntp_update_sdb (s+1,":") : NIL;
+  return s ? newsrc_update (s+1,':') : NIL;
 }
 
 
@@ -253,7 +231,7 @@ long nntp_subscribe_bboard (MAILSTREAM *stream,char *mailbox)
 long nntp_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox)
 {
   char *s = strchr (mailbox,'}');
-  return s ? nntp_update_sdb (s+1,"!") : NIL;
+  return s ? newsrc_update (s+1,'!') : NIL;
 }
 
 /* NNTP mail create mailbox
@@ -300,11 +278,9 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
 {
   long i,j,k;
   long nmsgs = 0;
-  long recent = 0;
   long unseen = 0;
   char c = NIL,*s,*t,tmp[MAILTMPLEN];
   NETMBX mb;
-  FILE *f = NIL;
   void *tcpstream;
   SMTPSTREAM *nstream = NIL;
 				/* return prototype for OP_PROTOTYPE call */
@@ -355,10 +331,9 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     LOCAL->host = cpystr (mb.host);
     LOCAL->name = cpystr (mb.mailbox);
     stream->sequence++;		/* bump sequence number */
-    stream->readonly = T;	/* make sure higher level knows readonly */
+    stream->rdonly = T;		/* make sure higher level knows readonly */
     LOCAL->number = NIL;
     LOCAL->header = LOCAL->body = NIL;
-    LOCAL->seen = NIL;
     LOCAL->buf = NIL;
 
     if (!stream->halfopen) {	/* if not half-open */
@@ -383,66 +358,15 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
 				/* create caches */
 	LOCAL->header = (char **) fs_get (nmsgs * sizeof (char *));
 	LOCAL->body = (char **) fs_get (nmsgs * sizeof (char *));
-	LOCAL->seen = (char *) fs_get (nmsgs * sizeof (char));
 				/* initialize per-message cache */
-	for (i = 0; i < nmsgs; ++i) {
-	  LOCAL->header[i] = LOCAL->body[i] = NIL;
-	  LOCAL->seen[i] = NIL;
-	}
+	for (i = 0; i < nmsgs; ++i) LOCAL->header[i] = LOCAL->body[i] = NIL;
       }
-
 				/* make temporary buffer */
       LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
 				/* notify upper level that messages exist */
       mail_exists (stream,nmsgs);
-      i = 0;			/* nothing scanned yet */
-      s = NIL;
-      while (t = nntp_read_sdb (&f)) {
-	if ((s = strpbrk (t,":!")) && (c = *s)) {
-	  *s++ = '\0';		/* tie off newsgroup name, point to data */
-	  if (strcmp (t,LOCAL->name)) s = NIL;
-	  else break;		/* found it! */
-	}
-	fs_give ((void **) &t);	/* give back this entry line */
-      }
-      if (s) {			/* newsgroup found? */
-	if (*s == ' ') s++;	/* skip whitespace */
-	while (*s && i < nmsgs){/* process until run out of messages or list */
-	  j = strtol (s,&s,10);	/* start of possible range */
-				/* other end of range */
-	  k = (*s == '-') ? strtol (++s,&s,10) : j;
-				/* skip messages before this range */
-	  while ((LOCAL->number[i] < j) && (i < nmsgs)) {
-	    if (!unseen) unseen = i + 1;
-	    i++;
-	  }
-	  while ((LOCAL->number[i] >= j) && (LOCAL->number[i] <= k) &&
-		 (i < nmsgs)){	/* mark messages within the range as seen */
-	    LOCAL->seen[i++] = T;
-	    mail_elt (stream,i)->deleted = T;
-	  }
-	  if (*s == ',') s++;	/* skip past comma */
-	  else if (*s) {	/* better not be anything else then */
-	    mm_log ("Bogus syntax in news state file",ERROR);
-	    break;		/* give up fast!! */
-	  }
-	}
-      }
-      else mm_log ("No state for newsgroup found, reading as new",WARN);
-      if (t) {			/* need to free up cruft? */
-	fs_give ((void **) &t);	/* yes, give back newsrc entry */
-	fclose (f);		/* close the file */
-      }
-      while (i++ < nmsgs) {	/* mark all remaining messages as new */
-	mail_elt (stream,i)->recent = T;
-	++recent;		/* count another recent message */
-      }
-      if (unseen) {		/* report first unseen message */
-	sprintf (tmp,"[UNSEEN] %ld is first unseen message",unseen);
-	mm_notify (stream,tmp,(long) NIL);
-      }
-				/* notify upper level about recent */
-      mail_recent (stream,recent);
+				/* read .newsrc entries */
+      mail_recent (stream,newsrc_read (LOCAL->name,stream,LOCAL->number));
 				/* notify if empty bboard */
       if (!(stream->nmsgs || stream->silent))
 	mm_log ("Newsgroup is empty",WARN);
@@ -465,7 +389,6 @@ void nntp_close (MAILSTREAM *stream)
     if (LOCAL->number) fs_give ((void **) &LOCAL->number);
     if (LOCAL->header) fs_give ((void **) &LOCAL->header);
     if (LOCAL->body) fs_give ((void **) &LOCAL->body);
-    if (LOCAL->seen) fs_give ((void **) &LOCAL->seen);
 				/* free local scratch buffer */
     if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
 				/* close NNTP connection */
@@ -483,7 +406,13 @@ void nntp_close (MAILSTREAM *stream)
 
 void nntp_fetchfast (MAILSTREAM *stream,char *sequence)
 {
-  return;			/* no-op for local mail */
+  long i;
+  BODY *b;
+				/* ugly and slow */
+  if (stream && LOCAL && mail_sequence (stream,sequence))
+    for (i = 1; i <= stream->nmsgs; i++)
+      if (mail_elt (stream,i)->sequence)
+	nntp_fetchstructure (stream,i,&b);
 }
 
 
@@ -513,6 +442,8 @@ ENVELOPE *nntp_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
   ENVELOPE **env;
   STRING bs;
   BODY **b;
+  unsigned long hdrsize;
+  unsigned long textsize = 0;
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   if (stream->scache) {		/* short cache */
     if (msgno != stream->msgno){/* flush old poop if a different message */
@@ -531,13 +462,16 @@ ENVELOPE *nntp_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
   if ((body && !*b) || !*env) {	/* have the poop we need? */
     mail_free_envelope (env);	/* flush old envelope and body */
     mail_free_body (b);
-    h = nntp_fetchheader (stream,msgno);
-    t = body ? nntp_fetchtext_work (stream,msgno) : "dummy";
+    hdrsize = strlen (h = nntp_fetchheader (stream,msgno));
+    if (body) {			/* only if want to parse body */
+      textsize = strlen (t = nntp_fetchtext_work (stream,msgno));
 				/* calculate message size */
-    elt->rfc822_size = strlen (h) + strlen (t);
-    INIT (&bs,mail_string,(void *) t,strlen (t));
+      elt->rfc822_size = hdrsize + textsize;
+      INIT (&bs,mail_string,(void *) t,textsize);
+    }
 				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,BADHOST,LOCAL->buf);
+    rfc822_parse_msg (env,body ? b : NIL,h,hdrsize,body ? &bs : NIL,BADHOST,
+		      LOCAL->buf);
 				/* parse date */
     if (*env && (*env)->date) mail_parse_date (elt,(*env)->date);
     if (!elt->month) mail_parse_date (elt,"01-JAN-1969 00:00:00 GMT");
@@ -560,10 +494,8 @@ char *nntp_fetchheader (MAILSTREAM *stream,long msgno)
     sprintf (tmp,"%ld",LOCAL->number[m]);
     if (smtp_send (LOCAL->nntpstream,"HEAD",tmp) == NNTPHEAD)
       LOCAL->header[m] = nntp_slurp (stream);
-    else {			/* failed, mark as deleted */
-      LOCAL->seen[m] = T;
-      mail_elt (stream,msgno)->deleted = T;
-    }
+				/* failed, mark as deleted */
+    else mail_elt (stream,msgno)->deleted = T;
   }
   return LOCAL->header[m] ? LOCAL->header[m] : "";
 }
@@ -598,10 +530,8 @@ char *nntp_fetchtext_work (MAILSTREAM *stream,long msgno)
     sprintf (tmp,"%ld",LOCAL->number[m]);
     if (smtp_send (LOCAL->nntpstream,"BODY",tmp) == NNTPBODY)
       LOCAL->body[m] = nntp_slurp (stream);
-    else {			/* failed, mark as deleted */
-      LOCAL->seen[m] = T;
-      mail_elt (stream,msgno)->deleted = T;
-    }
+				/* failed, mark as deleted */
+    else mail_elt (stream,msgno)->deleted = T;
   }
   return LOCAL->body[m] ? LOCAL->body[m] : "";
 }
@@ -706,9 +636,9 @@ void nntp_setflag (MAILSTREAM *stream,char *sequence,char *flag)
       if (f&fSEEN) elt->seen=T;	/* set all requested flags */
       if (f&fDELETED) {		/* deletion also purges the cache */
 	elt->deleted = T;	/* mark deleted */
+	LOCAL->dirty = T;	/* mark dirty */
 	if (LOCAL->header[i]) fs_give ((void **) &LOCAL->header[i]);
 	if (LOCAL->body[i]) fs_give ((void **) &LOCAL->body[i]);
-	if (!LOCAL->seen[i]) LOCAL->seen[i] = LOCAL->dirty = T;
       }
       if (f&fFLAGGED) elt->flagged = T;
       if (f&fANSWERED) elt->answered = T;
@@ -735,10 +665,7 @@ void nntp_clearflag (MAILSTREAM *stream,char *sequence,char *flag)
       if (f&fSEEN) elt->seen = NIL;
       if (f&fDELETED) {
 	elt->deleted = NIL;	/* undelete */
-	if (LOCAL->seen[i]) {	/* if marked in newsrc */
-	  LOCAL->seen[i] = NIL;	/* unmark it now */
-	  LOCAL->dirty = T;	/* mark stream as dirty */
-	}
+	LOCAL->dirty = T;	/* mark stream as dirty */
       }
       if (f&fFLAGGED) elt->flagged = NIL;
       if (f&fANSWERED) elt->answered = NIL;
@@ -865,32 +792,9 @@ long nntp_ping (MAILSTREAM *stream)
 
 void nntp_check (MAILSTREAM *stream)
 {
-  unsigned long i,j,k;
-  char *s,tmp[MAILTMPLEN];
-  if (!LOCAL->dirty) return;	/* never do if no updates */
-  *(s = tmp) = '\0';		/* initialize list */
-  for (i = 0,j = 1,k = 0; i < stream->nmsgs; ++i) {
-    if (LOCAL->seen[i]) {	/* seen message? */
-      k = LOCAL->number[i];	/* this is the top of the current range */
-      if (j == 0) j = k;	/* if no range in progress, start one */
-    }
-    else if (j != 0) {		/* unread message, ending a range */
-				/* calculate end of range */
-      if (k = LOCAL->number[i] - 1) {
-				/* dump range */
-	sprintf (s,(j == k) ? "%ld," : "%ld-%ld,",j,k);
-	s += strlen (s);	/* find end of string */
-      }
-      j = 0;			/* no more range in progress */
-    }
-  }
-  if (j) {			/* dump trailing range */
-    sprintf (s,(j == k) ? "%ld" : "%ld-%ld",j,k);
-    s += strlen (s);		/* find end of string */
-  }
-  else if (s[-1] == ',') s--;	/* prepare to patch out any trailing comma */
-  *s++ = '\0';			/* tie off string */
-  nntp_update_sdb (LOCAL->name,tmp);
+				/* never do if no updates */
+  if (LOCAL->dirty) newsrc_write (LOCAL->name,stream,LOCAL->number);
+  LOCAL->dirty = NIL;
 }
 
 /* NNTP mail expunge mailbox
@@ -963,116 +867,6 @@ void nntp_gc (MAILSTREAM *stream,long gcflags)
 }
 
 /* Internal routines */
-
-
-/* Read NNTP database
- * Accepts: pointer to subscription database file handle (NIL if first time)
- * Returns: line from the file
- */
-
-char *nntp_read_sdb (FILE **f)
-{
-  int i;
-  char *s,*t,tmp[MAILTMPLEN];
-				/* if first time, open newsrc file */
-  if (!(*f || (*f = fopen (NEWSRC,"r")))) {
-    char msg[MAILTMPLEN];
-    sprintf (msg,"No news state found, will create %s",tmp);
-    mm_log (msg,WARN);
-    if ((i = open (tmp,O_WRONLY|O_APPEND|O_CREAT,
-		   (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) >= 0)
-      close (i);
-    return NIL;
-  }
-				/* read a line from the file */
-  if (fgets (tmp,MAILTMPLEN,*f)) {
-    i = strlen (tmp);		/* how many characters we got */
-    if (tmp[i - 1] == '\n') {	/* got a complete line? */
-      tmp[i - 1] = '\0';	/* yes, tie off the line */
-      return cpystr (tmp);	/* return string */
-    }
-				/* ugh, have to build from fragments */
-    else if (t = nntp_read_sdb (f)) {
-      sprintf (s = (char *) fs_get (i + strlen (t) + 1),"%s%s",tmp,t);
-      fs_give ((void **) &t);	/* discard fragment */
-      return s;			/* return the string we made */
-    }
-  }
-  fclose (*f);			/* end of file, close file */
-  *f = NIL;			/* make sure caller knows */
-  return NIL;			/* all done */
-}
-
-/* Update NNTP database
- * Accepts: newsgroup name
- *	    message data
- * Returns: T if success, NIL if failure
- */
-
-long nntp_update_sdb (char *name,char *data)
-{
-  int i = strlen (name);
-  char c,*s,tmp[MAILTMPLEN],new[MAILTMPLEN];
-  FILE *f = NIL,*of,*nf;
-  strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
-  if (!(of = fopen (tmp,"w"))) {/* open old newsrc */
-    mm_log ("Can't create backup of news state",ERROR);
-    return NIL;
-  }
-  strcat (strcpy (new,myhomedir ()),"/.newnewsrc");
-  if (!(nf = fopen (new,"w"))) {/* open new newsrc */
-    mm_log ("Can't create new news state",ERROR);
-    fclose (of);
-    return NIL;
-  }
-				/* process .newsrc file */
-  while (s = nntp_read_sdb (&f)) {
-    fprintf (of,"%s\n",s);	/* write to backup file */
-    if (data && (!strncmp (s,name,i)) && (((c = s[i]) == ':') || (c == '!'))) {
-      switch (*data) {		/* first time we saw this entry... */
-      case ':':			/* subscription request */
-	if (c == '!') c = ':';	/* subscribe if unsubscribed */
-	else {			/* complain if already subscribed */
-	  sprintf (tmp,"Already subscribed to newsgroup %s",name);
-	  mm_log (tmp,WARN);
-	}
-	data = s + i + 1;	/* preserve old read state */
-	break;
-      case '!':			/* unsubscription request? */
-	if (c == ':') c = '!';	/* unsubscribe if subscribed */
-	data = s + i + 1;	/* preserve old read state */
-	break;
-      default:			/* update read state */
-	break;
-      }
-				/* write the new entry */
-      fprintf (nf,"%s%c%s\n",name,c,data);
-      data = NIL;		/* request satisfied */
-    }
-    else fprintf (nf,"%s\n",s);	/* not the entry we want, write to new file */
-    fs_give ((void **) &s);
-  }
-
-  if (data) switch (*data) {	/* if didn't find it, make new entry */
-  case ':':			/* subscription request */
-    fprintf (nf,"%s: \n",name);
-    break;
-  case '!':			/* unsubscription request */
-    fprintf (nf,"%s! \n",name);
-    break;
-  default:			/* update read state */
-    fprintf (nf,"%s: %s\n",name,data);
-    break;
-  }
-  fclose (nf);			/* close new file */
-  fclose (of);			/* close backup file */
-  unlink (NEWSRC);		/* remove the current file, name in tmp */
-  if (rename (new,tmp)) {	/* rename new database to current */
-    mm_log ("Can't update news state",ERROR);
-    return NIL;
-  }
-  return LONGT;			/* return success */
-}	 
 
 
 /* Parse flag list
@@ -1357,28 +1151,30 @@ search_t nntp_search_flag (search_t f,char **d)
 
 search_t nntp_search_string (search_t f,char **d,long *n)
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

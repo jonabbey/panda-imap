@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1994
- * Last Edited:	15 August 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -111,20 +111,21 @@ DRIVER *bezrkdos_valid (char *name)
 
 int bezrkdos_isvalid (char *name)
 {
-  int i,fd;
+  int fd;
   int ret = NIL;
   char tmp[MAILTMPLEN];
   struct stat sbuf;
   errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
-  if (*name != '{' && mailboxfile (tmp,name) && (stat (tmp,&sbuf) == 0)) {
-    errno = NIL;		/* disallow empty file */
-    if (sbuf.st_size == 0) return NIL;
-    if ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0) {
-      read (fd,tmp,MAILTMPLEN-1);
-      tmp[MAILTMPLEN-1] = '\0';	/* tie off buffer */
+  if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
+      mailboxfile (tmp,name) && !stat (tmp,&sbuf)) {
+    if (!sbuf.st_size)errno = 0;/* empty file */
+    else if ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0) {
+      memset (tmp,'\0',MAILTMPLEN);
+      errno = -1;		/* in case bezrkdos_valid_line fails */
+      if (read (fd,tmp,MAILTMPLEN-1) >= 0)
+	ret = bezrkdos_valid_line (tmp,NIL,NIL);
       close (fd);		/* close the file */
-      ret = bezrkdos_valid_line (tmp,NIL,NIL);
     }
   }
   return ret;			/* failed miserably */
@@ -235,9 +236,7 @@ void bezrkdos_find_all (MAILSTREAM *stream,char *pat)
 
 long bezrkdos_subscribe (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  if (mailboxfile (tmp,mailbox)) return sm_subscribe (mailbox);
-  else return bezrkdos_badname (tmp,mailbox);
+  return dummy_subscribe (stream,mailbox);
 }
 
 
@@ -249,9 +248,7 @@ long bezrkdos_subscribe (MAILSTREAM *stream,char *mailbox)
 
 long bezrkdos_unsubscribe (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  if (mailboxfile (tmp,mailbox)) return sm_unsubscribe (mailbox);
-  else return bezrkdos_badname (tmp,mailbox);
+  return dummy_unsubscribe (stream,mailbox);
 }
 
 
@@ -274,17 +271,7 @@ long bezrkdos_subscribe_bboard (MAILSTREAM *stream,char *mailbox)
 
 long bezrkdos_create (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  int fd;
-  if (!mailboxfile (tmp,mailbox)) return bezrkdos_badname (tmp,mailbox);
-  if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
-				/* failed */
-    sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  close (fd);			/* close the file */
-  return LONGT;			/* return success */
+  return dummy_create (stream,mailbox);
 }
 
 
@@ -296,7 +283,7 @@ long bezrkdos_create (MAILSTREAM *stream,char *mailbox)
 
 long bezrkdos_delete (MAILSTREAM *stream,char *mailbox)
 {
-  return bezrkdos_rename (stream,mailbox,NIL);
+  return dummy_delete (stream,mailbox);
 }
 
 
@@ -309,18 +296,7 @@ long bezrkdos_delete (MAILSTREAM *stream,char *mailbox)
 
 long bezrkdos_rename (MAILSTREAM *stream,char *old,char *new)
 {
-  char tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
-				/* make file name */
-  if (!mailboxfile (file,old)) return bezrkdos_badname (tmp,old);
-  if (new && !mailboxfile (tmp,new)) return bezrkdos_badname (tmp,new);
-				/* do the rename or delete operation */
-  if (new ? rename (file,tmp) : unlink (file)) {
-    sprintf (tmp,"Can't %s mailbox %s: %s",new ? "rename" : "delete",old,
-	     strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  return LONGT;			/* return success */
+  return dummy_rename (stream,old,new);
 }
 
 /* Bezrkdos mail open
@@ -353,7 +329,7 @@ MAILSTREAM *bezrkdos_open (MAILSTREAM *stream)
     mm_log (tmp,ERROR);
     return NIL;
   }
-  stream->readonly = T;		/* this driver is readonly */
+  stream->rdonly = T;		/* this driver is readonly */
   stream->local = fs_get (sizeof (BEZRKDOSLOCAL));
 				/* canonicalize the stream mailbox name */
   fs_give ((void **) &stream->mailbox);
@@ -546,8 +522,6 @@ char *bezrkdos_fetchheader (MAILSTREAM *stream,long msgno)
 {
   unsigned long hdrsize;
   unsigned long hdrpos = bezrkdos_header (stream,msgno,&hdrsize);
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
   if (stream->text) fs_give ((void **) &stream->text);
   return stream->text = bezrkdos_slurp (stream,hdrpos,&hdrsize);
 }
@@ -564,8 +538,6 @@ char *bezrkdos_fetchtext (MAILSTREAM *stream,long msgno)
   unsigned long hdrsize;
   unsigned long hdrpos = bezrkdos_header (stream,msgno,&hdrsize);
   unsigned long textsize = bezrkdos_size (stream,msgno) - hdrsize;
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
   if (stream->text) fs_give ((void **) &stream->text);
 				/* mark message as seen */
   mail_elt (stream,msgno)->seen = T;
@@ -589,8 +561,6 @@ char *bezrkdos_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
   unsigned long offset = 0;
   unsigned long hdrpos = bezrkdos_header (stream,m,&base);
   MESSAGECACHE *elt = mail_elt (stream,m);
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
   if (stream->text) fs_give ((void **) &stream->text);
 				/* make sure have a body */
   if (!(bezrkdos_fetchstructure (stream,m,&b) && b && s && *s &&
@@ -637,6 +607,7 @@ char *bezrkdos_slurp (MAILSTREAM *stream,unsigned long pos,
   unsigned long cnt = *count;
   int i,j;
   char tmp[MAILTMPLEN];
+  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
   lseek(LOCAL->fd,pos,SEEK_SET);/* get to desired position */
   LOCAL->ch = '\0';		/* initialize CR mechanism */
   while (cnt) {			/* until checked all bytes */
@@ -652,7 +623,7 @@ char *bezrkdos_slurp (MAILSTREAM *stream,unsigned long pos,
   }
   lseek(LOCAL->fd,pos,SEEK_SET);/* get to desired position */
   LOCAL->ch = '\0';		/* initialize CR mechanism */
-  return (*mailgets) (bezrkdos_read,stream,*count);
+  return (mg ? *mg : mm_gets) (bezrkdos_read,stream,*count);
 }
 
 
@@ -1202,6 +1173,7 @@ long bezrkdos_parse (MAILSTREAM *stream)
 
 				/* count up another message, make elt */
     (elt = mail_elt (stream,++nmsgs))->data1 = curpos;
+    elt->valid = T;		/* mark as valid */
     elt->data2 = ((s = ((*t == '\015') ? (t + 2) : (t + 1))) - tmp) << 24;
 				/* generate plausable IMAPish date string */
     db[2] = db[6] = db[20] = '-'; db[11] = ' '; db[14] = db[17] = ':';
@@ -1566,31 +1538,32 @@ search_t bezrkdos_search_flag (search_t f,long *n,MAILSTREAM *stream)
  * Returns: function to return
  */
 
-
 search_t bezrkdos_search_string (search_t f,char **d,long *n)
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

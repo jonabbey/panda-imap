@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	6 September 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -126,7 +126,7 @@ DRIVER *bezerk_valid (char *name)
 
 int bezerk_isvalid (char *name,char *tmp)
 {
-  int i,fd,zn;
+  int fd,zn;
   int ret = NIL;
   char *s = tmp,*t,file[MAILTMPLEN];
   struct stat sbuf;
@@ -134,16 +134,17 @@ int bezerk_isvalid (char *name,char *tmp)
   errno = EINVAL;		/* assume invalid argument */
 				/* must be non-empty file */
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
-      (!stat (dummy_file (file,name),&sbuf)) &&
-      ((fd = open (file,O_RDONLY,NIL)) >= 0)) {
-    if ((sbuf.st_size > 0) && (read (fd,tmp,MAILTMPLEN-1) >= 0))
-      VALID (s,t,ret,zn);
-    tp[0] = sbuf.st_atime;	/* preserve atime and mtime */
-    tp[1] = sbuf.st_mtime;
-    utime (file,tp);		/* set the times */
-    close (fd);			/* close the file */
-				/* no error if file empty */
-    if (!(ret || sbuf.st_size)) errno = 0;
+      !stat (dummy_file (file,name),&sbuf)) {
+    if (!sbuf.st_size)errno = 0;/* empty file */
+    else if ((fd = open (file,O_RDONLY,NIL)) >= 0) {
+      memset (tmp,'\0',MAILTMPLEN);
+      errno = -1;		/* bogus format in case VALID fails */
+      if (read (fd,tmp,MAILTMPLEN-1) >= 0) VALID (s,t,ret,zn);
+      close (fd);			/* close the file */
+      tp[0] = sbuf.st_atime;	/* preserve atime and mtime */
+      tp[1] = sbuf.st_mtime;
+      utime (file,tp);		/* set the times */
+    }
   }
   return ret;			/* return what we should */
 }
@@ -355,7 +356,7 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
 				/* canonicalize the stream mailbox name */
   dummy_file (tmp,stream->mailbox);
 				/* force readonly if bboard */
-  if (*stream->mailbox == '*') stream->readonly = T;
+  if (*stream->mailbox == '*') stream->rdonly = T;
   else {			/* canonicalize name */
     fs_give ((void **) &stream->mailbox);
     stream->mailbox = cpystr (tmp);
@@ -382,7 +383,7 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
 
   LOCAL->dirty = NIL;		/* no update yet */
 				/* make lock for read/write access */
-  if (!stream->readonly) while (retry) {
+  if (!stream->rdonly) while (retry) {
 				/* get a new file handle each time */
     if ((fd = open (LOCAL->lname,O_RDWR|O_CREAT,
 		    (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) < 0) {
@@ -435,14 +436,14 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
     fs_give ((void **) &LOCAL->lname);
   }
 				/* abort if can't get RW silent stream */
-  if (stream->silent && !stream->readonly && !LOCAL->ld) bezerk_abort (stream);
+  if (stream->silent && !stream->rdonly && !LOCAL->ld) bezerk_abort (stream);
 				/* parse mailbox */
   else if ((fd = bezerk_parse (stream,tmp,LOCK_SH)) >= 0) {
     bezerk_unlock (fd,stream,tmp);
     mail_unlock (stream);
   }
   if (!LOCAL) return NIL;	/* failure if stream died */
-  stream->readonly = !LOCAL->ld;/* make sure upper level knows readonly */
+  stream->rdonly = !LOCAL->ld;	/* make sure upper level knows readonly */
 				/* notify about empty mailbox */
   if (!(stream->nmsgs || stream->silent)) mm_log ("Mailbox is empty",NIL);
   return stream;		/* return stream alive to caller */
@@ -454,22 +455,10 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
 
 void bezerk_close (MAILSTREAM *stream)
 {
-  int fd;
   int silent = stream->silent;
-  char lock[MAILTMPLEN];
-  if (LOCAL && LOCAL->ld) {	/* is stream alive? */
-    stream->silent = T;		/* note this stream is dying */
-				/* lock mailbox and parse new messages */
-    if (LOCAL->dirty && (fd = bezerk_parse (stream,lock,LOCK_EX)) >= 0) {
-				/* dump any changes not saved yet */
-      if (bezerk_extend	(stream,fd,"Close failed to update mailbox"))
-	bezerk_save (stream,fd);
-				/* flush locks */
-      bezerk_unlock (fd,stream,lock);
-      mail_unlock (stream);
-    }
-    stream->silent = silent;	/* restore previous status */
-  }
+  stream->silent = T;		/* note this stream is dying */
+  bezerk_check (stream);	/* dump final checkpoint */
+  stream->silent = silent;	/* restore previous status */
   bezerk_abort (stream);	/* now punt the file and local data */
 }
 
@@ -819,7 +808,7 @@ long bezerk_ping (MAILSTREAM *stream)
   struct stat sbuf;
   int fd;
 				/* does he want to give up readwrite? */
-  if (stream->readonly && LOCAL->ld) {
+  if (stream->rdonly && LOCAL->ld) {
     flock (LOCAL->ld,LOCK_UN);	/* yes, release the lock */
     close (LOCAL->ld);		/* close the lock file */
     LOCAL->ld = NIL;		/* no more lock fd */
@@ -851,13 +840,13 @@ void bezerk_check (MAILSTREAM *stream)
   int fd;
 				/* parse and lock mailbox */
   if (LOCAL && LOCAL->ld && ((fd = bezerk_parse (stream,lock,LOCK_EX)) >= 0)) {
-    if (LOCAL->dirty && bezerk_extend (stream,fd,"Unable to update mailbox"))
-      bezerk_save (stream,fd);	/* dump checkpoint if needed */
+				/* dump checkpoint if needed */
+    if (LOCAL->dirty && bezerk_extend (stream,fd,NIL)) bezerk_save (stream,fd);
 				/* flush locks */
     bezerk_unlock (fd,stream,lock);
     mail_unlock (stream);
   }
-  if (LOCAL && LOCAL->ld) mm_log ("Check completed",NIL);
+  if (LOCAL && LOCAL->ld && !stream->silent) mm_log ("Check completed",NIL);
 }
 
 /* Berkeley mail expunge mailbox
@@ -1262,6 +1251,7 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
   struct stat sbuf;
   MESSAGECACHE *elt;
   FILECACHE *m = NIL,*n = NIL;
+  mailcache_t mc = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
   mail_lock (stream);		/* guard against recursion or pingers */
 				/* open and lock mailbox (shared OK) */
   if ((fd = bezerk_lock (LOCAL->name,LOCAL->ld ? O_RDWR : O_RDONLY,NIL,
@@ -1333,10 +1323,10 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
 				/* calculate message length */
 	j = ((e ? e : s1 + i) - s) - 1;
 	if (m) {		/* new cache needed, have previous data? */
-	  n->header = (char *) fs_get (sizeof (FILECACHE) + j + 1);
+	  n->header = (char *) fs_get (sizeof (FILECACHE) + j + 2);
 	  n = (FILECACHE *) n->header;
 	}
-	else m = n = (FILECACHE *) fs_get (sizeof (FILECACHE) + j + 1);
+	else m = n = (FILECACHE *) fs_get (sizeof (FILECACHE) + j + 2);
 				/* copy message data */
 	memcpy (n->internal,s,j);
 	n->internal[j] = '\0';
@@ -1363,8 +1353,7 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
     if (LOCAL->filetime && LOCAL->filetime != sbuf.st_mtime)
       mm_log ("New mailbox modification time but apparently no changes",WARN);
   }
-				/* expand the primary cache */
-  (*mailcache) (stream,nmsgs,CH_SIZE);
+  (*mc) (stream,nmsgs,CH_SIZE);	/* expand the primary cache */
   if (nmsgs>=LOCAL->cachesize) {/* need to expand cache? */
 				/* number of messages plus room to grow */
     LOCAL->cachesize = nmsgs + CACHEINCREMENT;
@@ -1373,11 +1362,11 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
     else LOCAL->msgs =		/* create new cache */
       (FILECACHE **) fs_get (LOCAL->cachesize * sizeof (FILECACHE *));
   }
-
   if (LOCAL->buflen > CHUNK) {	/* maybe move where the buffer is in memory*/
     fs_give ((void **) &LOCAL->buf);
     LOCAL->buf = (char *) fs_get ((LOCAL->buflen = CHUNK) + 1);
   }
+
   for (i = stream->nmsgs, n = m; i < nmsgs; i++) {
     LOCAL->msgs[i] = m = n;	/* set cache, and next cache pointer */
     n = (FILECACHE *) n->header;
@@ -1387,21 +1376,21 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
      */
     ti = NIL;			/* valid header not found */
     if (s = m->internal) VALID (s,t,ti,zn);
-    if (!ti) {			/* totally empty message? */
-      if (s && !strchr (s,'\n')) {
-	strcat (s,"\n");	/* append newline */
-        VALID (s,t,ti,zn);	/* try again */
-	m->headersize++;	/* adjust count */
-      }
-      if (!ti) fatal ("Bogus entry in new cache list");
-    }
+    if (!ti) fatal ("Bogus entry in new cache list");
 				/* pointer to message header */
-    m->header = s = strchr (t++,'\n') + 1;
+    if (s = strchr (t++,'\n')) m->header = ++s;
+    else {			/* probably totally empty message */
+      strcat (t-1,"\n");	/* append newline */
+      m->headersize++;		/* adjust count */
+      m->header = s = strchr (t-1,'\n') + 1;
+    }
     m->headersize -= m->header - m->internal;
     m->body = NIL;		/* assume no body as yet */
     m->bodysize = 0;
+				/* instantiate elt */
+    (elt = mail_elt (stream,i+1))->valid = T;
     newcnt++;			/* assume recent by default */
-    (elt = mail_elt (stream,i+1))->recent = T;
+    elt->recent = T;
 				/* calculate initial Status/X-Status lines */
     bezerk_update_status (m->status,elt);
 				/* generate plausable IMAPish date string */
@@ -1427,6 +1416,7 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
     if (zn == ++ti) ti += (((t[zn] == '+') || (t[zn] == '-')) ? 6 : 4);
     LOCAL->buf[7] = t[ti]; LOCAL->buf[8] = t[ti + 1];
     LOCAL->buf[9] = t[ti + 2]; LOCAL->buf[10] = t[ti + 3];
+
 				/* zzz */
     t = zn ? (t + zn) : "LCL";
     LOCAL->buf[21] = *t++; LOCAL->buf[22] = *t++; LOCAL->buf[23] = *t++;
@@ -1438,7 +1428,6 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
     }
 				/* set internal date */
     if (!mail_parse_date (elt,LOCAL->buf)) mm_log ("Unparsable date",WARN);
-
     is = 0;			/* initialize newline count */
     e = NIL;			/* no status stuff yet */
     do switch (*(t = s)) {	/* look at header lines */
@@ -1485,7 +1474,7 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
       m->body = ++s;		/* start of body is here */
       j = m->body - m->header;	/* new header size */
 				/* calculate body size */
-      m->bodysize = m->headersize - j;
+      if (m->headersize >= j) m->bodysize = m->headersize - j;
       if (e) {			/* saw status poop? */
 	*e++ = '\n';		/* patch in trailing newline */
 	m->headersize = e - m->header;
@@ -1507,6 +1496,7 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
 				/* blat remaining number of bytes down */
 	memmove (e,s,m->header + m->headersize - s);
 	m->headersize -= j;	/* update for new size */
+	s = e;			/* back up pointer */
 	e = NIL;		/* no more delete area */
 				/* tie off old cruft */
 	*(m->header + m->headersize) = '\0';
@@ -1541,53 +1531,42 @@ int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
 char *bezerk_eom (char *som,char *sod,long i)
 {
   char *s = (sod > som) ? sod - 1 : sod;
-  char *t;
+  char *s1,*t;
   int ti,zn;
   union {
     unsigned long wd;
     char ch[9];
   } wdtest;
-  if (i < 27) return NIL;	/* never search if not enough bytes */
-  strcpy (wdtest.ch,"AAAA1234");/* constant for word testing */
   while ((s > som) && *s-- != '\n');
-  if (wdtest.wd != 0x41414141) {/* not a 32-bit word machine? */
-    while (s = strstr (s,"\nFrom ")) {
-      s++;			/* skip newline */
-      VALID (s,t,ti,zn);	/* if found start of message... */
-      if (ti) return s;		/* return that pointer */
+  if (i > 50) {			/* don't do fast search if very few bytes */
+				/* constant for word testing */
+    strcpy (wdtest.ch,"AAAA1234");
+    if(wdtest.wd == 0x41414141){/* not a 32-bit word machine? */
+      register Word m = 0x0a0a0a0a;
+				/* any characters before word boundary? */
+      while ((long) s & 3) if (*s++ == '\n') {
+	VALID (s,t,ti,zn);
+	if (ti) return s;
+      }
+      i = (sod + i) - s;	/* total number of tries */
+      do {			/* fast search for newline */
+	if ((0x80808080 & (0x01010101 + (0x7f7f7f7f & ~(m ^ *(Word *) s)))) &&
+	    (s1 = ((s[3] == '\n') ? (s + 4) :
+		   ((s[2] == '\n') ? (s + 3) :
+		    ((s[1] == '\n') ? (s + 2) :
+		     ((s[0] == '\n') ? (s + 1) : NIL)))))) {
+	  VALID (s1,t,ti,zn);	/* interesting word, check it closer */
+	  if (ti) return s1;
+	}
+	else s += 4;		/* try next word */
+	i -= 4;			/* count a word checked */
+      } while (i > 24);		/* continue until end of plausible string */
     }
   }
-
-  else {			/* can do it faster this way */
-    register Word m = 0x0a0a0a0a;
-				/* any characters before word boundary? */
-    while ((long) s & 3) if (*s++ == '\n') {
-      VALID (s,t,ti,zn);
-      if (ti) return s;
-    }
-    i = (sod + i) - s;		/* total number of tries */
-    do {			/* fast search for newline */
-      if (0x80808080 & (0x01010101 + (0x7f7f7f7f & ~(m ^ *(Word *) s)))) {
-	if (*s++ == '\n') {	/* interesting word, check it closer */
-	  VALID (s,t,ti,zn);
-	  if (ti) return s;
-	}
-	if (*s++ == '\n') {	/* second byte */
-	  VALID (s,t,ti,zn);
-	  if (ti) return s;
-	}
-	if (*s++ == '\n') {	/* third byte */
-	  VALID (s,t,ti,zn);
-	  if (ti) return s;
-	}
-	if (*s++ == '\n') {	/* final byte */
-	  VALID (s,t,ti,zn);
-	  if (ti) return s;
-	}
-      }
-      else s += 4;		/* try next word */
-      i -= 4;			/* count a word checked */
-    } while (i > 24);		/* continue until end of plausible string */
+  while (s = strstr (s,"\nFrom ")) {
+    s++;			/* skip newline */
+    VALID (s,t,ti,zn);		/* if found start of message... */
+    if (ti) return s;		/* return that pointer */
   }
   return NIL;
 }
@@ -1602,6 +1581,7 @@ char *bezerk_eom (char *som,char *sod,long i)
 int bezerk_extend (MAILSTREAM *stream,int fd,char *error)
 {
   struct stat sbuf;
+  MESSAGECACHE *elt;
   FILECACHE *m;
   char tmp[MAILTMPLEN];
   int i,ok;
@@ -1609,11 +1589,14 @@ int bezerk_extend (MAILSTREAM *stream,int fd,char *error)
   char *s;
   int retry;
 				/* calculate estimated size of mailbox */
-  for (i = 0,f = 0; i < stream->nmsgs; i++) {
+  for (i = 0,f = 0; i < stream->nmsgs;) {
     m = LOCAL->msgs[i];		/* get cache pointer */
-    f += (m->header - m->internal) + m->headersize + sizeof (STATUS) +
-      m->bodysize + 1;		/* update guesstimate */
-    }
+    elt = mail_elt (stream,++i);/* get elt, increment message */
+				/* if not expunging, or not deleted */
+    if (!(error && elt->deleted))
+      f += (m->header - m->internal) + m->headersize + m->bodysize + 1 +
+	sizeof (STATUS) - (elt->seen+elt->deleted+elt->flagged+elt->answered);
+  }
   mm_critical (stream);		/* go critical */
 				/* return now if file large enough */
   if (f <= LOCAL->filesize) return T;
@@ -1633,7 +1616,8 @@ int bezerk_extend (MAILSTREAM *stream,int fd,char *error)
 				/* punt if that's what main program wants */
       if (mm_diskerror (stream,i,NIL)) {
 	mm_nocritical (stream);	/* exit critical */
-	sprintf (tmp,"%s: %s",error,strerror (i));
+	sprintf (tmp,"%s: %s",error ? error : "Unable to update mailbox",
+		 strerror (i));
 	mm_notify (stream,tmp,WARN);
       }
       else retry = T;		/* set to retry */
@@ -1653,8 +1637,6 @@ int bezerk_extend (MAILSTREAM *stream,int fd,char *error)
 void bezerk_save (MAILSTREAM *stream,int fd)
 {
   struct stat sbuf;
-  struct iovec iov[16];
-  int iovc;
   long i;
   int e;
   int retry;
@@ -1663,25 +1645,16 @@ void bezerk_save (MAILSTREAM *stream,int fd)
 				/* start at beginning of file */
     lseek (fd,LOCAL->filesize = 0,L_SET);
 				/* loop through all messages */
-    for (i = 1,iovc = 0; i <= stream->nmsgs; i++) {
-				/* set up iov's for this message */
-      bezerk_write_message (iov,&iovc,LOCAL->msgs[i-1]);
-				/* filled up iovec or end of messages? */
-      if ((iovc == 16) || (i == stream->nmsgs)) {
-				/* write messages */
-	if ((e = writev (fd,iov,iovc)) < 0) {
-	  sprintf (LOCAL->buf,"Unable to rewrite mailbox: %s",
-		   strerror (e = errno));
-	  mm_log (LOCAL->buf,WARN);
-	  mm_diskerror (stream,e,T);
-	  retry = T;		/* must retry */
-	  break;		/* abort this particular try */
-	}
-	else {			/* won */
-	  iovc = 0;		/* restart iovec */
-	  LOCAL->filesize += e;	/* count these bytes in data */
-	}
+    for (i = 1; i <= stream->nmsgs; i++) {
+				/* write message */
+      if ((e = bezerk_write_message (fd,LOCAL->msgs[i-1])) < 0) {
+	sprintf (LOCAL->buf,"Mailbox rewrite error: %s",strerror (e = errno));
+	mm_log (LOCAL->buf,WARN);
+	mm_diskerror (stream,e,T);
+	retry = T;		/* must retry */
+	break;			/* abort this particular try */
       }
+      else LOCAL->filesize += e;/* count these bytes in data */
     }
     if (fsync (fd)) {		/* make sure the updates take */
       sprintf (LOCAL->buf,"Unable to sync mailbox: %s",strerror (e = errno));
@@ -1707,9 +1680,8 @@ void bezerk_save (MAILSTREAM *stream,int fd)
 int bezerk_copy_messages (MAILSTREAM *stream,char *mailbox)
 {
   char file[MAILTMPLEN],lock[MAILTMPLEN];
-  struct iovec iov[16];
-  int fd,iovc;
   struct stat sbuf;
+  int fd;
   time_t tp[2];
   long i;
   int ok = T;
@@ -1738,21 +1710,16 @@ int bezerk_copy_messages (MAILSTREAM *stream,char *mailbox)
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
 				/* write all requested messages to mailbox */
-  for (i = 1,iovc = 0; ok && i <= stream->nmsgs; i++) {
-				/* set up iov's if message selected */
-    if (mail_elt (stream,i)->sequence)
-      bezerk_write_message (iov,&iovc,LOCAL->msgs[i - 1]);
-				/* filled up iovec or end of messages? */
-    if (iovc && ((iovc == 16) || (i == stream->nmsgs))) {
-      if (ok = (writev (fd,iov,iovc) >= 0)) iovc = 0;
-      else {
-	sprintf (LOCAL->buf,"Message copy failed: %s",strerror (errno));
-	mm_log (LOCAL->buf,ERROR);
-	ftruncate (fd,sbuf.st_size);
-	break;
-      }
+  for (i = 1; ok && i <= stream->nmsgs; i++)
+				/* copy message if selected */
+    if (mail_elt (stream,i)->sequence &&
+	(bezerk_write_message (fd,LOCAL->msgs[i - 1]) < 0)) {
+      sprintf (LOCAL->buf,"Message copy failed: %s",strerror (errno));
+      mm_log (LOCAL->buf,ERROR);
+      ftruncate (fd,sbuf.st_size);
+      ok = NIL;
+      break;
     }
-  }
   if (fsync (fd)) {		/* force out the update */
     sprintf (LOCAL->buf,"Message copy sync failed: %s",strerror (errno));
     mm_log (LOCAL->buf,ERROR);
@@ -1768,9 +1735,9 @@ int bezerk_copy_messages (MAILSTREAM *stream,char *mailbox)
 }
 
 /* Berkeley write message to mailbox
- * Accepts: I/O vector
- *	    I/O vector index
+ * Accepts: file descriptor
  *	    local cache for this message
+ * Returns: number of bytes written or -1 if error
  *
  * This routine is the reason why the local cache has a copy of the status.
  * We can be called to dump out the mailbox as part of a stream recycle, since
@@ -1779,20 +1746,25 @@ int bezerk_copy_messages (MAILSTREAM *stream,char *mailbox)
  * can't use any information other than what is local to us.
  */
 
-void bezerk_write_message (struct iovec iov[],int *i,FILECACHE *m)
+int bezerk_write_message (int fd,FILECACHE *m)
 {
-  iov[*i].iov_base =m->internal;/* pointer/counter to headers */
+  struct iovec iov[16];
+  int i = 0;
+  iov[i].iov_base = m->internal;/* pointer/counter to headers */
 				/* length of internal + message headers */
-  iov[*i].iov_len = (m->header + m->headersize) - m->internal;
+  iov[i].iov_len = (m->header + m->headersize) - m->internal;
 				/* suppress extra newline if present */
-  if ((iov[*i].iov_base)[iov[*i].iov_len - 2] == '\n') iov[(*i)++].iov_len--;
-  else (*i)++;			/* unlikely but... */
-  iov[*i].iov_base = m->status;	/* pointer/counter to status */
-  iov[(*i)++].iov_len = strlen (m->status);
-  iov[*i].iov_base = m->body;	/* pointer/counter to text body */
-  iov[(*i)++].iov_len = m->bodysize;
-  iov[*i].iov_base = "\n";	/* pointer/counter to extra newline */
-  iov[(*i)++].iov_len = 1;
+  if ((iov[i].iov_base)[iov[i].iov_len - 2] == '\n') iov[i++].iov_len--;
+  else i++;			/* unlikely but... */
+  iov[i].iov_base = m->status;	/* pointer/counter to status */
+  iov[i++].iov_len = strlen (m->status);
+  if (m->bodysize) {		/* only if a non-empty body */
+    iov[i].iov_base = m->body;	/* pointer/counter to text body */
+    iov[i++].iov_len = m->bodysize;
+  }
+  iov[i].iov_base = "\n";	/* pointer/counter to extra newline */
+  iov[i++].iov_len = 1;
+  return writev (fd,iov,i);
 }
 
 /* Berkeley update status string
@@ -2091,31 +2063,32 @@ search_t bezerk_search_flag (search_t f,char **d)
  * Returns: function to return
  */
 
-
 search_t bezerk_search_string (search_t f,char **d,long *n)
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

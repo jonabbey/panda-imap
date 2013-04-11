@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 November 1988
- * Last Edited:	20 July 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -44,7 +44,7 @@ static char *copyright = "\
  CCMD command interface is:\n\
   Copyright 1986, 1987 Columbia University in the City of New York";
 static char *author = "Mark Crispin";
-static char *version = "7.95";
+static char *version = "7.96";
 static char *bug_mailbox = "MRC";
 static char *bug_host = "CAC.Washington.EDU";
 static char *hostlist[] = {	/* SMTP server host list */
@@ -3057,7 +3057,7 @@ void do_status (MAILSTREAM *stream)
   char *m = "BBoard";
   if (s) {			/* report status */
     if (*s == '*') s++;		/* is it a bboard? */
-    else m = stream->readonly ? "Read-only mailbox" : "Mailbox";
+    else m = stream->rdonly ? "Read-only mailbox" : "Mailbox";
     cmxprintf (" %s: %s, %d messages, %d recent\n",m,s,nmsgs,stream->recent);
   }
 }

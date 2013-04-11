@@ -4,7 +4,7 @@ $! Author:	Yehavi Bourvine, The Hebrew University of Jerusalem.
 $!		Internet: Yehavi@VMS.huji.ac.il
 $!
 $! Date:	2 August 1994
-$! Last Edited:	2 August 1994
+$! Last Edited:	6 October 1994
 $!
 $! Copyright 1994 by the University of Washington
 $!
@@ -71,25 +71,21 @@ $ ELSE
 $	CC_PREF = "/INCLUDE=[]"
 $	LINK_OPT = LINK_OPT + ",VMS_LINK/OPTION"
 $	COPY SYS$LIBRARY:CTYPE.H *.*;
-$	EDIT/EDT CTYPE.H
-s/readonly// w
-exit
 $ ENDIF
 $ SET VERIFY
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') OS_VMS
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') vms_mail
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') MAIL
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') SMTP
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') RFC822
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') NNTP
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') nntpcvms
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') MISC
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') IMAP2
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def', -
-  L_SET=0) SM_VMS
+$ CC/NOOPTIMIZE'CC_PREF' OS_VMS
+$ CC/NOOPTIMIZE'CC_PREF' vms_mail
+$ CC/NOOPTIMIZE'CC_PREF' MAIL
+$ CC/NOOPTIMIZE'CC_PREF' SMTP
+$ CC/NOOPTIMIZE'CC_PREF' RFC822
+$ CC/NOOPTIMIZE'CC_PREF' NNTP
+$ CC/NOOPTIMIZE'CC_PREF' nntpcvms
+$ CC/NOOPTIMIZE'CC_PREF' MISC
+$ CC/NOOPTIMIZE'CC_PREF' IMAP2
+$ CC/NOOPTIMIZE'CC_PREF' SM_VMS
 $!
-$ CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') MTEST
-$! CC/NOOPTIMIZE'CC_PREF'/define=("readonly"="ReadOnly"'cc_def') IMAPD
+$ CC/NOOPTIMIZE'CC_PREF' MTEST
+$! CC/NOOPTIMIZE'CC_PREF' IMAPD
 $!
 $ LIBRARY/OBJECT/CREATE/INSERT C-CLIENT OS_VMS,vms_mail,MAIL,SMTP,RFC822,-
 	NNTP,nntpcvms,MISC,IMAP2,SM_VMS

@@ -256,7 +256,7 @@ char *bezerk_eom  ();
 int bezerk_extend  ();
 void bezerk_save  ();
 int bezerk_copy_messages  ();
-void bezerk_write_message  ();
+int bezerk_write_message  ();
 void bezerk_update_status  ();
 short bezerk_getflags  ();
 char bezerk_search_all  ();

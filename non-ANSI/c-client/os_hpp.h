@@ -8,7 +8,7 @@
  *		Internet: dmiller@beta.tricity.wsu.edu
  *
  * Date:	11 May 1989
- * Last Edited:	11 July 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -34,7 +34,6 @@
 #define MAILFILE "/usr/mail/%s"
 #define ACTIVEFILE "/usr/lib/news/active"
 #define NEWSSPOOL "/usr/spool/news"
-#define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 #define NFSKLUDGE
 
 #include <string.h>

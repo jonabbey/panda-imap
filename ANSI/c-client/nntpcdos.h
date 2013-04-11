@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 January 1993
- * Last Edited:	21 April 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -33,11 +33,6 @@
  *
  */
 
-/* Build parameters */
-
-#define NEWSRC(t) strcpy (t,(char *) mail_parameters (NIL,GET_NEWSRC,NIL))
-
-
 /* Constants */
 
 #define NNTPGOK (long) 211	/* NNTP group selection OK */
@@ -65,7 +60,6 @@ typedef struct nntp_local {
   char *host;			/* local host name */
   char *name;			/* local bboard name */
   unsigned long *number;	/* news message numbers */
-  char *seen;			/* local seen status */
 } NNTPLOCAL;
 
 
@@ -110,8 +104,6 @@ long nntp_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		  STRING *message);
 void nntp_gc (MAILSTREAM *stream,long gcflags);
 
-char *nntp_read_sdb (FILE **f);
-long nntp_update_sdb (char *name,char *data);
 short nntp_getflags (MAILSTREAM *stream,char *flag);
 char nntp_search_all (MAILSTREAM *stream,long msgno,char *d,long n);
 char nntp_search_answered (MAILSTREAM *stream,long msgno,char *d,long n);

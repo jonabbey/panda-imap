@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 June 1994
- * Last Edited:	1 July 1994
+ * Last Edited:	22 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -108,6 +108,7 @@ long tenexdos_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 void tenexdos_gc (MAILSTREAM *stream,long gcflags);
 char *tenexdos_file (char *dst,char *name);
 unsigned long tenexdos_size (MAILSTREAM *stream,long m);
+unsigned long tenexdos_822size (MAILSTREAM *stream,long msgno);
 long tenexdos_badname (char *tmp,char *s);
 long tenexdos_getflags (MAILSTREAM *stream,char *flag);
 long tenexdos_parse (MAILSTREAM *stream);

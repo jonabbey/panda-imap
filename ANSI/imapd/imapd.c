@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	21 August 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -75,7 +75,7 @@
 
 /* Global storage */
 
-char *version = "7.8(88)";	/* version number of this server */
+char *version = "7.8(92)";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 int state = LOGIN;		/* server state */
 int mackludge = 0;		/* MacMS kludge */
@@ -426,7 +426,7 @@ void main (int argc,char *argv[])
 	      kodcount = 0;	/* initialize KOD count */
 	      state = OPEN;	/* note state open */
 				/* note readonly/readwrite */
-	      response = stream->readonly ?
+	      response = stream->rdonly ?
 		"%s OK [READ-ONLY] %s completed\015\012" :
 		  "%s OK [READ-WRITE] %s completed\015\012";
 	      if (anonymous) syslog (LOG_INFO,"Selected %s from %s",
@@ -482,9 +482,9 @@ void main (int argc,char *argv[])
 	    response = misarg;	/* missing required argument */
 	  else if (arg) response = badarg;
 	  else if (anonymous) {	/* special version for anonymous users */
-	    if (!strcmp (cmd,"BBOARDS")) mail_find_bboards (NIL,s);
-	    else if (!strcmp (cmd,"ALL.BBOARDS")) mail_find_all_bboard (NIL,s);
-				/* bboards not supported here */
+	    if (!strcmp (cmd,"BBOARDS") || !strcmp (cmd,"ALL.BBOARDS"))
+	      mail_find_all_bboard (NIL,s);
+				/* other commands not supported */
     	    else response = badfnd;
 	  }
 	  else {		/* dispatch based on type */
@@ -586,15 +586,23 @@ void main (int argc,char *argv[])
 				/* output any new alerts */
       if (!stat (ALERTFILE,&sbuf) && (sbuf.st_mtime > alerttime)) {
 	FILE *alf = fopen (ALERTFILE,"r");
-	char c,lc = '\n';
+	int c,lc = '\012';
 	if (alf) {		/* only if successful */
-	  do {			/* loop outputting message */
-	    if (lc == '\n') fputs ("* OK [ALERT] ",stdout);
-	    putchar (c);	/* for each character */
+	  while ((c = getc (alf)) != EOF) {
+	    if (lc == '\012') fputs ("* OK [ALERT] ",stdout);
+	    switch (c) {	/* output character */
+	    case '\012':
+	      fputs ("\015\012",stdout);
+	    case '\0':		/* flush nulls */
+	      break;
+	    default:
+	      putchar (c);	/* output all other characters */
+	      break;
+	    }
 	    lc = c;		/* note previous character */
-	  } while ((c = getc (alf)) != EOF);
+	  }
 	  fclose (alf);
-	  if (lc != '\n') putchar ('\n');
+	  if (lc != '\012') fputs ("\015\012",stdout);
 	  alerttime = sbuf.st_mtime;
 	}
       }
@@ -637,7 +645,7 @@ void kodint ()
 	(!strcmp (s,"bezerk") || !strcmp (s,"mbox") || !strcmp (s,"mmdf"))) {
       fputs("* OK [READ-ONLY] Now READ-ONLY, mailbox lock surrendered\015\012",
 	    stdout);
-      stream->readonly = T;	/* make the stream readonly */
+      stream->rdonly = T;	/* make the stream readonly */
       mail_ping (stream);	/* cause it to stick! */
     }
     else fputs ("* NO Unexpected KOD interrupt received, ignored\015\012",
@@ -878,6 +886,10 @@ void fetch_flags (long i,char *s)
   unsigned long u;
   char *t;
   MESSAGECACHE *elt = mail_elt (stream,i);
+  if (!elt->valid) {		/* have valid flags yet? */
+    sprintf (tmp,"%ld",i);
+    mail_fetchflags (stream,tmp);
+  }
   s = tmp;
   s[0] = s[1] = '\0';		/* start with empty flag string */
 				/* output system flags */
@@ -910,8 +922,7 @@ void changed_flags (long i,int f)
     fetch_flags (i,NIL);	/* output flags */
   }
 }
-
-
+
 /* Fetch message internal date
  * Accepts: message number
  *	    string argument
@@ -920,9 +931,15 @@ void changed_flags (long i,int f)
 void fetch_internaldate (long i,char *s)
 {
   char tmp[MAILTMPLEN];
-  printf ("INTERNALDATE \"%s\"",mail_date (tmp,mail_elt (stream,i)));
+  MESSAGECACHE *elt = mail_elt (stream,i);
+  if (!elt->day) {		/* have internal date yet? */
+    sprintf (tmp,"%ld",i);
+    mail_fetchfast (stream,tmp);
+  }
+  printf ("INTERNALDATE \"%s\"",mail_date (tmp,elt));
 }
-
+
+
 /* Fetch complete RFC-822 format message
  * Accepts: message number
  *	    string argument
@@ -948,8 +965,7 @@ void fetch_rfc822_header (long i,char *s)
   fputs ("RFC822.HEADER ",stdout);
   pstring (mail_fetchheader (stream,i));
 }
-
-
+
 /* Fetch RFC-822 message length
  * Accepts: message number
  *	    string argument
@@ -957,7 +973,13 @@ void fetch_rfc822_header (long i,char *s)
 
 void fetch_rfc822_size (long i,char *s)
 {
-  printf ("RFC822.SIZE %d",mail_elt (stream,i)->rfc822_size);
+  MESSAGECACHE *elt = mail_elt (stream,i);
+  if (!elt->rfc822_size) {	/* have message size yet? */
+    char tmp[MAILTMPLEN];
+    sprintf (tmp,"%ld",i);
+    mail_fetchfast (stream,tmp);
+  }
+  printf ("RFC822.SIZE %d",elt->rfc822_size);
 }
 
 
@@ -1127,7 +1149,7 @@ void paddr (ADDRESS *a)
 
 long cstring (char *s)
 {
-  char tmp[20];
+  char tmp[MAILTMPLEN];
   long i = s ? strlen (s) : 0;
   if (s) {			/* is there a string? */
 				/* must use literal string */

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	9 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -35,7 +35,7 @@
 
 /* Copy string with CRLF newlines
  * Accepts: destination string
- *	    pointer to size of destination string
+ *	    pointer to size of destination string buffer
  *	    source string
  *	    length of source string
  * Returns: length of copied string
@@ -44,9 +44,11 @@
 unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
 			  unsigned long srcl)
 {
-  if (srcl > *dstl) {		/* resize if not enough space */
-    fs_give ((void **) dst);	/* fs_resize does an unnecessary copy */
+				/* flush destination buffer if too small */
+  if (*dst && (srcl > *dstl)) fs_give ((void **) dst);
+  if (!*dst) {			/* make a new buffer if needed */
     *dst = (char *) fs_get ((size_t) (*dstl = srcl) + 1);
+    if (dstl) *dstl = srcl;	/* return new buffer length to main program */
   }
 				/* copy strings */
   if (srcl) memcpy (*dst,src,(size_t) srcl);

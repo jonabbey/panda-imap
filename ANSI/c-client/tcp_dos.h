@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	27 June 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -49,3 +49,9 @@ TCPSTREAM {
   char *iptr;			/* input pointer */
   char ibuf[BUFLEN];		/* input buffer */
 };
+
+
+/* Local function prototypes */
+
+long lookuphost (char **host,struct sockaddr_in *sin);
+long tcp_abort (TCPSTREAM *stream);

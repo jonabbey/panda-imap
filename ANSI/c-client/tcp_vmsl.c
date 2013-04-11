@@ -5,7 +5,7 @@
  *		Internet: Yehavi@VMS.huji.ac.il
  *
  * Date:	2 August 1994
- * Last Edited:	2 August 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -30,6 +30,18 @@
 
 
 #include <descrip.h>
+
+/* TCP/IP manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *tcp_parameters (long function,void *value)
+{
+  return NIL;
+}
+
  
 /* TCP/IP open
  * Accepts: host name

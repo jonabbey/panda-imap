@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	6 September 1994
+ * Last Edited:	6 October 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -508,7 +508,7 @@ MAILSTREAM *map_open (MAILSTREAM *stream)
     stream->sequence++;		/* bump sequence number */
     if (stream->halfopen ||	/* send "SELECT/EXAMINE/BBOARD mailbox" */
 	!imap_OK (stream,reply = imap_sendq1 (stream,mb.bbdflag ? "BBOARD" :
-					      (stream->readonly ? "EXAMINE":
+					      (stream->rdonly ? "EXAMINE":
 					       "SELECT"),mb.mailbox))) {
 				/* want die on error and not halfopen? */
       if (map_closeonerror && !stream->halfopen) {
@@ -533,7 +533,7 @@ MAILSTREAM *map_open (MAILSTREAM *stream)
 	       imap_host (stream),mb.mailbox);
       stream->mailbox = cpystr (tmp);
       reply->text[11] = '\0';	/* note if server said it was readonly */
-      stream->readonly = !strcmp (ucase (reply->text),"[READ-ONLY]");
+      stream->rdonly = !strcmp (ucase (reply->text),"[READ-ONLY]");
     }
     if (!(stream->nmsgs || stream->silent || stream->halfopen))
       mm_log ("Mailbox is empty",(long) NIL);
@@ -946,11 +946,12 @@ void map_gc (MAILSTREAM *stream,long gcflags)
   unsigned long i;
   MESSAGECACHE *elt;
   LONGCACHE *lelt;
+  mailcache_t mc = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
 				/* make sure the cache is large enough */
-  (*mailcache) (stream,stream->nmsgs,CH_SIZE);
+  (*mc) (stream,stream->nmsgs,CH_SIZE);
   if (gcflags & GC_TEXTS) {	/* garbage collect texts? */
     for (i = 1; i <= stream->nmsgs; ++i)
-      if (elt = (MESSAGECACHE *) (*mailcache) (stream,i,CH_ELT)) {
+      if (elt = (MESSAGECACHE *) (*mc) (stream,i,CH_ELT)) {
 	if (elt->data1) fs_give ((void **) &elt->data1);
 	if (elt->data2) fs_give ((void **) &elt->data2);
 	if (!stream->scache) map_gc_body ((lelt = mail_lelt (stream,i))->body);
@@ -959,8 +960,8 @@ void map_gc (MAILSTREAM *stream,long gcflags)
   }
 				/* gc cache if requested and unlocked */
   if (gcflags & GC_ELT) for (i = 1; i <= stream->nmsgs; ++i)
-    if ((elt = (MESSAGECACHE *) (*mailcache) (stream,i,CH_ELT)) &&
-	(elt->lockcount == 1)) (*mailcache) (stream,i,CH_FREE);
+    if ((elt = (MESSAGECACHE *) (*mc) (stream,i,CH_ELT)) &&
+	(elt->lockcount == 1)) (*mc) (stream,i,CH_FREE);
 }
 
 /* Mail Access Protocol garbage collect body texts
@@ -1296,7 +1297,7 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
 				/* note if server said it was readonly */
       strncpy (LOCAL->tmp,reply->text,11);
       LOCAL->tmp[11] = '\0';	/* tie off text */
-      if (!strcmp (ucase (LOCAL->tmp),"[READ-ONLY]")) stream->readonly = T;
+      if (!strcmp (ucase (LOCAL->tmp),"[READ-ONLY]")) stream->rdonly = T;
       mm_notify (stream,reply->text,(long) NIL);
     }
     else if (!strcmp (reply->key,"NO")) {
@@ -1390,7 +1391,8 @@ void imap_searched (MAILSTREAM *stream,char *text)
 
 void imap_expunged (MAILSTREAM *stream,long msgno)
 {
-  MESSAGECACHE *elt = (MESSAGECACHE *) (*mailcache) (stream,msgno,CH_ELT);
+  mailcache_t mc = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
+  MESSAGECACHE *elt = (MESSAGECACHE *) (*mc) (stream,msgno,CH_ELT);
   if (elt) {
     if (elt->data1) fs_give ((void **) &elt->data1);
     if (elt->data2) fs_give ((void **) &elt->data2);
@@ -1652,6 +1654,7 @@ void imap_parse_flags (MAILSTREAM *stream,MESSAGECACHE *elt,char **txtptr)
 {
   char *flag;
   char c;
+  elt->valid = T;		/* mark have valid flags now */
   elt->user_flags = NIL;	/* zap old flag values */
   elt->seen = elt->deleted = elt->flagged = elt->answered = elt->recent = NIL;
   while (T) {			/* parse list of flags */
@@ -1720,6 +1723,7 @@ char *imap_parse_string (MAILSTREAM *stream,char **txtptr,
   char *string = NIL;
   unsigned long i;
   char c = **txtptr;		/* sniff at first character */
+  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
 				/* ignore leading spaces */
   while (c == ' ') c = *++*txtptr;
   st = ++*txtptr;		/* remember start of string */
@@ -1744,8 +1748,8 @@ char *imap_parse_string (MAILSTREAM *stream,char **txtptr,
   case '{':			/* if literal string */
 				/* get size of string */
     i = imap_parse_number (stream,txtptr);
-    if (special && mailgets)	/* have special routine to slurp string? */
-      string = (*mailgets) (tcp_getbuffer,LOCAL->tcpstream,i);
+				/* have special routine to slurp string? */
+    if (special && mg) string = (*mg) (tcp_getbuffer,LOCAL->tcpstream,i);
     else {			/* must slurp into free storage */
       string = (char *) fs_get (i + 1);
       *string = '\0';		/* init in case getbuffer fails */

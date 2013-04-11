@@ -257,7 +257,7 @@ char *bezerk_eom (char *som,char *sod,long i);
 int bezerk_extend (MAILSTREAM *stream,int fd,char *error);
 void bezerk_save (MAILSTREAM *stream,int fd);
 int bezerk_copy_messages (MAILSTREAM *stream,char *mailbox);
-void bezerk_write_message (struct iovec iov[],int *i,FILECACHE *m);
+int bezerk_write_message (int fd,FILECACHE *m);
 void bezerk_update_status (char *status,MESSAGECACHE *elt);
 short bezerk_getflags (MAILSTREAM *stream,char *flag);
 char bezerk_search_all (MAILSTREAM *stream,long msgno,char *d,long n);

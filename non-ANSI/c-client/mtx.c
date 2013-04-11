@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	6 September 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -115,7 +115,7 @@ int mtx_isvalid (name,tmp)
 	char *name;
 	char *tmp;
 {
-  int i,fd;
+  int fd;
   int ret = NIL;
   char *s,file[MAILTMPLEN];
   struct stat sbuf;
@@ -123,25 +123,27 @@ int mtx_isvalid (name,tmp)
   errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
-      (!stat (mtx_file (file,name),&sbuf)) &&
-      ((fd = open (file,O_RDONLY,NIL)) >= 0)) {
-    errno = 0;			/* clear error */
-    if (sbuf.st_size) {		/* allow if non-empty */
+      !stat (mtx_file (file,name),&sbuf)) {
+    if (!sbuf.st_size) {	/* allow empty file if INBOX */
+      if (!strcmp (ucase (strcpy (tmp,name)),"INBOX")) ret = T;
+      else errno = 0;		/* empty file */
+    }
+    else if ((fd = open (file,O_RDONLY,NIL)) >= 0) {
+      memset (tmp,'\0',MAILTMPLEN);
       if ((read (fd,tmp,64) >= 0) && (s = strchr (tmp,'\015')) &&
-	  (s[1] == '\012')) {
+	  (s[1] == '\012')) {	/* valid format? */
 	*s = '\0';		/* tie off header */
 				/* must begin with dd-mmm-yy" */
 	ret = (((tmp[2] == '-' && tmp[6] == '-') ||
 		(tmp[1] == '-' && tmp[5] == '-')) &&
 	       (s = strchr (tmp+20,',')) && strchr (s+2,';')) ? T : NIL;
       }
+      else errno = -1;		/* bogus format */
+      close (fd);		/* close the file */
       tp[0] = sbuf.st_atime;	/* preserve atime and mtime */
       tp[1] = sbuf.st_mtime;
       utime (file,tp);		/* set the times */
     }
-				/* allow empty file if INBOX */
-    else if (!strcmp (ucase (strcpy (tmp,name)),"INBOX")) ret = T;
-    close (fd);			/* close the file */
   }
   return ret;			/* return what we should */
 }
@@ -362,17 +364,17 @@ MAILSTREAM *mtx_open (stream)
   }
   user_flags (stream);		/* set up user flags */
 				/* force readonly if bboard */
-  if (*stream->mailbox == '*') stream->readonly = T;
-  if (stream->readonly ||
+  if (*stream->mailbox == '*') stream->rdonly = T;
+  if (stream->rdonly ||
       (fd = open (mtx_file (tmp,stream->mailbox),O_RDWR,NIL)) < 0) {
     if ((fd = open (mtx_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0) {
       sprintf (tmp,"Can't open mailbox: %s",strerror (errno));
       mm_log (tmp,ERROR);
       return NIL;
     }
-    else if (!stream->readonly) {/* got it, but readonly */
+    else if (!stream->rdonly) {	/* got it, but readonly */
       mm_log ("Can't get write access to mailbox, access is readonly",WARN);
-      stream->readonly = T;
+      stream->rdonly = T;
     }
   }
   stream->local = fs_get (sizeof (MTXLOCAL));
@@ -719,7 +721,7 @@ void mtx_setflag (stream,sequence,flag)
 				/* recalculate status */
       mtx_update_status (stream,i,NIL);
     }
-  if (!stream->readonly) {	/* make sure the update takes */
+  if (!stream->rdonly) {	/* make sure the update takes */
     fsync (LOCAL->fd);
     fstat (LOCAL->fd,&sbuf);	/* get current write time */
     LOCAL->filetime = sbuf.st_mtime;
@@ -760,7 +762,7 @@ void mtx_clearflag (stream,sequence,flag)
 				/* recalculate status */
       mtx_update_status (stream,i,NIL);
     }
-  if (!stream->readonly) {	/* make sure the update takes */
+  if (!stream->rdonly) {	/* make sure the update takes */
     fsync (LOCAL->fd);
     fstat (LOCAL->fd,&sbuf);	/* get current write time */
     LOCAL->filetime = sbuf.st_mtime;
@@ -901,7 +903,7 @@ long mtx_ping (stream)
       mtx_unlock (ld,lock);	/* release shared parse/append permission */
     }
 				/* snarf if this is a read-write inbox */
-    if (stream && LOCAL && LOCAL->inbox && !stream->readonly) {
+    if (stream && LOCAL && LOCAL->inbox && !stream->rdonly) {
       mtx_snarf (stream);
 				/* get shared parse/append permission */
       if ((ld = mtx_lock (LOCAL->fd,lock,LOCK_SH)) >= 0) {
@@ -953,7 +955,7 @@ void mtx_snarf (stream)
 				/* sizes match and can get sysibx mailbox? */
     if ((sbuf.st_size == LOCAL->filesize) &&
 	(sysibx = mail_open (sysibx,sysinbox (),OP_SILENT)) &&
-	(!sysibx->readonly) && (r = sysibx->nmsgs)) {
+	(!sysibx->rdonly) && (r = sysibx->nmsgs)) {
 				/* yes, go to end of file in our mailbox */
       lseek (LOCAL->fd,sbuf.st_size,L_SET);
 				/* for each message in sysibx mailbox */
@@ -1011,7 +1013,7 @@ void mtx_expunge (stream)
   MESSAGECACHE *elt;
 				/* do nothing if stream dead */
   if (!mtx_ping (stream)) return;
-  if (stream->readonly) {	/* won't do on readonly files! */
+  if (stream->rdonly) {		/* won't do on readonly files! */
     mm_log ("Expunge ignored on readonly mailbox",WARN);
     return;
   }
@@ -1128,7 +1130,7 @@ long mtx_move (stream,sequence,mailbox)
 				/* recalculate status */
       mtx_update_status (stream,i,NIL);
     }
-  if (!stream->readonly) {	/* make sure the update takes */
+  if (!stream->rdonly) {	/* make sure the update takes */
     fsync (LOCAL->fd);
     fstat (LOCAL->fd,&sbuf);	/* get current write time */
     LOCAL->filetime = sbuf.st_mtime;
@@ -1408,48 +1410,49 @@ long mtx_parse (stream)
   while (sbuf.st_size - curpos){/* while there is stuff to parse */
 				/* get to that position in the file */
     lseek (LOCAL->fd,curpos,L_SET);
-    if ((i = read (LOCAL->fd,tmp,64)) <= 0) {
+    if ((i = read (LOCAL->fd,LOCAL->buf,64)) <= 0) {
       sprintf (tmp,"Unable to read internal header at %ld, size = %ld: %s",
 	       curpos,sbuf.st_size,i ? strerror (errno) : "no data read");
       mm_log (tmp,ERROR);
       mtx_close (stream);
       return NIL;
     }
-    tmp[i] = '\0';		/* tie off buffer just in case */
-    if (!((s = strchr (tmp,'\015')) && (s[1] == '\012'))) {
+    LOCAL->buf[i] = '\0';	/* tie off buffer just in case */
+    if (!((s = strchr (LOCAL->buf,'\015')) && (s[1] == '\012'))) {
       sprintf (tmp,"Unable to find end of line at %ld in %ld bytes: %s",
-	       curpos,i,tmp);
+	       curpos,i,LOCAL->buf);
       mm_log (tmp,ERROR);
       mtx_close (stream);
       return NIL;
     }
     *s = '\0';			/* tie off header line */
-    i = (s + 2) - tmp;		/* note start of text offset */
-    if (!((s = strchr (tmp,',')) && (t = strchr (s+1,';')))) {
-      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,tmp);
+    i = (s + 2) - LOCAL->buf;	/* note start of text offset */
+    if (!((s = strchr (LOCAL->buf,',')) && (t = strchr (s+1,';')))) {
+      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,
+	       LOCAL->buf);
       mm_log (tmp,ERROR);
       mtx_close (stream);
       return NIL;
     }
+
     *s++ = '\0'; *t++ = '\0';	/* tie off fields */
 				/* intantiate an elt for this message */
-    elt = mail_elt (stream,++nmsgs);
+    (elt = mail_elt (stream,++nmsgs))->valid = T;
     elt->data1 = curpos;	/* note file offset of header */
     elt->data2 = i << 24;	/* as well as offset from header of message */
 				/* parse the header components */
-    if (!(mail_parse_date (elt,tmp) &&
+    if (!(mail_parse_date (elt,LOCAL->buf) &&
 	  (elt->rfc822_size = msiz = strtol (x = s,&s,10)) && (!(s && *s)) &&
 	  isdigit (t[0]) && isdigit (t[1]) && isdigit (t[2]) &&
 	  isdigit (t[3]) && isdigit (t[4]) && isdigit (t[5]) &&
 	  isdigit (t[6]) && isdigit (t[7]) && isdigit (t[8]) &&
 	  isdigit (t[9]) && isdigit (t[10]) && isdigit (t[11]) && !t[12])) {
       sprintf (tmp,"Unable to parse internal header elements at %ld: %s,%s;%s",
-	       curpos,tmp,x,t);
+	       curpos,LOCAL->buf,x,t);
       mm_log (tmp,ERROR);
       mtx_close (stream);
       return NIL;
     }
-
 				/* make sure message fits in file */
     if ((curpos += (msiz + i)) > sbuf.st_size) {
       mm_log ("Last message runs past end of file",ERROR);
@@ -1620,7 +1623,7 @@ void mtx_update_status (stream,msgno,syncflag)
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   struct stat sbuf;
   unsigned long j,k = 0;
-  if (!stream->readonly) {	/* not if readonly you don't */
+  if (!stream->rdonly) {	/* not if readonly you don't */
     j = elt->user_flags;	/* get user flags */
 				/* reverse bits (dontcha wish we had CIRC?) */
     while (j) k |= 1 << (29 - find_rightmost_bit (&j));
@@ -1985,28 +1988,30 @@ search_t mtx_search_string (f,d,n)
 	char **d;
 	long *n;
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

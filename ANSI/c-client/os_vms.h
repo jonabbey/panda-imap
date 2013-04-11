@@ -5,7 +5,7 @@
  *		Internet: Yehavi@VMS.huji.ac.il
  *
  * Date:	2 August 1994
- * Last Edited:	2 August 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -28,13 +28,6 @@
  *
  */
 
-#define MAILFILE "/usr/spool/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
-#define NEWSRC "SYS$LOGIN:.newsrc"
-#define NEWNEWSRC "SYS$LOGIN:.nnewsrc"
-
-
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>

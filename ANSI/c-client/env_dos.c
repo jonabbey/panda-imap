@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	4 September 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -34,8 +34,49 @@
  */
 
 
-char *myLocalHost = NIL;	/* local host name */
+static char *myLocalHost = NIL;	/* local host name */
 static char *myHomeDir = NIL;	/* home directory name */
+static char *myNewsrc = NIL;	/* newsrc file name */
+
+/* Environment manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *env_parameters (long function,void *value)
+{
+  switch ((int) function) {
+  case SET_HOMEDIR:
+    myHomeDir = cpystr ((char *) value);
+    break;
+  case GET_HOMEDIR:
+    value = (void *) myHomeDir;
+    break;
+  case SET_LOCALHOST:
+    myLocalHost = cpystr ((char *) value);
+    break;
+  case GET_LOCALHOST:
+    value = (void *) myLocalHost;
+    break;
+  case SET_NEWSRC:
+    if (myNewsrc) fs_give ((void **) &myNewsrc);
+    myNewsrc = cpystr ((char *) value);
+    break;
+  case GET_NEWSRC:
+    if (!myNewsrc) {		/* set news file name if not defined */
+      char tmp[MAILTMPLEN];
+      sprintf (tmp,"%s\\NEWSRC",myhomedir ());
+      myNewsrc = cpystr (tmp);
+    }
+    value = (void *) myNewsrc;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
+}
 
 /* Write current time in RFC 822 format
  * Accepts: destination string
@@ -125,15 +166,9 @@ MAILSTREAM *default_proto ()
   return &DEFAULTPROTO;		/* return default driver's prototype */
 }
 
-/* This function is only used by rfc822.c for calculating cookies.  So this
- * is good enough.  If anything better is needed fancier functions will be
- * needed.
- */
-
-
 /* Global data */
 
-unsigned long rndm = 0xfeed;	/* initial `random' number */
+static unsigned rndm = 0;	/* initial `random' number */
 
 
 /* Return random number
@@ -141,5 +176,6 @@ unsigned long rndm = 0xfeed;	/* initial `random' number */
 
 long random ()
 {
-  return rndm *= 0xdae0;
+  if (!rndm) srand (rndm = (unsigned) time (0L));
+  return (long) rand ();
 }

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 July 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -32,6 +32,49 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
+
+
+				/* TCP timeout handler routine */
+static tcptimeout_t tcptimeout = NIL;
+				/* TCP timeouts, in seconds */
+static long tcptimeout_read = 0;
+static long tcptimeout_write = 0;
+
+/* TCP/IP manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *tcp_parameters (function,value)
+	long function;
+	void *value;
+{
+  switch ((int) function) {
+  case SET_TIMEOUT:
+    tcptimeout = (tcptimeout_t) value;
+    break;
+  case GET_TIMEOUT:
+    value = (void *) tcptimeout;
+    break;
+  case SET_READTIMEOUT:
+    tcptimeout_read = (long) value;
+    break;
+  case GET_READTIMEOUT:
+    value = (void *) tcptimeout_read;
+    break;
+  case SET_WRITETIMEOUT:
+    tcptimeout_write = (long) value;
+    break;
+  case GET_WRITETIMEOUT:
+    value = (void *) tcptimeout_write;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
+}
 
 /* TCP/IP open
  * Accepts: host name
@@ -283,7 +326,7 @@ long tcp_getdata (stream)
   fd_set fds,efds;
   struct timeval tmo;
   time_t t = time (0);
-  tmo.tv_sec = (long) mail_parameters (NIL,GET_READTIMEOUT,NIL);
+  tmo.tv_sec = tcptimeout_read;
   tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
   FD_ZERO (&efds);		/* handle errors too */
@@ -338,7 +381,7 @@ long tcp_sout (stream,string,size)
   fd_set fds;
   struct timeval tmo;
   time_t t = time (0);
-  tmo.tv_sec = (long) mail_parameters (NIL,GET_WRITETIMEOUT,NIL);
+  tmo.tv_sec = tcptimeout_write;
   tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcpso < 0) return NIL;

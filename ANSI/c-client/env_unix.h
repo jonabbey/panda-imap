@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	4 September 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -37,8 +37,6 @@
 /* Function prototypes */
 
 #include "env.h"
-
-extern char *myLocalHost;
 
 long env_init (char *user,char *home);
 char *myusername ();

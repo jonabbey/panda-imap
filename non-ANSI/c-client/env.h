@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 1994
+ * Last Edited:	7 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -35,6 +35,7 @@
 
 /* Function prototypes */
 
+void *env_parameters  ();
 void rfc822_date  ();
 void rfc822_timezone  ();
 void internal_date  ();

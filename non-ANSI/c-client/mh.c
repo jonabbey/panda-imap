@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	15 August 1994
+ * Last Edited:	9 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -113,6 +113,7 @@ DRIVER *mh_valid (name)
  */
 
 static char *mh_path = NIL;	/* holds MH path name */
+static long mh_once = 0;	/* already through this code */
 
 int mh_isvalid (name,tmp,synonly)
 	char *name;
@@ -123,15 +124,16 @@ int mh_isvalid (name,tmp,synonly)
   if (!mh_path) {		/* have MH path yet? */
     char *s,*s1,*t,*v;
     int fd;
+    if (mh_once++) return NIL;	/* only do this code once */
     sprintf (tmp,"%s/%s",myhomedir (),MHPROFILE);
     if ((fd = open (tmp,O_RDONLY,NIL)) < 0) return NIL;
     fstat (fd,&sbuf);		/* yes, get size and read file */
-    read (fd,(s1 = s = (char *) fs_get (sbuf.st_size + 1)),sbuf.st_size);
+    read (fd,(s1 = t = (char *) fs_get (sbuf.st_size + 1)),sbuf.st_size);
     close (fd);			/* don't need the file any more */
-    s[sbuf.st_size] = '\0';	/* tie it off */
+    t[sbuf.st_size] = '\0';	/* tie it off */
 				/* parse profile file */
-    while (*s && (t = strchr (s,'\n'))) {
-      *t = '\0';		/* tie off line, find second space */
+    while (*(s = t) && (t = strchr (s,'\n'))) {
+      *t++ = '\0';		/* tie off line */
       if (v = strchr (s,' ')) {	/* found space in line? */
 	*v = '\0';		/* tie off, is keyword "Path:"? */
 	if (!strcmp (lcase (s),"path:")) {
@@ -140,7 +142,6 @@ int mh_isvalid (name,tmp,synonly)
 	  mh_path = cpystr (s);	/* copy name */
 	  break;		/* don't need to look at rest of file */
 	}
-	s = ++t;		/* try next line */
       }
     }
     fs_give ((void **) &s1);	/* flush profile text */
@@ -340,7 +341,7 @@ long mh_create (stream,mailbox)
     mm_log (tmp,ERROR);
     return NIL;
   }
-  if (!mh_path) return;		/* sorry */
+  if (!mh_path) return NIL;	/* sorry */
   sprintf (tmp,"%s/%s",mh_path,mailbox + 4);
   if (mkdir (tmp,0700)) {	/* try to make it */
     sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
@@ -500,7 +501,12 @@ void mh_fetchfast (stream,sequence)
 	MAILSTREAM *stream;
 	char *sequence;
 {
-  return;			/* no-op for local mail */
+  long i;
+				/* ugly and slow */
+  if (stream && LOCAL && mail_sequence (stream,sequence))
+    for (i = 1; i <= stream->nmsgs; i++)
+      if (mail_elt (stream,i)->sequence)
+	mh_fetchheader (stream,i);
 }
 
 
@@ -574,11 +580,10 @@ char *mh_fetchheader (stream,msgno)
 	MAILSTREAM *stream;
 	long msgno;
 {
-  unsigned long i,j;
+  unsigned long i,hdrsize;
   int fd;
   char *s,*b,*t;
   long m = msgno - 1;
-  long lst = NIL;
   struct stat sbuf;
   struct tm *tm;
   MESSAGECACHE *elt = mail_elt (stream,msgno);
@@ -599,19 +604,13 @@ char *mh_fetchheader (stream,msgno)
       read (fd,s = (char *) fs_get (sbuf.st_size +1),sbuf.st_size);
       s[sbuf.st_size] = '\0';	/* tie off file */
       close (fd);		/* flush message file */
-				/* find end of header and count lines */
-      for (i = 1,b = s; *b && !(lst && (*b == '\n'));)
-	if (lst = (*b++ == '\n')) i++;
-				/* copy header in CRLF form */
-      LOCAL->hdr = (char *) fs_get (i += (j = b - s));
-      elt->rfc822_size = i - 1;	/* size of message header */
-      strcrlfcpy (&LOCAL->hdr,&i,s,j);
-				/* copy body in CRLF form */
-      for (i = 1,t = b; *t;) if (*t++ == '\n') i++;
-      stream->text = (char *) fs_get (i += (j = t - b));
       stream->msgno = msgno;	/* note current message number */
-      elt->rfc822_size += i - 1;/* size of entire message */
-      strcrlfcpy (&stream->text,&i,b,j);
+				/* find end of header */
+      for (i = 0,b = s; *b && !(i && (*b == '\n')); i = (*b++ == '\n'));
+      hdrsize = (*b ? ++b:b)-s; /* number of header bytes */
+      elt->rfc822_size =	/* size of entire message in CRLF form */
+	strcrlfcpy (&LOCAL->hdr,&i,s,hdrsize) +
+	strcrlfcpy (&stream->text,&i,b,sbuf.st_size - hdrsize);
       fs_give ((void **) &s);	/* flush old data */
     }
   }
@@ -873,6 +872,7 @@ long mh_ping (stream)
 				/* if newly seen, add to list */
       if ((j = atoi (names[i]->d_name)) > old) {
 	(elt = mail_elt (stream,++nmsgs))->data1 = j;
+	elt->valid = T;		/* note valid flags */
 	if (old) {		/* other than the first pass? */
 	  elt->recent = T;	/* yup, mark as recent */
 	  recent++;		/* bump recent count */
@@ -892,12 +892,12 @@ long mh_ping (stream)
   if (LOCAL->inbox) {		/* if INBOX, snarf from system INBOX  */
     old = nmsgs ? mail_elt (stream,nmsgs)->data1 : 0;
 				/* paranoia check */
-    if (!strcmp (sysinbox (),stream->mailbox)) return;
+    if (!strcmp (sysinbox (),stream->mailbox)) return NIL;
     mm_critical (stream);	/* go critical */
     stat (sysinbox (),&sbuf);	/* see if anything there */
 				/* can get sysinbox mailbox? */
     if (sbuf.st_size && (sysibx = mail_open (sysibx,sysinbox (),OP_SILENT))
-	&& (!sysibx->readonly) && (r = sysibx->nmsgs)) {
+	&& (!sysibx->rdonly) && (r = sysibx->nmsgs)) {
       for (i = 1; i <= r; ++i) {/* for each message in sysinbox mailbox */
 				/* build file name we will use */
 	sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,++old);
@@ -910,7 +910,8 @@ long mh_ping (stream)
 				/* create new elt, note its file number */
 	  (elt = mail_elt (stream,++nmsgs))->data1 = old;
 	  recent++;		/* bump recent count */
-	  elt->recent = T;	/* set up initial flags and date */
+				/* set up initial flags and date */
+	  elt->valid = elt->recent = T;
 	  elt->seen = selt->seen;
 	  elt->deleted = selt->deleted;
 	  elt->flagged = selt->flagged;
@@ -1025,12 +1026,14 @@ long mh_copy (stream,sequence,mailbox)
       s[sbuf.st_size] = '\0';	/* tie off file */
       close (fd);		/* flush message file */
       INIT (&st,mail_string,(void *) s,sbuf.st_size);
-      strcpy (LOCAL->buf,"(");	/* initialize flags */
-      if (elt->seen) strcat (LOCAL->buf,"\\Seen");
-      if (elt->deleted) strcat (LOCAL->buf,"\\Deleted");
-      if (elt->flagged) strcat (LOCAL->buf,"\\Flagged");
-      if (elt->answered) strcat (LOCAL->buf,"\\Answered");
-      strcat (LOCAL->buf,")");	/* terminate list */
+      sprintf (LOCAL->buf,"%s%s%s%s%s)",
+	       elt->seen ? " \\Seen" : "",
+	       elt->deleted ? " \\Deleted" : "",
+	       elt->flagged ? " \\Flagged" : "",
+	       elt->answered ? " \\Answered" : "",
+	       (elt->seen || elt->deleted || elt->flagged || elt->answered) ?
+	       "" : " ");
+      LOCAL->buf[0] = '(';	/* open list */
       mail_date (tmp,elt);	/* generate internal date */
       if (!mh_append (stream,mailbox,LOCAL->buf,tmp,&st)) {
 	fs_give ((void **) &s);	/* give back temporary space */
@@ -1614,28 +1617,30 @@ search_t mh_search_string (f,d,n)
 	char **d;
 	long *n;
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	22 August 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -44,11 +44,12 @@
 
 /* c-client global data */
 
-DRIVER *maildrivers = NIL;	/* list of mail drivers */
-mailgets_t mailgets = NIL;	/* pointer to alternate gets function */
+				/* list of mail drivers */
+static DRIVER *maildrivers = NIL;
+				/* pointer to alternate gets function */
+static mailgets_t mailgets = NIL;
 				/* mail cache manipulation function */
-mailcache_t mailcache = mm_cache;
-tcptimeout_t tcptimeout = NIL;	/* TCP timeout handler routine */
+static mailcache_t mailcache = mm_cache;
 
 /* Default limited get string
  * Accepts: readin function pointer
@@ -253,49 +254,39 @@ void mail_link (driver)
  * Returns: function-dependent return value
  */
 
-				/* TCP timeouts, in seconds */
-static long mail_opentimeout = 75;
-static long mail_readtimeout = 0;
-static long mail_writetimeout = 0;
-static long mail_closetimeout = 0;
-
 void *mail_parameters (stream,function,value)
 	MAILSTREAM *stream;
 	long function;
 	void *value;
 {
   void *r,*ret = NIL;
-  DRIVER *d = maildrivers;
+  DRIVER *d;
   switch ((int) function) {
-  case GET_OPENTIMEOUT:
-    ret = (void *) mail_opentimeout;
+  case SET_DRIVERS:
+    fatal ("SET_DRIVERS not permitted");
+  case GET_DRIVERS:
+    ret = (void *) maildrivers;
     break;
-  case SET_OPENTIMEOUT:
-    mail_opentimeout = (long) value;
+  case SET_GETS:
+    mailgets = (mailgets_t) value;
+  case GET_GETS:
+    ret = (void *) mailgets;
     break;
-  case GET_READTIMEOUT:
-    ret = (void *) mail_readtimeout;
-    break;
-  case SET_READTIMEOUT:
-    mail_readtimeout = (long) value;
-    break;
-  case GET_WRITETIMEOUT:
-    ret = (void *) mail_writetimeout;
-    break;
-  case SET_WRITETIMEOUT:
-    mail_writetimeout = (long) value;
-    break;
-  case GET_CLOSETIMEOUT:
-    ret = (void *) mail_closetimeout;
-    break;
-  case SET_CLOSETIMEOUT:
-    mail_closetimeout = (long) value;
+  case SET_CACHE:
+    mailcache = (mailcache_t) value;
+  case GET_CACHE:
+    ret = (void *) mailcache;
     break;
   default:
-    if (stream && stream->dtb)	/* if have a stream, do it for that stream */
-      return (*stream->dtb->parameters)(function,value);
-    else do if (r = (d->parameters) (function,value)) ret = r;
-    while (d = d->next);	/* until at the end */
+    if (stream && stream->dtb)	/* if have stream, do for that stream only */
+      ret = (*stream->dtb->parameters) (function,value);
+				/* else do all drivers */
+    else for (d = maildrivers; d; d = d->next)
+      if (r = (d->parameters) (function,value)) ret = r;
+				/* do environment */
+    if (r = env_parameters (function,value)) ret = r;
+				/* do TCP/IP */
+    if (r = tcp_parameters (function,value)) ret = r;
     break;
   }
   return ret;
@@ -682,7 +673,7 @@ MAILSTREAM *mail_open (stream,name,options)
     }
     stream->lock = NIL;		/* initialize lock and options */
     stream->debug = (options & OP_DEBUG) ? T : NIL;
-    stream->readonly = (options & OP_READONLY) ? T : NIL;
+    stream->rdonly = (options & OP_READONLY) ? T : NIL;
     stream->anonymous = (options & OP_ANONYMOUS) ? T : NIL;
     stream->scache = (options & OP_SHORTCACHE) ? T : NIL;
     stream->silent = (options & OP_SILENT) ? T : NIL;

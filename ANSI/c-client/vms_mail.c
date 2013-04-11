@@ -5,7 +5,7 @@
  *		Internet: Yehavi@VMS.huji.ac.il
  *
  * Date:	2 August 1994
- * Last Edited:	15 August 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1993 by the University of Washington
  *
@@ -575,7 +575,7 @@ MAILSTREAM *vms_mail_open (stream)
   }
 
 				/* force readonly if bboard */
-  if (*stream->mailbox == '*') stream->readonly = T;
+  if (*stream->mailbox == '*') stream->rdonly = T;
 
 /* Open the VMS file and select the folder we want */
   ___vms_mail_open(MailDirectory);
@@ -626,7 +626,7 @@ MAILSTREAM *vms_mail_open (stream)
 	sprintf(tmp, "1:%d", stream->nmsgs);
 	vms_mail_setflag (stream, tmp, "(\\SEEN)");
   }
-
+  for (i = 1; i < stream->nmsgs; i++) mail_elt (stream,i)->valid = T;
   return stream;		/* return stream to caller */
 }
 
@@ -1373,9 +1373,7 @@ long vms_mail_ping (stream)
 void vms_mail_check (stream)
 	MAILSTREAM *stream;
 {
-  long i = 1;
-    while (i <= stream->nmsgs) mail_elt (stream,i++);
-    mm_log ("Check completed",(long) NIL);
+  mm_log ("Check completed",(long) NIL);
 }
 
 /* VMS/MAIL mail expunge mailbox - Delete the messages that are flagged as
@@ -2057,30 +2055,32 @@ search_t vms_mail_search_string (f,d,n)
 	char **d;
 	long *n;
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }
 
 /*

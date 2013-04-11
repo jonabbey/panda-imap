@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- NetBSD 0.9 version
+ * Program:	Operating-system dependent routines -- NetBSD version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 Ausgust 1988
- * Last Edited:	30 August 1994
+ * Last Edited:	10 October 1994
  *
  * Copyright 1994 by the University of Washington
  *

@@ -5,7 +5,7 @@
  *		Internet: Yehavi@VMS.huji.ac.il
  *
  * Date:	2 August 1994
- * Last Edited:	4 September 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -30,10 +30,57 @@
 
 
 static char *myUserName = NIL;	/* user name */
-char *myLocalHost = NIL;	/* local host name */
+static char *myLocalHost = NIL;	/* local host name */
 static char *myHomeDir = NIL;	/* home directory name */
+static char *myNewsrc = NIL;	/* newsrc file name */
 static MAILSTREAM *defaultProto = NIL;
 static char *userFlags[NUSERFLAGS] = {NIL};
+
+/* Environment manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *env_parameters (long function,void *value)
+{
+  switch ((int) function) {
+  case SET_USERNAME:
+    myUserName = cpystr ((char *) value);
+    break;
+  case GET_USERNAME:
+    value = (void *) myUserName;
+    break;
+  case SET_HOMEDIR:
+    myHomeDir = cpystr ((char *) value);
+    break;
+  case GET_HOMEDIR:
+    value = (void *) myHomeDir;
+    break;
+  case SET_LOCALHOST:
+    myLocalHost = cpystr ((char *) value);
+    break;
+  case GET_LOCALHOST:
+    value = (void *) myLocalHost;
+    break;
+  case SET_NEWSRC:
+    if (myNewsrc) fs_give ((void **) &myNewsrc);
+    myNewsrc = cpystr ((char *) value);
+    break;
+  case GET_NEWSRC:
+    if (!myNewsrc) {		/* set news file name if not defined */
+      char tmp[MAILTMPLEN];
+      sprintf (tmp,"%s:.newsrc",myhomedir ());
+      myNewsrc = cpystr (tmp);
+    }
+    value = (void *) myNewsrc;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
+}
  
 /* Write current time in RFC 822 format
  * Accepts: destination string
@@ -82,13 +129,10 @@ char *myusername ()
 
   if (!myUserName) {		/* get user name if don't have it yet */
     myUserName = cpystr (cuserid (NULL));
-				/* build mail spool name */
-    sprintf (tmp,MAILFILE,myUserName);
-				/* is mail spool a directory? */
-    myHomeDir = cpystr (tmp);	/* yes, it is the home directory then */
+    myHomeDir = cpystr ("SYS$LOGIN");
 				/* do configuration files */
-    dorc (strcat (strcpy (tmp,myhomedir ()),".imaprc"));
-    dorc (strcat (strcpy (tmp,myhomedir ()),".mminit"));
+    dorc (strcat (strcpy (tmp,myhomedir ()),":.imaprc"));
+    dorc (strcat (strcpy (tmp,myhomedir ()),":.mminit"));
     dorc ("UTIL$:imapd.conf");
     if (!defaultProto) defaultProto = &STDPROTO;
   }

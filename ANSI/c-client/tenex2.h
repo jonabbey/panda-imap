@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	10 May 1994
+ * Last Edited:	2 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -56,6 +56,10 @@ typedef struct tenex_local {
   time_t filetime;		/* last file time */
   char *buf;			/* temporary buffer */
   unsigned long buflen;		/* current size of temporary buffer */
+  unsigned long hdrmsgno;	/* message number of last header */
+  char *hdr;			/* last header read */
+  unsigned long txtmsgno;	/* message number of last text */
+  char *txt;			/* last text read */
 } TENEXLOCAL;
 
 
@@ -85,7 +89,9 @@ void tenex_fetchfast (MAILSTREAM *stream,char *sequence);
 void tenex_fetchflags (MAILSTREAM *stream,char *sequence);
 ENVELOPE *tenex_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body);
 char *tenex_fetchheader (MAILSTREAM *stream,long msgno);
+char *tenex_fetchheader_work (MAILSTREAM *stream,long m,unsigned long *siz);
 char *tenex_fetchtext (MAILSTREAM *stream,long msgno);
+char *tenex_fetchtext_work (MAILSTREAM *stream,long m,unsigned long *siz);
 char *tenex_fetchbody (MAILSTREAM *stream,long m,char *sec,unsigned long *len);
 unsigned long tenex_header (MAILSTREAM *stream,long msgno,unsigned long *size);
 void tenex_setflag (MAILSTREAM *stream,char *sequence,char *flag);
@@ -104,6 +110,7 @@ void tenex_gc (MAILSTREAM *stream,long gcflags);
 int tenex_lock (int fd,char *lock,int op);
 void tenex_unlock (int fd,char *lock);
 unsigned long tenex_size (MAILSTREAM *stream,long m);
+unsigned long tenex_822size (MAILSTREAM *stream,long msgno);
 char *tenex_file (char *dst,char *name);
 long tenex_getflags (MAILSTREAM *stream,char *flag,unsigned long *uf);
 long tenex_parse (MAILSTREAM *stream);

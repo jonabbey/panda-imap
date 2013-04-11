@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	14 August 1994
+ * Last Edited:	9 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -278,9 +278,10 @@ long pop3_rename (MAILSTREAM *stream,char *old,char *new)
 
 MAILSTREAM *pop3_open (MAILSTREAM *stream)
 {
-  long i;
+  long i,nmsgs;
   char *s,tmp[MAILTMPLEN],usrnam[MAILTMPLEN],pwd[MAILTMPLEN];
   NETMBX mb;
+  MESSAGECACHE *elt;
   struct hostent *host_name;
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &pop3proto;
@@ -333,15 +334,20 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
     }
     else if (pop3_send (stream,"STAT",NIL)) {
       LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
-      i = strtol (LOCAL->reply,NIL,10);
+      nmsgs = strtol (LOCAL->reply,NIL,10);
 				/* create caches */
       LOCAL->header = (char **) fs_get (i * sizeof (char *));
       LOCAL->body = (char **) fs_get (i * sizeof (char *));
-      mail_exists (stream,i);	/* notify upper level that messages exist */
-      mail_recent (stream,i);
+      for (i = 0; i < nmsgs;) {	/* initialize caches */
+	LOCAL->header[i] = LOCAL->body[i] = NIL;
+				/* instantiate elt */
+	elt = mail_elt (stream,++i);
+	elt->valid = elt->recent = T;
+      }
+      mail_exists(stream,nmsgs);/* notify upper level that messages exist */
+      mail_recent (stream,nmsgs);
 				/* notify if empty */
-      if (!(i || stream->silent)) mm_log ("Mailbox is empty",WARN);
-      while (i--) LOCAL->header[i] = LOCAL->body[i] = NIL;
+      if (!(nmsgs || stream->silent)) mm_log ("Mailbox is empty",WARN);
     }
     else {			/* error in STAT */
       mm_log (LOCAL->reply,ERROR);
@@ -384,7 +390,13 @@ void pop3_close (MAILSTREAM *stream)
 
 void pop3_fetchfast (MAILSTREAM *stream,char *sequence)
 {
-  return;			/* no-op for local mail */
+  long i;
+  BODY *b;
+				/* ugly and slow */
+  if (stream && LOCAL && mail_sequence (stream,sequence))
+    for (i = 1; i <= stream->nmsgs; i++)
+      if (mail_elt (stream,i)->sequence)
+	pop3_fetchstructure (stream,i,&b);
 }
 
 
@@ -414,6 +426,8 @@ ENVELOPE *pop3_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
   ENVELOPE **env;
   STRING bs;
   BODY **b;
+  unsigned long hdrsize;
+  unsigned long textsize = 0;
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   if (stream->scache) {		/* short cache */
     if (msgno != stream->msgno){/* flush old poop if a different message */
@@ -432,13 +446,15 @@ ENVELOPE *pop3_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
   if ((body && !*b) || !*env) {	/* have the poop we need? */
     mail_free_envelope (env);	/* flush old envelope and body */
     mail_free_body (b);
-    h = pop3_fetchheader (stream,msgno);
-    t = pop3_fetchtext_work (stream,msgno);
+    hdrsize = strlen (h = pop3_fetchheader (stream,msgno));
+    if (body) {			/* only if want to parse body */
+      textsize = strlen (t = pop3_fetchtext_work (stream,msgno));
 				/* calculate message size */
-    elt->rfc822_size = strlen (h) + strlen (t);
-    INIT (&bs,mail_string,(void *) t,strlen (t));
+      elt->rfc822_size = hdrsize + textsize;
+      INIT (&bs,mail_string,(void *) t,textsize);
+    }
 				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,
+    rfc822_parse_msg (env,body ? b : NIL,h,hdrsize,body ? &bs : NIL,
 		      tcp_localhost (LOCAL->tcpstream),LOCAL->buf);
 				/* parse date */
     if (*env && (*env)->date) mail_parse_date (elt,(*env)->date);
@@ -1184,28 +1200,30 @@ search_t pop3_search_flag (search_t f,char **d)
 
 search_t pop3_search_string (search_t f,char **d,long *n)
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

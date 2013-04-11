@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	30 August 1994
+# Last Edited:	10 October 1994
 #
 # Copyright 1994 by the University of Washington
 #
@@ -35,10 +35,9 @@ ARCHIVE=c-client.a
 ARRC=ar rc
 BINARIES=mail.o bezerk.o mtx.o tenex2.o mbox.o mh.o mmdf.o imap2.o pop3.o \
 	news.o nntpcunx.o phile.o dummy.o smtp.o nntp.o rfc822.o misc.o \
-	osdep.o sm_unix.o
+	osdep.o sm_unix.o newsrc.o
 CFLAGS=$(EXTRACFLAGS)
 DEFAULTDRIVERS=imap nntp pop3 mh mtx tenex mmdf bezerk news phile dummy
-LDFLAGS=$(EXTRALDFLAGS)
 LN=ln -s
 MAKE=make
 MV=mv
@@ -61,14 +60,14 @@ a32:	# AIX 3.2 for RS/6000
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		CFLAGS="-g -Dconst= -Dunix=1 -D_BSD $(EXTRACFLAGS)" \
-		LDFLAGS="-lbsd $(EXTRALDFLAGS)"
+		LDFLAGS="-lbsd"
 
 aix:	# AIX/370
 	@echo You are building for AIX on an S/370 class machine
 	@echo If you want AIX on an RS/6000 you need to use a32 instead!
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
-		CFLAGS="-g $(EXTRACFLAGS)" LDFLAGS="-lbsd $(EXTRALDFLAGS)"
+		CFLAGS="-g $(EXTRACFLAGS)" LDFLAGS="-lbsd"
 
 aux:	# A/UX
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
@@ -107,31 +106,38 @@ hpp:	# HP-UX
 		STDPROTO=bezerkproto \
 		RSH=remsh RSHPATH=/usr/bin/remsh \
 		CFLAGS="-g -Dconst= $(EXTRACFLAGS)" \
-		CC=cc RANLIB=true LDFLAGS="-lnet $(EXTRALDFLAGS)"
+		CC=cc RANLIB=true LDFLAGS="-lnet"
 
 isc:	# Interactive
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		CFLAGS="-Xp -Dconst= $(EXTRACFLAGS)" RANLIB=true \
-		LDFLAGS="-linet -lnsl_s -lgen -lx -lsec $(EXTRALDFLAGS)"
+		LDFLAGS="-linet -lnsl_s -lgen -lx -lsec"
 
 lnx:	# Linux
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		RSHPATH=/usr/bin/rsh CFLAGS="-g -O $(EXTRACFLAGS)"
 
+mct:	# MachTen
+	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
+		STDPROTO=bezerkproto \
+		CFLAGS="-g -O -pipe $(EXTRACFLAGS)"
+
 mnt:	# Mint
+	@echo "You are being optimistic!"
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		CFLAGS="-O -I. -I/mac/h -I/mac/h-tcp $(EXTRACFLAGS)" \
 		CC=gcc ARRC="gcc-ar rc" RANLIB=true \
-		LDFLAGS="-L/mac/lib /mac/lib-tcp/dnr.o -llibmac -llibmac $(EXTRALDFLAGS)"
+		LDFLAGS="-L/mac/lib /mac/lib-tcp/dnr.o -llibmac -llibmac"
 	fixstk 131072 mtest
 
 neb:	# NetBSD
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
-		RSHPATH=/usr/bin/rsh CFLAGS="-g -O -pipe $(EXTRACFLAGS)"
+		RSHPATH=/usr/bin/rsh CFLAGS="-g -O -pipe $(EXTRACFLAGS)" \
+		LDFLAGS="-lcrypt"
 
 nxt:	# NEXTSTEP
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
@@ -148,7 +154,7 @@ ptx:	# PTX
 		STDPROTO=bezerkproto \
 		RSH=resh RSHPATH=/usr/bin/resh \
 		CFLAGS="-Wc,-O3 -Wc,-seq $(EXTRACFLAGS)" RANLIB=true \
-		LDFLAGS="-lseq -lsec -lsocket -linet -lnsl -lgen $(EXTRALDFLAGS)"
+		LDFLAGS="-lseq -lsec -lsocket -linet -lnsl -lgen"
 
 pyr:	# Pyramid
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
@@ -164,7 +170,7 @@ sco:	# Santa Cruz Operation
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=mmdfproto \
 		CFLAGS=$(EXTRACFLAGS) LN="ln" RANLIB=true \
-		LDFLAGS="-lsocket -lcrypt -lprot -lx $(EXTRALDFLAGS)"
+		LDFLAGS="-lsocket -lcrypt -lprot -lx"
 
 sgi:	# Silicon Graphics
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
@@ -176,19 +182,19 @@ sol:	# Solaris
 	$(MAKE) mtest OS=sv4 EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		RSHPATH=/usr/bin/rsh CFLAGS="-g -Dconst= $(EXTRACFLAGS)" \
-		RANLIB=true LDFLAGS="-lsocket -lnsl -lgen $(EXTRALDFLAGS)"
+		RANLIB=true LDFLAGS="-lsocket -lnsl -lgen"
 
 ssn:	# Secure SUN-OS
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		CFLAGS="-g -Dconst= $(EXTRACFLAGS)" \
-		LDFLAGS="-ldl $(EXTRALDFLAGS)"
+		LDFLAGS="-ldl"
 
 sun:	# SUN-OS
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		CFLAGS="-g -Dconst= $(EXTRACFLAGS)" \
-		LDFLAGS="-ldl $(EXTRALDFLAGS)"
+		LDFLAGS="-ldl"
 
 sv2:	# SVR2
 	@echo "You are being *very* optimistic!"
@@ -196,26 +202,26 @@ sv2:	# SVR2
 		STDPROTO=bezerkproto \
 		RSH=remsh RSHPATH=/usr/bin/remsh \
 		CFLAGS="-Dconst= -DSYSTEM5 -DSHORT_IDENT -I/usr/ethernet/include $(EXTRACFLAGS)" \
-		LN="ln" RANLIB=true LDFLAGS="-lnet $(EXTRALDFLAGS)"
+		LN="ln" RANLIB=true LDFLAGS="-lnet"
 
 sv4:	# SVR4
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		RSH=resh RSHPATH=/usr/bin/resh \
 		CFLAGS="-g -Dconst= $(EXTRACFLAGS)" RANLIB=true \
-		LDFLAGS="-lsocket -lnsl -lgen $(EXTRALDFLAGS)"
+		LDFLAGS="-lsocket -lnsl -lgen"
 
 ult:	# Ultrix
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		CFLAGS="-g3 -O2 -Olimit 800 -Dconst= $(EXTRACFLAGS)" \
-		LDFLAGS="-lauth $(EXTRALDFLAGS)"
+		LDFLAGS="-lauth"
 
 vul:	# VAX Ultrix
 	$(MAKE) mtest OS=ult EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		CFLAGS="-O2 -Dconst= $(EXTRACFLAGS)" \
-		LDFLAGS="-lauth $(EXTRALDFLAGS)"
+		LDFLAGS="-lauth"
 
 # From here on down is OS-independent
 
@@ -243,6 +249,7 @@ mmdf.o: mail.h mmdf.h bezerk.h rfc822.h misc.h dummy.h osdep.h
 mtest.o: mail.h rfc822.h smtp.h nntp.h misc.h osdep.h linkage
 mtx.o: mail.h mtx.h rfc822.h misc.h dummy.h osdep.h
 news.o: mail.h news.h rfc822.h misc.h osdep.h
+newsrc.o: mail.h newsrc.h misc.h osdep.h 
 nntp.o: mail.h smtp.h nntp.h rfc822.h misc.h osdep.h
 nntpcunx.o: mail.h smtp.h news.h nntp.h nntpcunx.h rfc822.h misc.h osdep.h
 phile.o: mail.h phile.h rfc822.h misc.h dummy.h osdep.h
@@ -272,7 +279,7 @@ osdep.h: os_$(OS).h linkage
 	$(RM) OSTYPE CFLAGS LDFLAGS osdep.h
 	echo $(OS) > OSTYPE
 	echo $(CFLAGS) > CFLAGS
-	echo $(LDFLAGS) > LDFLAGS
+	echo $(LDFLAGS) $(EXTRALDFLAGS) > LDFLAGS
 	$(LN) os_$(OS).h osdep.h
 
 # Driver linkage

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	2 September 1994
+ * Last Edited:	6 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -160,7 +160,7 @@ long mbox_ping (MAILSTREAM *stream)
   long size;
   struct stat sbuf;
   char lock[MAILTMPLEN],lockx[MAILTMPLEN];
-  if (LOCAL && !stream->readonly && !stream->lock) {
+  if (LOCAL && !stream->rdonly && !stream->lock) {
     mm_critical (stream);	/* go critical */
     if ((sfd = bezerk_lock (sysinbox(),O_RDWR,NIL,lockx,LOCK_EX)) >= 0) {
       fstat (sfd,&sbuf);	/* get size of the poop */

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 June 1994
- * Last Edited:	4 September 1994
+ * Last Edited:	6 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -112,25 +112,29 @@ DRIVER *tenexdos_valid (char *name)
 long tenexdos_isvalid (char *name)
 {
   int fd;
+  long ret = NIL;
   char *s,tmp[MAILTMPLEN];
   struct stat sbuf;
   errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
-  if (*name != '{' && mailboxfile (tmp,name) && (stat (tmp,&sbuf) == 0)) {
-    errno = NIL;		/* disallow empty file */
-    if (sbuf.st_size == 0) return NIL;
-    if ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0 && read (fd,tmp,64) >= 0){
-      close (fd);		/* close the file */
-      if ((s = strchr (tmp,'\012')) && s[-1] != '\015') {
+  if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
+      mailboxfile (tmp,name) && !stat (tmp,&sbuf)) {
+    if (!sbuf.st_size)errno = 0;/* empty file */
+    else if ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0) {
+      memset (tmp,'\0',MAILTMPLEN);
+      if ((read (fd,tmp,64) >= 0) && (s = strchr (tmp,'\012')) && 
+	  (s[-1] != '\015')) {	/* valid format? */
 	*s = '\0';		/* tie off header */
 				/* must begin with dd-mmm-yy" */
-	  if (((tmp[2] == '-' && tmp[6] == '-') ||
-	       (tmp[1] == '-' && tmp[5] == '-')) &&
-	      (s = strchr (tmp+20,',')) && strchr (s+2,';')) return LONGT;
+	ret = (((tmp[2] == '-' && tmp[6] == '-') ||
+		(tmp[1] == '-' && tmp[5] == '-')) &&
+	       (s = strchr (tmp+20,',')) && strchr (s+2,';')) ? T : NIL;
       }
+      else errno = -1;		/* bogus format */
+      close (fd);		/* close the file */
     }
   }
-  return NIL;			/* failed miserably */
+  return ret;			/* return what we should */
 }
 
 
@@ -185,9 +189,7 @@ void tenexdos_find_all (MAILSTREAM *stream,char *pat)
 
 long tenexdos_subscribe (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  if (mailboxfile (tmp,mailbox)) return sm_subscribe (mailbox);
-  else return tenexdos_badname (tmp,mailbox);
+  return dummy_subscribe (stream,mailbox);
 }
 
 
@@ -199,9 +201,7 @@ long tenexdos_subscribe (MAILSTREAM *stream,char *mailbox)
 
 long tenexdos_unsubscribe (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  if (mailboxfile (tmp,mailbox)) return sm_unsubscribe (mailbox);
-  else return tenexdos_badname (tmp,mailbox);
+  return dummy_unsubscribe (stream,mailbox);
 }
 
 
@@ -224,17 +224,7 @@ long tenexdos_subscribe_bboard (MAILSTREAM *stream,char *mailbox)
 
 long tenexdos_create (MAILSTREAM *stream,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  int fd;
-  if (!mailboxfile (tmp,mailbox)) return tenexdos_badname (tmp,mailbox);
-  if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
-				/* failed */
-    sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  close (fd);			/* close the file */
-  return LONGT;			/* return success */
+  return dummy_create (stream,mailbox);
 }
 
 
@@ -246,7 +236,7 @@ long tenexdos_create (MAILSTREAM *stream,char *mailbox)
 
 long tenexdos_delete (MAILSTREAM *stream,char *mailbox)
 {
-  return tenexdos_rename (stream,mailbox,NIL);
+  return dummy_delete (stream,mailbox);
 }
 
 
@@ -259,18 +249,7 @@ long tenexdos_delete (MAILSTREAM *stream,char *mailbox)
 
 long tenexdos_rename (MAILSTREAM *stream,char *old,char *new)
 {
-  char tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
-				/* make file name */
-  if (!mailboxfile (file,old)) return tenexdos_badname (tmp,old);
-  if (new && !mailboxfile (tmp,new)) return tenexdos_badname (tmp,new);
-				/* do the rename or delete operation */
-  if (new ? rename (file,tmp) : unlink (file)) {
-    sprintf (tmp,"Can't %s mailbox %s: %s",new ? "rename" : "delete",old,
-	     strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  return LONGT;			/* return success */
+  return dummy_rename (stream,old,new);
 }
 
 /* Tenexdos mail open
@@ -298,7 +277,7 @@ MAILSTREAM *tenexdos_open (MAILSTREAM *stream)
   }
   if (!mailboxfile (tmp,stream->mailbox))
     return (MAILSTREAM *) tenexdos_badname (tmp,stream->mailbox);
-  if (((fd = open (tmp,O_BINARY|(stream->readonly ? O_RDONLY:O_RDWR),NIL))<0)){
+  if (((fd = open (tmp,O_BINARY|(stream->rdonly ? O_RDONLY:O_RDWR),NIL))<0)){
     sprintf (tmp,"Can't open mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -341,7 +320,10 @@ void tenexdos_close (MAILSTREAM *stream)
 
 void tenexdos_fetchfast (MAILSTREAM *stream,char *sequence)
 {
-  return;			/* no-op for local mail */
+  long i;
+				/* make sure have RFC-822 size for messages */
+  if (stream && LOCAL && mail_sequence (stream,sequence))
+    for (i = 1; i <= stream->nmsgs; i++) tenexdos_822size (stream,i);
 }
 
 
@@ -444,6 +426,8 @@ ENVELOPE *tenexdos_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
   unsigned long hdrsize;
   unsigned long hdrpos = tenexdos_header (stream,msgno,&hdrsize);
   unsigned long textsize = body ? tenexdos_size (stream,msgno) - hdrsize : 0;
+				/* make sure we have message size */
+  tenexdos_822size (stream,msgno);
 				/* limit header size */
   if (hdrsize > MAXHDR) hdrsize = MAXHDR;
   if (stream->scache) {		/* short cache */
@@ -495,8 +479,6 @@ char *tenexdos_fetchheader (MAILSTREAM *stream,long msgno)
 {
   unsigned long hdrsize;
   unsigned long hdrpos = tenexdos_header (stream,msgno,&hdrsize);
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
   if (stream->text) fs_give ((void **) &stream->text);
   return stream->text = tenexdos_slurp (stream,hdrpos,&hdrsize);
 }
@@ -513,8 +495,6 @@ char *tenexdos_fetchtext (MAILSTREAM *stream,long msgno)
   unsigned long hdrsize;
   unsigned long hdrpos = tenexdos_header (stream,msgno,&hdrsize);
   unsigned long textsize = tenexdos_size (stream,msgno) - hdrsize;
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
   if (stream->text) fs_give ((void **) &stream->text);
 				/* mark message as seen */
   mail_elt (stream,msgno)->seen = T;
@@ -540,8 +520,6 @@ char *tenexdos_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
   unsigned long offset = 0;
   unsigned long hdrpos = tenexdos_header (stream,m,&base);
   MESSAGECACHE *elt = mail_elt (stream,m);
-				/* set default gets routine */
-  if (!mailgets) mailgets = mm_gets;
   if (stream->text) fs_give ((void **) &stream->text);
 				/* make sure have a body */
   if (!(tenexdos_fetchstructure (stream,m,&b) && b && s && *s &&
@@ -589,6 +567,7 @@ char *tenexdos_slurp (MAILSTREAM *stream,unsigned long pos,
   unsigned long cnt = *count;
   int i,j;
   char tmp[MAILTMPLEN];
+  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
   lseek(LOCAL->fd,pos,SEEK_SET);/* get to desired position */
   LOCAL->ch = '\0';		/* initialize CR mechanism */
   while (cnt) {			/* until checked all bytes */
@@ -604,7 +583,7 @@ char *tenexdos_slurp (MAILSTREAM *stream,unsigned long pos,
   }
   lseek(LOCAL->fd,pos,SEEK_SET);/* get to desired position */
   LOCAL->ch = '\0';		/* initialize CR mechanism */
-  return (*mailgets) (tenexdos_read,stream,*count);
+  return (mg ? *mg : mm_gets) (tenexdos_read,stream,*count);
 }
 
 
@@ -873,7 +852,7 @@ void tenexdos_expunge (MAILSTREAM *stream)
   char tmp[MAILTMPLEN];
 				/* do nothing if stream dead */
   if (!tenexdos_ping (stream)) return;
-  if (stream->readonly) {	/* won't do on readonly files! */
+  if (stream->rdonly) {		/* won't do on readonly files! */
     mm_log ("Expunge ignored on readonly mailbox",WARN);
     return;
   }
@@ -1042,7 +1021,7 @@ void tenexdos_gc (MAILSTREAM *stream,long gcflags)
 /* Internal routines */
 
 
-/* Tenex mail return internal message size in bytes
+/* Tenexdos mail return internal message size in bytes
  * Accepts: MAIL stream
  *	    message #
  * Returns: internal size of message
@@ -1053,6 +1032,34 @@ unsigned long tenexdos_size (MAILSTREAM *stream,long m)
   MESSAGECACHE *elt = mail_elt (stream,m);
   return ((m < stream->nmsgs) ? mail_elt (stream,m+1)->data1 : LOCAL->filesize)
     - (elt->data1 + (elt->data2 >> 24));
+}
+
+
+/* Tenexdos mail return RFC-822 size in bytes
+ * Accepts: MAIL stream
+ *	    message #
+ * Returns: message size
+ */
+
+unsigned long tenexdos_822size (MAILSTREAM *stream,long msgno)
+{
+  unsigned long i,hdrpos,msgsize;
+  char tmp[MAILTMPLEN];
+  MESSAGECACHE *elt = mail_elt (stream,msgno);
+  if (!elt->rfc822_size) {	/* have header size yet? */
+				/* no, get header position and size */
+    hdrpos = tenexdos_header (stream,msgno,&msgsize);
+    elt->rfc822_size = msgsize = tenexdos_size (stream,msgno);
+				/* get to header position */
+    lseek (LOCAL->fd,hdrpos,SEEK_SET);
+    while (msgsize) {		/* read message */
+      read (LOCAL->fd,tmp,i = min (msgsize,(long) MAILTMPLEN));
+      msgsize -= i;		/* account for having read that much */
+				/* now count the CRLFs */
+      while (i) if (tmp[--i] == '\n') elt->rfc822_size++;
+    }
+  }
+  return elt->rfc822_size;
 }
 
 
@@ -1139,7 +1146,7 @@ long tenexdos_parse (MAILSTREAM *stream)
   struct stat sbuf;
   MESSAGECACHE *elt = NIL;
   char c,*s,*t,*x;
-  char tmp[MAILTMPLEN];
+  char lbuf[65],tmp[MAILTMPLEN];
   int j;
   long i,msiz;
   long curpos = LOCAL->filesize;
@@ -1154,38 +1161,39 @@ long tenexdos_parse (MAILSTREAM *stream)
   }
   while (sbuf.st_size - curpos){/* while there is stuff to parse */
 				/* get to that position in the file */
-    lseek (LOCAL->fd,curpos,L_SET);
-    if ((i = read (LOCAL->fd,tmp,64)) <= 0) {
+    lseek (LOCAL->fd,curpos,SEEK_SET);
+    if ((i = read (LOCAL->fd,lbuf,64)) <= 0) {
       sprintf (tmp,"Unable to read internal header at %ld, size = %ld: %s",
 	       curpos,sbuf.st_size,i ? strerror (errno) : "no data read");
       mm_log (tmp,ERROR);
       tenexdos_close (stream);
       return NIL;
     }
-    tmp[i] = '\0';		/* tie off buffer just in case */
-    if (!(s = strchr (tmp,'\012'))) {
+    lbuf[i] = '\0';		/* tie off buffer just in case */
+    if (!(s = strchr (lbuf,'\012'))) {
       sprintf (tmp,"Unable to find end of line at %ld in %ld bytes, text: %s",
-	       curpos,i,tmp);
+	       curpos,i,lbuf);
       mm_log (tmp,ERROR);
       tenexdos_close (stream);
       return NIL;
     }
     *s = '\0';			/* tie off header line */
-    i = (s + 1) - tmp;		/* note start of text offset */
-    if (!((s = strchr (tmp,',')) && (t = strchr (s+1,';')))) {
-      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,tmp);
+    i = (s + 1) - lbuf;		/* note start of text offset */
+    if (!((s = strchr (lbuf,',')) && (t = strchr (s+1,';')))) {
+      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,lbuf);
       mm_log (tmp,ERROR);
       tenexdos_close (stream);
       return NIL;
     }
+
     *s++ = '\0'; *t++ = '\0';	/* tie off fields */
 				/* intantiate an elt for this message */
-    elt = mail_elt (stream,++nmsgs);
+    (elt = mail_elt (stream,++nmsgs))->valid = T;
     elt->data1 = curpos;	/* note file offset of header */
     elt->data2 = i << 24;	/* as well as offset from header of message */
 				/* parse the header components */
-    if (!(mail_parse_date (elt,tmp) &&
-	  (elt->rfc822_size = msiz = strtol (x = s,&s,10)) && (!(s && *s)) &&
+    if (!(mail_parse_date (elt,lbuf) &&
+	  (msiz = strtol (x = s,&s,10)) && (!(s && *s)) &&
 	  isdigit (t[0]) && isdigit (t[1]) && isdigit (t[2]) &&
 	  isdigit (t[3]) && isdigit (t[4]) && isdigit (t[5]) &&
 	  isdigit (t[6]) && isdigit (t[7]) && isdigit (t[8]) &&
@@ -1195,7 +1203,6 @@ long tenexdos_parse (MAILSTREAM *stream)
       tenexdos_close (stream);
       return NIL;
     }
-
 				/* start at first message byte */
     lseek (LOCAL->fd,curpos + i,SEEK_SET);
 				/* make sure didn't run off end of file */
@@ -1209,13 +1216,6 @@ long tenexdos_parse (MAILSTREAM *stream)
     if (i & fDELETED) elt->deleted = T;
     if (i & fFLAGGED) elt->flagged = T;
     if (i & fANSWERED) elt->answered = T;
-    for (i = msiz; i;) {	/* for all bytes of the message */
-				/* read a buffer's worth */
-      read (LOCAL->fd,tmp,j = (int) min (i,(unsigned long) MAILTMPLEN));
-      i -= j;			/* account for having read that much */
-				/* now count the CRLFs */
-      while (j) if (tmp[--j] == '\n') elt->rfc822_size++;
-    }
   }
 				/* update parsed file size */
   LOCAL->filesize = sbuf.st_size;
@@ -1294,7 +1294,7 @@ void tenexdos_update_status (MAILSTREAM *stream,long msgno)
   char tmp[MAILTMPLEN];
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   unsigned long j,k = 0;
-  if (stream->readonly) return;	/* not if readonly you don't */
+  if (stream->rdonly) return;	/* not if readonly you don't */
   j = elt->user_flags;		/* get user flags */
 				/* reverse bits (dontcha wish we had CIRC?) */
   while (j) k |= 1 << 29 - find_rightmost_bit (&j);
@@ -1551,28 +1551,30 @@ search_t tenexdos_search_flag (search_t f,long *n,MAILSTREAM *stream)
 
 search_t tenexdos_search_string (search_t f,char **d,long *n)
 {
+  char *end = " ";
   char *c = strtok (NIL,"");	/* remainder of criteria */
-  if (c) {			/* better be an argument */
-    switch (*c) {		/* see what the argument is */
-    case '\0':			/* catch bogons */
-    case ' ':
-      return NIL;
-    case '"':			/* quoted string */
-      if (!(strchr (c+1,'"') && (*d = strtok (c,"\"")) && (*n = strlen (*d))))
-	return NIL;
-      break;
-    case '{':			/* literal string */
-      *n = strtol (c+1,&c,10);	/* get its length */
-      if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
-	  *n > strlen (*d = c)) return NIL;
-      c[*n] = DELIM;		/* write new delimiter */
-      strtok (c,DELMS);		/* reset the strtok mechanism */
-      break;
-    default:			/* atomic string */
-      *n = strlen (*d = strtok (c," "));
+  if (!c) return NIL;		/* missing argument */
+  switch (*c) {			/* see what the argument is */
+  case '{':			/* literal string */
+    *n = strtol (c+1,d,10);	/* get its length */
+    if ((*(*d)++ == '}') && (*(*d)++ == '\015') && (*(*d)++ == '\012') &&
+	(!(*(c = *d + *n)) || (*c == ' '))) {
+      char e = *--c;
+      *c = DELIM;		/* make sure not a space */
+      strtok (c," ");		/* reset the strtok mechanism */
+      *c = e;			/* put character back */
       break;
     }
-    return f;
+  case '\0':			/* catch bogons */
+  case ' ':
+    return NIL;
+  case '"':			/* quoted string */
+    if (strchr (c+1,'"')) end = "\"";
+    else return NIL;
+  default:			/* atomic string */
+    if (*d = strtok (c,end)) *n = strlen (*d);
+    else return NIL;
+    break;
   }
-  else return NIL;
+  return f;
 }

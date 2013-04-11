@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- NetBSD 0.9 version
+ * Program:	Operating-system dependent routines -- NetBSD version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 December 1993
- * Last Edited: 11 July 1994
+ * Last Edited: 10 October 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -34,9 +34,8 @@
  */
 
 #define MAILFILE "/var/mail/%s"
-#define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
-#define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
+#define ACTIVEFILE "/var/db/news/active"
+#define NEWSSPOOL "/var/news"
 
 #include <stdlib.h>
 #include <string.h>

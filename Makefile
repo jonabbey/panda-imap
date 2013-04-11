@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	17 June 1994
+# Last Edited:	27 September 1994
 #
 # Copyright 1994 by the University of Washington
 #
@@ -45,7 +45,7 @@ OSTYPE:
 	@echo 'You must specify what type of system'
 	@false
 
-a32 aix bsi d-g lnx mnt neb nxt osf sco sgi:
+a32 aix bsi d-g lnx mct mnt neb nxt osf sco sgi:
 	$(MAKE) build SYSTYPE=ANSI OS=$@
 
 bsd cvx dyn hpp isc ptx pyr s40 sol ssn sun sv4 ult vul:

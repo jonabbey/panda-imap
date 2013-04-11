@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	1 September 1994
+ * Last Edited:	9 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -45,6 +45,8 @@
 #include <io.h>
 #include "dummy.h"
 #include "misc.h"
+
+long dummy_badname (char *tmp,char *s);
 
 /* Dummy routines */
 
@@ -107,8 +109,8 @@ DRIVER *dummy_valid (char *name)
   return (name && *name && (*name != '*') && (*name != '{') &&
 				/* INBOX is always accepted */
 	  ((!strcmp (ucase (strcpy (tmp,name)),"INBOX")) ||
-				/* so is any file */
-	   !stat (mailboxfile (tmp,name),&sbuf)))
+				/* so is any valid file */
+	   (mailboxfile (tmp,name) && !stat (tmp,&sbuf))))
     ? &dummydriver : NIL;
 }
 
@@ -213,7 +215,9 @@ void dummy_find_all_bboards (MAILSTREAM *stream,char *pat)
 
 long dummy_subscribe (MAILSTREAM *stream,char *mailbox)
 {
-  return NIL;			/* always fails */
+  char tmp[MAILTMPLEN];
+  if (mailboxfile (tmp,mailbox)) return sm_subscribe (mailbox);
+  else return dummy_badname (tmp,mailbox);
 }
 
 
@@ -225,7 +229,9 @@ long dummy_subscribe (MAILSTREAM *stream,char *mailbox)
 
 long dummy_unsubscribe (MAILSTREAM *stream,char *mailbox)
 {
-  return NIL;			/* always fails */
+  char tmp[MAILTMPLEN];
+  if (mailboxfile (tmp,mailbox)) return sm_unsubscribe (mailbox);
+  else return dummy_badname (tmp,mailbox);
 }
 
 
@@ -261,7 +267,17 @@ long dummy_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox)
 
 long dummy_create (MAILSTREAM *stream,char *mailbox)
 {
-  return NIL;			/* always fails */
+  char tmp[MAILTMPLEN];
+  int fd;
+  if (!mailboxfile (tmp,mailbox)) return dummy_badname (tmp,mailbox);
+  if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
+				/* failed */
+    sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  close (fd);			/* close the file */
+  return LONGT;			/* return success */
 }
 
 
@@ -273,7 +289,7 @@ long dummy_create (MAILSTREAM *stream,char *mailbox)
 
 long dummy_delete (MAILSTREAM *stream,char *mailbox)
 {
-  return NIL;			/* always fails */
+  return dummy_rename (stream,mailbox,NIL);
 }
 
 
@@ -286,7 +302,18 @@ long dummy_delete (MAILSTREAM *stream,char *mailbox)
 
 long dummy_rename (MAILSTREAM *stream,char *old,char *new)
 {
-  return NIL;			/* always fails */
+  char tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
+				/* make file name */
+  if (!mailboxfile (file,old)) return dummy_badname (tmp,old);
+  if (new && !mailboxfile (tmp,new)) return dummy_badname (tmp,new);
+				/* do the rename or delete operation */
+  if (new ? rename (file,tmp) : unlink (file)) {
+    sprintf (tmp,"Can't %s mailbox %s: %s",new ? "rename" : "delete",old,
+	     strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  return LONGT;			/* return success */
 }
 
 /* Dummy open
@@ -451,10 +478,11 @@ void dummy_search (MAILSTREAM *stream,char *criteria)
 
 long dummy_ping (MAILSTREAM *stream)
 {
+  char tmp[MAILTMPLEN];
   MAILSTREAM *test = mail_open (NIL,stream->mailbox,OP_PROTOTYPE);
 				/* swap streams if looks like a new driver */
   if (test && (test->dtb != stream->dtb))
-    test = mail_open (stream,stream->mailbox,NIL);
+    test = mail_open (stream,strcpy (tmp,stream->mailbox),NIL);
   return test ? T : NIL;
 }
 
@@ -552,4 +580,17 @@ long dummy_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 void dummy_gc (MAILSTREAM *stream,long gcflags)
 {
 				/* return silently */
+}
+
+/* Return bad file name error message
+ * Accepts: temporary buffer
+ *	    file name
+ * Returns: long NIL always
+ */
+
+long dummy_badname (char *tmp,char *s)
+{
+  sprintf (tmp,"Invalid mailbox name: %s",s);
+  mm_log (tmp,ERROR);
+  return (long) NIL;
 }

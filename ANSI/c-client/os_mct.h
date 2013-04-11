@@ -1,5 +1,5 @@
 /*
- * Program:	DOS environment routines
+ * Program:	Operating-system dependent routines -- MachTen version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 September 1994
+ * Last Edited:	14 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -33,11 +33,20 @@
  *
  */
 
-/* Function prototypes */
+#define MAILFILE "/var/spool/mail/%s"
+#define ACTIVEFILE "/usr/lib/news/active"
+#define NEWSSPOOL "/var/spool/news"
+/* #define NFSKLUDGE */		/* doesn't work on MachTen */
 
-#include "env.h"
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/dir.h>
+#include <sys/uio.h>		/* needed for writev() prototypes */
+#include <syslog.h>
 
-long random ();
-#if _MSC_VER < 700
-#define getpid random
-#endif
+#include "env_unix.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"

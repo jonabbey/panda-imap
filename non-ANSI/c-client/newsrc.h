@@ -1,5 +1,5 @@
 /*
- * Program:	DOS environment routines
+ * Program:	Newsrc manipulation routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -9,8 +9,8 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:	1 August 1988
- * Last Edited:	7 September 1994
+ * Date:	12 September 1994
+ * Last Edited:	16 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -32,12 +32,11 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
-
+
+
 /* Function prototypes */
 
-#include "env.h"
-
-long random ();
-#if _MSC_VER < 700
-#define getpid random
-#endif
+void newsrc_find  ();
+long newsrc_update  ();
+long newsrc_read  ();
+long newsrc_write  ();

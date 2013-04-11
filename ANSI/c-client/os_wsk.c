@@ -10,7 +10,7 @@
  *		Internet: MikeS@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	6 September 1994
+ * Last Edited:	9 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -80,6 +80,46 @@ long tcp_abort (SOCKET *sock);
 
 int wsa_initted = 0;		/* init ? */
 static int wsa_sock_open = 0;	/* keep track of open sockets */
+
+				/* TCP timeout handler routine */
+static tcptimeout_t tcptimeout = NIL;
+				/* TCP timeouts, in seconds */
+static long tcptimeout_read = 0;
+static long tcptimeout_write = 0;
+
+/* TCP/IP manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *tcp_parameters (long function,void *value)
+{
+  switch ((int) function) {
+  case SET_TIMEOUT:
+    tcptimeout = (tcptimeout_t) value;
+    break;
+  case GET_TIMEOUT:
+    value = (void *) tcptimeout;
+    break;
+  case SET_READTIMEOUT:
+    tcptimeout_read = (long) value;
+    break;
+  case GET_READTIMEOUT:
+    value = (void *) tcptimeout_read;
+    break;
+  case SET_WRITETIMEOUT:
+    tcptimeout_write = (long) value;
+    break;
+  case GET_WRITETIMEOUT:
+    value = (void *) tcptimeout_write;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
+}
 
 /* TCP/IP open
  * Accepts: host name
@@ -107,7 +147,6 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
       return NIL;
     }
   }
-  if (!mailgets) mailgets = mm_gets;
   if (s = strchr (host,':')) {	/* port number specified? */
     *s++ = '\0';		/* yes, tie off port */
     port = strtol (s,&s,10);	/* parse port */
@@ -296,7 +335,7 @@ long tcp_getdata (TCPSTREAM *stream)
   time_t t = time (0);
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcps == INVALID_SOCKET) return NIL;
-  timeout.tv_sec = (long) mail_parameters (NIL,(long) GET_READTIMEOUT,NIL);
+  timeout.tv_sec = tcptimeout_read;
   timeout.tv_usec = 0;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     FD_SET (stream->tcps,&fds);	/* set bit in selection vector */
@@ -319,11 +358,7 @@ long tcp_getdata (TCPSTREAM *stream)
      */
     while (((i = recv (stream->tcps,stream->ibuf,BUFLEN,0)) == SOCKET_ERROR) &&
 	   (WSAGetLastError() == WSAEINTR));
-    if (i == SOCKET_ERROR) return tcp_abort(&stream->tcps);
-    else if (i == 0) {		/* connection's been closed */
-      mm_log ("Connection closed by foreign host",ERROR);
-      return tcp_abort(&stream->tcps);
-    }
+    if (!i || i == SOCKET_ERROR) return tcp_abort(&stream->tcps);
     stream->ictr = i;		/* set new byte count */
     stream->iptr = stream->ibuf;/* point at TCP buffer */
   }
@@ -355,7 +390,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   struct timeval tmo;
   fd_set fds;
   time_t t = time (0);
-  tmo.tv_sec = (long) mail_parameters (NIL,(long) GET_WRITETIMEOUT,NIL);
+  tmo.tv_sec = tcptimeout_write;
   tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcps == INVALID_SOCKET) return NIL;

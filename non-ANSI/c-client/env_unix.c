@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	4 September 1994
+ * Last Edited:	15 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -35,13 +35,83 @@
 
 
 static char *myUserName = NIL;	/* user name */
-char *myLocalHost = NIL;	/* local host name */
 static char *myHomeDir = NIL;	/* home directory name */
+static char *myLocalHost = NIL;	/* local host name */
+static char *myNewsrc = NIL;	/* newsrc file name */
 static char *sysInbox = NIL;	/* system inbox name */
+static char *newsActive = NIL;	/* news active file */
+static char *newsSpool = NIL;	/* news spool */
 static char *blackBoxDir = NIL;	/* black box directory name */
 static int blackBox = NIL;	/* is a black box */
 static MAILSTREAM *defaultProto = NIL;
 static char *userFlags[NUSERFLAGS] = {NIL};
+
+/* Environment manipulate parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *env_parameters (function,value)
+	long function;
+	void *value;
+{
+  switch ((int) function) {
+  case SET_USERNAME:
+    if (myUserName) fs_give ((void **) &myUserName);
+    myUserName = cpystr ((char *) value);
+    break;
+  case GET_USERNAME:
+    value = (void *) myUserName;
+    break;
+  case SET_HOMEDIR:
+    if (myHomeDir) fs_give ((void **) &myHomeDir);
+    myHomeDir = cpystr ((char *) value);
+    break;
+  case GET_HOMEDIR:
+    value = (void *) myHomeDir;
+    break;
+  case SET_LOCALHOST:
+    if (myLocalHost) fs_give ((void **) &myLocalHost);
+    myLocalHost = cpystr ((char *) value);
+    break;
+  case GET_LOCALHOST:
+    value = (void *) myLocalHost;
+    break;
+  case SET_NEWSRC:
+    if (myNewsrc) fs_give ((void **) &myNewsrc);
+    myNewsrc = cpystr ((char *) value);
+    break;
+  case GET_NEWSRC:
+    value = (void *) myNewsrc;
+    break;
+  case SET_NEWSACTIVE:
+    if (newsActive) fs_give ((void **) &newsActive);
+    newsActive = cpystr ((char *) value);
+    break;
+  case GET_NEWSACTIVE:
+    value = (void *) newsActive;
+    break;
+  case SET_NEWSSPOOL:
+    if (newsSpool) fs_give ((void **) &newsSpool);
+    newsSpool = cpystr ((char *) value);
+    break;
+  case GET_NEWSSPOOL:
+    value = (void *) newsSpool;
+    break;
+  case SET_SYSINBOX:
+    if (sysInbox) fs_give ((void **) &sysInbox);
+    sysInbox = cpystr ((char *) value);
+    break;
+  case GET_SYSINBOX:
+    value = (void *) sysInbox;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
+}
 
 /* Write current time
  * Accepts: destination string
@@ -145,6 +215,12 @@ long env_init (user,home)
     myLocalHost = cpystr ((host_name = gethostbyname (tmp)) ?
 			  host_name->h_name : tmp);
   }
+  if (!myNewsrc) {		/* set news file name if not defined */
+    sprintf (tmp,"%s/.newsrc",myhomedir ());
+    myNewsrc = cpystr (tmp);
+  }
+  if (!newsActive) newsActive = cpystr (ACTIVEFILE);
+  if (!newsSpool) newsSpool = cpystr (NEWSSPOOL);
 				/* force default prototype to be set */
   if (!defaultProto) defaultProto = &STDPROTO;
 				/* re-do open action to get flags */
@@ -308,7 +384,6 @@ void dorc (file)
 {
   int i;
   char *s,*t,*k,tmp[MAILTMPLEN],tmpx[MAILTMPLEN];
-  extern DRIVER *maildrivers;
   extern MAILSTREAM STDPROTO;
   DRIVER *d;
   FILE *f = fopen (file,"r");
@@ -325,8 +400,8 @@ void dorc (file)
 			    ((*d->open) (NIL)) : &STDPROTO;
 	else if (!strcmp (k,"system-standard")) defaultProto = &STDPROTO;
 	else {			/* see if a driver name */
-	  if (!maildrivers) fatal ("dorc called before linkage!");
-	  for (d = maildrivers; d && strcmp (d->name,k); d = d->next);
+	  for (d = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL);
+	       d && strcmp (d->name,k); d = d->next);
 	  if (d) defaultProto = (*d->open) (NIL);
 	  else {		/* duh... */
 	    sprintf (tmpx,"Unknown empty folder format in %s: %s",file,k);
@@ -354,6 +429,14 @@ void dorc (file)
       else if (!strcmp (s,"set local-host")) {
 	fs_give ((void **) &myLocalHost);
 	myLocalHost = cpystr (k);
+      }
+      else if (!strcmp (s,"set news-active-file")) {
+	fs_give ((void **) &newsActive);
+	newsActive = cpystr (k);
+      }
+      else if (!strcmp (s,"set news-spool-directory")) {
+	fs_give ((void **) &newsSpool);
+	newsSpool = cpystr (k);
       }
     }
     s = t;			/* try next line */

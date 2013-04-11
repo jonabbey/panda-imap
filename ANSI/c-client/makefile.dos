@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	3 July 1994
+# Last Edited:	11 October 1994
 #
 # Copyright 1994 by the University of Washington
 #
@@ -74,14 +74,16 @@ misc.obj: mail.h misc.h misc.c
 
 sm_dos.obj: mail.h misc.h sm_dos.c
 
+newsrc.obj: mail.h misc.h newsrc.h newsrc.c
+
 os_$(OS).obj: mail.h osdep.h env_dos.h fs.h ftl.h nl.h tcp.h \
 	os_$(OS).c fs_dos.c ftl_dos.c nl_dos.c env_dos.c
 
 cclient.lib: mail.obj imap2.obj dawz.obj tenexdos.obj bezrkdos.obj \
 	nntpcdos.obj dummydos.obj smtp.obj nntp.obj misc.obj rfc822.obj \
-	sm_dos.obj os_$(OS).obj
+	sm_dos.obj newsrc.obj os_$(OS).obj
 	erase cclient.lib
-	lib cclient +mail+imap2+dawz+tenexdos+bezrkdos+nntpcdos+dummydos+smtp+nntp+misc+rfc822+sm_dos+os_$(OS);
+	lib cclient +mail+imap2+dawz+tenexdos+bezrkdos+nntpcdos+dummydos+smtp+nntp+misc+rfc822+sm_dos+newsrc+os_$(OS);
 
 mtest.exe: cclient.lib mtest.obj
 	mtest$(OS)
