@@ -5,7 +5,7 @@
 
 			    UNIX QUICK BUILD NOTES
 
-1) Look in imap-4.1/Makefile and find your system type code, e.g. slx for
+1) Look in imap-4.3/Makefile and find your system type code, e.g. slx for
    glibc Linux and/or Linux with shadow password security.
 
 2) Type "make" followed by the system type, e.g. "make slx".

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	26 June 1998
+ * Last Edited:	31 August 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -47,7 +47,9 @@
 #define IMAPLOOKAHEAD 20	/* envelope lookahead */
 #define IMAPUIDLOOKAHEAD 1000	/* UID lookahead */
 #define IMAPTCPPORT (long) 143	/* assigned TCP contact port */
-#define IMAPSSLPORT (long) 585	/* assigned TCP contact port for SSL IMAP */
+#define IMAPSSLPORT (long) 993	/* assigned TCP contact port for SSL IMAP */
+				/* not recommended contact port for SSL IMAP */
+#define IMAPALTSSLPORT (long) 585
 
 
 /* Parsed reply message from imap_reply */
@@ -75,6 +77,8 @@ typedef struct imap_local {
   unsigned int rfc1176 : 1;	/* server is RFC-1176 IMAP2 */
   unsigned int use_status : 1;	/* server has STATUS */
   unsigned int use_namespace :1;/* server has NAMESPACE */
+  unsigned int use_mbx_ref : 1;	/* server has mailbox referrals */
+  unsigned int use_log_ref : 1;	/* server has login referrals */
   unsigned int use_scan : 1;	/* server has SCAN */
   unsigned int use_sort : 1;	/* server has SORT */
   unsigned int use_authanon : 1;/* server has anonymous authentication */
@@ -187,6 +191,7 @@ long imap_response (void *stream,char *s,unsigned long size);
 void imap_close (MAILSTREAM *stream,long options);
 void imap_fast (MAILSTREAM *stream,char *sequence,long flags);
 void imap_flags (MAILSTREAM *stream,char *sequence,long flags);
+long imap_overview (MAILSTREAM *stream,char *sequence,overview_t ofn);
 ENVELOPE *imap_structure (MAILSTREAM *stream,unsigned long msgno,BODY **body,
 			  long flags);
 long imap_msgdata (MAILSTREAM *stream,unsigned long msgno,char *section,

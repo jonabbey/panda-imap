@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	10 December 1996
+ * Last Edited:	1 September 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -43,11 +43,16 @@
 
 /* Constants */
 
+#define MAXLOGINTRIALS 3	/* maximum number of login trials */
 #define SMTPTCPPORT (long) 25	/* assigned TCP contact port */
 #define SMTPGREET (long) 220	/* SMTP successful greeting */
+#define SMTPAUTHED (long) 235	/* SMTP successful authentication */
 #define SMTPOK (long) 250	/* SMTP OK code */
+#define SMTPAUTHREADY (long) 334/* SMTP ready for authentication */
 #define SMTPREADY (long) 354	/* SMTP ready for data */
 #define SMTPSOFTFATAL (long) 421/* SMTP soft fatal code */
+#define SMTPWANTAUTH (long) 505	/* SMTP authentication needed */
+#define SMTPWANTAUTH2 (long) 530/* SMTP authentication needed */
 #define SMTPHARDERROR (long) 554/* SMTP miscellaneous hard failure */
 
 
@@ -79,13 +84,19 @@
 
 SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 			    unsigned long port,long options);
+void *smtp_challenge (void *s,unsigned long *len);
+long smtp_response (void *s,char *response,unsigned long size);
+long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp);
 SENDSTREAM *smtp_close (SENDSTREAM *stream);
 long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *msg,BODY *body);
 void smtp_debug (SENDSTREAM *stream);
 void smtp_nodebug (SENDSTREAM *stream);
 void smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error);
 long smtp_send (SENDSTREAM *stream,char *command,char *args);
+long smtp_send_work (SENDSTREAM *stream,char *command,char *args);
+long smtp_send_auth (SENDSTREAM *stream,long code);
+long smtp_send_auth_work (SENDSTREAM *stream,NETMBX *mb,char *tmp);
 long smtp_reply (SENDSTREAM *stream);
-long smtp_ehlo (SENDSTREAM *stream,char *host);
+long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb);
 long smtp_fake (SENDSTREAM *stream,long code,char *text);
 long smtp_soutr (void *stream,char *s);

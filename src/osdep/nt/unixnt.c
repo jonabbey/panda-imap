@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	19 June 1998
+ * Last Edited:	10 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -151,6 +151,12 @@ long unix_isvalid (char *name,char *tmp)
       utime (file,&times);	/* set the times */
     }
   }
+				/* in case INBOX but not unix format */
+  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
+	   ((name[1] == 'N') || (name[1] == 'n')) &&
+	   ((name[2] == 'B') || (name[2] == 'b')) &&
+	   ((name[3] == 'O') || (name[3] == 'o')) &&
+	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
   return ret;			/* return what we should */
 }
 
@@ -247,7 +253,7 @@ long unix_create (MAILSTREAM *stream,char *mailbox)
   int fd;
   time_t ti = time (0);
   if (!(s = dummy_file (mbx,mailbox))) {
-    sprintf (tmp,"Can't create %s: invalid name",mailbox);
+    sprintf (tmp,"Can't create %.80s: invalid name",mailbox);
     mm_log (tmp,ERROR);
   }
 				/* create underlying file */
@@ -256,7 +262,7 @@ long unix_create (MAILSTREAM *stream,char *mailbox)
     if ((s = strrchr (s,'\\')) && !s[1]) ret = T;
     else if ((fd = open (mbx,O_WRONLY,
 		    (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
-      sprintf (tmp,"Can't reopen mailbox node %s: %s",mbx,strerror (errno));
+      sprintf (tmp,"Can't reopen mailbox node %.80s: %s",mbx,strerror (errno));
       mm_log (tmp,ERROR);
       unlink (mbx);		/* delete the file */
     }
@@ -269,7 +275,7 @@ long unix_create (MAILSTREAM *stream,char *mailbox)
 	       pseudo_name,pseudo_from,mylocalhost (),pseudo_subject,ti,
 	       pseudo_msg);
       if ((write (fd,tmp,strlen (tmp)) < 0) || close (fd)) {
-	sprintf (tmp,"Can't initialize mailbox node %s: %s",mbx,
+	sprintf (tmp,"Can't initialize mailbox node %.80s: %s",mbx,
 		 strerror (errno));
 	mm_log (tmp,ERROR);
 	unlink (mbx);		/* delete the file */
@@ -302,32 +308,44 @@ long unix_delete (MAILSTREAM *stream,char *mailbox)
 long unix_rename (MAILSTREAM *stream,char *old,char *newname)
 {
   long ret = NIL;
-  char *s,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
+  char c,*s;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
   int fd,ld;
+  struct stat sbuf;
   mm_critical (stream);		/* get the c-client lock */
   if (newname && !((s = dummy_file (tmp,newname)) && *s))
-    sprintf (tmp,"Can't rename mailbox %s to %s: invalid name",old,newname);
+    sprintf (tmp,"Can't rename mailbox %.80s to %.80s: invalid name",
+	     old,newname);
   else if ((ld = lockname (lock,dummy_file (file,old),NIL)) < 0)
-    sprintf (tmp,"Can't get lock for mailbox %s",old);
+    sprintf (tmp,"Can't get lock for mailbox %.80s",old);
   else {			/* lock out other c-clients */
     if (flock (ld,LOCK_EX|LOCK_NB)) {
       close (ld);		/* couldn't lock, give up on it then */
-      sprintf (tmp,"Mailbox %s is in use by another process",old);
+      sprintf (tmp,"Mailbox %.80s is in use by another process",old);
     }
 				/* lock out non c-client applications */
     else if ((fd = unix_lock (file,O_BINARY|O_RDWR,S_IREAD|S_IWRITE,lockx,
 			      LOCK_EX)) < 0)
-      sprintf (tmp,"Can't lock mailbox %s: %s",old,strerror (errno));
+      sprintf (tmp,"Can't lock mailbox %.80s: %s",old,strerror (errno));
     else {
       unix_unlock(fd,NIL,lockx);/* pacify evil NTFS */
       if (newname) {		/* want rename? */
-	if (rename (file,s))	/* rename the file */
-	  sprintf (tmp,"Can't rename mailbox %s to %s: %s",old,newname,
+				/* found superior to destination name? */
+	if (s = strrchr (s,'\\')) {
+	  c = *++s;		/* remember first character of inferior */
+	  *s = '\0';		/* tie off to get just superior */
+				/* name doesn't exist, create it */
+	  if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
+	      !dummy_create (stream,tmp)) return NIL;
+	  *s = c;		/* restore full name */
+	}
+	if (rename (file,tmp))
+	  sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",old,newname,
 		   strerror (errno));
 	else ret = T;		/* set success */
       }
       else if (unlink (file))	/* want delete */
-	sprintf (tmp,"Can't delete mailbox %s: %s",old,strerror (errno));
+	sprintf (tmp,"Can't delete mailbox %.80s: %s",old,strerror (errno));
       else ret = T;		/* set success */
       flock (ld,LOCK_UN);	/* release c-client lock */
       close (ld);		/* close c-client lock */
@@ -346,35 +364,18 @@ long unix_rename (MAILSTREAM *stream,char *old,char *newname)
 
 MAILSTREAM *unix_open (MAILSTREAM *stream)
 {
-  long i;
   int fd;
   char tmp[MAILTMPLEN];
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &unixproto;
-  if (LOCAL) {			/* close old file if stream being recycled */
-    unix_close (stream,NIL);	/* dump and save the changes */
-    stream->dtb = &unixdriver;/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
-				/* flush user flags */
-    for (i = 0; i < NUSERFLAGS; i++)
-      if (stream->user_flags[i]) fs_give ((void **) &stream->user_flags[i]);
-  }
+  if (stream->local) fatal ("unix recycle stream");
   stream->local = memset (fs_get (sizeof (UNIXLOCAL)),0,sizeof (UNIXLOCAL));
 				/* canonicalize the stream mailbox name */
   dummy_file (tmp,stream->mailbox);
 				/* canonicalize name */
   fs_give ((void **) &stream->mailbox);
+				/* save canonical name */
   stream->mailbox = cpystr (tmp);
-  /* You may wonder why LOCAL->name is needed.  It isn't at all obvious from
-   * the code.  The problem is that when a stream is recycled with another
-   * mailbox of the same type, the driver's close method isn't called because
-   * it could be IMAP and closing then would defeat the entire point of
-   * recycling.  Hence there is code in the file drivers to call the close
-   * method such as what appears above.  The problem is, by this point,
-   * mail_open() has already changed the stream->mailbox name to point to the
-   * new name, and unix_close() needs the old name.
-   */
-  LOCAL->name = cpystr (tmp);	/* local copy for recycle case */
   LOCAL->fd = LOCAL->ld = -1;	/* no file or state locking yet */
   LOCAL->lname = NIL;
   LOCAL->filesize = 0;		/* initialize file information */
@@ -385,7 +386,7 @@ MAILSTREAM *unix_open (MAILSTREAM *stream)
 
   LOCAL->dirty = NIL;		/* no update yet */
   if (!stream->rdonly) {	/* make lock for read/write access */
-    if ((fd = lockname (tmp,LOCAL->name,NIL)) < 0)
+    if ((fd = lockname (tmp,stream->mailbox,NIL)) < 0)
       mm_log ("Can't open mailbox lock, access is readonly",WARN);
 				/* can get the lock? */
     else if (flock (fd,LOCK_EX|LOCK_NB)) {
@@ -401,7 +402,7 @@ MAILSTREAM *unix_open (MAILSTREAM *stream)
 				/* parse mailbox */
   stream->nmsgs = stream->recent = 0;
 				/* will we be able to get write access? */
-  if ((LOCAL->ld >= 0) && access (LOCAL->name,02) && (errno == EACCES)) {
+  if ((LOCAL->ld >= 0) && access (stream->mailbox,02) && (errno == EACCES)) {
     mm_log ("Can't get write access to mailbox, access is readonly",WARN);
     flock (LOCAL->ld,LOCK_UN);	/* release the lock */
     close (LOCAL->ld);		/* close the lock file */
@@ -621,7 +622,7 @@ long unix_ping (MAILSTREAM *stream)
     }
     else {			/* get current mailbox size */
       if (LOCAL->fd >= 0) fstat (LOCAL->fd,&sbuf);
-      else stat (LOCAL->name,&sbuf);
+      else stat (stream->mailbox,&sbuf);
 				/* parse if mailbox changed */
       if ((sbuf.st_size != LOCAL->filesize) &&
 	  unix_parse (stream,lock,LOCK_SH)) {
@@ -715,12 +716,12 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     break;
   case EINVAL:
     if (pc) return (*pc) (stream,sequence,mailbox,options);
-    sprintf (LOCAL->buf,"Invalid UNIX-format mailbox name: %s",mailbox);
+    sprintf (LOCAL->buf,"Invalid UNIX-format mailbox name: %.80s",mailbox);
     mm_log (LOCAL->buf,ERROR);
     return NIL;
   default:
     if (pc) return (*pc) (stream,sequence,mailbox,options);
-    sprintf (LOCAL->buf,"Not a UNIX-format mailbox: %s",mailbox);
+    sprintf (LOCAL->buf,"Not a UNIX-format mailbox: %.80s",mailbox);
     mm_log (LOCAL->buf,ERROR);
     return NIL;
   }
@@ -921,7 +922,6 @@ long unix_append_putc (int fd,char *s,long *i,char c)
 void unix_abort (MAILSTREAM *stream)
 {
   if (LOCAL) {			/* only if a file is open */
-    if (LOCAL->name) fs_give ((void **) &LOCAL->name);
     if (LOCAL->fd >= 0) close (LOCAL->fd);
     if (LOCAL->ld >= 0) {	/* have a mailbox lock? */
       flock (LOCAL->ld,LOCK_UN);/* yes, release the lock */
@@ -959,11 +959,8 @@ int unix_lock (char *file,int flags,int mode,char *lock,int op)
     if ((ld = open(lock,O_BINARY|O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE))>=0)
       close (ld);		/* got it, close the lock file! */
     else if (errno != EEXIST) {	/* miscellaneous error */
-      sprintf (tmp,"Mailbox vulnerable - error creating %s: %s",
-	       lock,strerror (errno));
-      mm_log (tmp,WARN);	/* this is probably not good */
-      *lock = '\0';		/* cancel lock file */
-      i = 0;			/* time out the lock */
+      sprintf (tmp,"Error creating %.80s: %s",lock,strerror (errno));
+      if (!(i%15)) mm_log (tmp,WARN);
     }
 				/* lock exists, still active? */
     else if (!stat (lock,&sb) && (t > sb.st_ctime + LOCKTIMEOUT * 60) &&
@@ -971,7 +968,7 @@ int unix_lock (char *file,int flags,int mode,char *lock,int op)
       close (ld);		/* got timed-out lock file */
     else {			/* active lock, try again */
       if (!(i%15)) {
-	sprintf (tmp,"Mailbox %s is locked, will override in %d seconds...",
+	sprintf (tmp,"Mailbox %.80s is locked, will override in %d seconds...",
 		 file,i);
 	mm_log (tmp,WARN);
       }
@@ -1004,7 +1001,7 @@ void unix_unlock (int fd,MAILSTREAM *stream,char *lock)
 				/* set times to now */
     times.modtime = times.actime = time (0);
 				/* set the times, note change */
-    if (!utime (LOCAL->name,&times)) LOCAL->filetime = times.modtime;
+    if (!utime (stream->mailbox,&times)) LOCAL->filetime = times.modtime;
   }
   flock (fd,LOCK_UN);		/* release flock'ers */
   if (!stream) close (fd);	/* close the file if no stream */
@@ -1039,7 +1036,7 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 				/* toss out previous descriptor */
   if (LOCAL->fd >= 0) close (LOCAL->fd);
   mm_critical (stream);		/* open and lock mailbox (shared OK) */
-  if ((LOCAL->fd = unix_lock (LOCAL->name,
+  if ((LOCAL->fd = unix_lock (stream->mailbox,
 			      O_BINARY + ((LOCAL->ld >= 0) ? O_RDWR:O_RDONLY),
 			      NIL,lock,op)) < 0) {
     sprintf (tmp,"Mailbox open failed, aborted: %s",strerror (errno));
@@ -1150,7 +1147,7 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 				/* find end of keyword */
 		  if (!(u = strpbrk (s," \015\012"))) u = s + strlen (s);
 				/* got a keyword? */
-		  if (k = (u - s)) {
+		  if ((k = (u - s)) && (k < MAILTMPLEN)) {
 				/* copy keyword */
 		    strncpy (uf,s,k);
 				/* make sure tied off */

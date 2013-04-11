@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	13 July 1998
+ * Last Edited:	29 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -228,11 +228,7 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
   SIZEDTEXT *buf;
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &phileproto;
-  if (LOCAL) {			/* close old file if stream being recycled */
-    phile_close (stream,NIL);	/* reset stream */
-    stream->dtb = &philedriver;	/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
-  }	
+  if (stream->local) fatal ("phile recycle stream");
 				/* canonicalize the stream mailbox name */
   mailboxfile (tmp,stream->mailbox);
   fs_give ((void **) &stream->mailbox);

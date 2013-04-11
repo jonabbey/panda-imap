@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	22 January 1998
+ * Last Edited:	29 July 1998
  *
  * Copyright 1998 by Mark Crispin
  *
@@ -290,4 +290,34 @@ unsigned long tcp_port (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   return stream->localhost;	/* return local host name */
+}
+
+/* TCP/IP return canonical form of host name
+ * Accepts: host name
+ * Returns: canonical form of host name
+ */
+
+char *tcp_canonical (char *name)
+{
+  int argblk[5];
+  static char tmp[MAILTMPLEN];
+				/* look like domain literal? */
+  if (name[0] == '[' && name[strlen (name) - 1] == ']') return name;
+  argblk[1] = _GTHPN;		/* get IP address and primary name */
+  argblk[2] = (int) (host-1);	/* pointer to host */
+  argblk[4] = (int) (tmp-1);	/* pointer to return destination */
+  if (!jsys (GTHST,argblk)) {	/* first try DEC's domain way */
+    argblk[1] = _GTHPN;		/* get IP address and primary name */
+    argblk[2] = (int) (host-1);
+    argblk[4] = (int) (tmp-1);
+    if (!jsys (GTDOM,argblk)) {	/* try the CHIVES domain way */
+      argblk[1] = _GTHSN;	/* failed, do the host table then */
+      if (!jsys (GTHST,argblk)) return name;
+      argblk[1] = _GTHNS;	/* convert number to string */
+      argblk[2] = (int) (tmp-1);
+				/* get the official name */
+      if (!jsys (GTHST,argblk)) return name;
+    }
+  }
+  return tmp;
 }

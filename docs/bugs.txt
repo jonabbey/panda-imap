@@ -1,45 +1,58 @@
-Updated: 15 May 1998
+Updated: 18 August 1998
 
-The following are known problems/deficiencies in the IMAP 4.1 toolkit:
+The following are known problems/deficiencies in the IMAP 4.3 toolkit:
  . Bugs:
    . Case-independent searching only works for the 26 Roman alphabetics and
       not for any other characters
    . The experimental mx driver has performance problems and shouldn't be used
-   . docs/internal.doc is out of date (again)
+   . docs/internal.txt is out of date (again)
+ . IMAP client limitations:
+   . No SASL protection mechanisms (SASL authentication mechanisms are
+      supported)
  . POP client limitations:
-   . No SASL authentication/protection mechanisms
+   . No SASL protection mechanisms (SASL authentication mechanisms are
+      supported)
    . No POP3 UID support
- . IMAP server limitations:
+ . NNTP client limitations:
+   . No extensions support
+   . No SASL support
+ . SMTP client limitations:
+   . No SASL protection mechanisms (SASL authentication mechanisms are
+      supported)
+   . No support for use of TURN, ETRN, and pipelining.
+   . No support for enhanced status codes
+ . POP3 and IMAP server limitations:
    . No Kerberos 4 server support (Kerberos 5 is fully supported on UNIX and
       NT)
- . POP3 server limitations:
-   . No SASL authentication/protection mechanisms
  . UNIX limitations:
    . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
       unix
+   . Supported SASL mechanisms: LOGIN, ANONYMOUS, GSSAPI, KERBEROS_V4 (client
+      only)
    . Sticky UIDs are not supported in the mh, mtx, and tenex drivers
    . Creation of keywords is not supported in the mh, mtx, and tenex drivers
    . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
       mailboxes to have inferior names
  . Amiga limitations:
-   . No Kerberos support
    . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
       unix
+   . Supported SASL mechanisms: LOGIN, ANONYMOUS
    . Sticky UIDs are not supported in the mh, mtx, and tenex drivers
    . Creation of keywords is not supported in the mh, mtx, and tenex drivers
    . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
       mailboxes to have inferior names
  . NT limitations:
    . Supported local file formats: mbx, mtx, tenex, unix
+   . Supported SASL mechanisms: LOGIN, ANONYMOUS, GSSAPI
    . Sticky UIDs are not supported in the mtxnt and tenexnt drivers
    . Creation of keywords is not supported in the mtxnt and tenexnt drivers
    . No support for TCP open timeouts
    . Flat file formats (mbx, mtx, tenex, unix) do not permit mailboxes to have
       inferior names
  . DOS limitations:
-   . No Kerberos support
-   . Supported TCPs: B&W, Novell, PC-NFs, PC/TCP, Waterloo, Winsock
    . Supported local file formats: bezerk, mtx
+   . Supported SASL mechanisms: LOGIN, ANONYMOUS
+   . Supported TCPs: B&W, Novell, PC-NFs, PC/TCP, Waterloo, Winsock
    . Sticky UIDs are not supported on local files
    . Creation of keywords are not supported on local files
    . Bezerk driver is read-only and does not handle LF-only newlines well
@@ -47,23 +60,25 @@ The following are known problems/deficiencies in the IMAP 4.1 toolkit:
    . No support for TCP open timeouts on Winsock and generic DOS
    . Flat file formats (bezerk, mtx) do not permit mailboxes to have inferior
       names
+   . Does not work well unless a mailgets routine is armed when fetching
+      texts.
  . Windows CE limitations:
-   . No Kerberos support
    . No local file drivers
+   . Supported SASL mechanisms: LOGIN, ANONYMOUS
    . No support for TCP open timeouts
    . Not finished, only builds c-client library
  . OS/2 limitations:
    . Not finished, does not build
  . Mac limitations:
-   . No Kerberos support
    . No local file drivers
+   . Supported SASL mechanisms: LOGIN, ANONYMOUS
  . TOPS-20 limitations:
-   . No Kerberos support
    . No local file drivers
+   . Supported SASL mechanisms: LOGIN, ANONYMOUS
    . No support for any TCP timeouts
  . VMS limitations:
-   . No Kerberos support
-   . Supported TCPs: Multinet, Netlib
    . No local file drivers
+   . Supported SASL mechanisms: LOGIN, ANONYMOUS
+   . Supported TCPs: Multinet, Netlib
    . No support for any TCP timeouts on VMS Netlib
    . No support for TCP open timeouts on VMS Multinet

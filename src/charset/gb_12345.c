@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1998
- * Last Edited:	15 May 1998
+ * Last Edited:	24 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -49,7 +49,7 @@
    gb12345tab[ku][ten] : 0xfffd)
 
 
-static unsigned short gb12345tab[MAX_GB12345_KU][MAX_GB12345_TEN] = {
+static const unsigned short gb12345tab[MAX_GB12345_KU][MAX_GB12345_TEN] = {
   {				/* ku 01 */
     0x3000,0x3001,0x3002,0x30fb,0x02c9,0x02c7,0x00a8,0x3003,0x3005,0x2015,
     0xff5e,0x2225,0x2026,0x2018,0x2019,0x201c,0x201d,0x3014,0x3015,0x3008,

@@ -1,5 +1,5 @@
 /*
- * Program:	TCP/IP routines
+ * Program:	Null check password
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -9,8 +9,8 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:	1 August 1988
- * Last Edited:	29 July 1998
+ * Date:	23 July 1998
+ * Last Edited:	23 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -32,30 +32,16 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
+
+/* Check password
+ * Accepts: login passwd struct
+ *	    password string
+ *	    argument count
+ *	    argument vector
+ * Returns: passwd struct if password validated, NIL otherwise
+ */
 
-
-/* Dummy definition overridden by TCP routines */
-
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
-
-
-/* Function prototypes */
-
-void *tcp_parameters (long function,void *value);
-TCPSTREAM *tcp_open (char *host,char *service,unsigned long port);
-TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf);
-char *tcp_getline (TCPSTREAM *stream);
-long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer);
-long tcp_getdata (TCPSTREAM *stream);
-long tcp_soutr (TCPSTREAM *stream,char *string);
-long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
-void tcp_close (TCPSTREAM *stream);
-char *tcp_host (TCPSTREAM *stream);
-char *tcp_remotehost (TCPSTREAM *stream);
-unsigned long tcp_port (TCPSTREAM *stream);
-char *tcp_localhost (TCPSTREAM *stream);
-char *tcp_clienthost (void);
-char *tcp_serverhost (void);
-char *tcp_canonical (char *name);
+struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
+{
+  return NIL;			/* always fails */
+}

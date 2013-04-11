@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 July 1997
- * Last Edited:	29 May 1998
+ * Last Edited:	24 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -50,7 +50,7 @@
    ksc5601tab[ku][ten] : 0xfffd)
 
 
-static unsigned short ksc5601tab[MAX_KSC5601_KU][MAX_KSC5601_TEN] = {
+static const unsigned short ksc5601tab[MAX_KSC5601_KU][MAX_KSC5601_TEN] = {
   {				/* ku 01 */
     0xac02,0xac03,0xac05,0xac06,0xac0b,0xac0c,0xac0d,0xac0e,0xac0f,0xac18,
     0xac1e,0xac1f,0xac21,0xac22,0xac23,0xac25,0xac26,0xac27,0xac28,0xac29,

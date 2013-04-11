@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	5 May 1998
+ * Last Edited:	29 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -385,4 +385,15 @@ unsigned long tcp_port (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   return stream->localhost;	/* return local host name */
+}
+
+
+/* TCP/IP return canonical form of host name
+ * Accepts: host name
+ * Returns: canonical form of host name
+ */
+
+char *tcp_canonical (char *name)
+{
+  return name;
 }

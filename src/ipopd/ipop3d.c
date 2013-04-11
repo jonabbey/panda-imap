@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	13 July 1998
+ * Last Edited:	7 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -38,6 +38,7 @@
 
 #include "mail.h"
 #include "osdep.h"
+#include "rfc822.h"
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
@@ -71,7 +72,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "5.49";		/* server version */
+char *version = "6.50";		/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -82,6 +83,7 @@ unsigned long il = 0;		/* initial last message */
 char *host = NIL;		/* remote host name */
 char *user = NIL;		/* user name */
 char *pass = NIL;		/* password */
+char *initial = NIL;		/* initial response */
 long *msg = NIL;		/* message translation vector */
 char *sayonara = "+OK Sayonara\015";
 
@@ -94,6 +96,8 @@ void kodint ();
 void hupint ();
 void trmint ();
 int login (char *t,int argc,char *argv[]);
+char *responder (void *challenge,unsigned long clen,unsigned long *rlen);
+int mbxopen (char *mailbox);
 long blat (char *text,long lines,unsigned long size);
 void rset ();
 
@@ -136,6 +140,7 @@ void main (int argc,char *argv[])
     }
     alarm (0);			/* make sure timeout disabled */
     idletime = 0;		/* no longer idle */
+
 				/* find end of line */
     if (!strchr (tmp,'\012')) puts ("-ERR Command line too long\015");
     else if (!(s = strtok (tmp," \015\012"))) puts ("-ERR Null command\015");
@@ -167,7 +172,35 @@ void main (int argc,char *argv[])
 	}
 	else if (user && *user && !strcmp (s,"PASS"))
 	  state = login (t,argc,argv);
-	else if (!strcmp (s,"AUTH")) puts ("-ERR Not supported\015");
+
+	else if (!strcmp (s,"AUTH")) {
+	  if (t && *t) {	/* mechanism given? */
+	    if (user) fs_give ((void **) &user);
+	    if (pass) fs_give ((void **) &pass);
+	    s = strtok (t," ");	/* get mechanism name */
+				/* get initial response */
+	    initial = strtok (NIL,"\015\012");
+	    if (user = cpystr (mail_auth (s,responder,argc,argv))) {
+	      state = mbxopen ("INBOX");
+	      syslog (LOG_INFO,"Authenticated user=%.80s host=%.80s",
+		      user,tcp_clienthost ());
+	    }
+	    else {
+	      puts ("-ERR Bad authentication\015");
+	      syslog (LOG_INFO,"AUTHENTICATE %s failure host=%.80s",s,
+		      tcp_clienthost ());
+	    }
+	  }
+	  else {
+	    AUTHENTICATOR *auth = mail_lookup_auth (1);
+	    puts ("+OK Supported authentication mechanisms:\015");
+	    while (auth) {
+	      if (auth->server) printf ("%s\015\012",auth->name);
+	      auth = auth->next;
+	    }
+	    puts (".\015");
+	  }
+	}
 	else if (!strcmp (s,"APOP")) puts ("-ERR Not supported\015");
 				/* (chuckle) */
 	else if (!strcmp (s,"RPOP")) puts ("-ERR Nice try, bunkie\015");
@@ -407,9 +440,7 @@ void trmint ()
 
 int login (char *t,int argc,char *argv[])
 {
-  long i,j;
   char tmp[TMPLEN];
-  MESSAGECACHE *elt;
 				/* flush old passowrd */
   if (pass) fs_give ((void **) &pass);
   if (!(t && *t)) {		/* if no password given */
@@ -432,11 +463,88 @@ int login (char *t,int argc,char *argv[])
     puts ("-ERR Bad login\015");/* vague error message to confuse crackers */
     return AUTHORIZATION;
   }
+  return mbxopen (tmp);
+}
 
+/* Authentication responder
+ * Accepts: challenge
+ *	    length of challenge
+ *	    pointer to response length return location if non-NIL
+ * Returns: response
+ */
+
+#define RESPBUFLEN 8*MAILTMPLEN
+
+char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
+{
+  unsigned long i,j;
+  unsigned char *t,resp[RESPBUFLEN];
+  if (initial) {		/* initial response given? */
+    if (clen) return NIL;	/* not permitted */
+				/* set up response */
+    t = (unsigned char *) initial;
+    initial = NIL;		/* no more initial response */
+    return (char *) rfc822_base64 (t,strlen (t),rlen ? rlen : &i);
+  }
+  fputs ("+ ",stdout);
+  for (t = rfc822_binary (challenge,clen,&i),j = 0; j < i; j++)
+    if (t[j] > ' ') putchar (t[j]);
+  fs_give ((void **) &t);
+  fputs ("\015\012",stdout);
+  fflush (stdout);		/* dump output buffer */
+  resp[RESPBUFLEN-1] = '\0';	/* last buffer character is guaranteed NUL */
+  alarm (LOGINTIMEOUT);		/* get a response under timeout */
+  errno = 0;			/* clear error */
+				/* read buffer */
+  while (!fgets (resp,RESPBUFLEN-1,stdin)) {
+    if (errno==EINTR) errno = 0;/* ignore if some interrupt */
+    else {
+      char *e = errno ? strerror (errno) : "command stream end of file";
+      alarm (0);		/* disable all interrupts */
+      server_traps (SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      syslog (LOG_INFO,"%s, while reading authentication host=%.80s",
+	      e,tcp_clienthost ());
+      state = UPDATE;
+      _exit (1);
+    }
+  }
+  if (!(t = (unsigned char *) strchr ((char *) resp,'\012'))) {
+    int c;
+    while ((c = getchar ()) != '\012') if (c == EOF) {
+      if (errno==EINTR) errno=0;/* ignore if some interrupt */
+      else {
+	char *e = errno ? strerror (errno) : "command stream end of file";
+	alarm (0);		/* disable all interrupts */
+	server_traps (SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+	syslog (LOG_INFO,"%s, while reading auth char user=%.80s host=%.80s",
+		e,user ? user : "???",tcp_clienthost ());
+	state = UPDATE;
+	_exit (1);
+      }
+    }
+    return NIL;
+  }
+  alarm (0);			/* make sure timeout disabled */
+  if (t[-1] == '\015') --t;	/* remove CR */
+  *t = '\0';			/* tie off buffer */
+  return (resp[0] != '*') ?
+    (char *) rfc822_base64 (resp,t-resp,rlen ? rlen : &i) : NIL;
+}
+
+/* Select mailbox
+ * Accepts: mailbox name
+ * Returns: new state
+ */
+
+int mbxopen (char *mailbox)
+{
+  long i,j;
+  char tmp[TMPLEN];
+  MESSAGECACHE *elt;
   nmsgs = 0;			/* no messages yet */
   if (msg) fs_give ((void **) &msg);
 				/* open mailbox */
-  if (stream = mail_open (stream,tmp,NIL)) {
+  if (stream = mail_open (stream,mailbox,NIL)) {
     if (!stream->rdonly) {	/* make sure not readonly */
       if (j = stream->nmsgs) {	/* if mailbox non-empty */
 	sprintf (tmp,"1:%lu",j);/* fetch fast information for all messages */

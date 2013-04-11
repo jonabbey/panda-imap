@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	24 June 1998
+ * Last Edited:	1 September 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -212,7 +212,8 @@ char *rfc822_write_address_full (char *dest,ADDRESS *adr,char *base)
     }
     else if (n) {		/* must be end of group (but be paranoid) */
       strcat (dest,";");
-      n--;			/* no longer in that group */
+				/* no longer in that group */
+      if (!--n && adr->next && adr->next->mailbox) strcat (dest,", ");
     }
     i = strlen (dest);		/* length of what we just wrote */
 				/* write continuation if doesn't fit */
@@ -1576,7 +1577,7 @@ long rfc822_output_body (BODY *body,soutr_t f,void *s)
  * Accepts: source
  *	    length of source
  *	    pointer to return destination length
- * Returns: destination as binary
+ * Returns: destination as binary or NIL if error
  */
 
 void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
@@ -1669,7 +1670,7 @@ unsigned char *rfc822_binary (void *src,unsigned long srcl,unsigned long *len)
  * Accepts: source
  *	    length of source
  * 	    pointer to return destination length
- * Returns: destination as 8-bit text
+ * Returns: destination as 8-bit text or NIL if error
  */
 
 unsigned char *rfc822_qprint (unsigned char *src,unsigned long srcl,
@@ -1677,37 +1678,33 @@ unsigned char *rfc822_qprint (unsigned char *src,unsigned long srcl,
 {
   unsigned char *ret = (unsigned char *) fs_get ((size_t) srcl + 1);
   unsigned char *d = ret;
-  unsigned char *s = d;
+  unsigned char *t = d;
+  unsigned char *s = src;
   unsigned char c,e;
   *len = 0;			/* in case we return an error */
-  src[srcl] = '\0';		/* make sure string tied off */
-  while (c = *src++) {		/* until run out of characters */
-    switch (c) {		/* what type of character is it? */
+  while ((s - src) < srcl) {	/* until run out of characters */
+    switch (c = *s++) {		/* what type of character is it? */
     case '=':			/* quoting character */
-      switch (c = *src++) {	/* what does it quote? */
+      if ((s - src) < srcl) switch (c = *s++) {
       case '\0':		/* end of data */
-	src--;			/* back up pointer */
+	s--;			/* back up pointer */
 	break;
       case '\015':		/* non-significant line break */
-	s = d;			/* accept any leading spaces */
-	if (*src == '\012') src++;
+	t = d;			/* accept any leading spaces */
+	if (((s - src) < srcl) && (*s == '\012')) s++;
 	break;
       default:			/* two hex digits then */
-	if (!isxdigit (c)) {	/* must be hex! */
-	  fs_give ((void **) &ret);
-	  return NIL;
-	}
-	if (isdigit (c)) e = c - '0';
-	else e = c - (isupper (c) ? 'A' - 10 : 'a' - 10);
-	c = *src++;		/* snarf next character */
-	if (!isxdigit (c)) {	/* must be hex! */
+	if (!(isxdigit (c) && ((s - src) < srcl) && (e = *s++) &&
+	      isxdigit (e))) {
 	  fs_give ((void **) &ret);
 	  return NIL;
 	}
 	if (isdigit (c)) c -= '0';
 	else c -= (isupper (c) ? 'A' - 10 : 'a' - 10);
-	*d++ = c + (e << 4);	/* merge the two hex digits */
-	s = d;			/* note point of non-space */
+	if (isdigit (e)) e -= '0';
+	else e -= (isupper (e) ? 'A' - 10 : 'a' - 10);
+	*d++ = e + (c << 4);	/* merge the two hex digits */
+	t = d;			/* note point of non-space */
 	break;
       }
       break;
@@ -1715,10 +1712,10 @@ unsigned char *rfc822_qprint (unsigned char *src,unsigned long srcl,
       *d++ = c;			/* stash the space but don't update s */
       break;
     case '\015':		/* end of line */
-      d = s;			/* slide back to last non-space, drop in */
+      d = t;			/* slide back to last non-space, drop in */
     default:
       *d++ = c;			/* stash the character */
-      s = d;			/* note point of non-space */
+      t = d;			/* note point of non-space */
     }      
   }
   *d = '\0';			/* tie off results */

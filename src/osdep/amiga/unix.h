@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	2 February 1998
+ * Last Edited:	29 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -231,7 +231,6 @@ typedef struct unix_local {
   unsigned int dirty : 1;	/* disk copy needs updating */
   int fd;			/* mailbox file descriptor */
   int ld;			/* lock file descriptor */
-  char *name;			/* local file name for recycle case */
   char *lname;			/* lock file name */
   off_t filesize;		/* file size parsed */
   time_t filetime;		/* last file time */

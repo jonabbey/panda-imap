@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	26 June 1998
+ * Last Edited:	26 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -74,8 +74,9 @@
 /* EUC parameters */
 
 #ifdef GBTOUNICODE		/* PRC simplified Chinese */
-static struct utf8_eucparam gb_param[] = {
-  {BASE_GB2312_KU,BASE_GB2312_TEN,MAX_GB2312_KU,MAX_GB2312_TEN,gb2312tab},
+static const struct utf8_eucparam gb_param[] = {
+  {BASE_GB2312_KU,BASE_GB2312_TEN,MAX_GB2312_KU,MAX_GB2312_TEN,
+     (void *) gb2312tab},
   {0,0,0,0,NIL},
   {0,0,0,0,NIL},
 };
@@ -83,8 +84,9 @@ static struct utf8_eucparam gb_param[] = {
 
 
 #ifdef GB12345TOUNICODE		/* PRC traditional Chinese */
-static struct utf8_eucparam gbt_param[] = {
-  {BASE_GB12345_KU,BASE_GB12345_TEN,MAX_GB12345_KU,MAX_GB12345_TEN,gb12345tab},
+static const struct utf8_eucparam gbt_param[] = {
+  {BASE_GB12345_KU,BASE_GB12345_TEN,MAX_GB12345_KU,MAX_GB12345_TEN,
+     (void *) gb12345tab},
   {0,0,0,0,NIL},
   {0,0,0,0,NIL}
 };
@@ -92,19 +94,21 @@ static struct utf8_eucparam gbt_param[] = {
 
 
 #ifdef BIG5TOUNICODE		/* ROC traditional Chinese */
-static struct utf8_eucparam big5_param[] = {
-  {BASE_BIG5_KU,BASE_BIG5_TEN_0,MAX_BIG5_KU,MAX_BIG5_TEN_0,big5tab},
+static const struct utf8_eucparam big5_param[] = {
+  {BASE_BIG5_KU,BASE_BIG5_TEN_0,MAX_BIG5_KU,MAX_BIG5_TEN_0,(void *) big5tab},
   {BASE_BIG5_KU,BASE_BIG5_TEN_1,MAX_BIG5_KU,MAX_BIG5_TEN_1,NIL}
 };
 #endif
 
 
 #ifdef JISTOUNICODE		/* Japanese */
-static struct utf8_eucparam jis_param[] = {
-  {BASE_JIS0208_KU,BASE_JIS0208_TEN,MAX_JIS0208_KU,MAX_JIS0208_TEN,jis0208tab},
-  {MIN_KANA_8,MAX_KANA_8,0,0,(void *) KANA_8},
+static const struct utf8_eucparam jis_param[] = {
+  {BASE_JIS0208_KU,BASE_JIS0208_TEN,MAX_JIS0208_KU,MAX_JIS0208_TEN,
+     (void *) jis0208tab},
+  {MIN_KANA_8,0,MAX_KANA_8,0,(void *) KANA_8},
 #ifdef JIS0212TOUNICODE		/* Japanese extended */
-  {BASE_JIS0212_KU,BASE_JIS0212_TEN,MAX_JIS0212_KU,MAX_JIS0212_TEN,jis0212tab}
+  {BASE_JIS0212_KU,BASE_JIS0212_TEN,MAX_JIS0212_KU,MAX_JIS0212_TEN,
+     (void *) jis0212tab}
 #else
   {0,0,0,0,NIL}
 #endif
@@ -113,12 +117,12 @@ static struct utf8_eucparam jis_param[] = {
 
 
 #ifdef KSCTOUNICODE		/* Korean */
-static struct utf8_eucparam ksc_param = {
-  BASE_KSC5601_KU,BASE_KSC5601_TEN,MAX_KSC5601_KU,MAX_KSC5601_TEN,ksc5601tab};
+static const struct utf8_eucparam ksc_param = {
+  BASE_KSC5601_KU,BASE_KSC5601_TEN,MAX_KSC5601_KU,MAX_KSC5601_TEN,(void *) ksc5601tab};
 #endif
 
 /* List of supported charsets (note: all names must be uppercase!) */
-static struct utf8_csent utf8_csvalid[] = {
+static const struct utf8_csent utf8_csvalid[] = {
   {"US-ASCII",NIL,NIL},{"UTF-8",NIL,NIL},
   {"ISO-8859-1",utf8_text_8859_1,NIL},
   {"ISO-8859-2",utf8_text_1byte,(void *) iso8859_2tab},
@@ -143,8 +147,8 @@ static struct utf8_csent utf8_csvalid[] = {
   {"CN-GB-12345",utf8_text_euc,(void *) gbt_param},
 #endif
 #ifdef BIG5TOUNICODE
-  {"BIG5",utf8_text_dbyte2,big5_param},
-  {"CN-BIG5",utf8_text_dbyte2,big5_param},
+  {"BIG5",utf8_text_dbyte2,(void *) big5_param},
+  {"CN-BIG5",utf8_text_dbyte2,(void *) big5_param},
 #endif
 #ifdef JISTOUNICODE
   {"ISO-2022-JP",utf8_text_2022,NIL},

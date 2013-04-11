@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	16 July 1998
+# Last Edited:	26 August 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -316,7 +316,7 @@ lnx:	# Linux non-shadow passwords
 	@echo You are building for traditional Linux *without* shadow
 	@echo passwords and with the crypt function in the C library.
 	@echo If your system has shadow passwords, or if crypt is not
-	@echo in the C library, you must use slx or sl5 instead!
+	@echo in the C library, you must use slx, sl4, or sl5 instead!
 	$(BUILD) OS=$@ SIGTYPE=psx \
 	 SPOOLDIR=/var/spool \
 	 RSHPATH=/usr/bin/rsh \
@@ -325,7 +325,7 @@ lnx:	# Linux non-shadow passwords
 lyn:	# LynxOS
 	$(BUILD) OS=$@ \
 	 RSHPATH=/bin/rsh \
-	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE"
+	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE" \
 	 BASELDFLAGS=-lbsd \
 	 CC=gcc
 
@@ -424,25 +424,34 @@ shp:	# HP-UX with Trusted Computer Base
 	 BASELDFLAGS="-lnet -lV3 -lsec" \
 	 RANLIB=true
 
-# Note: KC Smith at Microsoft says that -lcrypt is for glibc
-
 slx:	# Secure Linux
-	@echo You are building for glibc versions of Secure Linux
+	@echo You are building for libc6/glibc versions of Secure Linux
 	@echo If you want libc5 versions you must use sl5 instead!
+	@echo If you want libc4 versions you must use sl4 instead!
 	$(BUILD) OS=$@ SIGTYPE=psx CHECKPW=psx \
 	 SPOOLDIR=/var/spool \
 	 RSHPATH=/usr/bin/rsh \
 	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE" \
 	 BASELDFLAGS="-s -lcrypt"
 
-# Note: KC Smith at Microsoft says that -lshadow is for libc5
-
-sl5:	# Secure Linux using libc5
+sl4:	# Secure Linux using libc4
+	@echo You are building for libc4 versions of Secure Linux
+	@echo If you want libc6/glibc versions you must use slx instead!
+	@echo If you want libc5 versions you must use sl5 instead!
 	$(BUILD) OS=slx SIGTYPE=psx CHECKPW=psx \
 	 SPOOLDIR=/var/spool \
 	 RSHPATH=/usr/bin/rsh \
 	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE" \
 	 BASELDFLAGS="-s -lshadow"
+
+sl5:	# Secure Linux using libc5
+	@echo You are building for libc5 versions of Secure Linux
+	@echo If you want libc6/glibc versions you must use slx instead!
+	@echo If you want libc4 versions you must use sl4 instead!
+	$(BUILD) OS=slx SIGTYPE=psx CHECKPW=psx \
+	 SPOOLDIR=/var/spool \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE"
 
 snx:	# Siemens Nixdorf SINIX and Reliant UNIX
 	$(BUILD) OS=sv4 SIGTYPE=psx CHECKPW=sv4 \

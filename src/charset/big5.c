@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 July 1997
- * Last Edited:	23 July 1997
+ * Last Edited:	24 July 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -61,7 +61,7 @@ typedef struct big5_ku {
 } BIG5;
 
 
-static BIG5 big5tab[MAX_BIG5_KU] = {
+static const BIG5 big5tab[MAX_BIG5_KU] = {
   {				/* ku 01 */
     {
       0x3000,0xff0c,0x3001,0x3002,0xff0e,0x2022,0xff1b,0xff1a,0xff1f,0xff01,

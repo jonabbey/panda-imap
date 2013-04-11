@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	13 November 1996
+ * Last Edited:	19 August 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,13 +39,13 @@
 
 #define MAXLOGINTRIALS 3	/* maximum number of login trials */
 #define POP3TCPPORT (long) 110	/* assigned TCP contact port */
+#define POP3SSLPORT (long) 995	/* assigned TCP contact port for SSL POP3 */
 
 
 /* POP3 I/O stream local data */
 	
 typedef struct pop3_local {
   NETSTREAM *netstream;		/* TCP I/O stream */
-  char *host;			/* server host name */
   char *response;		/* last server reply */
   char *reply;			/* text of last server reply */
   unsigned long msgno;		/* current text message number */
@@ -72,6 +72,9 @@ long pop3_delete (MAILSTREAM *stream,char *mailbox);
 long pop3_rename (MAILSTREAM *stream,char *old,char *newname);
 long pop3_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *pop3_open (MAILSTREAM *stream);
+long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr);
+void *pop3_challenge (void *stream,unsigned long *len);
+long pop3_response (void *stream,char *s,unsigned long size);
 void pop3_close (MAILSTREAM *stream,long options);
 void pop3_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
 char *pop3_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,

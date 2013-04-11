@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		2 June 1995
-# Last Edited:	14 April 1998
+# Last Edited:	24 July 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -39,7 +39,7 @@ uahelper:
 	$(CC) -o uahelper uahelper.c $(LDFLAGS)
 
 clean:
-	$(RM) *.o uahelper || true
+	sh -c '$(RM) *.o uahelper || true'
 
 # A monument to a hack of long ago and far away...
 love:

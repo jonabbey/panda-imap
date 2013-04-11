@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	13 July 1998
+ * Last Edited:	29 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -138,6 +138,12 @@ long mtx_isvalid (char *name,char *tmp)
       close (fd);		/* close the file */
     }
   }
+				/* in case INBOX but not mtx format */
+  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
+	   ((name[1] == 'N') || (name[1] == 'n')) &&
+	   ((name[2] == 'B') || (name[2] == 'b')) &&
+	   ((name[3] == 'O') || (name[3] == 'o')) &&
+	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
   return ret;			/* return what we should */
 }
 
@@ -238,16 +244,7 @@ MAILSTREAM *mtx_open (MAILSTREAM *stream)
   char tmp[MAILTMPLEN];
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &mtxproto;
-  if (LOCAL) {			/* close old file if stream being recycled */
-    mtx_close (stream,NIL);	/* dump and save the changes */
-    stream->dtb = &mtxdriver;	/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
-    stream->uid_last = 0;	/* default UID validity */
-    stream->uid_validity = time (0);
-				/* flush user flags */
-    for (i = 0; i < NUSERFLAGS; i++)
-      if (stream->user_flags[i]) fs_give ((void **) &stream->user_flags[i]);
-  }
+  if (stream->local) fatal ("mtx recycle stream");
   if (!mailboxfile (tmp,stream->mailbox))
     return (MAILSTREAM *) mtx_badname (tmp,stream->mailbox);
   if (((fd = open (tmp,O_BINARY|(stream->rdonly ? O_RDONLY:O_RDWR),NIL)) < 0)

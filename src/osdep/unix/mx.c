@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	29 December 1997
+ * Last Edited:	21 August 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -143,7 +143,7 @@ void *mx_parameters (long function,void *value)
 
 void mx_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
 {
-  if (stream) mm_log ("Scan not valid for mx mailboxes",WARN);
+  if (stream) mm_log ("Scan not valid for mx mailboxes",ERROR);
 }
 
 /* MX list mailboxes
@@ -257,15 +257,17 @@ long mx_create (MAILSTREAM *stream,char *mailbox)
   int fd;
   char tmp[MAILTMPLEN];
   if (mx_isvalid (mailbox,tmp))	/* must not already exist */
-    sprintf (tmp,"Can't create mailbox %s: mailbox already exists",mailbox);
+    sprintf (tmp,"Can't create mailbox %.80s: mailbox already exists",mailbox);
 				/* create directory */
   else if (!dummy_create_path (stream,strcat (mx_file (tmp,mailbox),"/")))
-    sprintf (tmp,"Can't create mailbox leaf %s: %s",mailbox,strerror (errno));
+    sprintf (tmp,"Can't create mailbox leaf %.80s: %s",
+	     mailbox,strerror (errno));
 				/* create index file */
   else if (((fd = open (MXINDEX (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,
 			(int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) <0)
 	   || close (fd))
-    sprintf (tmp,"Can't create mailbox index %s: %s",mailbox,strerror (errno));
+    sprintf (tmp,"Can't create mailbox index %.80s: %s",
+	     mailbox,strerror (errno));
   else return T;		/* success */
   mm_log (tmp,ERROR);		/* some error */
   return NIL;
@@ -283,10 +285,11 @@ long mx_delete (MAILSTREAM *stream,char *mailbox)
   char *s;
   char tmp[MAILTMPLEN];
   if (!mx_isvalid (mailbox,tmp))
-    sprintf (tmp,"Can't delete mailbox %s: no such mailbox",mailbox);
+    sprintf (tmp,"Can't delete mailbox %.80s: no such mailbox",mailbox);
 				/* delete index */
   else if (unlink (MXINDEX (tmp,mailbox)))
-    sprintf (tmp,"Can't delete mailbox %s index: %s",mailbox,strerror (errno));
+    sprintf (tmp,"Can't delete mailbox %.80s index: %s",
+	     mailbox,strerror (errno));
   else {			/* get directory name */
     *(s = strrchr (tmp,'/')) = '\0';
     if (dirp = opendir (tmp)) {	/* open directory */
@@ -300,7 +303,7 @@ long mx_delete (MAILSTREAM *stream,char *mailbox)
     }
 				/* success if can remove the directory */
     if (!rmdir (mx_file (tmp,mailbox))) return T;
-    sprintf (tmp,"Can't delete mailbox %s: %s",mailbox,strerror (errno));
+    sprintf (tmp,"Can't delete mailbox %.80s: %s",mailbox,strerror (errno));
   }
   mm_log (tmp,ERROR);		/* something failed */
   return NIL;
@@ -315,18 +318,28 @@ long mx_delete (MAILSTREAM *stream,char *mailbox)
 
 long mx_rename (MAILSTREAM *stream,char *old,char *newname)
 {
-  char tmp[MAILTMPLEN],tmp1[MAILTMPLEN];
+  char c,*s,tmp[MAILTMPLEN],tmp1[MAILTMPLEN];
+  struct stat sbuf;
   if (!mx_isvalid (old,tmp))
-    sprintf (tmp,"Can't rename mailbox %s: no such mailbox",old);
+    sprintf (tmp,"Can't rename mailbox %.80s: no such mailbox",old);
 				/* new mailbox name must not be valid */
   else if (mx_isvalid (newname,tmp))
-    sprintf (tmp,"Can't rename to mailbox %s: destination already exists",
+    sprintf (tmp,"Can't rename to mailbox %.80s: destination already exists",
 	     newname);
 				/* success if can rename the directory */
-  else if (rename (mx_file (tmp,old),mx_file (tmp1,newname)))
-    sprintf (tmp,"Can't rename mailbox %s to %s: %s",old,newname,
-	     strerror (errno));
-  else return T;
+  else {			/* found superior to destination name? */
+    if (s = strrchr (mx_file (tmp1,newname),'/')) {
+      c = *++s;			/* remember first character of inferior */
+      *s = '\0';		/* tie off to get just superior */
+				/* name doesn't exist, create it */
+      if ((stat (tmp1,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
+	  !dummy_create (stream,tmp1)) return NIL;
+      *s = c;			/* restore full name */
+    }
+    if (!rename (mx_file (tmp,old),tmp1)) return T;
+    sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",
+	     old,newname,strerror (errno));
+  }
   mm_log (tmp,ERROR);		/* something failed */
   return NIL;
 }
@@ -342,16 +355,7 @@ MAILSTREAM *mx_open (MAILSTREAM *stream)
   char tmp[MAILTMPLEN];
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return user_flags (&mxproto);
-  if (LOCAL) {			/* close old file if stream being recycled */
-    mx_close (stream,NIL);	/* dump and save the changes */
-    stream->dtb = &mxdriver;	/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
-    stream->uid_last = 0;	/* default UID validity */
-    stream->uid_validity = time (0);
-				/* flush user flags */
-    for (i = 0; i < NUSERFLAGS; i++)
-      if (stream->user_flags[i]) fs_give ((void **) &stream->user_flags[i]);
-  }
+  if (stream->local) fatal ("mx recycle stream");
   stream->local = fs_get (sizeof (MXLOCAL));
 				/* note if an INBOX or not */
   LOCAL->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX");

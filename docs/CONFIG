@@ -24,6 +24,23 @@ software's idea of the home directory (which is used everywhere as the
 default directory), and to sysinbox(), to modify where the software
 looks for newly-delivered mail.
 
+     Example 1: suppose your mailer delivers mail to file ".mailbox"
+in the user's home directory instead of the default UNIX mail spool
+directory.  You will want to change routine sysinbox(), changing the
+line that reads:
+    sprintf (tmp,"%s/%s",MAILSPOOL,myusername ());
+to be:
+    sprintf (tmp,"%s/.mailbox",myhomedir ());
+
+     Example 2: suppose you want the default directory to be the
+"mail" subdirectory of the user's home directory instead of the user's
+home directory.  You will want to change routine env_init(), changing
+the line that reads:
+      myHomeDir = cpystr (home);/* use real home directory */
+to be:
+      sprintf (tmp,"%s/mail",tmp);
+      myHomeDir = cpystr (tmp);
+
      Ignore all references in env_unix.c to a configuration file; that
 code is for UW-internal use only.  It is extremely unlikely that that
 facility will work usefully for you; it is extremely likely that you

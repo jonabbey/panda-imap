@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 July 1997
- * Last Edited:	24 July 1997
+ * Last Edited:	24 July 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -56,7 +56,8 @@
 
 /* CNS 11643 plane 1 conversion table */
 
-static unsigned short cns11643_1tab[MAX_CNS11643_KU_1][MAX_CNS11643_TEN] = {
+static const unsigned short
+  cns11643_1tab[MAX_CNS11643_KU_1][MAX_CNS11643_TEN] = {
   {				/* ku 01 */
     0x3000,0xff0c,0x3001,0x3002,0xff0e,0x30fb,0xff1b,0xff1a,0xff1f,0xff01,
     0xfe30,0x2026,0x2025,0xfe50,0xfe51,0xfe52,0x00b7,0xfe54,0xfe55,0xfe56,

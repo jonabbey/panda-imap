@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	1 July 1998
+ * Last Edited:	6 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -140,10 +140,15 @@ int mbx_isvalid (char *name,char *tmp)
     tp[1] = sbuf.st_mtime;
     utime (tmp,tp);		/* set the times */
   }
+				/* in case INBOX but not mbx format */
+  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
+	   ((name[1] == 'N') || (name[1] == 'n')) &&
+	   ((name[2] == 'B') || (name[2] == 'b')) &&
+	   ((name[3] == 'O') || (name[3] == 'o')) &&
+	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
   return ret;			/* return what we should */
 }
-
-
+
 /* MBX manipulate driver parameters
  * Accepts: function code
  *	    function-dependent value
@@ -162,7 +167,8 @@ void *mbx_parameters (long function,void *value)
   }
   return value;
 }
-
+
+
 /* MBX mail scan mailboxes
  * Accepts: mail stream
  *	    reference
@@ -262,10 +268,10 @@ long mbx_delete (MAILSTREAM *stream,char *mailbox)
 long mbx_rename (MAILSTREAM *stream,char *old,char *newname)
 {
   long ret = T;
-  char *s,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN];
+  char c,*s,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN];
   int ld;
   int fd = open (mbx_file (file,old),O_RDWR,NIL);
-				/* lock out non c-client applications */
+  struct stat sbuf;
   if (fd < 0) {			/* open mailbox */
     sprintf (tmp,"Can't open mailbox %.80s: %s",old,strerror (errno));
     mm_log (tmp,ERROR);
@@ -291,7 +297,15 @@ long mbx_rename (MAILSTREAM *stream,char *old,char *newname)
       mm_log (tmp,ERROR);
       ret = NIL;		/* set failure */
     }
-    if (rename (file,s)) {	/* rename the file */
+    if (s = strrchr (s,'/')) {	/* found superior to destination name? */
+      c = *++s;			/* remember first character of inferior */
+      *s = '\0';		/* tie off to get just superior */
+				/* name doesn't exist, create it */
+      if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
+	  !dummy_create (stream,tmp)) return NIL;
+      *s = c;			/* restore full name */
+    }
+    if (rename (file,tmp)) {	/* rename the file */
       sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",old,newname,
 	       strerror (errno));
       mm_log (tmp,ERROR);
@@ -366,16 +380,7 @@ MAILSTREAM *mbx_open (MAILSTREAM *stream)
   char tmp[MAILTMPLEN];
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return user_flags (&mbxproto);
-  if (LOCAL) {			/* close old file if stream being recycled */
-    mbx_close (stream,NIL);	/* dump and save the changes */
-    stream->dtb = &mbxdriver;	/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
-    stream->uid_last = 0;	/* default UID validity */
-    stream->uid_validity = 0;
-				/* flush user flags */
-    for (i = 0; i < NUSERFLAGS; i++)
-      if (stream->user_flags[i]) fs_give ((void **) &stream->user_flags[i]);
-  }
+  if (stream->local) fatal ("mbx recycle stream");
   if (stream->rdonly ||
       (fd = open (mbx_file (tmp,stream->mailbox),O_RDWR,NIL)) < 0) {
     if ((fd = open (mbx_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0) {

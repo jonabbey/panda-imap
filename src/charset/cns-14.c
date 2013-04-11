@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1998
- * Last Edited:	15 May 1998
+ * Last Edited:	24 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -46,7 +46,8 @@
 
 /* CNS 11643 plane 14 conversion table */
 
-static unsigned short cns11643_14tab[MAX_CNS11643_KU_14][MAX_CNS11643_TEN] = {
+static const unsigned short
+  cns11643_14tab[MAX_CNS11643_KU_14][MAX_CNS11643_TEN] = {
 {
   {				/* ku 01 */
     0x4e28,0x4e36,0x4e3f,0x4e85,0x4e05,0x4e04,0x5182,0x5196,0x5338,0x5369,

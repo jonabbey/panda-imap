@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	13 July 1998
+ * Last Edited:	6 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -143,10 +143,15 @@ int mtx_isvalid (char *name,char *tmp)
       utime (file,tp);		/* set the times */
     }
   }
+				/* in case INBOX but not mtx format */
+  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
+	   ((name[1] == 'N') || (name[1] == 'n')) &&
+	   ((name[2] == 'B') || (name[2] == 'b')) &&
+	   ((name[3] == 'O') || (name[3] == 'o')) &&
+	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
   return ret;			/* return what we should */
 }
-
-
+
 /* MTX manipulate driver parameters
  * Accepts: function code
  *	    function-dependent value
@@ -157,7 +162,8 @@ void *mtx_parameters (long function,void *value)
 {
   return NIL;
 }
-
+
+
 /* MTX mail scan mailboxes
  * Accepts: mail stream
  *	    reference
@@ -227,12 +233,12 @@ long mtx_delete (MAILSTREAM *stream,char *mailbox)
 long mtx_rename (MAILSTREAM *stream,char *old,char *newname)
 {
   long ret = T;
-  char *s,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN];
+  char c,*s,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN];
   int ld;
   int fd = open (mtx_file (file,old),O_RDWR,NIL);
-				/* lock out non c-client applications */
+  struct stat sbuf;
   if (fd < 0) {			/* open mailbox */
-    sprintf (tmp,"Can't open mailbox %s: %s",old,strerror (errno));
+    sprintf (tmp,"Can't open mailbox %.80s: %s",old,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
   }
@@ -244,26 +250,35 @@ long mtx_rename (MAILSTREAM *stream,char *old,char *newname)
 				/* lock out other users */
   if (flock (fd,LOCK_EX|LOCK_NB)) {
     close (fd);			/* couldn't lock, give up on it then */
-    sprintf (tmp,"Mailbox %s is in use by another process",old);
+    sprintf (tmp,"Mailbox %.80s is in use by another process",old);
     mm_log (tmp,ERROR);
     unlockfd (ld,lock);		/* release exclusive parse/append permission */
     return NIL;
   }
   if (newname) {		/* want rename? */
     if (!((s = mtx_file (tmp,newname)) && *s)) {
-      sprintf (tmp,"Can't rename mailbox %s to %s: invalid name",old,newname);
+      sprintf (tmp,"Can't rename mailbox %.80s to %.80s: invalid name",
+	       old,newname);
       mm_log (tmp,ERROR);
       ret = NIL;		/* set failure */
     }
-    if (rename (file,s)) {	/* rename the file */
-      sprintf (tmp,"Can't rename mailbox %s to %s: %s",old,newname,
+    if (s = strrchr (s,'/')) {	/* found superior to destination name? */
+      c = *++s;			/* remember first character of inferior */
+      *s = '\0';		/* tie off to get just superior */
+				/* name doesn't exist, create it */
+      if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
+	  !dummy_create (stream,tmp)) return NIL;
+      *s = c;			/* restore full name */
+    }
+    if (rename (file,tmp)) {	/* rename the file */
+      sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",old,newname,
 	       strerror (errno));
       mm_log (tmp,ERROR);
       ret = NIL;		/* set failure */
     }
   }
   else if (unlink (file)) {
-    sprintf (tmp,"Can't delete mailbox %s: %s",old,strerror (errno));
+    sprintf (tmp,"Can't delete mailbox %.80s: %s",old,strerror (errno));
     mm_log (tmp,ERROR);
     ret = NIL;			/* set failure */
   }
@@ -329,21 +344,12 @@ MAILSTREAM *mtx_open (MAILSTREAM *stream)
   char tmp[MAILTMPLEN];
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return user_flags (&mtxproto);
-  if (LOCAL) {			/* close old file if stream being recycled */
-    mtx_close (stream,NIL);	/* dump and save the changes */
-    stream->dtb = &mtxdriver;	/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
-    stream->uid_last = 0;	/* default UID validity */
-    stream->uid_validity = time (0);
-				/* flush user flags */
-    for (i = 0; i < NUSERFLAGS; i++)
-      if (stream->user_flags[i]) fs_give ((void **) &stream->user_flags[i]);
-  }
+  if (stream->local) fatal ("mtx recycle stream");
   user_flags (stream);		/* set up user flags */
   if (stream->rdonly ||
       (fd = open (mtx_file (tmp,stream->mailbox),O_RDWR,NIL)) < 0) {
     if ((fd = open (mtx_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0) {
-      sprintf (tmp,"Can't open mailbox: %s",strerror (errno));
+      sprintf (tmp,"Can't open mailbox: %.80s",strerror (errno));
       mm_log (tmp,ERROR);
       return NIL;
     }
@@ -789,12 +795,12 @@ long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     break;
   case EINVAL:
     if (pc) return (*pc) (stream,sequence,mailbox,options);
-    sprintf (LOCAL->buf,"Invalid MTX-format mailbox name: %s",mailbox);
+    sprintf (LOCAL->buf,"Invalid MTX-format mailbox name: %.80s",mailbox);
     mm_log (LOCAL->buf,ERROR);
     return NIL;
   default:
     if (pc) return (*pc) (stream,sequence,mailbox,options);
-    sprintf (LOCAL->buf,"Not a MTX-format mailbox: %s",mailbox);
+    sprintf (LOCAL->buf,"Not a MTX-format mailbox: %.80s",mailbox);
     mm_log (LOCAL->buf,ERROR);
     return NIL;
   }

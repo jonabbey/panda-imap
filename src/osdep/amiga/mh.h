@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	13 January 1997
+ * Last Edited:	27 July 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,6 +36,7 @@
 /* Build parameters */
 
 #define MHPROFILE ".mh_profile"
+#define MHSEQUENCE ".mh_sequence"
 #define MHPATH "Mail"
 
 

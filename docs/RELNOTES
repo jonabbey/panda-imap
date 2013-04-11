@@ -1,8 +1,7 @@
-Updated: 13 July 1998
+Updated: 18 August 1998
 
-imap-4.2 is a production release of the imap-4.1 beta toolkit, distributed
-with Pine 4.01.  This is the only version of imap-4.2 which will be released.
-imap-4.3 is expected to be another beta toolkit.
+imap-4.3 is a maintenance update of imap-4.2, which in turn was a maintenance
+update of imap-4.1.
 
 This version supports IMAP4rev1 (RFC 2060).  There are major internal and
 external changes from the IMAP2bis version (e.g. imap-3.6, distributed with
@@ -11,10 +10,14 @@ verion will build with this version without modifications.  Drivers written
 for the IMAP2bis version will definitely need to be rewritten.
 
 Most notable operational changes from imap-3.x:
- . Kerberos V5 is supported through the GSSAPI on UNIX.  To enable Kerberos V5,
-    add "gss" to the EXTRAAUTHENTICATORS list in the top-level Makefile and
-     rebuild.  You may also need to edit the GSSAPI directory paths in the
-     ../src/osdep/unix/Makefile
+ . SASL authentication is supported in the IMAP and POP3 servers, and in
+    the IMAP, POP3, and SMTP client code.  There is no support for NNTP
+    SASL yet.
+ . Kerberos V5 is supported through the GSSAPI on UNIX and NT.  To enable
+    Kerberos V5 on UNIX, add "gss" to the EXTRAAUTHENTICATORS list in the
+    top-level Makefile and rebuild.  You may also need to edit the GSSAPI
+    directory paths in the ../src/osdep/unix/Makefile
+ . Kerberos V4 client-only contributed code is supplied, but is unsupported.
  . The mbox driver is now enabled by default.  If the file "mbox" exists on
     the user's home directory and is in UNIX mailbox format, then when INBOX
     is opened this file will be selected as INBOX instead of the mail spool
@@ -29,7 +32,7 @@ Most notable operational changes from imap-3.x:
     this behavior, since it would disable IMAP4rev1 support.  This message may
     show up if you access the mailbox as a file using older mail software (e.g.
     Pine 3.9x).  It is invisible with IMAP or POP access, or with access as a
-    file using Pine 4.00
+    file using Pine 4.0x.
  . Support for additional mailbox formats
  . No longer keeps entire mailbox in memory for UNIX format files
  . Multilingual searching of the following charsets are supported:

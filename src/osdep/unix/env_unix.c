@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	13 July 1998
+ * Last Edited:	26 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -709,6 +709,7 @@ void locksbuf (char *lock,void *sb)
 
 int lock_work (char *lock)
 {
+  int fd;
   long nlinks = chk_notsymlink (lock);
   if (!nlinks) return -1;	/* fail if symbolic link */
   if (nlinks > 1) {		/* extra hard link to the file? */
@@ -716,8 +717,11 @@ int lock_work (char *lock)
     syslog (LOG_CRIT,"SECURITY PROBLEM: lock file %s has a hard link",lock);
     return -1;
   }
-  return open (lock,O_RDWR | O_CREAT | ((nlinks < 0) ? O_EXCL : NIL),
-	       (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
+  if ((fd = open (lock,O_RDWR | O_CREAT | ((nlinks < 0) ? O_EXCL : NIL),
+		  (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) >= 0)
+				/* make sure mode OK (don't use fchmod()) */
+    chmod (lock,(int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
+  return fd;
 }
 
 

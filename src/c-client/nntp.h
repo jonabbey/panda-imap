@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	23 March 1998
+ * Last Edited:	27 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -124,7 +124,7 @@ SENDSTREAM *nntp_close (SENDSTREAM *stream);
 long nntp_mail (SENDSTREAM *stream,ENVELOPE *msg,BODY *body);
 long nntp_send (SENDSTREAM *stream,char *command,char *args);
 long nntp_send_work (SENDSTREAM *stream,char *command,char *args);
-long nntp_send_auth (SENDSTREAM *stream,long code);
+long nntp_send_auth (SENDSTREAM *stream);
 long nntp_send_auth_work (SENDSTREAM *stream,NETMBX *mb,char *tmp);
 long nntp_reply (SENDSTREAM *stream);
 long nntp_fake (SENDSTREAM *stream,long code,char *text);

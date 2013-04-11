@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1993
- * Last Edited:	12 November 1997
+ * Last Edited:	28 August 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -48,7 +48,7 @@
 				/* MMDF header text */
 #define MMDFHDRTXT "\01\01\01\01\n"
 				/* length of MMDF header text */
-#define MMDFHDRLEN sizeof (MMDFHDRTXT) - 1
+#define MMDFHDRLEN (sizeof (MMDFHDRTXT) - 1)
 
 
 /* Validate MMDF header

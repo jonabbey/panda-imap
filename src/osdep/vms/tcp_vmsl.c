@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	22 January 1998
+ * Last Edited:	29 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -335,4 +335,14 @@ char *mylocalhost ()
     myLocalHost = cpystr (tmp);
   }
   return myLocalHost;
+}
+
+/* TCP/IP return canonical form of host name
+ * Accepts: host name
+ * Returns: canonical form of host name
+ */
+
+char *tcp_canonical (char *name)
+{
+  return name;
 }

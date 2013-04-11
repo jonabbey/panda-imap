@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	14 July 1998
+# Last Edited:	6 August 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -58,6 +58,8 @@ EXTRADRIVERS=mbox
 # afs	AFS authentication
 # dce	DCE authentication
 # krb	Kerberos IV (must also have krb as an extra authentication)
+# nul	no plaintext authentication (note: this will break some secure
+#	 authenticators -- don't use without checking first!!)
 # std	system standard
 
 PASSWDTYPE=std
@@ -142,7 +144,7 @@ all:	c-client rebuild bundled
 # hpx	HP-UX 10.x
 # hxd	HP-UX 10.x with DCE security
 # isc	Interactive Systems
-# lnx	Linux with crypt() in the C library (see slx and sl5)
+# lnx	Linux with traditional passwords and crypt() in the C library
 # lyn	LynxOS
 # mct	MachTen
 # mnt	Atari ST Mint (not MacMint)
@@ -158,8 +160,9 @@ all:	c-client rebuild bundled
 # sco	Santa Cruz Operation
 # shp	HP-UX with Trusted Computer Base
 # sgi	Silicon Graphics IRIX
-# sl5	Linux using -lcrypt to get the crypt() function
-# slx	Linux using -lshadow to get the crypt() function
+# sl4	Linux using -lshadow to get the crypt() function
+# sl5	Linux with shadow passwords, no extra libraries
+# slx	Linux using -lcrypt to get the crypt() function
 # snx	Siemens Nixdorf SININX or Reliant UNIX
 # sol	Solaris (won't work unless "ucbcc" works -- use gso instead)
 # sos	OSF/1 with SecureWare
@@ -180,7 +183,7 @@ c-client:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsf bsi d-g d54 drs epx gas gh9 ghp gso gsu gul hpp hpx lnx lyn mct mnt neb nxt osf os4 ptx qnx sc5 sco sgi shp sl5 slx snx sol sos uw2: an
+a32 a41 aix bs3 bsf bsi d-g d54 drs epx gas gh9 ghp gso gsu gul hpp hpx lnx lyn mct mnt neb nxt osf os4 ptx qnx sc5 sco sgi shp sl4 sl5 slx snx sol sos uw2: an
 	$(BUILD) OS=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.

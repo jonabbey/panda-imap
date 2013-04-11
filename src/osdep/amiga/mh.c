@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	13 July 1998
+ * Last Edited:	31 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -103,7 +103,7 @@ MAILSTREAM mhproto = {&mhdriver};
 DRIVER *mh_valid (char *name)
 {
   char tmp[MAILTMPLEN];
-  return mh_isvalid (name,tmp,T) ? &mhdriver : NIL;
+  return mh_isvalid (name,tmp,NIL) ? &mhdriver : NIL;
 }
 
 /* MH mail test for valid mailbox
@@ -120,28 +120,37 @@ static long mh_once = 0;	/* already through this code */
 int mh_isvalid (char *name,char *tmp,long synonly)
 {
   struct stat sbuf;
+				/* name must be #MHINBOX or #mh/... */
+  if (strcmp (ucase (strcpy (tmp,name)),"#MHINBOX") &&
+      !(tmp[0] == '#' && tmp[1] == 'M' && tmp[2] == 'H' && tmp[3] == '/')) {
+    errno = EINVAL;		/* bogus name */
+    return NIL;
+  }
   if (!mh_path) {		/* have MH path yet? */
-    char *s,*s1,*t,*v;
+    char *s,*t,*v;
     int fd;
     if (mh_once++) return NIL;	/* only do this code once */
     if (!mh_profile) {		/* have MH profile? */
       sprintf (tmp,"%s/%s",myhomedir (),MHPROFILE);
       mh_profile = cpystr (tmp);
     }
-    if ((fd = open (tmp,O_RDONLY,NIL)) < 0) return NIL;
+    if ((fd = open (tmp,O_RDONLY,NIL)) < 0) {
+      strcat (tmp," not found, mh format names disabled");
+      mm_log (tmp,WARN);
+      return NIL;
+    }
     fstat (fd,&sbuf);		/* yes, get size and read file */
-    read (fd,(s1 = t = (char *) fs_get (sbuf.st_size + 1)),sbuf.st_size);
+    read (fd,(t = (char *) fs_get (sbuf.st_size + 1)),sbuf.st_size);
     close (fd);			/* don't need the file any more */
     t[sbuf.st_size] = '\0';	/* tie it off */
 				/* parse profile file */
-    while (*(s = t) && (t = strchr (s,'\n'))) {
-      *t++ = '\0';		/* tie off line */
+    for (s = strtok (t,"\r\n"); s && *s; s = strtok (NIL,"\r\n")) {
 				/* found space in line? */
       if (v = strpbrk (s," \t")) {
-	*v = '\0';		/* tie off, is keyword "Path:"? */
+	*v++ = '\0';		/* tie off, is keyword "Path:"? */
 	if (!strcmp (lcase (s),"path:")) {
 				/* skip whitespace */
-	  while (*++v == ' ' || *v == '\t');
+	  while ((*v == ' ') || (*v == '\t')) ++v;
 	  if (*v == '/') s = v;	/* absolute path? */
 	  else sprintf (s = tmp,"%s/%s",myhomedir (),v);
 	  mh_path = cpystr (s);	/* copy name */
@@ -149,28 +158,19 @@ int mh_isvalid (char *name,char *tmp,long synonly)
 	}
       }
     }
-    fs_give ((void **) &s1);	/* flush profile text */
+    fs_give ((void **) &t);	/* flush profile text */
     if (!mh_path) {		/* default path if not in the profile */
       sprintf (tmp,"%s/%s",myhomedir (),MHPATH);
       mh_path = cpystr (tmp);
     }
   }
-
-				/* name must be #MHINBOX or #mh/... */
-  if (strcmp (ucase (strcpy (tmp,name)),"#MHINBOX") &&
-      !(tmp[0] == '#' && tmp[1] == 'M' && tmp[2] == 'H' && tmp[3] == '/')) {
-    errno = EINVAL;		/* bogus name */
-    return NIL;
-  }
-				/* all done if syntax only check */
-  if (synonly && tmp[0] == '#') return T;
+  if (synonly) return T;	/* all done if syntax only check */
   errno = NIL;			/* zap error */
 				/* validate name as directory */
   return ((stat (mh_file (tmp,name),&sbuf) == 0) &&
 	  (sbuf.st_mode & S_IFMT) == S_IFDIR);
 }
-
-
+
 /* MH manipulate driver parameters
  * Accepts: function code
  *	    function-dependent value
@@ -212,9 +212,10 @@ void mh_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
 {
   char tmp[MAILTMPLEN];
   if (mh_canonicalize (tmp,ref,pat))
-    mm_log ("Scan not valid for mh mailboxes",WARN);
+    mm_log ("Scan not valid for mh mailboxes",ERROR);
 }
-
+
+
 /* MH list mailboxes
  * Accepts: mail stream
  *	    reference
@@ -225,8 +226,16 @@ void mh_list (MAILSTREAM *stream,char *ref,char *pat)
 {
   char *s,test[MAILTMPLEN],file[MAILTMPLEN];
   long i = 0;
+  if (!pat || !*pat) {		/* empty pattern? */
+    if (mh_canonicalize (test,ref,"*")) {
+				/* tie off name at root */
+      if (s = strchr (test,'/')) *++s = '\0';
+      else test[0] = '\0';
+      mm_list (stream,'/',test,LATT_NOSELECT);
+    }
+  }
 				/* get canonical form of name */
-  if (mh_canonicalize (test,ref,pat)) {
+  else if (mh_canonicalize (test,ref,pat)) {
     if (test[3] == '/') {	/* looking down levels? */
 				/* yes, found any wildcards? */
       if (s = strpbrk (test,"%*")) {
@@ -248,8 +257,7 @@ void mh_list (MAILSTREAM *stream,char *ref,char *pat)
       mm_list (stream,NIL,"#MHINBOX",LATT_NOINFERIORS);
   }
 }
-
-
+
 /* MH list subscribed mailboxes
  * Accepts: mail stream
  *	    reference
@@ -341,21 +349,21 @@ long mh_create (MAILSTREAM *stream,char *mailbox)
   char tmp[MAILTMPLEN];
   if (!(mailbox[0] == '#' && (mailbox[1] == 'm' || mailbox[1] == 'M') &&
 	(mailbox[2] == 'h' || mailbox[2] == 'H') && mailbox[3] == '/')) {
-    sprintf (tmp,"Can't create mailbox %s: invalid MH-format name",mailbox);
+    sprintf (tmp,"Can't create mailbox %.80s: invalid MH-format name",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
 				/* must not already exist */
   if (mh_isvalid (mailbox,tmp,NIL)) {
-    sprintf (tmp,"Can't create mailbox %s: mailbox already exists",mailbox);
+    sprintf (tmp,"Can't create mailbox %.80s: mailbox already exists",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
   if (!mh_path) return NIL;	/* sorry */
-  sprintf (tmp,"%s/%s/",mh_path,mailbox + 4);
+  sprintf (tmp,"%s/%.900s/",mh_path,mailbox + 4);
 				/* try to make it */
   if (!dummy_create_path (stream,tmp)) {
-    sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
+    sprintf (tmp,"Can't create mailbox %.80s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
   }
@@ -375,13 +383,13 @@ long mh_delete (MAILSTREAM *stream,char *mailbox)
   char tmp[MAILTMPLEN];
   if (!(mailbox[0] == '#' && (mailbox[1] == 'm' || mailbox[1] == 'M') &&
 	(mailbox[2] == 'h' || mailbox[2] == 'H') && mailbox[3] == '/')) {
-    sprintf (tmp,"Can't delete mailbox %s: invalid MH-format name",mailbox);
+    sprintf (tmp,"Can't delete mailbox %.80s: invalid MH-format name",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
 				/* is mailbox valid? */
   if (!mh_isvalid (mailbox,tmp,NIL)){
-    sprintf (tmp,"Can't delete mailbox %s: no such mailbox",mailbox);
+    sprintf (tmp,"Can't delete mailbox %.80s: no such mailbox",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
@@ -390,7 +398,8 @@ long mh_delete (MAILSTREAM *stream,char *mailbox)
   if (dirp = opendir (tmp)) {	/* open directory */
     tmp[i++] = '/';		/* now apply trailing delimiter */
     while (d = readdir (dirp))	/* massacre all numeric or comma files */
-      if (mh_select (d) || *d->d_name == ',') {
+      if (mh_select (d) || (*d->d_name == ',') ||
+	  !strcmp (d->d_name,MHSEQUENCE)) {
 	strcpy (tmp + i,d->d_name);
 	unlink (tmp);		/* sayonara */
       }
@@ -398,7 +407,7 @@ long mh_delete (MAILSTREAM *stream,char *mailbox)
   }
 				/* try to remove the directory */
   if (rmdir (mh_file (tmp,mailbox))) {
-    sprintf (tmp,"Can't delete mailbox %s: %s",mailbox,strerror (errno));
+    sprintf (tmp,"Can't delete mailbox %.80s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
   }
@@ -414,40 +423,38 @@ long mh_delete (MAILSTREAM *stream,char *mailbox)
 
 long mh_rename (MAILSTREAM *stream,char *old,char *newname)
 {
-  char tmp[MAILTMPLEN],tmp1[MAILTMPLEN];
+  char c,*s,tmp[MAILTMPLEN],tmp1[MAILTMPLEN];
+  struct stat sbuf;
   if (!(old[0] == '#' && (old[1] == 'm' || old[1] == 'M') &&
-	(old[2] == 'h' || old[2] == 'H') && old[3] == '/')) {
-    sprintf (tmp,"Can't delete mailbox %s: invalid MH-format name",old);
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
+	(old[2] == 'h' || old[2] == 'H') && old[3] == '/'))
+    sprintf (tmp,"Can't delete mailbox %.80s: invalid MH-format name",old);
 				/* old mailbox name must be valid */
-  if (!mh_isvalid (old,tmp,NIL)) {
-    sprintf (tmp,"Can't rename mailbox %s: no such mailbox",old);
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  if (!(newname[0] == '#' && (newname[1] == 'm' || newname[1] == 'M') &&
-	(newname[2] == 'h' || newname[2] == 'H') && newname[3] == '/')) {
-    sprintf (tmp,"Can't rename to mailbox %s: invalid MH-format name",newname);
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-				/* new mailbox name must not be valid */
-  if (mh_isvalid (newname,tmp,NIL)) {
-    sprintf (tmp,"Can't rename to mailbox %s: destination already exists",
+  else if (!mh_isvalid (old,tmp,NIL))
+    sprintf (tmp,"Can't rename mailbox %.80s: no such mailbox",old);
+  else if (!(newname[0] == '#' && (newname[1] == 'm' || newname[1] == 'M') &&
+	(newname[2] == 'h' || newname[2] == 'H') && newname[3] == '/'))
+    sprintf (tmp,"Can't rename to mailbox %.80s: invalid MH-format name",
 	     newname);
-    mm_log (tmp,ERROR);
-    return NIL;
+				/* new mailbox name must not be valid */
+  else if (mh_isvalid (newname,tmp,NIL))
+    sprintf (tmp,"Can't rename to mailbox %.80s: destination already exists",
+	     newname);
+				/* success if can rename the directory */
+  else {			/* found superior to destination name? */
+    if (s = strrchr (mh_file (tmp1,newname),'/')) {
+      c = *++s;			/* remember first character of inferior */
+      *s = '\0';		/* tie off to get just superior */
+				/* name doesn't exist, create it */
+      if ((stat (tmp1,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
+	  !dummy_create (stream,tmp1)) return NIL;
+      *s = c;			/* restore full name */
+    }
+    if (!rename (mh_file (tmp,old),tmp1)) return T;
+    sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",
+	     old,newname,strerror (errno));
   }
-				/* try to rename the directory */
-  if (rename (mh_file (tmp,old),mh_file (tmp1,newname))) {
-    sprintf (tmp,"Can't rename mailbox %s to %s: %s",old,newname,
-	     strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  return T;			/* return success */
+  mm_log (tmp,ERROR);		/* something failed */
+  return NIL;
 }
 
 /* MH mail open
@@ -459,13 +466,7 @@ MAILSTREAM *mh_open (MAILSTREAM *stream)
 {
   char tmp[MAILTMPLEN];
   if (!stream) return &mhproto;	/* return prototype for OP_PROTOTYPE call */
-  if (LOCAL) {			/* close old file if stream being recycled */
-    mh_close (stream,NIL);	/* dump and save the changes */
-    stream->dtb = &mhdriver;	/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
-    stream->uid_last = 0;	/* default UID validity */
-    stream->uid_validity = time (0);
-  }
+  if (stream->local) fatal ("mh recycle stream");
   stream->local = fs_get (sizeof (MHLOCAL));
 				/* note if an INBOX or not */
   LOCAL->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"#MHINBOX");
@@ -628,7 +629,8 @@ long mh_ping (MAILSTREAM *stream)
   int silent = stream->silent;
   if (stat (LOCAL->dir,&sbuf)) { /* directory exists? */
     if (LOCAL->inbox) return T;
-    mm_log ("No such mailbox",ERROR);
+    sprintf (tmp,"Can't open mailbox %.80s: no such mailbox",stream->mailbox);
+    mm_log (tmp,ERROR);
     return NIL;
   }
   stream->silent = T;		/* don't pass up mm_exists() events yet */
@@ -906,7 +908,7 @@ long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 
   sprintf (tmp + strlen (tmp),"/%lu",++last);
   if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
-    sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
+    sprintf (tmp,"Can't open append message: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
   }
@@ -917,7 +919,7 @@ long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   mm_critical (stream);		/* go critical */
 				/* write the data */
   if ((write (fd,s,size) < 0) || fsync (fd)) {
-    unlink (tmp);		/* delete mailbox */
+    unlink (tmp);		/* delete message */
     sprintf (tmp,"Message append failed: %s",strerror (errno));
     mm_log (tmp,ERROR);
     ret = NIL;
@@ -971,8 +973,8 @@ char *mh_file (char *dst,char *name)
 {
   char tmp[MAILTMPLEN];
 				/* build composite name */
-  sprintf (dst,"%s/%s",mh_path,strcmp (ucase (strcpy (tmp,name)),"#MHINBOX") ?
-	   name + 4 : "inbox");
+  sprintf (dst,"%s/%.900s",mh_path,
+	   strcmp (ucase (strcpy (tmp,name)),"#MHINBOX") ? name + 4 : "inbox");
   return dst;
 }
 

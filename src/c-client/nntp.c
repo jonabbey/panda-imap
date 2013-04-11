@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	16 July 1998
+ * Last Edited:	1 September 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -59,7 +59,7 @@ DRIVER nntpdriver = {
   DR_LOWMEM |
 #endif
 				/* driver flags */
-  DR_NEWS|DR_READONLY|DR_NOFAST|DR_NAMESPACE|DR_CRLF,
+  DR_NEWS|DR_READONLY|DR_NOFAST|DR_NAMESPACE|DR_CRLF|DR_RECYCLE,
   (DRIVER *) NIL,		/* next driver */
   nntp_valid,			/* mailbox is valid for us */
   nntp_parameters,		/* manipulate parameters */
@@ -168,7 +168,7 @@ void nntp_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
 {
   char tmp[MAILTMPLEN];
   if (nntp_canonicalize (ref,pat,tmp))
-    mm_log ("Scan not valid for NNTP mailboxes",WARN);
+    mm_log ("Scan not valid for NNTP mailboxes",ERROR);
 }
 
 
@@ -359,14 +359,11 @@ long nntp_status (MAILSTREAM *stream,char *mbx,long flags)
   }
 				/* note mailbox name */
   name = (*mb.mailbox == '#') ? mb.mailbox+6 : mb.mailbox;
-  if (stream) {			/* stream argument given? */
-				/* can't use it if not the same host */
-    if (strcmp (ucase (strcpy (tmp,LOCAL->host)),ucase (mb.host)))
-      return nntp_status (NIL,mbx,flags);
-  }
-				/* no stream argument, make new stream */
-  else if (!(tstream = stream = mail_open (NIL,mbx,OP_HALFOPEN|OP_SILENT)))
-    return NIL;
+				/* stream to reuse? */
+  if (!(stream && LOCAL->nntpstream &&
+	mail_usable_network_stream (stream,mbx)) &&
+      !(tstream = stream = mail_open (NIL,mbx,OP_HALFOPEN|OP_SILENT)))
+    return NIL;			/* can't reuse or make a new one */
 
   if (nntp_send (LOCAL->nntpstream,"GROUP",name) == NNTPGOK) {
     status.flags = flags;	/* status validity flags */
@@ -441,20 +438,13 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   }
 				/* note mailbox anme */
   mbx = (*mb.mailbox == '#') ? mb.mailbox+6 : mb.mailbox;
-  if (LOCAL) {			/* if recycle stream, see if changing hosts */
-    if (strcmp (lcase (mb.host),lcase (strcpy (tmp,LOCAL->host)))) {
-      sprintf (tmp,"Closing connection to %s",LOCAL->host);
-      if (!stream->silent) mm_log (tmp,(long) NIL);
-    }
-    else {			/* same host, preserve NNTP connection */
-      sprintf (tmp,"Reusing connection to %s",LOCAL->host);
-      if (!stream->silent) mm_log (tmp,(long) NIL);
-      nstream = LOCAL->nntpstream;
-      LOCAL->nntpstream = NIL;	/* keep nntp_mclose() from punting it */
-    }
+  if (LOCAL) {			/* recycle stream */
+    sprintf (tmp,"Reusing connection to %s",LOCAL->host);
+    if (!stream->silent) mm_log (tmp,(long) NIL);
+    nstream = LOCAL->nntpstream;
+    LOCAL->nntpstream = NIL;	/* keep nntp_mclose() from punting it */
     nntp_mclose (stream,NIL);	/* do close action */
     stream->dtb = &nntpdriver;	/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
   }
   if (mb.secflag) {		/* in case /secure switch given */
     mm_log ("Secure NNTP login not available",ERROR);
@@ -495,9 +485,7 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   stream->local = fs_get (sizeof (NNTPLOCAL));
   LOCAL->nntpstream = nstream;
   LOCAL->dirty = NIL;		/* no update to .newsrc needed yet */
-				/* copy host and newsgroup name */
-  LOCAL->host = cpystr (mb.host);
-  LOCAL->name = cpystr (mbx);
+  LOCAL->name = cpystr (mbx);	/* copy newsgroup name */
   LOCAL->user = mb.user[0] ? cpystr (mb.user) : NIL;
   LOCAL->msgno = 0;		/* no current text */
   LOCAL->txt = NIL;
@@ -505,9 +493,10 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   stream->rdonly = stream->perm_deleted = T;
 				/* UIDs are always valid */
   stream->uid_validity = 0xbeefface;
-  sprintf (tmp,"{%s:%lu/nntp%s%s}",net_host (nstream->netstream),
-	   net_port (nstream->netstream),LOCAL->user ? "/user=" : "",
-	   LOCAL->user ? LOCAL->user : "");
+				/* copy host name */
+  LOCAL->host = cpystr (net_host (nstream->netstream));
+  sprintf (tmp,"{%s:%lu/nntp%s%s}",LOCAL->host,net_port (nstream->netstream),
+	   LOCAL->user ? "/user=" : "",LOCAL->user ? LOCAL->user : "");
   if (stream->halfopen) strcat (tmp,"<no_mailbox>");
   else sprintf (tmp + strlen (tmp),"#news.%s",mbx);
   fs_give ((void **) &stream->mailbox);
@@ -628,7 +617,7 @@ long nntp_overview (MAILSTREAM *stream,char *sequence,overview_t ofn)
   unsigned long uid;
   OVERVIEW ov,*ovr;
   memset ((void *) &ov,0,sizeof (OVERVIEW));
-  while (*sequence) {
+  if (ofn) while (*sequence) {
     for (s = tmp; *sequence && ((c = *sequence++) != ',');)
       *s++ = (c == ':') ? '-' : c;
     *s++ = '\0';
@@ -1030,7 +1019,7 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	stream->netstream = netstream;
 	stream->debug = (mb.dbgflag || (options & OP_DEBUG)) ? T : NIL;
 				/* get server greeting */
-	switch (reply = nntp_reply (stream)) {
+	switch ((int) (reply = nntp_reply (stream))) {
 	case NNTPGREET:		/* allow posting */
 	  NNTP.post = T;
 	  mm_notify (NIL,stream->reply + 4,(long) NIL);
@@ -1048,17 +1037,21 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
       }
     }
   } while (!stream && *++hostlist);
-  if (stream) {			/* got a live stream? */
-				/* some silly servers require this */
-    nntp_send (stream,"MODE","READER");
-				/* authenticate if requested */
+			/* in case server demands MODE READER */
+  if (stream) switch ((int) nntp_send_work (stream,"MODE","READER")) {
+  case NNTPWANTAUTH:		/* server wants auth first, do so and retry */
+  case NNTPWANTAUTH2:
+    if (nntp_send_auth_work(stream,&mb,tmp)) nntp_send(stream,"MODE","READER");
+    else stream = nntp_close (stream);
+    break;
+  default:			/* only authenticate if requested */
     if (mb.user[0] && !nntp_send_auth_work (stream,&mb,tmp))
       stream = nntp_close (stream);
+    break;
   }
   return stream;
 }
-
-
+
 /* NNTP close connection
  * Accepts: SEND stream
  * Returns: NIL always
@@ -1119,7 +1112,8 @@ long nntp_mail (SENDSTREAM *stream,ENVELOPE *env,BODY *body)
 	     nntp_send_work (stream,".",NIL) :
 	       nntp_fake (stream,NNTPSOFTFATAL,
 			  "NNTP connection broken (message text)");
-  while (nntp_send_auth (stream,ret));
+  while (((ret == NNTPWANTAUTH) || (ret == NNTPWANTAUTH2)) &&
+	 nntp_send_auth (stream));
   if (s) *s = ' ';		/* put the comment in the date back */
   return ret;
 }
@@ -1133,8 +1127,18 @@ long nntp_mail (SENDSTREAM *stream,ENVELOPE *env,BODY *body)
 long nntp_send (SENDSTREAM *stream,char *command,char *args)
 {
   long ret;
-  do ret = nntp_send_work (stream,command,args);
-  while (nntp_send_auth (stream,ret));
+  switch ((int) (ret = nntp_send_work (stream,command,args))) {
+  case NNTPWANTAUTH:		/* authenticate and retry */
+  case NNTPWANTAUTH2:
+    if (nntp_send_auth (stream)) ret = nntp_send_work (stream,command,args);
+    else {			/* we're probably hosed, nuke the session */
+      nntp_send (stream,"QUIT",NIL);
+				/* close net connection */
+      net_close (stream->netstream);
+    }
+  default:			/* all others just return */
+    break;
+  }
   return ret;
 }
 
@@ -1160,20 +1164,16 @@ long nntp_send_work (SENDSTREAM *stream,char *command,char *args)
 
 /* NNTP send authentication if needed
  * Accepts: SEND stream
- *	    code from previous command
  * Returns: T if need to redo command, NIL otherwise
  */
 
-long nntp_send_auth (SENDSTREAM *stream,long code)
+long nntp_send_auth (SENDSTREAM *stream)
 {
-  if ((code == NNTPWANTAUTH) || (code == NNTPWANTAUTH2)) {
-    NETMBX mb;
-    char tmp[MAILTMPLEN];
-    sprintf (tmp,"{%s/nntp}<none>",net_host (stream->netstream));
-    mail_valid_net_parse (tmp,&mb);
-    return nntp_send_auth_work (stream,&mb,tmp);
-  }
-  return NIL;			/* no auth needed */
+  NETMBX mb;
+  char tmp[MAILTMPLEN];
+  sprintf (tmp,"{%s/nntp}<none>",net_host (stream->netstream));
+  mail_valid_net_parse (tmp,&mb);
+  return nntp_send_auth_work (stream,&mb,tmp);
 }
 
 
@@ -1220,9 +1220,9 @@ long nntp_reply (SENDSTREAM *stream)
     return nntp_fake(stream,NNTPSOFTFATAL,"NNTP connection broken (response)");
   if (stream->debug) mm_dlog (stream->reply);
 				/* handle continuation by recursion */
-  if (stream->reply[3]=='-') return nntp_reply (stream);
+  if (stream->reply[3] == '-') return nntp_reply (stream);
 				/* return response code */
-  return (long) atoi (stream->reply);
+  return stream->replycode = atol (stream->reply);
 }
 
 

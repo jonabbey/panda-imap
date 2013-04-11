@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	13 May 1998
+ * Last Edited:	19 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -121,6 +121,9 @@
 #define SET_LOCALHOST (long) 206
 #define GET_SYSINBOX (long) 207
 #define SET_SYSINBOX (long) 208
+#define GET_USERPROMPT (long) 209
+#define SET_USERPROMPT (long) 210
+
 	/* 3xx: TCP/IP */
 #define GET_OPENTIMEOUT (long) 300
 #define SET_OPENTIMEOUT (long) 301
@@ -140,7 +143,6 @@
 #define SET_RSHCOMMAND (long) 315
 #define GET_RSHPATH (long) 316
 #define SET_RSHPATH (long) 317
-
 	/* 4xx: network drivers */
 #define GET_MAXLOGINTRIALS (long) 400
 #define SET_MAXLOGINTRIALS (long) 401
@@ -162,6 +164,7 @@
 #define SET_IMAPENVELOPE (long) 417
 #define GET_IMAPREFERRAL (long) 418
 #define SET_IMAPREFERRAL (long) 419
+
 	/* 5xx: local file drivers */
 #define GET_MBXPROTECTION (long) 500
 #define SET_MBXPROTECTION (long) 501
@@ -215,6 +218,7 @@
 #define DR_LOCKING (long) 256	/* driver does locking */
 #define DR_CRLF (long) 512	/* driver internal form uses CRLF newlines */
 #define DR_NOSTICKY (long) 1024	/* driver does not support sticky UIDs */
+#define DR_RECYCLE (long) 2048	/* driver does stream recycling */
 
 
 /* Cache management function codes */
@@ -306,6 +310,7 @@
 #define LATT_NOSELECT (long) 2
 #define LATT_MARKED (long) 4
 #define LATT_UNMARKED (long) 8
+#define LATT_REFERRAL (long) 16
 
 
 /* Sort functions */
@@ -838,6 +843,7 @@ typedef struct GETS_DATA {
 typedef struct send_stream {
   NETSTREAM *netstream;		/* network I/O stream */
   char *reply;			/* last reply string */
+  long replycode;		/* last reply code */
   unsigned int debug : 1;	/* stream debug flag */
   union {			/* protocol specific */
     struct {			/* SMTP specific */
@@ -849,6 +855,10 @@ typedef struct send_stream {
 	unsigned int expn : 1;	/* supports EXPN */
 	unsigned int help : 1;	/* supports HELP */
 	unsigned int turn : 1;	/* supports TURN */
+	unsigned int etrn : 1;	/* supports ETRN */
+	unsigned int relay : 1;	/* supports relaying */
+	unsigned int pipe : 1;	/* supports pipelining */
+	unsigned int ensc : 1;	/* supports enhanced status codes */
       } service;
       struct {			/* 8-bit MIME transport */
 	unsigned int ok : 1;	/* supports 8-bit MIME */
@@ -871,6 +881,7 @@ typedef struct send_stream {
 	unsigned int ok : 1;	/* supports SIZE */
 	unsigned long limit;	/* maximum size supported */
       } size;
+      unsigned long auth;	/* supported SASL authenticators */
     } esmtp;
     struct {			/* NNTP specific */
       unsigned int post : 1;	/* supports POST */
@@ -905,7 +916,7 @@ typedef void (*overview_t) (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov);
 typedef unsigned long *(*sorter_t) (MAILSTREAM *stream,char *charset,
 				    SEARCHPGM *spg,SORTPGM *pgm,long flags);
 typedef ADDRESS *(*parsephrase_t) (char *phrase,char *end,char *host);
-
+typedef char *(*userprompt_t) (void);
 
 /* Globals */
 
@@ -1236,6 +1247,7 @@ int mail_thread_compare_date (const void *a1,const void *a2);
 long mail_sequence (MAILSTREAM *stream,char *sequence);
 long mail_uid_sequence (MAILSTREAM *stream,char *sequence);
 long mail_parse_flags (MAILSTREAM *stream,char *flag,unsigned long *uf);
+long mail_usable_network_stream (MAILSTREAM *stream,char *name);
 
 MESSAGECACHE *mail_new_cache_elt (unsigned long msgno);
 ENVELOPE *mail_newenvelope (void);

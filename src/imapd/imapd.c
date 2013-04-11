@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	13 July 1998
+ * Last Edited:	12 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -83,7 +83,7 @@ typedef struct text_args {
 
 /* Global storage */
 
-char *version = "11.237";	/* version number of this server */
+char *version = "11.240";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 int state = LOGIN;		/* server state */
 int trycreate = 0;		/* saw a trycreate */
@@ -91,6 +91,7 @@ int finding = NIL;		/* doing old FIND command */
 int anonymous = 0;		/* non-zero if anonymous */
 int critical = NIL;		/* non-zero if in critical code */
 int quell_events = NIL;		/* non-zero if in FETCH response */
+int existsquelled = NIL;	/* non-zero if an EXISTS was quelled */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 DRIVER *curdriver = NIL;	/* note current driver */
 MAILSTREAM *tstream = NIL;	/* temporary mailbox stream */
@@ -130,7 +131,7 @@ void ping_mailbox (void);
 void msg_string_init (STRING *s,void *data,unsigned long size);
 char msg_string_next (STRING *s);
 void msg_string_setpos (STRING *s,unsigned long i);
-void new_flags (MAILSTREAM *stream,char *tmp);
+void new_flags (MAILSTREAM *stream);
 void clkint (void);
 void kodint (void);
 void hupint (void);
@@ -316,7 +317,7 @@ void main (int argc,char *argv[])
 	else {
 	  AUTHENTICATOR *auth = mail_lookup_auth (1);
 	  THREADER *thr = (THREADER *) mail_parameters (NIL,GET_THREADERS,NIL);
-	  fputs ("* CAPABILITY IMAP4 IMAP4REV1 NAMESPACE IDLE SCAN SORT",
+	  fputs ("* CAPABILITY IMAP4 IMAP4REV1 NAMESPACE IDLE SCAN SORT MAILBOX-REFERRALS LOGIN-REFERRALS",
 		 stdout);
 #ifdef NETSCAPE_BRAIN_DAMAGE
 	  fputs (" X-NETSCAPE",stdout);
@@ -428,12 +429,11 @@ void main (int argc,char *argv[])
 	      (t = strtok (NIL,"\015\012"))) {
 	    f = ST_SET | (uid ? ST_UID : NIL)|((v[5]&&v[6]) ? ST_SILENT : NIL);
 	    if (!strcmp (ucase (v),"FLAGS") || !strcmp (v,"FLAGS.SILENT")) {
-	      *(u = tmp) = '(';	/* make list of all flags */
-	      for (i = 0; (i < NUSERFLAGS) && (v=stream->user_flags[i]); i++) {
-		while (*v) *++u = *v++;
-		*++u = ' ';
-	      }
-	      strcpy (++u,"\\Answered \\Flagged \\Deleted \\Draft \\Seen)");
+	      strcpy (tmp,"\\Answered \\Flagged \\Deleted \\Draft \\Seen");
+	      for (i = 0, u = tmp;
+		   (i < NUSERFLAGS) && (v = stream->user_flags[i]); i++)
+	        if (strlen (v) < (MAILTMPLEN - ((u += strlen (u)) + 2 - tmp)))
+		  sprintf (u," %s",v);
 	      mail_flag (stream,s,tmp,f & ~ST_SET);
 	    }
 	    else if (!strcmp (v,"-FLAGS") || !strcmp (v,"-FLAGS.SILENT"))
@@ -446,7 +446,7 @@ void main (int argc,char *argv[])
 	    for (i = 0; (i < NUSERFLAGS) && stream->user_flags[i]; i++);
 	    mail_flag (stream,s,t,f);
 				/* any new keywords appeared? */
-	    if (i < NUSERFLAGS && stream->user_flags[i]) new_flags(stream,tmp);
+	    if (i < NUSERFLAGS && stream->user_flags[i]) new_flags (stream);
 				/* return flags if silence not wanted */
 	    if (!(f & ST_SILENT) &&
 		(uid ? mail_uid_sequence (stream,s) : mail_sequence(stream,s)))
@@ -782,7 +782,7 @@ void main (int argc,char *argv[])
 	}
 
 				/* list mailboxes */
-	else if (!strcmp (cmd,"LIST")) {
+	else if (!strcmp (cmd,"LIST") || !strcmp (cmd,"RLIST")) {
 				/* get reference and mailbox argument */
 	  if (!((s = snarf (&arg)) && (t = snarf_list (&arg))))
 	    response = misarg;
@@ -804,8 +804,7 @@ void main (int argc,char *argv[])
 	    mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,(void *) stream);
 	}
 				/* list subscribed mailboxes */
-				/* list subscribed mailboxes */
-	else if (!(anonymous || strcmp (cmd,"LSUB"))) {
+	else if (!(anonymous || (strcmp(cmd,"LSUB") && strcmp(cmd,"RLSUB")))) {
 				/* get reference and mailbox argument */
 	  if (!((s = snarf (&arg)) && (t = snarf_list (&arg))))
 	    response = misarg;
@@ -1038,10 +1037,13 @@ void ping_mailbox ()
 	    lasterror ());
     return;
   }
-  if (nmsgs != stream->nmsgs)	/* change in number of messages? */
+				/* change in number of messages? */
+  if (existsquelled || (nmsgs != stream->nmsgs))
     printf ("* %lu EXISTS\015\012",(nmsgs = stream->nmsgs));
-  if (recent != stream->recent)	/* change in recent messages? */
+				/* change in recent messages? */
+  if (existsquelled || (recent != stream->recent))
     printf ("* %lu RECENT\015\012",(recent = stream->recent));
+  existsquelled = NIL;		/* don't do this until asked again */
   if (curdriver == stream->dtb){ /* don't bother if driver changed */
     for (i = 1; i <= nmsgs; i++) if (mail_elt (stream,i)->spare2) {
       printf ("* %lu FETCH (",i);
@@ -1057,7 +1059,7 @@ void ping_mailbox ()
     if (stream->uid_nosticky)
       printf ("* NO [UIDNOTSTICKY] Non-permanent unique identifiers: %s\015\012",
 	      stream->mailbox);
-    new_flags (stream,tmp);	/* send mailbox flags */
+    new_flags (stream);		/* send mailbox flags */
 				/* note readonly/write if possible change */
     if (curdriver) printf ("* OK [READ-%s] Mailbox status\015\012",
 			   stream->rdonly ? "ONLY" : "WRITE");
@@ -1168,28 +1170,23 @@ void msg_string_setpos (STRING *s,unsigned long i)
  *	    scratch buffer
  */
 
-void new_flags (MAILSTREAM *stream,char *tmp)
+void new_flags (MAILSTREAM *stream)
 {
-  int i;
-  tmp[0] = '(';			/* start new flag list */
-  tmp[1] = '\0';
+  int i,c;
+  fputs ("* FLAGS (",stdout);
   for (i = 0; i < NUSERFLAGS; i++)
-    if (stream->user_flags[i]) strcat (strcat (tmp,stream->user_flags[i])," ");
-				/* append system flags to list */
-  strcat (tmp,"\\Answered \\Flagged \\Deleted \\Draft \\Seen)");
-				/* output list of flags */
-  printf ("* FLAGS %s\015\012* OK [PERMANENTFLAGS (",tmp);
-  tmp[0] = tmp[1] ='\0';	/* write permanent flags */
-  for (i = 0; i < NUSERFLAGS; i++)
+    if (stream->user_flags[i]) printf ("%s ",stream->user_flags[i]);
+  fputs ("\\Answered \\Flagged \\Deleted \\Draft \\Seen)\015\012* OK [PERMANENTFLAGS (",stdout);
+  for (i = c = 0; i < NUSERFLAGS; i++)
     if ((stream->perm_user_flags & (1 << i)) && stream->user_flags[i])
-      strcat (strcat (tmp," "),stream->user_flags[i]);
-  if (stream->kwd_create) strcat (tmp," \\*");
-  if (stream->perm_answered) strcat (tmp," \\Answered");
-  if (stream->perm_flagged) strcat (tmp," \\Flagged");
-  if (stream->perm_deleted) strcat (tmp," \\Deleted");
-  if (stream->perm_draft) strcat (tmp," \\Draft");
-  if (stream->perm_seen) strcat (tmp," \\Seen");
-  printf ("%s)] Permanent flags\015\012",tmp+1);
+      put_flag (&c,stream->user_flags[i]);
+  if (stream->kwd_create) put_flag (&c,"\\*");
+  if (stream->perm_answered) put_flag (&c,"\\Answered");
+  if (stream->perm_flagged) put_flag (&c,"\\Flagged");
+  if (stream->perm_deleted) put_flag (&c,"\\Deleted");
+  if (stream->perm_draft) put_flag (&c,"\\Draft");
+  if (stream->perm_seen) put_flag (&c,"\\Seen");
+  fputs (")] Permanent flags\015\012",stdout);
 }
 
 /* Clock interrupt
@@ -2320,7 +2317,7 @@ void put_flag (int *c,char *s)
 {
   if (*c) putchar (*c);		/* put delimiter */
   fputs (s,stdout);		/* dump flag */
-  *c = ' ';			/* change delimiter if necessarnew */
+  *c = ' ';			/* change delimiter if necessary */
 }
 
 
@@ -2916,7 +2913,7 @@ long proxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   STRING st;
   MSGDATA md;
   unsigned long i,j;
-  char *s,tmp[MAILTMPLEN],date[MAILTMPLEN];
+  char *s,*t,tmp[MAILTMPLEN],date[MAILTMPLEN];
   md.stream = stream;
   if (!((options & CP_UID) ?	/* validate sequence */
 	mail_uid_sequence (stream,sequence) : mail_sequence (stream,sequence)))
@@ -2939,10 +2936,12 @@ long proxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
       if (elt->flagged) strcat (s," \\Flagged");
       if (elt->answered) strcat (s," \\Answered");
       if (elt->draft) strcat (s," \\Draft");
-      if (i = elt->user_flags) do {
-	*s++ = ' ';	/* space delimiter */
-	strcpy (s,stream->user_flags[find_rightmost_bit (&i)]);
-      } while (i);	/* until no more user flags */
+      if (i = elt->user_flags) do 
+	if ((t = stream->user_flags[find_rightmost_bit (&i)]) && *t &&
+	    strlen (t) < (MAILTMPLEN - ((s += strlen (s)) + 2 - tmp))) {
+	*s++ = ' ';		/* space delimiter */
+	strcpy (s,t);
+      } while (i);		/* until no more user flags */
       INIT (&st,msg_string,(void *) &md,elt->rfc822_size);
       if (!mail_append_full (NIL,mailbox,tmp+1,mail_date (date,elt),&st)) {
 	s = lsterr ? lsterr : "Unexpected APPEND failure";
@@ -2983,8 +2982,10 @@ void mm_searched (MAILSTREAM *s,unsigned long msgno)
 void mm_exists (MAILSTREAM *s,unsigned long number)
 {
 				/* note change in number of messages */
-  if ((s != tstream) && (nmsgs != number) && !quell_events) {
-    printf ("* %lu EXISTS\015\012",(nmsgs = number));
+  if ((s != tstream) && (nmsgs != number)) {
+    nmsgs = number;		/* always update number of messages */
+    if (quell_events) existsquelled = T;
+    else printf ("* %lu EXISTS\015\012",nmsgs);
     recent = 0xffffffff;	/* make sure update recent too */
   }
 }
@@ -3000,6 +3001,7 @@ void mm_expunged (MAILSTREAM *s,unsigned long number)
   if (quell_events) fatal ("Impossible EXPUNGE event");
   if (s != tstream) printf ("* %lu EXPUNGE\015\012",number);
   nmsgs--;
+  existsquelled = T;		/* do EXISTS when command done */
 }
 
 
@@ -3082,6 +3084,7 @@ void mm_list_work (char *what,int delimiter,char *name,long attributes)
       if (attributes & LATT_NOSELECT) strcat (tmp," \\NoSelect");
       if (attributes & LATT_MARKED) strcat (tmp," \\Marked");
       if (attributes & LATT_UNMARKED) strcat (tmp," \\UnMarked");
+      if ((attributes & LATT_REFERRAL) && (cmd[0] != 'R')) return;
       tmp[0] = '(';		/* put in real delimiter */
       switch (delimiter) {
       case '\\':		/* quoted delimiter */

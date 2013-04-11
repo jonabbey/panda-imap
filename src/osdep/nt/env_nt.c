@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	4 June 1998
+ * Last Edited:	19 August 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -50,6 +50,9 @@ static long alarm_countdown = 0;/* alarm count down */
 static void (*alarm_rang) ();	/* alarm interrupt function */
 static unsigned int rndm = 0;	/* initial `random' number */
 static int logtry = 3;		/* number of login tries */
+				/* callback to get username */
+static userprompt_t mailusername = NIL;
+static long is_nt = -1;		/* T if NT, NIL if not NT, -1 unknown */
 
 #include "write.c"		/* include safe writing routines */
 
@@ -67,7 +70,14 @@ void *env_parameters (long function,void *value)
   case GET_NAMESPACE:
     value = (void *) nslist;
     break;
+  case SET_USERPROMPT :
+    mailusername = (userprompt_t) value;
+    break;
+  case GET_USERPROMPT :
+    value = (void *) mailusername;
+    break;
   case SET_HOMEDIR:
+    if (myHomeDir) fs_give ((void **) &myHomeDir);
     myHomeDir = cpystr ((char *) value);
     break;
   case GET_HOMEDIR:
@@ -77,6 +87,7 @@ void *env_parameters (long function,void *value)
     myLocalHost = cpystr ((char *) value);
     break;
   case GET_LOCALHOST:
+    if (myLocalHost) fs_give ((void **) &myLocalHost);
     value = (void *) myLocalHost;
     break;
   case SET_NEWSRC:
@@ -174,7 +185,7 @@ void internal_date (char *date)
 /* Return random number
  */
 
-long random ()
+long random (void)
 {
   if (!rndm) srand (rndm = (unsigned) time (0L));
   return (long) rand ();
@@ -307,8 +318,8 @@ long anonymous_login (int argc,char *argv[])
 }
 
 /* Initialize environment
- * Accepts: user name
- *          home directory or NIL to use value from user profile
+ * Accepts: user name, or NIL to skip setting user name on (Win9x only)
+ *          home directory, or NIL to use user info (NT only)
  * Returns: T, always
  */
 
@@ -318,37 +329,40 @@ typedef NET_API_STATUS (CALLBACK *NUGI)
 
 long env_init (char *user,char *home)
 {
-  char tmp[MAILTMPLEN];
-  PUSER_INFO_1 ui;
-  HINSTANCE nahdl;
-  NUGI nugi;
-  if (!check_nt ()) fatal ("env_init called on non-NT system");
   if (myUserName) fatal ("env_init called twice!");
-  myUserName = cpystr (user);	/* remember user name */
-  if (!(home && *home)) {	/* home directory not set up? */
-    if (!((nahdl = LoadLibrary ("netapi32.dll")) &&
-	  (nugi = (NUGI) GetProcAddress (nahdl,"NetUserGetInfo")) &&
-	  MultiByteToWideChar (CP_ACP,0,user,strlen (user) + 1,
-			       (WCHAR *) tmp,MAILTMPLEN) &&
-	  !(*nugi) (NIL,(LPWSTR) &tmp,1,(LPBYTE *) &ui) &&
-	  WideCharToMultiByte (CP_ACP,0,ui->usri1_home_dir,-1,
-			       tmp,MAILTMPLEN,NIL,NIL) && tmp[0]))
-      sprintf (tmp,"%s%s",defaultDrive (),"\\users\\default");
-    home = tmp;			/* got a home directory */
+				/* remember user name */
+  if (user && *user) myUserName = cpystr (user);
+  else if (check_nt ()) fatal ("missing user name argument to env_init!");
+  if (!myHomeDir) {		/* only if home directory not set up yet */
+				/* remember home directory */
+    if (home && *home) myHomeDir = cpystr (home);
+    else if (check_nt ()) {	/* get from user info on NT */
+      char tmp[MAILTMPLEN];
+      PUSER_INFO_1 ui;
+      NUGI nugi;
+      HINSTANCE nahdl = LoadLibrary ("netapi32.dll");
+      if (!(nahdl && (nugi = (NUGI) GetProcAddress (nahdl,"NetUserGetInfo")) &&
+	    MultiByteToWideChar (CP_ACP,0,user,strlen (user) + 1,
+				 (WCHAR *) tmp,MAILTMPLEN) &&
+	    !(*nugi) (NIL,(LPWSTR) &tmp,1,(LPBYTE *) &ui) &&
+	    WideCharToMultiByte (CP_ACP,0,ui->usri1_home_dir,-1,
+				 tmp,MAILTMPLEN,NIL,NIL) && tmp[0]))
+	sprintf (tmp,"%s%s",defaultDrive (),"\\users\\default");
+      myHomeDir = cpystr (tmp);	/* remember home directory */
+    }
+    else fatal ("missing home directory argument to env_init!");
   }
-  myHomeDir = cpystr (home);	/* remember home directory */
   return T;
 }
-
+
+
 /* Check if NT
- * Returns: T if NT, NIL if Win95
+ * Returns: T if NT, NIL if Win9x
  */
 
-static long is_nt = -1;
-
-long check_nt (void)
+int check_nt (void)
 {
-  if (is_nt < 0) {
+  if (is_nt < 0) {		/* not yet set up? */
     OSVERSIONINFO ver;
     ver.dwOSVersionInfoSize = sizeof (OSVERSIONINFO);
     GetVersionEx (&ver);
@@ -356,8 +370,7 @@ long check_nt (void)
   }
   return is_nt;
 }
-
-
+
 /* Return default drive
  * Returns: default drive
  */
@@ -369,29 +382,24 @@ static char *defaultDrive (void)
 }
 
 
-/* Return home drive from environment variables
- * Returns: home drive
- */
-
-static char *homeDrive (void)
-{
-  char *s;
-  return ((s = getenv ("HOMEDRIVE")) && *s) ? s : defaultDrive ();
-}
-
-
 /* Return home path from environment variables
  * Accepts: path to write into
- * Returns: home path or NIL if it can't be determined
+ * Returns: home path, or NIL if it can't be determined (NT only)
  */
 
 static char *homePath (char *path)
 {
   int i;
   char *s;
-  if (!((s = getenv ("HOMEPATH")) && (i = strlen (s)))) return NIL;
-  if (((s[i-1] == '\\') || (s[i-1] == '/'))) s[i-1] = '\0';
-  sprintf (path,"%s%s",homeDrive (),s);
+				/* get home drive */
+  strcpy (path,((s = getenv ("HOMEDRIVE")) && *s) ? s : defaultDrive ());
+				/* if have a home path */
+  if ((s = getenv ("HOMEPATH")) && (i = strlen (s))) {
+    if (((s[i-1] == '\\') || (s[i-1] == '/'))) s[i-1] = '\0';
+    strcat (path,s);		/* append the home path to the drive */
+  }
+				/* return NIL if NT and no home path */
+  else if (check_nt ()) return NIL;
   return path;
 }
 
@@ -402,21 +410,23 @@ static char *homePath (char *path)
 
 char *myusername_full (unsigned long *flags)
 {
+  HANDLE tok;
+  UCHAR tmp[MAILTMPLEN],user[MAILTMPLEN],domain[MAILTMPLEN];
+  DWORD len,userlen = MAILTMPLEN,domainlen = MAILTMPLEN;
+  SID_NAME_USE snu;
   char *ret = "SYSTEM";
-  if (!check_nt ()) fatal ("myusername() called on non-NT system");
   if (!myUserName) {		/* get user name if don't have it yet */
-    HANDLE tok;
-    UCHAR tmp[MAILTMPLEN],user[MAILTMPLEN],domain[MAILTMPLEN];
-    DWORD len,userlen = MAILTMPLEN,domainlen = MAILTMPLEN;
-    SID_NAME_USE snu;
- 				/* lookup user and domain */
-    if (!(OpenProcessToken (GetCurrentProcess (),TOKEN_READ,&tok) &&
-	  GetTokenInformation (tok,TokenUser,tmp,MAILTMPLEN,&len) &&
-	  LookupAccountSid (NIL,((PTOKEN_USER) tmp)->User.Sid,user,
-			    &userlen,domain,&domainlen,&snu)))
-      fatal ("Unable to look up user name");
+    if (check_nt ()) {		/* NT lookup user and domain */
+      if (!(OpenProcessToken (GetCurrentProcess (),TOKEN_READ,&tok) &&
+	    GetTokenInformation (tok,TokenUser,tmp,MAILTMPLEN,&len) &&
+	    LookupAccountSid (NIL,((PTOKEN_USER) tmp)->User.Sid,user,
+			      &userlen,domain,&domainlen,&snu)))
+	fatal ("Unable to look up user name");
 				/* init environment if not SYSTEM */
-    if (_stricmp (user,"SYSTEM")) env_init (user,homePath (tmp));
+      if (_stricmp (user,"SYSTEM")) env_init (user,homePath (tmp));
+    }
+				/* Win9x external username */
+    else env_init (mailusername ? (*mailusername) () : NIL,homePath (tmp));
   }
   if (myUserName) {		/* logged in? */
     if (flags)			/* Guest is an anonymous user */
@@ -434,12 +444,8 @@ char *myusername_full (unsigned long *flags)
 
 char *myhomedir ()
 {
-  char tmp[MAILTMPLEN];
-  if (!myHomeDir) {		/* initialize if first time */
-    if (check_nt ()) myusername ();
-    else myHomeDir = homePath (tmp);
-  }
-  return myHomeDir ? myHomeDir : homeDrive ();
+  if (!myHomeDir) myusername ();/* initialize if first time */
+  return myHomeDir ? myHomeDir : "";
 }
 
 /* Return system standard INBOX
@@ -494,9 +500,8 @@ int lockname (char *lock,char *fname,int op)
 {
   int ld;
   char c,*s;
-  if (((s = getenv ("TEMP")) && *s) || ((s = getenv ("TMPDIR")) && *s)) {
+  if (((s = getenv ("TEMP")) && *s) || ((s = getenv ("TMPDIR")) && *s))
     strcpy (lock,s);
-  }
   else sprintf (lock,"%s\\TEMP\\",defaultDrive ());
   if ((s = lock + strlen (lock))[-1] != '\\') *s++ ='\\';
   while (c = *fname++) switch (c) {

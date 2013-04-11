@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 October 1997
- * Last Edited:	2 June 1998
+ * Last Edited:	24 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -38,7 +38,7 @@
  * Ministry of Industry of Thailand.
  */
 
-static unsigned short tis620tab[128] = {
+static const unsigned short tis620tab[128] = {
   0x0080,0x0081,0x0082,0x0083,0x0084,0x0085,0x0086,0x0087,
   0x0088,0x0089,0x008a,0x008b,0x008c,0x008d,0x008e,0x008f,
   0x0090,0x0091,0x0092,0x0093,0x0094,0x0095,0x0096,0x0097,

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	16 July 1998
+ * Last Edited:	29 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -417,4 +417,21 @@ char *mylocalhost ()
     myLocalHost = cpystr ((hn = gethostbyname (tmp)) ? hn->h_name : tmp);
   }
   return myLocalHost;
+}
+
+
+/* TCP/IP return canonical form of host name
+ * Accepts: host name
+ * Returns: canonical form of host name
+ */
+
+char *tcp_canonical (char *name)
+{
+  char host[MAILTMPLEN];
+  struct hostent *he;
+				/* look like domain literal? */
+  if (name[0] == '[' && name[strlen (name) - 1] == ']') return name;
+				/* note that Unix requires lowercase! */
+  else return (he = gethostbyname (lcase (strcpy (host,name)))) ?
+    he->h_name : name;
 }

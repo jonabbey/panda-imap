@@ -443,6 +443,7 @@
 #define strcrlfcpy sc_cpy
 #define strcrlflen sc_len
 #define tcp_aopen t_aopn
+#define tcp_canonical t_cnon
 #define tcp_clienthost t_chst
 #define tcp_close t_clos
 #define tcp_getbuffer tg_buf

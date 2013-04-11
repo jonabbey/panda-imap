@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	5 May 1998
+ * Last Edited:	29 July 1998
  *
  * Copyright 1998 by Mark Crispin
  *
@@ -500,4 +500,30 @@ unsigned long tcp_port (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   return stream->localhost;	/* return local host name */
+}
+
+/* TCP/IP return canonical form of host name
+ * Accepts: host name
+ * Returns: canonical form of host name
+ */
+
+char *tcp_canonical (char *name)
+{
+  struct hostInfo hst;
+				/* look like domain literal? */
+  if (name[0] == '[' && name[i = (strlen (name))-1] == ']') return name;
+  if (StrToAddr (name,&hst,tcp_dns_upp,NIL)) {
+    while (hst.rtnCode == cacheFault && wait ());
+				/* kludge around MacTCP bug */
+    if (hst.rtnCode == outOfMemory) {
+      mm_log ("Re-initializing domain resolver",WARN);
+      CloseResolver ();		/* bop it on the head and try again */
+      OpenResolver (NIL);	/* note this will leak 12K */
+      StrToAddr (name,&hst,tcp_dns_upp,NIL);
+      while (hst.rtnCode == cacheFault && wait ());
+    }
+				/* still have error status? */
+    if (hst.rtnCode) return name;
+  }
+  return hst.cname;		/* success */
 }

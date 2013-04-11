@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 January 1998
- * Last Edited:	8 June 1998
+ * Last Edited:	20 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -175,7 +175,7 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
       if (chal.value) fs_give ((void **) &chal.value);
       sprintf (tmp,"Kerberos credentials expired (try running kinit) for %s",
 	       mb->host);
-      mm_log (tmp,ERROR);
+      mm_log (tmp,WARN);
       (*responder) (stream,NIL,0);
       break;
     case GSS_S_FAILURE:
@@ -183,14 +183,14 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
       if (min == (OM_uint32) KRB5_FCC_NOFILE) {
 	sprintf (tmp,"No credentials cache found (try running kinit) for %s",
 		 mb->host);
-	mm_log (tmp,ERROR);
+	mm_log (tmp,WARN);
       }
       else do switch (mmaj = gss_display_status (&mmin,min,GSS_C_MECH_CODE,
 						 GSS_C_NULL_OID,&mctx,&resp)) {
       case GSS_S_COMPLETE:
       case GSS_S_CONTINUE_NEEDED:
 	sprintf (tmp,"GSSAPI failure: %s",resp.value);
-	mm_log (tmp,ERROR);
+	mm_log (tmp,WARN);
 	gss_release_buffer (&mmin,&resp);
       }
       while (mmaj == GSS_S_CONTINUE_NEEDED);
@@ -204,7 +204,7 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
 	mctx = 0;
       case GSS_S_CONTINUE_NEEDED:
 	sprintf (tmp,"Unknown GSSAPI failure: %s",resp.value);
-	mm_log (tmp,ERROR);
+	mm_log (tmp,WARN);
 	gss_release_buffer (&mmin,&resp);
       }
       while (mmaj == GSS_S_CONTINUE_NEEDED);
@@ -213,7 +213,7 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
       case GSS_S_COMPLETE:
       case GSS_S_CONTINUE_NEEDED:
 	sprintf (tmp,"GSSAPI mechanism status: %s",resp.value);
-	mm_log (tmp,ERROR);
+	mm_log (tmp,WARN);
 	gss_release_buffer (&mmin,&resp);
       }
       while (mmaj == GSS_S_CONTINUE_NEEDED);

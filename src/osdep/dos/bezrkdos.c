@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	13 July 1998
+ * Last Edited:	29 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -141,6 +141,12 @@ long bezerk_isvalid (char *name,char *tmp)
       close (fd);		/* close the file */
     }
   }
+				/* in case INBOX but not bezerk format */
+  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
+	   ((name[1] == 'N') || (name[1] == 'n')) &&
+	   ((name[2] == 'B') || (name[2] == 'b')) &&
+	   ((name[3] == 'O') || (name[3] == 'o')) &&
+	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
   return ret;			/* return what we should */
 }
 
@@ -295,11 +301,7 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
   char tmp[MAILTMPLEN];
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &bezerkproto;
-  if (LOCAL) {			/* close old file if stream being recycled */
-    bezerk_close (stream,NIL);	/* dump and save the changes */
-    stream->dtb = &bezerkdriver;	/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
-  }
+  if (stream->local) fatal ("bezerk recycle stream");
   if (!mailboxfile (tmp,stream->mailbox))
     return (MAILSTREAM *) bezerk_badname (tmp,stream->mailbox);
   if (((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) < 0)) {

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1997
- * Last Edited:	2 June 1998
+ * Last Edited:	24 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -35,7 +35,7 @@
 
 /* KOI8-U is a de-facto standard of Ukraine */
 
-static unsigned short koi8utab[128] = {
+static const unsigned short koi8utab[128] = {
   0x2500,0x2502,0x250c,0x2510,0x2514,0x2518,0x251c,0x2524,
   0x252c,0x2534,0x253c,0x2580,0x2584,0x2588,0x258c,0x2590,
   0x2591,0x2592,0x2593,0x2320,0x25a0,0x2219,0x221a,0x2248,

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 June 1998
- * Last Edited:	2 June 1998
+ * Last Edited:	24 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -38,7 +38,7 @@
  * May 1993.
  */
 
-static unsigned short visciitab[256] = {
+static const unsigned short visciitab[256] = {
   0x0000,0x0001,0x1eb2,0x0003,0x0004,0x1eb4,0x1eaa,0x0007,
   0x0008,0x0009,0x000a,0x000b,0x000c,0x000d,0x000e,0x000f,
   0x0010,0x0011,0x0012,0x0013,0x1ef6,0x0015,0x0016,0x0017,

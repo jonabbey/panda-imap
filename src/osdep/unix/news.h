@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	13 November 1996
+ * Last Edited:	1 September 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -62,6 +62,7 @@ long news_unsubscribe (MAILSTREAM *stream,char *mailbox);
 long news_create (MAILSTREAM *stream,char *mailbox);
 long news_delete (MAILSTREAM *stream,char *mailbox);
 long news_rename (MAILSTREAM *stream,char *old,char *newname);
+long news_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *news_open (MAILSTREAM *stream);
 int news_select (struct direct *name);
 int news_numsort (const void *d1,const void *d2);

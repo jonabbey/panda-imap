@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	19 December 1997
+ * Last Edited:	20 August 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,9 +44,8 @@
 #include "env.h"
 
 long env_init (char *user,char *home);
-long check_nt (void);
+int check_nt (void);
 static char *defaultDrive (void);
-static char *homeDrive (void);
 static char *homePath (char *path);
 char *myusername_full (unsigned long *flags);
 #define MU_LOGGEDIN 0

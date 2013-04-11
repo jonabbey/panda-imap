@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	29 December 1997
+ * Last Edited:	1 September 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -148,7 +148,7 @@ void news_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
 {
   char tmp[MAILTMPLEN];
   if (news_canonicalize (ref,pat,tmp))
-    mm_log ("Scan not valid for news mailboxes",WARN);
+    mm_log ("Scan not valid for news mailboxes",ERROR);
 }
 
 /* News find list of newsgroups
@@ -163,6 +163,14 @@ void news_list (MAILSTREAM *stream,char *ref,char *pat)
   int i;
   char *s,*t,*u,*lcl,pattern[MAILTMPLEN],name[MAILTMPLEN];
   struct stat sbuf;
+  if (!pat || !*pat) {		/* empty pattern? */
+    if (news_canonicalize (ref,"*",pattern)) {
+				/* tie off name at root */
+      if (s = strchr (pattern,'.')) *++s = '\0';
+      else pattern[0] = '\0';
+      mm_list (stream,'.',pattern,LATT_NOSELECT);
+    }
+  }
   if (news_canonicalize (ref,pat,pattern) &&
       !stat ((char *) mail_parameters (NIL,GET_NEWSSPOOL,NIL),&sbuf) &&
       ((fd = open ((char *) mail_parameters (NIL,GET_NEWSACTIVE,NIL),O_RDONLY,
@@ -285,6 +293,36 @@ long news_rename (MAILSTREAM *stream,char *old,char *newname)
   return NIL;			/* never valid for News */
 }
 
+/* News status of mailbox default handler
+ * Accepts: mail stream
+ *	    mailbox name
+ *	    status flags
+ * Returns: T on success, NIL on failure
+ */
+
+long news_status (MAILSTREAM *stream,char *mbx,long flags)
+{
+  MAILSTATUS status;
+  unsigned long i;
+  MAILSTREAM *tstream = NIL;
+				/* make temporary stream (unless this mbx) */
+  if ((!stream || strcmp (stream->mailbox,mbx)) &&
+      !(stream = tstream = mail_open (NIL,mbx,OP_READONLY|OP_SILENT)))
+    return NIL;
+  status.flags = flags;		/* return status values */
+  status.messages = stream->nmsgs;
+  status.recent = stream->recent;
+  if (flags & SA_UNSEEN)	/* must search to get unseen messages */
+    for (i = 1,status.unseen = 0; i <= stream->nmsgs; i++)
+      if (!mail_elt (stream,i)->deleted) status.unseen++;
+  status.uidnext = stream->uid_last + 1;
+  status.uidvalidity = stream->uid_validity;
+				/* pass status to main program */
+  mm_status (stream,mbx,&status);
+  if (tstream) mail_close (tstream);
+  return T;			/* success */
+}
+
 /* News open
  * Accepts: stream to open
  * Returns: stream on success, NIL on failure
@@ -297,13 +335,7 @@ MAILSTREAM *news_open (MAILSTREAM *stream)
   struct direct **names;
   				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &newsproto;
-  if (LOCAL) {			/* close old file if stream being recycled */
-    news_close (stream,NIL);	/* dump and save the changes */
-    stream->dtb = &newsdriver;	/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
-    stream->uid_last = 0;	/* default UID validity */
-    stream->uid_validity = time (0);
-  }
+  if (stream->local) fatal ("news recycle stream");
 				/* build directory name */
   sprintf (s = tmp,"%s/%s",(char *) mail_parameters (NIL,GET_NEWSSPOOL,NIL),
 	   stream->mailbox + 6);
@@ -477,7 +509,7 @@ long news_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
   elt = mail_elt (stream,msgno);/* get elt */
 				/* snarf message if don't have it yet */
   if (!elt->private.msg.text.text.data) {
-    news_header (stream,msgno,NIL,flags);
+    news_header (stream,msgno,&i,flags);
     if (!elt->private.msg.text.text.data) return NIL;
   }
   if (!(flags & FT_PEEK)) {	/* mark as seen */

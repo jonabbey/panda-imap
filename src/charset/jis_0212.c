@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 August 1997
- * Last Edited:	4 August 1997
+ * Last Edited:	24 July 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -47,7 +47,7 @@
    jis0212tab[ku][ten] : 0xfffd)
 
 
-static unsigned short jis0212tab[MAX_JIS0212_KU][MAX_JIS0212_TEN] = {
+static const unsigned short jis0212tab[MAX_JIS0212_KU][MAX_JIS0212_TEN] = {
   {				/* ku 02 */
     0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,
     0x0000,0x0000,0x0000,0x0000,0x02d8,0x02c7,0x00b8,0x02d9,0x02dd,0x00af,

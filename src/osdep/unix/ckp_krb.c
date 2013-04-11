@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	2 December 1997
+ * Last Edited:	26 July 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,6 +44,6 @@
 struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
 {
   char *reply;
-  return kerberos_verify_password (pw->pw_name,pass,&reply) ? pw : NIL;
+  return kerberos_verify_password (pw->pw_name,pass,"imap",&reply) ? pw : NIL;
 }
 

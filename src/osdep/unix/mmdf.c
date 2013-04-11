@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	15 July 1998
+ * Last Edited:	28 August 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -135,6 +135,12 @@ long mmdf_isvalid (char *name,char *tmp)
       utime (file,tp);		/* set the times */
     }
   }
+				/* in case INBOX but not MMDF format */
+  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
+	   ((name[1] == 'N') || (name[1] == 'n')) &&
+	   ((name[2] == 'B') || (name[2] == 'b')) &&
+	   ((name[3] == 'O') || (name[3] == 'o')) &&
+	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
   return ret;			/* return what we should */
 }
 
@@ -215,7 +221,7 @@ long mmdf_create (MAILSTREAM *stream,char *mailbox)
   int i,fd;
   time_t ti = time (0);
   if (!(s = dummy_file (mbx,mailbox))) {
-    sprintf (tmp,"Can't create %s: invalid name",mailbox);
+    sprintf (tmp,"Can't create %.80s: invalid name",mailbox);
     mm_log (tmp,ERROR);
   }
 				/* create underlying file */
@@ -224,7 +230,7 @@ long mmdf_create (MAILSTREAM *stream,char *mailbox)
     if ((s = strrchr (s,'/')) && !s[1]) ret = T;
     else if ((fd = open (mbx,O_WRONLY,
 		    (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
-      sprintf (tmp,"Can't reopen mailbox node %s: %s",mbx,strerror (errno));
+      sprintf (tmp,"Can't reopen mailbox node %.80s: %s",mbx,strerror (errno));
       mm_log (tmp,ERROR);
       unlink (mbx);		/* delete the file */
     }
@@ -241,7 +247,7 @@ long mmdf_create (MAILSTREAM *stream,char *mailbox)
 	sprintf (s += strlen (s)," %s",default_user_flag (i));
       sprintf (s += strlen (s),"\nStatus: RO\n\n%s\n%s",pseudo_msg,mmdfhdr);
       if ((write (fd,tmp,strlen (tmp)) < 0) || close (fd)) {
-	sprintf (tmp,"Can't initialize mailbox node %s: %s",mbx,
+	sprintf (tmp,"Can't initialize mailbox node %.80s: %s",mbx,
 		 strerror (errno));
 	mm_log (tmp,ERROR);
 	unlink (mbx);		/* delete the file */
@@ -274,33 +280,45 @@ long mmdf_delete (MAILSTREAM *stream,char *mailbox)
 long mmdf_rename (MAILSTREAM *stream,char *old,char *newname)
 {
   long ret = NIL;
-  char *s,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
+  char c,*s;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
   int fd,ld;
+  struct stat sbuf;
   mm_critical (stream);		/* get the c-client lock */
   if (newname && !((s = dummy_file (tmp,newname)) && *s))
-    sprintf (tmp,"Can't rename mailbox %s to %s: invalid name",old,newname);
+    sprintf (tmp,"Can't rename mailbox %.80s to %.80s: invalid name",
+	     old,newname);
   else if ((ld = lockname (lock,dummy_file (file,old))) < 0) {
-    syslog (LOG_INFO,"Mailbox lock file %s open failure: %s",tmp,
+    syslog (LOG_INFO,"Mailbox lock file %.80s open failure: %s",tmp,
 	    strerror (errno));
-    sprintf (tmp,"Can't get lock for mailbox %s",old);
+    sprintf (tmp,"Can't get lock for mailbox %.80s",old);
   }
   else {			/* lock out other c-clients */
     if (flock (ld,LOCK_EX|LOCK_NB)) {
       close (ld);		/* couldn't lock, give up on it then */
-      sprintf (tmp,"Mailbox %s is in use by another process",old);
+      sprintf (tmp,"Mailbox %.80s is in use by another process",old);
     }
     else {
       if ((fd = mmdf_lock (file,O_RDWR,S_IREAD|S_IWRITE,lockx,LOCK_EX)) < 0)
-	sprintf (tmp,"Can't lock mailbox %s: %s",old,strerror (errno));
+	sprintf (tmp,"Can't lock mailbox %.80s: %s",old,strerror (errno));
       else {
 	if (newname) {		/* want rename? */
-	  if (rename (file,s))
-	    sprintf (tmp,"Can't rename mailbox %s to %s: %s",old,newname,
+				/* found superior to destination name? */
+	  if (s = strrchr (s,'/')) {
+	    c = *++s;		/* remember first character of inferior */
+	    *s = '\0';		/* tie off to get just superior */
+				/* name doesn't exist, create it */
+	    if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
+		!dummy_create (stream,tmp)) return NIL;
+	    *s = c;		/* restore full name */
+	  }
+	  if (rename (file,tmp))
+	    sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %s",old,newname,
 		     strerror (errno));
 	  else ret = T;		/* set success */
 	}
 	else if (unlink (file))
-	  sprintf (tmp,"Can't delete mailbox %s: %s",old,strerror (errno));
+	  sprintf (tmp,"Can't delete mailbox %.80s: %s",old,strerror (errno));
 	else ret = T;		/* set success */
 	mmdf_unlock (fd,NIL,lockx);
       }
@@ -329,14 +347,7 @@ MAILSTREAM *mmdf_open (MAILSTREAM *stream)
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return user_flags (&mmdfproto);
   retry = stream->silent ? 1 : KODRETRY;
-  if (LOCAL) {			/* close old file if stream being recycled */
-    mmdf_close (stream,NIL);	/* dump and save the changes */
-    stream->dtb = &mmdfdriver;/* reattach this driver */
-    mail_free_cache (stream);	/* clean up cache */
-				/* flush user flags */
-    for (i = 0; i < NUSERFLAGS; i++)
-      if (stream->user_flags[i]) fs_give ((void **) &stream->user_flags[i]);
-  }
+  if (stream->local) fatal ("mmdf recycle stream");
   stream->local = memset (fs_get (sizeof (MMDFLOCAL)),0,sizeof (MMDFLOCAL));
 				/* canonicalize the stream mailbox name */
   dummy_file (tmp,stream->mailbox);
@@ -361,7 +372,7 @@ MAILSTREAM *mmdf_open (MAILSTREAM *stream)
   if (!stream->rdonly) while (retry) {
 				/* get a new file handle each time */
     if ((fd = lockname (tmp,LOCAL->name)) < 0) {
-      syslog (LOG_INFO,"Mailbox lock file %s open failure: %s",tmp,
+      syslog (LOG_INFO,"Mailbox lock file %.80s open failure: %s",tmp,
 	      strerror (errno));
       mm_log ("Can't open mailbox lock, access is readonly",WARN);
       retry = 0;		/* give up */
@@ -426,11 +437,15 @@ MAILSTREAM *mmdf_open (MAILSTREAM *stream)
   stream->rdonly = (LOCAL->ld < 0);
 				/* notify about empty mailbox */
   if (!(stream->nmsgs || stream->silent)) mm_log ("Mailbox is empty",NIL);
-  if (!stream->rdonly) stream->perm_seen = stream->perm_deleted =
-    stream->perm_flagged = stream->perm_answered = stream->perm_draft = T;
-  stream->perm_user_flags = stream->rdonly ? NIL : 0xffffffff;
-  stream->kwd_create = (stream->user_flags[NUSERFLAGS-1] || stream->rdonly) ?
-    NIL : T;			/* can we create new user flags? */
+  if (!stream->rdonly) {	/* flags stick if readwrite */
+    stream->perm_seen = stream->perm_deleted =
+      stream->perm_flagged = stream->perm_answered = stream->perm_draft = T;
+    if (!stream->uid_nosticky) {/* users with lives get permanent keywords */
+      stream->perm_user_flags = 0xffffffff;
+				/* and maybe can create them too! */
+      stream->kwd_create = stream->user_flags[NUSERFLAGS-1] ? NIL : T;
+    }
+  }
   return stream;		/* return stream alive to caller */
 }
 
@@ -726,12 +741,12 @@ long mmdf_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     break;
   case EINVAL:
     if (pc) return (*pc) (stream,sequence,mailbox,options);
-    sprintf (LOCAL->buf,"Invalid MMDF-format mailbox name: %s",mailbox);
+    sprintf (LOCAL->buf,"Invalid MMDF-format mailbox name: %.80s",mailbox);
     mm_log (LOCAL->buf,ERROR);
     return NIL;
   default:
     if (pc) return (*pc) (stream,sequence,mailbox,options);
-    sprintf (LOCAL->buf,"Not a MMDF-format mailbox: %s",mailbox);
+    sprintf (LOCAL->buf,"Not a MMDF-format mailbox: %.80s",mailbox);
     mm_log (LOCAL->buf,ERROR);
     return NIL;
   }
@@ -956,18 +971,22 @@ int mmdf_lock (char *file,int flags,int mode,char *lock,int op)
 				/* try to get hitching-post file */
     if ((ld = open (hitch,O_WRONLY|O_CREAT|O_EXCL,
 		    (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) < 0) {
-      sprintf (tmp,"Mailbox vulnerable - error creating %s: %s",
-	       hitch,strerror (errno));
       switch (errno) {		/* what happened? */
       case EEXIST:		/* file already exists? */
 	break;			/* oops, just try again */
       case EACCES:		/* protection failure */
-				/* try again if file exists(?) */
-	if (!stat (hitch,&sb)) break;
+	if (stat (hitch,&sb)) {	/* try again if file exists(?) */
 				/* punt silently if paranoid site */
-	if (mail_parameters (NIL,GET_LOCKEACCESERROR,NIL))
+	  if (mail_parameters (NIL,GET_LOCKEACCESERROR,NIL))
+	    mm_log ("Mailbox vulnerable - directory must have 1777 protection",
+		    WARN);
+	  *lock = '\0';		/* give up on lock file */
+	}
+	break;
       default:			/* some other error */
-	  mm_log (tmp,WARN);	/* this is probably not good */
+	sprintf (tmp,"Mailbox vulnerable - error creating %.80s: %s",
+		 hitch,strerror (errno));
+	mm_log (tmp,WARN);	/* this is probably not good */
 	*lock = '\0';		/* give up on lock file */
 	break;
       }
@@ -996,18 +1015,22 @@ int mmdf_lock (char *file,int flags,int mode,char *lock,int op)
 		    (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) < 0)
       switch (errno) {		/* what happened? */
       case EEXIST:		/* if extant and old, grab it for ourselves */
-	if ((!stat (lock,&sb)) && t > sb.st_ctime + LOCKTIMEOUT * 60)
+	if ((!stat (lock,&sb)) && (t > sb.st_ctime + LOCKTIMEOUT * 60))
 	  ld = open (lock,O_WRONLY|O_CREAT,
 		     (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
 	break;
       case EACCES:		/* protection fail, ignore if non-ex or old */
-	if (!mail_parameters (NIL,GET_LOCKEACCESERROR,NIL)) {
-	  if (stat (lock,&sb) || (t > sb.st_ctime + LOCKTIMEOUT * 60))
-	    *lock = '\0';	/* assume no world write mail spool dir */
-	  break;
+	if (stat (lock,&sb)) {	/* try again if file exists(?) */
+				/* punt silently if paranoid site */
+	  if (mail_parameters (NIL,GET_LOCKEACCESERROR,NIL))
+	    mm_log ("Mailbox vulnerable - directory must have 1777 protection",
+		    WARN);
+	  *lock = '\0';		/* give up on lock file */
 	}
+	else if (t > sb.st_ctime + LOCKTIMEOUT * 60) unlink (lock);
+	break;
       default:			/* some other failure */
-	sprintf (tmp,"Mailbox vulnerable - error creating %s: %s",
+	sprintf (tmp,"Mailbox vulnerable - error creating %.80s: %s",
 	       lock,strerror (errno));
 	mm_log (tmp,WARN);	/* this is probably not good */
 	*lock = '\0';		/* don't use lock files */
@@ -1021,7 +1044,7 @@ int mmdf_lock (char *file,int flags,int mode,char *lock,int op)
 #endif
     if ((ld < 0) && *lock) {	/* if failed to make lock file and retry OK */
       if (!(i%15)) {
-	sprintf (tmp,"Mailbox %s is locked, will override in %d seconds...",
+	sprintf (tmp,"Mailbox %.80s is locked, will override in %d seconds...",
 		 file,i);
 	mm_log (tmp,WARN);
       }
@@ -1130,12 +1153,22 @@ int mmdf_parse (MAILSTREAM *stream,char *lock,int op)
 	if (!(i && ISMMDF (s))){/* see if valid MMDF header */
 	  sprintf (tmp,"Unexpected changes to mailbox (try restarting): %.20s",
 		   s);
-	  mm_log (tmp,ERROR);
-	  mmdf_unlock (LOCAL->fd,stream,lock);
-	  mmdf_abort (stream);
-	  mail_unlock (stream);
-	  mm_nocritical(stream);/* done with critical */
-	  return NIL;
+				/* see if we can back up to a line */
+	  if (i && (j > MMDFHDRLEN)) {
+	    SETPOS (&bs,j -= MMDFHDRLEN);
+				/* read previous line */
+	    s = mmdf_mbxline (stream,&bs,&i);
+				/* kill the error if it looks good */
+	    if (i && ISMMDF (s)) tmp[0] = '\0';
+	  }
+	  if (tmp[0]) {
+	    mm_log (tmp,ERROR);
+	    mmdf_unlock (LOCAL->fd,stream,lock);
+	    mmdf_abort (stream);
+	    mail_unlock (stream);
+	    mm_nocritical(stream);
+	    return NIL;
+	  }
 	}
 				/* instantiate first new message */
 	mail_exists (stream,++nmsgs);
@@ -1220,7 +1253,7 @@ int mmdf_parse (MAILSTREAM *stream,char *lock,int op)
 				/* find end of keyword */
 		  if (!(u = strpbrk (s," \n"))) u = s + strlen (s);
 				/* got a keyword? */
-		  if (k = (u - s)) {
+		  if ((k = (u - s)) && (k < MAILTMPLEN)) {
 				/* copy keyword */
 		    strncpy (uf,s,k);
 		    uf[k] = '\0';	/* make sure tied off */
