@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	22 June 2007
+ * Last Edited:	11 July 2007
  */
 
 /* Parameter files */
@@ -203,7 +203,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "388";		/* edit number of this server */
+char *version = "389";		/* edit number of this server */
 char *logout = "Logout";	/* syslogreason for logout */
 char *goodbye = NIL;		/* bye reason */
 time_t alerttime = 0;		/* time of last alert */
@@ -1403,7 +1403,8 @@ int main (int argc,char *argv[])
 	sprintf (tmp,response,tag);
 	PSOUT (tmp);
 	if (cauidvalidity) {	/* COPYUID/APPENDUID response? */
-	  sprintf (tmp,"[%.80sUID %lu ",(char *) cmd,cauidvalidity);
+	  sprintf (tmp,"[%.80sUID %lu ",(char *)
+		   ((s = strchr (cmd,' ')) ? s+1 : cmd),cauidvalidity);
 	  PSOUT (tmp);
 	  cauidvalidity = 0;	/* cancel response for future */
 	  if (csset) {
