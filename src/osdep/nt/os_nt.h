@@ -24,6 +24,7 @@
 #include <sys\types.h>
 #include <time.h>
 #include <io.h>
+#include <conio.h>
 #include <process.h>
 #undef ERROR
 #include <windows.h>

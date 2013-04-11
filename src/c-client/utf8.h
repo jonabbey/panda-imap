@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	2 May 2001
+ * Last Edited:	10 July 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -314,7 +314,7 @@
  * it's more closely tied to a language.
  */
 
-#define SC_UNICODE 0x1		/* UNICODE */
+#define SC_UNICODE 0x1		/* Unicode */
 #define SC_LATIN_1 0x10		/* Western Europe */
 #define SC_LATIN_2 0x20		/* Eastern Europe */
 #define SC_LATIN_3 0x40		/* Southern Europe */
@@ -331,24 +331,22 @@
 #define SC_HEBREW 0x10000
 #define SC_THAI 0x20000
 #define SC_UKRANIAN 0x40000
-#define SC_CHINESE_SIMPLIFIED 0x100000
-#define SC_CHINESE_TRADITIONAL 0x200000
-#define SC_JAPANESE 0x400000
-#define SC_KOREAN 0x800000
-#define SC_VIETNAMESE 0x1000000
-#define SC_LATIN_10 0x2000000	/* Balkan */
+#define SC_LATIN_10 0x80000	/* Balkan */
+#define SC_VIETNAMESE 0x100000
+#define SC_CHINESE_SIMPLIFIED 0x1000000
+#define SC_CHINESE_TRADITIONAL 0x2000000
+#define SC_JAPANESE 0x4000000
+#define SC_KOREAN 0x8000000
 
 /* Character set table support */
 
-typedef void (*cstext_t) (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
-
-struct utf8_csent {
+typedef struct utf8_csent {
   char *name;			/* charset name */
-  cstext_t dsp;			/* text conversion dispatch */
-  void *tab;			/* optional additional data */
+  unsigned long type;		/* type of charset */
+  void *tab;			/* additional data */
   unsigned long script;		/* script(s) implemented by this charset */
   char *preferred;		/* preferred charset over this one */
-};
+} CHARSET;
 
 
 struct utf8_eucparam {
@@ -360,6 +358,24 @@ struct utf8_eucparam {
 };
 
 
+/* Charset types */
+
+#define CT_ASCII 1		/* 7-bit ASCII no table */
+#define CT_UCS2 2		/* 2 byte 16-bit Unicode no table */
+#define CT_UCS4 3		/* 4 byte 32-bit Unicode no table */
+#define CT_1BYTE0 10		/* 1 byte no table */
+#define CT_1BYTE 11		/* 1 byte ASCII + table 0x80-0xff */
+#define CT_1BYTE8 12		/* 1 byte table 0x00 - 0xff */
+#define CT_EUC 100		/* 2 byte ASCII + utf8_eucparam base/CS2/CS3 */
+#define CT_DBYTE 101		/* 2 byte ASCII + utf8_eucparam */
+#define CT_DBYTE2 102		/* 2 byte ASCII + utf8_eucparam plane1/2 */
+#define CT_UTF16 1000		/* 2 byte UTF-16 encoded Unicode no table */
+#define CT_UTF8 1001		/* variable UTF-8 encoded Unicode no table */
+#define CT_UTF7 1002		/* variable UTF-7 encoded Unicode no table */
+#define CT_2022 10000		/* variable ISO-2022 encoded no table*/
+#define CT_SJIS 10001		/* 2 byte Shift-JIS encoded JIS no table */
+
+
 /* UTF-7 engine states */
 
 #define U7_ASCII 0		/* ASCII character */
@@ -369,16 +385,16 @@ struct utf8_eucparam {
 
 /* Function prototypes */
 
+CHARSET *utf8_charset (char *charset);
 long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags);
-void utf8_text_8859_1 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_1byte (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_1byte8 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_dbyte (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_dbyte2 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
-void utf8_text_sjis (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
-void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
-void utf8_text_utf7 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
+void utf8_text_sjis (SIZEDTEXT *text,SIZEDTEXT *ret);
+void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret);
+void utf8_text_utf7 (SIZEDTEXT *text,SIZEDTEXT *ret);
 void utf8_searchpgm (SEARCHPGM *pgm,char *charset);
 void utf8_stringlist (STRINGLIST *st,char *charset);
 long utf8_mime2text (SIZEDTEXT *src,SIZEDTEXT *dst);

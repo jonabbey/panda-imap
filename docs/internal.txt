@@ -636,7 +636,6 @@ pointer, and increments the string character pointer.
 
 unsigned long GETPOS (STRING *s);
 	s	pointer to the string structure
-	i	new string pointer value
  This returns the value of the current string character pointer.
 
 
@@ -713,7 +712,7 @@ void mail_string_setpos (STRING *s,unsigned long i);
      These three functions are the init, next, and setpos string
 structure access methods for the build-in mail_string string driver.
 mail_string is a basic string driver for a char* string.  See the
-documentation below on "String Structions" for more information.
+documentation below on "String Structures" for more information.
 
 
 void mail_link (DRIVER *driver);
@@ -759,7 +758,7 @@ non-NIL.
 pointer as a value.  These functions enable and disable mailbox
 processing by that driver.  By default, all drivers are enabled.
 
-     The remaining the function codes are in a pair named GET_xxx to
+     The remaining function codes are in a pair named GET_xxx to
 fetch an operational parameter and SET_xxx to set the parameter:
 
  GET_DRIVERS / SET_DRIVERS
@@ -930,7 +929,7 @@ using the given stream.  What sort of object the stream is depends upon
 the function and its caller, so you must make sure that the readfn is
 suitable for the caller's purpose.  Common uses include support of the
 mailgets function (see below) and of reading from local files on systems
-with limited address apce.
+with limited address space.
 
 
 typedef char *(*mailgets_t) (readfn_t f,void *stream,unsigned long size);
@@ -2953,7 +2952,7 @@ void mail_expunged (MAILSTREAM *stream,unsigned long msgno);
 
       This function is called by the driver to notify MAIL that this
 message number has been expunged from the mail file and that all subsequent
-messages are no references by a message number one less than before.  It
+messages are now referenced by a message number one less than before.  It
 invokes the main program's mm_expunged() function.
 
 void mail_lock (MAILSTREAM *stream);

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 June 2001
+ * Last Edited:	29 April 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -74,6 +74,7 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
   pam_pass = pass;
   if ((pam_start ((char *) mail_parameters (NIL,GET_SERVICENAME,NIL),
 		  pw->pw_name,&conv,&hdl) != PAM_SUCCESS) ||
+      (pam_set_item (hdl,PAM_RHOST,tcp_clientaddr ()) != PAM_SUCCESS) ||
       (pam_authenticate (hdl,NIL) != PAM_SUCCESS) ||
       (pam_acct_mgmt (hdl,NIL) != PAM_SUCCESS) ||
       (pam_setcred (hdl,PAM_ESTABLISH_CRED) != PAM_SUCCESS)) {

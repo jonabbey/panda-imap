@@ -1,12 +1,23 @@
 			   IMAP Toolkit Environment
-			         21 May 2001
+			       13 October 2001
 				 Mark Crispin
 
 
 			    UNIX QUICK BUILD NOTES
 
-1) Look in imap-2001/Makefile and find your system type code, e.g. slx for
-   glibc Linux and/or Linux with shadow password security.
+These quick build notes assume that you have installed OpenSSL before
+attempting to build this software, and that you do not have any non-default
+configuration parameters.
+
+If you need additional information in building this software with OpenSSL,
+please refer to the docs/SSLBUILD file for more information.
+
+If you intend to build this software with a non-default configuration
+(including building a non-compliant server without SSL support), please
+refer to the docs/BUILD file for more information.
+
+1) Look in imap-2002/Makefile and find your system type code.  For example,
+   modern versions of Linux will use either "slx", "lnp", "lrh", or "lsu".
 
 2) Type "make" followed by the system type, e.g. "make slx".
 

@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	22 October 2001
+# Last Edited:	4 November 2002
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2001 University of Washington.
+# Copyright 2002 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -75,6 +75,7 @@
 #	 (see lnp, sl4, sl5, and slx)
 # lnp	Linux with Pluggable Authentication Modules (PAM)
 # lrh	RedHat Linux 7.2
+# lsu	SuSE Linux
 # lyn	LynxOS
 # mct	MachTen
 # mnt	Atari ST Mint (not MacMint)
@@ -160,8 +161,10 @@ PASSWDTYPE=std
 # sco	link SSL before other libraries (for SCO systems)
 # unix.nopwd	same as nopwd
 # sco.nopwd	same as nopwd, plaintext authentication in SSL/TLS only
+#
+# SSLTYPE=nopwd is now the default as required by the IESG.
 
-SSLTYPE=none
+SSLTYPE=nopwd
 
 
 # The following extra compilation flags are defined.  None of these flags are
@@ -266,7 +269,7 @@ SPECIALS:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsf bsi bso cyg d-g d54 do4 drs epx gas gh9 ghp ghs go5 gsc gsg gso gsu gul hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 osx ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
+a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp ghs go5 gsc gsg gso gsu gul hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
 	$(BUILD) BUILDTYPE=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
@@ -278,9 +281,21 @@ aos art asv aux bsd cvx dpx dyn isc pyr s40 sv4 ult vul vu2: ua
 
 # Knotheads moved Kerberos and SSL locations on these platforms
 
+cyg:	an
+	$(BUILD) BUILDTYPE=cyg \
+	SPECIALS="SSLDIR=/usr/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
+
 lrh:	an
 	$(BUILD) BUILDTYPE=lnp \
 	SPECIALS="GSSDIR=/usr/kerberos SSLDIR=/usr/share/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
+
+lsu:	an
+	$(BUILD) BUILDTYPE=lnp \
+	SPECIALS="SSLDIR=/usr/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
+
+osx:	an
+	$(BUILD) BUILDTYPE=osx \
+	SPECIALS="SSLDIR=/System/Library/OpenSSL SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
 
 
 # Linux shadow password support doesn't build on traditional systems, but most
@@ -336,7 +351,7 @@ pt1:	an
 
 # Compatibility
 
-hxd:	# Gotta do this one the hard way
+hxd:
 	$(MAKE) hpx PASSWDTYPE=dce
 
 # Amiga
@@ -361,9 +376,50 @@ wce:
 	nmake /nologo /f makefile.wce
 
 
+# SSL build choices
+
+sslnopwd sslunix.nopwd sslsco.nopwd:
+	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@echo + Building in full compliance with IESG security requirements:
+	@echo ++ TLS/SSL encryption is supported
+	@echo ++ Unencrypted plaintext passwords are prohibited
+	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+sslunix sslsco:
+	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@echo + Building in PARTIAL compliance with IESG security requirements:
+	@echo + Compliant:
+	@echo ++ TLS/SSL encryption is supported
+	@echo + Non-compliant:
+	@echo ++ Unencrypted plaintext passwords are permitted
+	@echo +
+	@echo + In order to rectify this problem, you MUST build with:
+	@echo ++ SSLTYPE=$(SSLTYPE).nopwd
+	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@echo
+	@echo Do you want to continue this build anyway?  Type y or n please:
+	@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
+
+sslnone:
+	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@echo + Building in NON-COMPLIANCE with IESG security requirements:
+	@echo + Non-compliant:
+	@echo ++ TLS/SSL encryption is NOT supported
+	@echo ++ Unencrypted plaintext passwords are permitted
+	@echo +
+	@echo + In order to rectify this problem, you MUST build with:
+	@echo ++ SSLTYPE=nopwd
+	@echo + You must also have OpenSSL or equivalent installed.
+	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@echo
+	@echo Do you want to continue this build anyway?  Type y or n please:
+	@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
+
+
 # C compiler types
 
 an ua:
+	$(MAKE) ssl$(SSLTYPE)
 	@echo Applying $@ process to sources...
 	$(TOOLS)/$@ "$(LN)" src/c-client c-client
 	$(TOOLS)/$@ "$(LN)" src/ansilib c-client
@@ -372,6 +428,10 @@ an ua:
 	$(TOOLS)/$@ "$(LN)" src/mtest mtest
 	$(TOOLS)/$@ "$(LN)" src/ipopd ipopd
 	$(TOOLS)/$@ "$(LN)" src/imapd imapd
+	$(TOOLS)/$@ "$(LN)" src/mailutil mailutil
+	$(TOOLS)/$@ "$(LN)" src/mlock mlock
+	$(TOOLS)/$@ "$(LN)" src/dmail dmail
+	$(TOOLS)/$@ "$(LN)" src/tmail tmail
 	$(LN) $(TOOLS)/$@ .
 
 build:	OSTYPE rebuild rebuildclean bundled
@@ -404,10 +464,24 @@ bundled:
 	$(CD) mtest;$(MAKE)
 	$(CD) ipopd;$(MAKE)
 	$(CD) imapd;$(MAKE)
+	$(CD) mailutil;$(MAKE)
+	@$(SH) -c '(test -f /usr/include/sysexits.h ) || make sysexitwarn'
+	$(CD) mlock;$(MAKE) || true
+	$(CD) dmail;$(MAKE) || true
+	$(CD) tmail;$(MAKE) || true
+
+
+sysexitwarn:
+	@echo Hmm...it does not look like /usr/include/sysexits.h exists.
+	@echo Either your system is too ancient to have the sysexits.h
+	@echo include, or your C compiler gets it from some other location
+	@echo than /usr/include.  If your system is too old to have the
+	@echo sysexits.h include, you will not be able to build the
+	@echo following programs.
 
 clean:
 	@echo Removing old processed sources and binaries...
-	$(SH) -c '$(RM) an ua OSTYPE SPECIALS c-client mtest imapd ipopd || true'
+	$(SH) -c '$(RM) an ua OSTYPE SPECIALS c-client mtest imapd ipopd mailutil mlock dmail tmail || true'
 	$(CD) tools;$(MAKE) clean
 
 

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	11 April 2001
+ * Last Edited:	24 October 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -266,15 +266,22 @@ long mx_create (MAILSTREAM *stream,char *mailbox)
 			       get_dir_protection (mailbox)))
     sprintf (tmp,"Can't create mailbox leaf %.80s: %s",
 	     mailbox,strerror (errno));
-				/* create index file */
-  else if (((fd = open (MXINDEX (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,
-			(int) mail_parameters (NIL,GET_MBXPROTECTION,mailbox)))
-	    <0 ) || close (fd))
-    sprintf (tmp,"Can't create mailbox index %.80s: %s",
-	     mailbox,strerror (errno));
-				/* success */
-  else return set_mbx_protections (mailbox,mbx) &&
-    set_mbx_protections (mailbox,tmp);
+  else {			/* create index file */
+    int mask = umask (0);
+    if (((fd = open (MXINDEX (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,
+		     (int) mail_parameters (NIL,GET_MBXPROTECTION,mailbox)))<0)
+	|| close (fd))
+      sprintf (tmp,"Can't create mailbox index %.80s: %s",
+	       mailbox,strerror (errno));
+	
+    else {			/* success */
+      set_mbx_protections (mailbox,mbx);
+      set_mbx_protections (mailbox,tmp);
+      tmp[0] = NIL;
+    }
+    umask (mask);		/* restore mask */
+  }
+  if (!tmp[0]) return LONGT;	/* success */
   MM_LOG (tmp,ERROR);		/* some error */
   return NIL;
 }
@@ -307,9 +314,12 @@ long mx_delete (MAILSTREAM *stream,char *mailbox)
       }
       closedir (dirp);		/* flush directory */
     }
-				/* success if can remove the directory */
-    if (!rmdir (mx_file (tmp,mailbox))) return T;
-    sprintf (tmp,"Can't delete mailbox %.80s: %s",mailbox,strerror (errno));
+				/* try to remove the directory */
+    if (rmdir (mx_file (tmp,mailbox))) {
+      sprintf (tmp,"Can't delete name %.80s: %s",mailbox,strerror (errno));
+      mm_log (tmp,WARN);
+    }
+    return T;			/* always success */
   }
   MM_LOG (tmp,ERROR);		/* something failed */
   return NIL;

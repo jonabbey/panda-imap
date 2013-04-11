@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 September 1996
- * Last Edited:	9 October 2001
+ * Last Edited:	25 June 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -75,3 +75,4 @@ unsigned long unix_crlfcpy (char **dst,unsigned long *dstl,char *src,
 unsigned long unix_crlflen (STRING *s);
 FILE *create_tempfile (void);
 int close_file (FILE *stream);
+char *getpass (const char *prompt);

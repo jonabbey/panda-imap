@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	21 October 1998
- * Last Edited:	30 May 2001
+ * Last Edited:	29 May 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -133,6 +133,8 @@ long auth_md5_client (authchallenge_t challenger,authrespond_t responder,
  * the password data.
  */
 
+static int md5try = 3;
+
 char *auth_md5_server (authresponse_t responder,int argc,char *argv[])
 {
   char *ret = NIL;
@@ -150,11 +152,13 @@ char *auth_md5_server (authresponse_t responder,int argc,char *argv[])
       if (authuser = strchr (user,'*')) *authuser++ = '\0';
 				/* get password */
       if (p = auth_md5_pwd ((authuser && *authuser) ? authuser : user)) {
-	u = strcmp (hash,hmac_md5 (chal,cl,p,pl = strlen (p))) ? NIL : user;
+	pl = strlen (p);
+	u = (md5try && strcmp (hash,hmac_md5 (chal,cl,p,pl))) ? NIL : user;
 	memset (p,0,pl);	/* erase sensitive information */
 	fs_give ((void **) &p);	/* flush erased password */
 				/* now log in for real */
 	if (u && authserver_login (u,authuser,argc,argv)) ret = myusername ();
+	else if (md5try) --md5try;
       }
     }
     fs_give ((void **) &user);
@@ -240,8 +244,10 @@ char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[])
     }
     *s = '\0';			/* tie off hash text */
     memset (digest,0,MD5DIGLEN);/* erase sensitive information */
-    if (!strcmp (md5,tmp) && authserver_login (user,authuser,argc,argv))
+    if (md5try && !strcmp (md5,tmp) &&
+	authserver_login (user,authuser,argc,argv))
       ret = cpystr (myusername ());
+    else if (md5try) --md5try;
     memset (tmp,0,MAILTMPLEN);	/* erase sensitive information */
   }
   if (!ret) sleep (3);		/* slow down possible cracker */

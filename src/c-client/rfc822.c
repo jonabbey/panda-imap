@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	19 June 2001
+ * Last Edited:	14 November 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -248,8 +248,10 @@ void rfc822_cat (char *dest,char *src,const char *specials)
 {
   char *s;
   size_t i;
-				/* any specials present? */
-  if (strpbrk (src,specials ? specials : wspecials)) {
+  if (!*src ||			/* empty string or any specials present? */
+      (specials ? (T && strpbrk (src,specials)) :
+       (strpbrk (src,wspecials) || (*src == '.') || strstr (src,"..") ||
+	(src[strlen (src) - 1] == '.')))) {
     dest += strlen (dest);	/* find end of string */
     *dest++ = '"';		/* opening quote */
 				/* truly bizarre characters in there? */
@@ -306,6 +308,9 @@ void rfc822_write_body_header (char **dst,BODY *body)
     while (stl);
     strcpy (*dst += strlen (*dst),"\015\012");
   }
+  if (body->location)
+    sprintf (*dst += strlen (*dst),"Content-Location: %s\015\012",
+	     body->location);
   if (body->disposition.type) {
     sprintf (*dst += strlen (*dst),"Content-Disposition: %s",
 	     body->disposition.type);
@@ -600,7 +605,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
     for (s1 = NIL,param = body->parameter; param && !s1; param = param->next)
       if (!strcmp (param->attribute,"BOUNDARY")) s1 = param->value;
     if (!s1) s1 = "-";		/* yucky default */
-    j = strlen (s1);		/* length of cookie and header */
+    j = strlen (s1) + 2;	/* length of cookie and header */
     c = '\012';			/* initially at beginning of line */
 
     while (i > j) {		/* examine data */
@@ -611,42 +616,45 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
 	  c = SNX (bs); i--;	/* yes, slurp it */
 	}
       case '\012':		/* at start of a line, start with -- ? */
-	if (i-- && ((c = SNX (bs)) == '-') && i-- && ((c = SNX (bs)) == '-')) {
+	if (!(i && i-- && ((c = SNX (bs)) == '-') && i-- &&
+	      ((c = SNX (bs)) == '-'))) break;
 				/* see if cookie matches */
-	  if (k = j) for (s = s1; i-- && *s++ == (c = SNX (bs)) && --k;);
-	  else if (i) break;	/* empty cookie, non-empty delimiter */
-	  if (k) break;		/* strings didn't match if non-zero */
-				/* look at what follows cookie */
-	  if (i && i--) switch (c = SNX (bs)) {
-	  case '-':		/* at end if two dashes */
-	    if ((i && i--) && ((c = SNX (bs)) == '-') &&
-		((i && i--) ? (((c = SNX (bs)) == '\015') || (c=='\012')):T)) {
+	if (k = j - 2) for (s = s1; i-- && *s++ == (c = SNX (bs)) && --k;);
+	if (k) break;		/* strings didn't match if non-zero */
+				/* terminating delimiter? */
+	if ((c = ((i && i--) ? (SNX (bs)) : '\012')) == '-') {
+	  if ((i && i--) && ((c = SNX (bs)) == '-') &&
+	      ((i && i--) ? (((c = SNX (bs)) == '\015') || (c=='\012')):T)) {
 				/* if have a final part calculate its size */
-	      if (part) part->body.mime.text.size =
-		(m > part->body.mime.offset) ? (m - part->body.mime.offset) :0;
-	      part = NIL; i = 1; /* terminate scan */
-	    }
-	    break;
-	  case '\015':		/* handle CRLF form */
-	    if (i && CHR (bs) == '\012') {
-	      c = SNX (bs); i--;/* yes, slurp it */
-	    }
-	  case '\012':		/* new line */
-	    if (part) {		/* calculate size of previous */
-	      part->body.mime.text.size =
-		(m > part->body.mime.offset) ? (m-part->body.mime.offset) : 0;
-				/* instantiate next */
-	      part = part->next = mail_newbody_part ();
-	    }			/* otherwise start new list */
-	    else part = body->nested.part = mail_newbody_part ();
-				/* digest has a different default */
-	    if (f) part->body.type = TYPEMESSAGE;
-				/* note offset from main body */
-	    part->body.mime.offset = GETPOS (bs);
-	    break;
-	  default:		/* whatever it was it wasn't valid */
-	    break;
+	    if (part) part->body.mime.text.size =
+	      (m > part->body.mime.offset) ? (m - part->body.mime.offset) :0;
+	    part = NIL; i = 1;	/* terminate scan */
 	  }
+	  break;
+	}
+				/* swallow trailing whitespace */
+	while ((c == ' ') || (c == '\t'))
+	  c = ((i && i--) ? (SNX (bs)) : '\012');
+	switch (c) {		/* need newline after all of it */
+	case '\015':		/* handle CRLF form */
+	  if (i && CHR (bs) == '\012') {
+	    c = SNX (bs); i--;/* yes, slurp it */
+	  }
+	case '\012':		/* new line */
+	  if (part) {		/* calculate size of previous */
+	    part->body.mime.text.size =
+	      (m > part->body.mime.offset) ? (m-part->body.mime.offset) : 0;
+	    /* instantiate next */
+	    part = part->next = mail_newbody_part ();
+	  }			/* otherwise start new list */
+	  else part = body->nested.part = mail_newbody_part ();
+				/* digest has a different default */
+	  if (f) part->body.type = TYPEMESSAGE;
+				/* note offset from main body */
+	  part->body.mime.offset = GETPOS (bs);
+	  break;
+	default:		/* whatever it was it wasn't valid */
+	  break;
 	}
 	break;
       default:			/* not at a line */
@@ -661,6 +669,8 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
        (GETPOS(bs) - part->body.mime.offset) : 0);
 				/* make a scratch buffer */
     s1 = (char *) fs_get ((size_t) (k = MAILTMPLEN));
+				/* in case empty multipart */
+    if (!body->nested.part) body->nested.part = mail_newbody_part ();
 				/* parse non-empty body parts */
     for (part = body->nested.part; part; part = part->next) {
       if (i = part->body.mime.text.size) {
@@ -721,8 +731,25 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
 	rfc822_parse_content (&part->body,bs,h,depth+1,flags);
 	bs->size = j;		/* restore current level size */
       }
-      else part->body.subtype =	/* default subtype if necessary */
-	cpystr (rfc822_default_subtype (part->body.type));
+      else {			/* empty part, default subtype if necessary */
+	part->body.subtype = cpystr (rfc822_default_subtype (part->body.type));
+				/* see if anything else special to do */
+	switch (part->body.type) {
+	case TYPETEXT:		/* text content */
+				/* default parameters */
+	  if (!part->body.parameter) {
+	    part->body.parameter = mail_newbody_parameter ();
+	    part->body.parameter->attribute = cpystr ("CHARSET");
+	    part->body.parameter->value = cpystr ("US-ASCII");
+	  }
+	  break;
+	case TYPEMESSAGE:	/* encapsulated message */
+	  part->body.nested.msg = mail_newmsg ();
+	  break;
+	default:
+	  break;
+	}
+      }
     }
     fs_give ((void **) &s1);	/* finished with scratch buffer */
     break;
@@ -742,6 +769,7 @@ void rfc822_parse_content_header (BODY *body,char *name,char *s)
   char c,*t;
   long i;
   STRINGLIST *stl;
+  rfc822_skipws (&s);		/* skip leading comments */
 				/* flush whitespace */
   if (t = strchr (name,' ')) *t = '\0';
   switch (*name) {		/* see what kind of content */
@@ -781,6 +809,8 @@ void rfc822_parse_content_header (BODY *body,char *name,char *s)
 	else s = NIL;		/* bogus or end of list */
       }
     }
+    else if (!(strcmp (name+1,"OCATION") || body->location))
+      body->location = cpystr (s);
     break;
   case 'M':			/* possible Content-MD5 */
     if (!(strcmp (name+1,"D5") || body->md5)) body->md5 = cpystr (s);
@@ -824,7 +854,7 @@ void rfc822_parse_content_header (BODY *body,char *name,char *s)
 				/* search for body encoding */
       for (i = 0; (i <= ENCMAX) && body_encodings[i] &&
 	   strcmp (s,body_encodings[i]); i++);
-      if (i > ENCMAX) body->type = ENCOTHER;
+      if (i > ENCMAX) body->encoding = ENCOTHER;
       else {			/* if empty slot, assign it to this type */
 	if (!body_encodings[i]) body_encodings[i] = cpystr (s);
 	body->encoding = (unsigned short) i;
@@ -1241,14 +1271,16 @@ char *rfc822_parse_domain (char *string,char **end)
   char c,*s,*t,*v;
   rfc822_skipws (&string);	/* skip whitespace */
   if (*string == '[') {		/* domain literal? */
-    if (*end = rfc822_parse_word (string + 1,"]\\")) {
+    if (!(*end = rfc822_parse_word (string + 1,"]\\")))
+      MM_LOG ("Empty domain literal",PARSE);
+    else if (**end != ']') MM_LOG ("Unterminated domain literal",PARSE);
+    else {
       size_t len = ++*end - string;
       strncpy (ret = (char *) fs_get (len + 1),string,len);
       ret[len] = '\0';		/* tie off literal */
     }
-    else MM_LOG ("Invalid domain literal after @",PARSE);
   }
-    				/* search for end of host */
+				/* search for end of host */
   else if (t = rfc822_parse_word (string,wspecials)) {
     c = *t;			/* remember delimiter */
     *t = '\0';			/* tie off host */
@@ -1695,35 +1727,39 @@ long rfc822_output_body (BODY *body,soutr_t f,void *s)
  * Returns: destination as binary or NIL if error
  */
 
+#define JNK 0177
+#define PAD 0100
+
 void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
 {
   char c;
   void *ret = fs_get ((size_t) (*len = 4 + ((srcl * 3) / 4)));
   char *d = (char *) ret;
-  int e = 0;
+  int e;
+  static char decode[256] = {
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,076,JNK,JNK,JNK,077,
+   064,065,066,067,070,071,072,073,074,075,JNK,JNK,JNK,PAD,JNK,JNK,
+   JNK,000,001,002,003,004,005,006,007,010,011,012,013,014,015,016,
+   017,020,021,022,023,024,025,026,027,030,031,JNK,JNK,JNK,JNK,JNK,
+   JNK,032,033,034,035,036,037,040,041,042,043,044,045,046,047,050,
+   051,052,053,054,055,056,057,060,061,062,063,JNK,JNK,JNK,JNK,JNK,
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
+   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK
+  };
   memset (ret,0,(size_t) *len);	/* initialize block */
   *len = 0;			/* in case we return an error */
-  while (srcl--) {		/* until run out of characters */
-    c = *src++;			/* simple-minded decode */
-    if (isupper (c)) c -= 'A';
-    else if (islower (c)) c -= 'a' - 26;
-    else if (isdigit (c)) c -= '0' - 52;
-    else if (c == '+') c = 62;
-    else if (c == '/') c = 63;
-    else if (c == '=') {	/* padding */
-      switch (e++) {		/* check quantum position */
-      case 3:
-	e = 0;			/* restart quantum */
-	break;
-      case 2:
-	if (*src == '=') break;
-      default:			/* impossible quantum position */
-	fs_give (&ret);
-	return NIL;
-      }
-      continue;
-    }
-    else continue;		/* junk character */
+
+				/* simple-minded decode */
+  for (e = 0; srcl--; ) switch (c = decode[*src++]) {
+  default:			/* valid BASE64 data character */
     switch (e++) {		/* install based on quantum position */
     case 0:
       *d = c << 2;		/* byte 1: high 6 bits */
@@ -1741,6 +1777,35 @@ void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
       e = 0;			/* reinitialize mechanism */
       break;
     }
+    break;
+  case JNK:			/* junk character */
+    break;
+  case PAD:			/* padding */
+    switch (e++) {		/* check quantum position */
+    case 3:			/* one = is good enough in quantum 3 */
+				/* make sure no data characters in remainder */
+      for (; srcl; --srcl) if (!(decode[*src++] & 0300)) {
+	/* This indicates bad MIME.  One way that it can be caused is if
+	   a single-section message was BASE64 encoded and then something
+	   (e.g. a mailing list processor) appended text.  The problem is
+	   that in 1 out of 3 cases, there is no padding and hence no way
+	   to detect the end of the data.  Consequently, prudent software
+	   will always encapsulate a BASE64 segment inside a MULTIPART.
+	   */
+	char *s,tmp[MAILTMPLEN];
+	sprintf (tmp,"Possible data truncation in rfc822_base64(): %.80s",
+		 (char *) src - 1);
+	if (s = strpbrk (tmp,"\015\012")) *s = NIL;
+	mm_log (tmp,WARN);
+      }
+      break;
+    case 2:			/* expect a second = in quantum 2 */
+      if (srcl && (*src == '=')) break;
+    default:			/* impossible quantum position */
+      fs_give (&ret);
+      return NIL;
+    }
+    break;
   }
   *len = d - (char *) ret;	/* calculate data length */
   return ret;			/* return the string */
@@ -1761,7 +1826,20 @@ unsigned char *rfc822_binary (void *src,unsigned long srcl,unsigned long *len)
   unsigned long i = ((srcl + 2) / 3) * 4;
   *len = i += 2 * ((i / 60) + 1);
   d = ret = (unsigned char *) fs_get ((size_t) ++i);
-  for (i = 0; srcl; s += 3) {	/* process tuplets */
+				/* process tuplets */
+  for (i = 0; srcl >= 3; s += 3, srcl -= 3) {
+    *d++ = v[s[0] >> 2];	/* byte 1: high 6 bits (1) */
+				/* byte 2: low 2 bits (1), high 4 bits (2) */
+    *d++ = v[((s[0] << 4) + (s[1] >> 4)) & 0x3f];
+				/* byte 3: low 4 bits (2), high 2 bits (3) */
+    *d++ = v[((s[1] << 2) + (s[2] >> 6)) & 0x3f];
+    *d++ = v[s[2] & 0x3f];	/* byte 4: low 6 bits (3) */
+    if ((++i) == 15) {		/* output 60 characters? */
+      i = 0;			/* restart line break count, insert CRLF */
+      *d++ = '\015'; *d++ = '\012';
+    }
+  }
+  if (srcl) {
     *d++ = v[s[0] >> 2];	/* byte 1: high 6 bits (1) */
 				/* byte 2: low 2 bits (1), high 4 bits (2) */
     *d++ = v[((s[0] << 4) + (--srcl ? (s[1] >> 4) : 0)) & 0x3f];

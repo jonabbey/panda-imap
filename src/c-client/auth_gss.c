@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 January 1998
- * Last Edited:	28 September 2001
+ * Last Edited:	21 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -58,11 +58,13 @@ long auth_gssapi_valid (void)
   krb5_context ctx;
   krb5_keytab kt;
   krb5_kt_cursor csr;
-  sprintf (tmp,"host@%s",mylocalhost ());
-  buf.length = strlen (buf.value = tmp) + 1;
+				/* make service name */
+  sprintf (tmp,"%s@%s",(char *) mail_parameters (NIL,GET_SERVICENAME,NIL),
+	   mylocalhost ());
+  buf.length = strlen (buf.value = tmp);
 				/* see if can build a name */
-  if (gss_import_name (&smn,&buf,gss_nt_service_name,&name) != GSS_S_COMPLETE)
-    return NIL;			/* failed */
+  if (gss_import_name (&smn,&buf,GSS_C_NT_HOSTBASED_SERVICE,&name) !=
+      GSS_S_COMPLETE) return NIL;
 				/* make a context */
   if (!krb5_init_context (&ctx)) {
 				/* get default keytab */
@@ -114,10 +116,10 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
     return T;			/* will get a BAD response back */
   }
   sprintf (tmp,"%s@%s",service,mb->host);
-  buf.length = strlen (buf.value = tmp) + 1;
+  buf.length = strlen (buf.value = tmp);
 				/* must be me if authuser; get service name */
   if ((mb->authuser[0] && strcmp (mb->authuser,myusername ())) ||
-      (gss_import_name (&smn,&buf,gss_nt_service_name,&crname) !=
+      (gss_import_name (&smn,&buf,GSS_C_NT_HOSTBASED_SERVICE,&crname) !=
        GSS_S_COMPLETE))
     (*responder) (stream,NIL,0); /* can't do Kerberos if either fails */
   else {
@@ -188,20 +190,25 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
       break;
     case GSS_S_FAILURE:
       if (chal.value) fs_give ((void **) &chal.value);
-      if (smn == (OM_uint32) KRB5_FCC_NOFILE) {
+      switch (smn) {		/* check minor version */
+      case KRB5_FCC_NOFILE:	/* MIT */
+      case KRB5_CC_NOTFOUND:	/* Heimdal */
 	sprintf (tmp,"No credentials cache found (try running kinit) for %s",
 		 mb->host);
 	mm_log (tmp,WARN);
+	break;
+      default:
+	do switch (dsmj = gss_display_status (&dsmn,smn,GSS_C_MECH_CODE,
+					      GSS_C_NO_OID,&mctx,&resp)) {
+	case GSS_S_COMPLETE:
+	case GSS_S_CONTINUE_NEEDED:
+	  sprintf (tmp,"GSSAPI failure: %s",(char *) resp.value);
+	  mm_log (tmp,WARN);
+	  gss_release_buffer (&dsmn,&resp);
+	}
+	while (dsmj == GSS_S_CONTINUE_NEEDED);
+	break;
       }
-      else do switch (dsmj = gss_display_status (&dsmn,smn,GSS_C_MECH_CODE,
-						 GSS_C_NO_OID,&mctx,&resp)) {
-      case GSS_S_COMPLETE:
-      case GSS_S_CONTINUE_NEEDED:
-	sprintf (tmp,"GSSAPI failure: %s",(char *) resp.value);
-	mm_log (tmp,WARN);
-	gss_release_buffer (&dsmn,&resp);
-      }
-      while (dsmj == GSS_S_CONTINUE_NEEDED);
       (*responder) (stream,NIL,0);
       break;
     default:			/* miscellaneous errors */
@@ -258,9 +265,9 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 				/* make service name */
   sprintf (tmp,"%s@%s",(char *) mail_parameters (NIL,GET_SERVICENAME,NIL),
 	   tcp_serverhost ());
-  buf.length = strlen (buf.value = tmp) + 1;
+  buf.length = strlen (buf.value = tmp);
 				/* acquire credentials */
-  if ((gss_import_name (&smn,&buf,gss_nt_service_name,&crname)) ==
+  if ((gss_import_name (&smn,&buf,GSS_C_NT_HOSTBASED_SERVICE,&crname)) ==
       GSS_S_COMPLETE) {
     if ((smj = gss_acquire_cred (&smn,crname,0,NIL,GSS_C_ACCEPT,&crd,NIL,NIL))
 	== GSS_S_COMPLETE) {
@@ -298,8 +305,9 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 	    gss_release_buffer (&smn,&chal);
 	    if (gss_unwrap (&smn,ctx,&resp,&chal,&conf,&qop)==GSS_S_COMPLETE) {
 				/* client request valid */
-	      if (chal.value && (chal.length > 4) && (chal.length < MAILTMPLEN)
-		  && memcpy (tmp,chal.value,chal.length) &&
+	      if (chal.value && (chal.length > 4) &&
+		  (chal.length < (MAILTMPLEN - 1)) &&
+		  memcpy (tmp,chal.value,chal.length) &&
 		  (tmp[0] & AUTH_GSSAPI_P_NONE)) {
 				/* tie off authorization ID */
 		tmp[chal.length] = '\0';

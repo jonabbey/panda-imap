@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 March 2000
- * Last Edited:	28 September 2001
+ * Last Edited:	27 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -77,18 +77,26 @@ OM_uint32 gss_import_name (OM_uint32 *minor_status,
   TimeStamp expiry;
   static CredHandle gss_cred;
   char *s,tmp[MAILTMPLEN];
-  char *realm = getenv ("USERDOMAIN");
+  char realm[MAILTMPLEN];
+  HKEY key;
+  DWORD len = MAILTMPLEN;
+  FILETIME ft;
   *minor_status = 0;		/* never any minor status */
   if (!gss_default_cred &&	/* default credentials set up yet? */
-      ((major_status =		/* no, do so now */
+      ((major_status =	/* no, do so now */
 	AcquireCredentialsHandle (NIL,MICROSOFT_KERBEROS_NAME_A,
 				  SECPKG_CRED_OUTBOUND,NIL,NIL,NIL,NIL,
 				  &gss_cred,&expiry)) == SEC_E_OK))
     gss_default_cred = &gss_cred;
 				/* AcquireCredentialsHandle failed */
   if (major_status != GSS_S_COMPLETE);
-				/* can't do it if no realm */
-  else if (!realm || !*realm) major_status = GSS_S_FAILURE;
+  else if (RegOpenKeyEx		/* get realm */
+	   (HKEY_LOCAL_MACHINE,
+	    "SYSTEM\\CurrentControlSet\\Control\\Lsa\\Kerberos\\Domains",NIL,
+	    KEY_ENUMERATE_SUB_KEYS,&key) ||
+	   RegEnumKeyEx (key,0,realm,&len,NIL,NIL,NIL,&ft) ||
+	   RegCloseKey (key) || !realm || !*realm)
+    major_status = GSS_S_FAILURE;
 				/* must be the gss_nt_service_name format */
   else if (input_name_type != gss_nt_service_name)
     major_status = GSS_S_BAD_NAMETYPE;
@@ -105,7 +113,8 @@ OM_uint32 gss_import_name (OM_uint32 *minor_status,
       s = tmp + strlen (tmp);	/* prepare to append */
       *s++ = '@';		/* delimiter */
       strcpy (s,realm);		/* append realm */
-      *output_name = cpystr (tmp);/* and write the name */
+				/* and write the name */
+      *output_name = cpystr (tmp);
     }
   }
   return major_status;

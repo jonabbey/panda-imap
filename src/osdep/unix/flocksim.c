@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	6 November 2001
+ * Last Edited:	7 February 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -256,7 +256,7 @@ main ()
  */
 
 int lockslavep = 0;		/* non-zero means slave process for locking */
-
+static int lockproxycopy = 0;	/* non-zero means redo copy as proxy */
 
 /* Common master
  * Accepts: permitted stream
@@ -277,6 +277,7 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
   unsigned long i,j;
   int c,pid,pipei[2],pipeo[2];
   char *s,*t,tmp[MAILTMPLEN];
+  lockproxycopy = NIL;		/* not doing a lock proxycopy */
 				/* make pipe from slave */
   if (pipe (pipei) < 0) mm_log ("Can't create input pipe",ERROR);
   else if (pipe (pipeo) < 0) {
@@ -293,6 +294,8 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
     for (c = 0; c < NSIG; c++) signal (c,SIG_DFL);
     dup2 (pipeo[0],0);		/* parent's output in my input */
     dup2 (pipei[1],1);		/* parent's input is my stdout */
+    close (pipei[0]);		/* close parent's side of the pipes */
+    close (pipeo[1]);
   }
 
   else {			/* master process */
@@ -338,6 +341,9 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
 	}
 	else fputc ('-',po);	/* append error */
 	fflush (po);
+	break;
+      case '&':			/* slave wants a proxycopy? */
+	lockproxycopy = T;
 	break;
 
       case 'L':			/* mm_log() */
@@ -526,8 +532,16 @@ long safe_scan_contents (char *name,char *contents,unsigned long csiz,
 
 long safe_copy (DRIVER *dtb,MAILSTREAM *stream,char *seq,char *mbx,long flags)
 {
+  mailproxycopy_t pc =
+    (mailproxycopy_t) mail_parameters (stream,GET_MAILPROXYCOPY,NIL);
   long ret = master (stream,NIL,NIL);
-  if (lockslavep) exit ((*dtb->copy) (stream,seq,mbx,flags));
+  if (lockslavep) {
+				/* don't do proxycopy in slave */
+    if (pc) mail_parameters (stream,SET_MAILPROXYCOPY,(void *) slaveproxycopy);
+    exit ((*dtb->copy) (stream,seq,mbx,flags));
+  }
+				/* do any proxycopy in master */
+  if (lockproxycopy && pc) return (*pc) (stream,seq,mbx,flags);
   return ret;
 }
 
@@ -783,4 +797,19 @@ long slave_append (MAILSTREAM *stream,void *data,char **flags,char **date,
     slave_fatal (tmp);
   }
   return NIL;
+}
+
+/* Proxy copy across mailbox formats
+ * Accepts: mail stream
+ *	    sequence to copy on this stream
+ *	    destination mailbox
+ *	    option flags
+ * Returns: T if success, else NIL
+ */
+
+long slaveproxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,
+		     long options)
+{
+  puts ("&");			/* redo copy as append */
+  return NIL;			/* failure for now */
 }

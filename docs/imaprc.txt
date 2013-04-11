@@ -1,5 +1,5 @@
 		       .imaprc secrets revealed!
-		      Mark Crispin, October 17, 2001
+		      Mark Crispin, June 17, 2002
 
 The following information describes the format of the /etc/c-client.cf
 and ~/.imaprc file.  The Columbia MM ~/.mminit file is also read by
@@ -166,6 +166,9 @@ matter.  Unrecognized commands are ignored.
    In black-box mode, it is not permitted to access any folders
    outside of the user's personal blackbox directory.  The breakouts
    ``/'', ``~'', and ``..'' are not permitted.
+
+   In order to make this work without crashing, you must set another
+   option which is not listed in this document.
 
    There is no protection against setting this to a silly value, and
    doing so is a great way to cause a crash.
@@ -578,3 +581,20 @@ matter.  Unrecognized commands are ignored.
    The default is zero (only close/reopen at checkpoint and expunge time).
 
    Setting this option is a great way to ruin your system's performance.
+
+39) set restrict-mailbox-access <option> <option> ... <option>
+   This option is for closed server systems only.  It is less extreme
+   than chroot-server, and allows selective restriction of what mailbox
+   named users can use.  The existing options are:
+    root	access not permitted to names starting with "/"
+    otherusers	access not permitted to other users' names; this should
+		 normally be used in conjunction with "root", otherwise
+		 another user's names can be accessed via a root name.
+    all		all of the above
+   Setting any combination of options also disables access to superior
+   directories via "..".
+
+   This should be done ONLY on systems which do not permit users to
+   have shell access
+
+   The default is no restrictions.

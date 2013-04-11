@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	11 April 2001
+ * Last Edited:	24 October 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -399,8 +399,7 @@ long mh_delete (MAILSTREAM *stream,char *mailbox)
 				/* try to remove the directory */
   if (rmdir (mh_file (tmp,mailbox))) {
     sprintf (tmp,"Can't delete mailbox %.80s: %s",mailbox,strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
+    mm_log (tmp,WARN);
   }
   return T;			/* return success */
 }

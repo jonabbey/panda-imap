@@ -8,7 +8,8 @@ Documentation:
  . WARNING		export notice and warning
  . docs/BUILD		build and installation instructions
  . docs/CONFIG		detailed configuration notes
- . docs/FAQ		frequently asked questions and answers
+ . docs/FAQ.html	frequently asked questions and answers
+ . docs/FAQ.txt		text version of FAQ.HTML
  . docs/RELNOTES	release notes
  . docs/SSLBUILD	build and installation instructions using SSL
  . docs/Y2K		information relating to Y2K issues
@@ -33,8 +34,11 @@ Sources:
  . src/ansilib		pre-processed ANSI library routines
  . src/c-client		pre-processed c-client sources
  . src/charset		pre-processed character set conversion tables
+ . src/dmail		pre-processed user mail delivery sources
  . src/ipopd		pre-processed POP2/POP3 daemon sources
  . src/imapd		pre-processed IMAP4rev1 daemon sources
+ . src/mailutil		pre-processed mailbox utility sources
+ . src/mlock		pre-processed mailbox locking sources
  . src/mtest		pre-processed c-client testbed sources
  . src/osdep/amiga	pre-processed Amiga-specific sources
  . src/osdep/dos	pre-processed DOS-specific sources
@@ -45,6 +49,7 @@ Sources:
  . src/osdep/unix	pre-processed UNIX-specific sources
  . src/osdep/vms	pre-processed VAX/VMS specific sources
  . src/osdep/wce	pre-processed Windows CE-specific sources (incomplete)
+ . src/tmail		pre-processed system mail delivery sources
  . tools		internal tools needed as part of the build process
 
 Directories created at build time on UNIX and NT/Win32:

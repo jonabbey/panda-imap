@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	14 November 2001
+ * Last Edited:	28 October 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -32,6 +32,7 @@
 #define IMAPUIDLOOKAHEAD 1000	/* UID lookahead */
 #define IMAPTCPPORT (long) 143	/* assigned TCP contact port */
 #define IMAPSSLPORT (long) 993	/* assigned SSL TCP contact port */
+#define MAXCOMMAND 1000		/* RFC 2683 guideline for cmd line length */
 
 
 /* Parsed reply message from imap_reply */
@@ -57,26 +58,31 @@ typedef struct imap_local {
   unsigned int rfc1176 : 1;	/* server is RFC-1176 IMAP2 */
   struct {
     unsigned int imap4rev1 : 1;	/* server is IMAP4rev1 */
-    unsigned int imap4 : 1;	/* server is IMAP4 */
-    unsigned int status : 1;	/* server has STATUS */
-    unsigned int acl : 1;	/* server has ACL */
-    unsigned int quota : 1;	/* server has QUOTA */
-    unsigned int namespace :1;	/* server has NAMESPACE */
-    unsigned int starttls : 1;	/* server has STARTTLS */
-    unsigned int mbx_ref : 1;	/* server has mailbox referrals */
-    unsigned int log_ref : 1;	/* server has login referrals */
+    unsigned int imap4 : 1;	/* server is IMAP4 (RFC 1730) */
+    unsigned int acl : 1;	/* server has ACL (RFC 2086) */
+    unsigned int quota : 1;	/* server has QUOTA (RFC 2087) */
+    unsigned int litplus : 1;	/* server has LITERAL+ (RFC 2088) */
+    unsigned int idle : 1;	/* server has IDLE (RFC 2177) */
+    unsigned int mbx_ref : 1;	/* server has mailbox referrals (RFC 2193) */
+    unsigned int log_ref : 1;	/* server has login referrals (RFC 2221) */
+    unsigned int authanon : 1;	/* server has anonymous SASL (RFC 2245) */
+    unsigned int namespace :1;	/* server has NAMESPACE (RFC 2342) */
+    unsigned int uidplus : 1;	/* server has UIDPLUS (RFC 2359) */
+    unsigned int starttls : 1;	/* server has STARTTLS (RFC 2595) */
+				/* server disallows LOGIN command (RFC 2595) */
+    unsigned int logindisabled : 1;
+    unsigned int id : 1;	/* server has ID (RFC 2971) */
+    unsigned int children : 1;	/* server has CHILDREN (RFC 3398) */
 				/* server has multi-APPEND */
     unsigned int multiappend : 1;
     unsigned int scan : 1;	/* server has SCAN */
     unsigned int sort : 1;	/* server has SORT */
-    unsigned int authanon : 1;	/* server has anonymous authentication */
 				/* supported authenticators */
     unsigned int auth : MAXAUTHENTICATORS;
+    THREADER *threader;		/* list of threaders */
   } cap;
   unsigned int uidsearch : 1;	/* UID searching */
   unsigned int byeseen : 1;	/* saw a BYE response */
-				/* don't do LOGIN command */
-  unsigned int logindisabled : 1;
 				/* got implicit capabilities */
   unsigned int gotcapability : 1;
   unsigned int sensitive : 1;	/* sensitive data in progress */
@@ -84,16 +90,20 @@ typedef struct imap_local {
   unsigned int notlsflag : 1;	/* TLS not used in session */
   unsigned int sslflag : 1;	/* SSL session */
   unsigned int novalidate : 1;	/* certificate not validated */
+  unsigned int filter : 1;	/* filter SEARCH/SORT/THREAD results */
+  unsigned int loser : 1;	/* server is a loser */
+  unsigned short extlevel;	/* extension data level supported by server */
   long authflags;		/* required flags for authenticators */
   unsigned long sortsize;	/* sort return data size */
   unsigned long *sortdata;	/* sort return data */
   NAMESPACE **namespace;	/* namespace return data */
   THREADNODE *threaddata;	/* thread return data */
-  THREADER *threader;		/* list of threaders */
   char *referral;		/* last referral */
   char *prefix;			/* find prefix */
   char *user;			/* logged-in user */
+  char *reform;			/* reformed sequence */
   char tmp[IMAPTMPLEN];		/* temporary buffer */
+  SEARCHSET *lookahead;		/* fetch lookahead */
 } IMAPLOCAL;
 
 
@@ -101,48 +111,26 @@ typedef struct imap_local {
 
 #define LOCAL ((IMAPLOCAL *) stream->local)
 
-/* Has MULTIAPPEND extension (else done in client) */
+/* Protocol levels */
 
-#define LEVELMULTIAPPEND(stream) ((IMAPLOCAL *) stream->local)->cap.multiappend
-
-
-/* Has THREAD extension (else done in client) */
-
-#define LEVELTHREAD(stream) (((IMAPLOCAL *) stream->local)->threader ? T : NIL)
-
-
-/* Has SORT extension (else done in client) */
-
-#define LEVELSORT(stream) ((IMAPLOCAL *) stream->local)->cap.sort
-
-
-/* Has SCAN extension */
-
-#define LEVELSCAN(stream) ((IMAPLOCAL *) stream->local)->cap.scan
-
-
-/* Has QUOTA extension */
-
-#define LEVELQUOTA(stream) ((IMAPLOCAL *) stream->local)->cap.quota
-
-
-/* Has ACL extension */
-
-#define LEVELACL(stream) ((IMAPLOCAL *) stream->local)->cap.acl
-
+/* As of October 14, 2002, it is believed that:
+ * IMAP1		extinct
+ * IMAP2 (RFC 1064)	extinct
+ * IMAP2 (RFC 1176)	rarely encountered (TOPS-20 server)
+ * IMAP2bis		uncommon (old UW servers)
+ * IMAP3 (RFC 1203)	stillborn; never implemented
+ * IMAP4 (RFC 1730)	rarely encountered
+ * IMAP4rev1		ubiquitous
+ */
 
 /* IMAP4rev1 level or better */
 
 #define LEVELIMAP4rev1(stream) ((IMAPLOCAL *) stream->local)->cap.imap4rev1
 
-
-/* IMAP4 w/ STATUS level or better */
-
-#define LEVELSTATUS(stream) (((IMAPLOCAL *) stream->local)->cap.imap4rev1 || \
-			     ((IMAPLOCAL *) stream->local)->cap.status)
+#define LEVELSTATUS LEVELIMAP4rev1
 
 
-/* IMAP4 level or better */
+/* IMAP4 level or better (not including RFC 1730 design mistakes) */
 
 #define LEVELIMAP4(stream) (((IMAPLOCAL *) stream->local)->cap.imap4rev1 || \
 			    ((IMAPLOCAL *) stream->local)->cap.imap4)
@@ -161,6 +149,94 @@ typedef struct imap_local {
 /* IMAP2 RFC-1176 level or better */
 
 #define LEVEL1176(stream) ((IMAPLOCAL *) stream->local)->rfc1176
+
+
+/* IMAP2 RFC-1064 or better */
+
+#define LEVEL1064(stream) 1
+
+
+/* Body structure extension levels */
+
+/* These are in BODYSTRUCTURE order.  Note that multipart bodies do not have
+ * body-fld-md5.  This is alright, since all subsequent body structure
+ * extensions are in both singlepart and multipart bodies.  If that ever
+ * changes, this will have to be split.
+ */
+
+#define BODYEXTMD5 1		/* body-fld-md5 */
+#define BODYEXTDSP 2		/* body-fld-dsp */
+#define BODYEXTLANG 3		/* body-fld-lang */
+#define BODYEXTLOC 4		/* body-fld-loc */
+
+/* Has ACL extension */
+
+#define LEVELACL(stream) ((IMAPLOCAL *) stream->local)->cap.acl
+
+
+/* Has QUOTA extension */
+
+#define LEVELQUOTA(stream) ((IMAPLOCAL *) stream->local)->cap.quota
+
+
+/* Has LITERALPLUS extension */
+
+#define LEVELLITERALPLUS(stream) ((IMAPLOCAL *) stream->local)->cap.litplus
+
+
+/* Has IDLE extension */
+
+#define LEVELIDLE(stream) ((IMAPLOCAL *) stream->local)->cap.idle
+
+
+/* Has mailbox referrals */
+
+#define LEVELMBX_REF(stream) ((IMAPLOCAL *) stream->local)->cap.mbx_ref
+
+
+/* Has login referrals */
+
+#define LEVELLOG_REF(stream) ((IMAPLOCAL *) stream->local)->cap.log_ref
+
+
+/* Has NAMESPACE extension */
+
+#define LEVELNAMESPACE(stream) ((IMAPLOCAL *) stream->local)->cap.namespace
+
+
+/* Has UIDPLUS extension */
+
+#define LEVELUIDPLUS(stream) ((IMAPLOCAL *) stream->local)->cap.uidplus
+
+
+/* Has ID extension */
+
+#define LEVELID(stream) ((IMAPLOCAL *) stream->local)->cap.id
+
+
+/* Has CHILDREN extension */
+
+#define LEVELCHILDREN(stream) ((IMAPLOCAL *) stream->local)->cap.children
+
+
+/* Has MULTIAPPEND extension */
+
+#define LEVELMULTIAPPEND(stream) ((IMAPLOCAL *) stream->local)->cap.multiappend
+
+
+/* Has SORT extension */
+
+#define LEVELSORT(stream) ((IMAPLOCAL *) stream->local)->cap.sort
+
+
+/* Has at least one THREAD extension */
+
+#define LEVELTHREAD(stream) (((IMAPLOCAL *) stream->local)->threader ? T : NIL)
+
+
+/* Has SCAN extension */
+
+#define LEVELSCAN(stream) ((IMAPLOCAL *) stream->local)->cap.scan
 
 /* Arguments to imap_send() */
 
@@ -187,6 +263,18 @@ typedef struct imap_argument {
 #define LISTMAILBOX 12
 #define MULTIAPPEND 13
 #define SNLIST 14
+#define MULTIAPPENDREDO 15
+
+
+/* Append data */
+
+typedef struct append_data {
+  append_t af;
+  void *data;
+  char *flags;
+  char *date;
+  STRING *message;
+} APPENDDATA;
 
 /* Function prototypes */
 
@@ -224,18 +312,23 @@ long imap_msgdata (MAILSTREAM *stream,unsigned long msgno,char *section,
 unsigned long imap_uid (MAILSTREAM *stream,unsigned long msgno);
 unsigned long imap_msgno (MAILSTREAM *stream,unsigned long uid);
 void imap_flag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
-void imap_search (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,long flags);
+long imap_search (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,long flags);
 unsigned long *imap_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 			  SORTPGM *pgm,long flags);
 THREADNODE *imap_thread (MAILSTREAM *stream,char *type,char *charset,
 			 SEARCHPGM *spg,long flags);
+THREADNODE *imap_thread_work (MAILSTREAM *stream,char *type,char *charset,
+			      SEARCHPGM *spg,long flags);
 long imap_ping (MAILSTREAM *stream);
 void imap_check (MAILSTREAM *stream);
 void imap_expunge (MAILSTREAM *stream);
 long imap_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
-long imap_append_single (MAILSTREAM *stream,char *mailbox,char *flags,
-			 char *date,STRING *message,imapreferral_t ir);
+long imap_append_referral (char *mailbox,char *tmp,append_t af,void *data,
+			   char *flags,char *date,STRING *message,
+			   APPENDDATA *map);
+IMAPPARSEDREPLY *imap_append_single (MAILSTREAM *stream,char *mailbox,
+				     char *flags,char *date,STRING *message);
 void imap_gc (MAILSTREAM *stream,long gcflags);
 void imap_gc_body (BODY *body);
 void imap_capability (MAILSTREAM *stream);
@@ -253,14 +346,15 @@ IMAPPARSEDREPLY *imap_send (MAILSTREAM *stream,char *cmd,IMAPARG *args[]);
 IMAPPARSEDREPLY *imap_sout (MAILSTREAM *stream,char *tag,char *base,char **s);
 long imap_soutr (MAILSTREAM *stream,char *string);
 IMAPPARSEDREPLY *imap_send_astring (MAILSTREAM *stream,char *tag,char **s,
-				    SIZEDTEXT *as,long wildok);
+				    SIZEDTEXT *as,long wildok,char *limit);
 IMAPPARSEDREPLY *imap_send_literal (MAILSTREAM *stream,char *tag,char **s,
 				    STRING *st);
 IMAPPARSEDREPLY *imap_send_spgm (MAILSTREAM *stream,char *tag,char **s,
-				 SEARCHPGM *pgm);
-void imap_send_sset (char **s,SEARCHSET *set,char *prefix);
+				 SEARCHPGM *pgm,char *limit);
+IMAPPARSEDREPLY *imap_send_sset (MAILSTREAM *stream,char *tag,char **s,
+				 SEARCHSET *set,char *prefix,char *limit);
 IMAPPARSEDREPLY *imap_send_slist (MAILSTREAM *stream,char *tag,char **s,
-				  char *name,STRINGLIST *list);
+				  char *name,STRINGLIST *list,char *limit);
 void imap_send_sdate (char **s,char *name,unsigned short date);
 IMAPPARSEDREPLY *imap_reply (MAILSTREAM *stream,char *tag);
 IMAPPARSEDREPLY *imap_parse_reply (MAILSTREAM *stream,char *text);
@@ -270,7 +364,7 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply);
 void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy);
 NAMESPACE *imap_parse_namespace (MAILSTREAM *stream,char **txtptr,
 				 IMAPPARSEDREPLY *reply);
-THREADNODE *imap_parse_thread (char **txtptr);
+THREADNODE *imap_parse_thread (MAILSTREAM *stream,char **txtptr);
 void imap_parse_header (MAILSTREAM *stream,ENVELOPE **env,SIZEDTEXT *hdr,
 			STRINGLIST *stl);
 void imap_parse_envelope (MAILSTREAM *stream,ENVELOPE **env,char **txtptr,
@@ -305,3 +399,4 @@ void imap_parse_extension (MAILSTREAM *stream,char **txtptr,
 void imap_parse_capabilities (MAILSTREAM *stream,char *t);
 char *imap_host (MAILSTREAM *stream);
 IMAPPARSEDREPLY *imap_fetch (MAILSTREAM *stream,char *sequence,long flags);
+char *imap_reform_sequence (MAILSTREAM *stream,char *sequence,long flags);

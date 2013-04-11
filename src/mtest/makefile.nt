@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		25 February 1996
-# Last Edited:	28 August 2001
+# Last Edited:	21 August 2002
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2001 University of Washington.
+# Copyright 2002 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -33,7 +33,7 @@ $(CCLIENTLIB):
 	false
 
 clean:
-	RM /f /x *.obj *.exe *.lib *.exp
+	del *.obj *.exe *.lib *.exp || rem
 
 # A monument to a hack of long ago and far away...
 love:

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	17 December 1999
- * Last Edited:	6 November 2000
+ * Last Edited:	17 December 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -35,6 +35,7 @@ long crexcl (char *name)
   int i;
   char hitch[MAILTMPLEN];
   struct stat sb;
+  int mask = umask (0);
 				/* build hitching post file name */
   sprintf (hitch,"%s.%lu.%d.",name,(unsigned long) time (0),getpid ());
   i = strlen (hitch);		/* append local host name */
@@ -65,5 +66,6 @@ long crexcl (char *name)
   }
 				/* fail unless error is EEXIST */
   else if (errno != EEXIST) ret = NIL;
+  umask (mask);			/* restore previous mask */
   return ret;
 }

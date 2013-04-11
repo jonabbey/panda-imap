@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	14 August 2001
+ * Last Edited:	7 March 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -872,8 +872,8 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 	       (fwrite (buf,1,j,df) == j)); i -= j);
   fclose (sf);			/* done with scratch file */
   times.actime = sbuf.st_atime;	/* preserve atime */
-				/* make sure append wins */
-  if (i || (fflush (df) == EOF)) {
+				/* make sure append wins, fsync() necessary */
+  if (i || (fflush (df) == EOF) || fsync (fd)) {
     sprintf (buf,"Message append failed: %s",strerror (errno));
     mm_log (buf,ERROR);
     ftruncate (fd,sbuf.st_size);/* revert file */
@@ -1604,7 +1604,8 @@ unsigned long unix_xstatus (MAILSTREAM *stream,char *status,MESSAGECACHE *elt,
   *s++ = 'S'; *s++ = 't'; *s++ = 'a'; *s++ = 't'; *s++ = 'u'; *s++ = 's';
   *s++ = ':'; *s++ = ' ';
   if (elt->seen) *s++ = 'R';
-  *s++ = 'O'; *s++ = '\r'; *s++ = '\n';
+  if (flag) *s++ = 'O';		/* only write O if have a UID */
+  *s++ = '\r'; *s++ = '\n';
   *s++ = 'X'; *s++ = '-'; *s++ = 'S'; *s++ = 't'; *s++ = 'a'; *s++ = 't';
   *s++ = 'u'; *s++ = 's'; *s++ = ':'; *s++ = ' ';
   if (elt->deleted) *s++ = 'D';
@@ -1668,6 +1669,10 @@ long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp,DOTLOCK *lock)
 	  elt->private.msg.text.text.size + 2;
       flag = 1;			/* only count X-IMAPbase once */
     }
+  if (!size) {			/* no messages and no pseudo, make one now */
+    size = unix_pseudo (stream,LOCAL->buf);
+    LOCAL->pseudo = T;
+  }
 				/* extend the file as necessary */
   if (ret = unix_extend (stream,size)) {
     /* Set up buffered I/O file structure

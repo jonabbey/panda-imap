@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	8 May 2001
+ * Last Edited:	22 February 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -25,6 +25,11 @@ typedef struct dotlock_base {
   int pipeo;
 } DOTLOCK;
 
+
+/* Bits that can be set in restrictBox */
+
+#define RESTRICTROOT 0x1	/* restricted box doesn't allow root */
+#define RESTRICTOTHERUSER 0x2	/* restricted box doesn't allow other user */
 
 /* Subscription definitions for UNIX */
 

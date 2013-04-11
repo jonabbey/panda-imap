@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	28 August 2001
+ * Last Edited:	16 July 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -216,9 +216,8 @@ static char *ssl_start_work (SSLSTREAM *stream,char *host,unsigned long flags)
   if (flags & NET_NOVALIDATECERT)
     SSL_CTX_set_verify (stream->context,SSL_VERIFY_NONE,NIL);
   else SSL_CTX_set_verify (stream->context,SSL_VERIFY_PEER,ssl_open_verify);
-				/* set up CAs to look up */
-  if (!SSL_CTX_load_verify_locations (stream->context,NIL,NIL))
-    SSL_CTX_set_default_verify_paths (stream->context);
+				/* set default paths to CAs */
+  SSL_CTX_set_default_verify_paths (stream->context);
 				/* create connection */
   if (!(stream->con = (SSL *) SSL_new (stream->context)))
     return "SSL connection failed";
@@ -425,7 +424,8 @@ long ssl_getdata (SSLSTREAM *stream)
       }
     }
     while (((i = SSL_read (stream->con,stream->ibuf,SSLBUFLEN)) < 0) &&
-	   (errno == EINTR));
+	   ((errno == EINTR) ||
+	    (SSL_get_error (stream->con,i) == SSL_ERROR_WANT_READ)));
     if (i < 1) return ssl_abort (stream);
     stream->iptr = stream->ibuf;/* point at TCP buffer */
     stream->ictr = i;		/* set new byte count */
@@ -554,9 +554,18 @@ char *ssl_localhost (SSLSTREAM *stream)
 
 char *ssl_start_tls (char *server)
 {
+  char tmp[MAILTMPLEN];
+  struct stat sbuf;
   if (sslstdio) return cpystr ("Already in an SSL session");
   if (start_tls) return cpystr ("TLS already started");
-  if (server) start_tls = server;
+  if (server) {			/* build specific certificate/key file name */
+    sprintf (tmp,"%s/%s-%s.pem",SSL_CERT_DIRECTORY,server,tcp_serveraddr ());
+    if (stat (tmp,&sbuf)) {	/* use non-specific name if no specific file */
+      sprintf (tmp,"%s/%s.pem",SSL_CERT_DIRECTORY,server);
+      if (stat (tmp,&sbuf)) return cpystr ("Server certificate not installed");
+    }
+    start_tls = server;		/* switch to STARTTLS mode */
+  }
   return NIL;
 }
 
@@ -569,21 +578,15 @@ void ssl_server_init (char *server)
   char tmp[MAILTMPLEN];
   unsigned long i;
   struct stat sbuf;
-  struct sockaddr_in sin;
-  int sinlen = sizeof (struct sockaddr_in);
   SSLSTREAM *stream = (SSLSTREAM *) memset (fs_get (sizeof (SSLSTREAM)),0,
 					    sizeof (SSLSTREAM));
   ssl_onceonlyinit ();		/* make sure algorithms added */
   ERR_load_crypto_strings ();
   SSL_load_error_strings ();
-  tmp[0] = '\0';		/* build specific certificate/key file name */
-  if (!getsockname (0,(struct sockaddr *) &sin,(void *) &sinlen) &&
-      (sin.sin_family == AF_INET))
-    sprintf (tmp,"%s/%s-%s.pem",SSL_CERT_DIRECTORY,server,
-	     inet_ntoa (sin.sin_addr));
+				/* build specific certificate/key file name */
+  sprintf (tmp,"%s/%s-%s.pem",SSL_CERT_DIRECTORY,server,tcp_serveraddr ());
 				/* use non-specific name if no specific file */
-  if (!tmp[0] || stat (tmp,&sbuf))
-    sprintf (tmp,"%s/%s.pem",SSL_CERT_DIRECTORY,server);
+  if (stat (tmp,&sbuf)) sprintf (tmp,"%s/%s.pem",SSL_CERT_DIRECTORY,server);
 				/* create context */
   if (!(stream->context = SSL_CTX_new (start_tls ?
 				       TLSv1_server_method () :

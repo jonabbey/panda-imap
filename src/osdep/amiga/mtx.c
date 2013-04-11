@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	9 October 2001
+ * Last Edited:	7 December 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -244,7 +244,8 @@ long mtx_rename (MAILSTREAM *stream,char *old,char *newname)
       MM_LOG (tmp,ERROR);
       ret = NIL;		/* set failure */
     }
-    if (s = strrchr (s,'/')) {	/* found superior to destination name? */
+				/* found superior to destination name? */
+    else if (s = strrchr (s,'/')) {
       c = *++s;			/* remember first character of inferior */
       *s = '\0';		/* tie off to get just superior */
 				/* name doesn't exist, create it */
@@ -688,6 +689,8 @@ void mtx_expunge (MAILSTREAM *stream)
     MM_LOG ("Unable to lock expunge mailbox",ERROR);
     return;
   }
+				/* make sure see any newly-arrived messages */
+  if (!mtx_parse (stream)) return;
 				/* get exclusive access */
   if (flock (LOCAL->fd,LOCK_EX|LOCK_NB)) {
     (*bn) (BLOCK_FILELOCK,NIL);
@@ -698,7 +701,7 @@ void mtx_expunge (MAILSTREAM *stream)
     return;
   }
 
-  MM_CRITICAL (stream);	/* go critical */
+  MM_CRITICAL (stream);		/* go critical */
   recent = stream->recent;	/* get recent now that pinged and locked */
   while (i <= stream->nmsgs) {	/* for each message */
     elt = mtx_elt (stream,i);	/* get cache element */
@@ -811,6 +814,7 @@ long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* get exclusive parse/append permission */
   if ((ld = lockfd (fd,lock,LOCK_EX)) < 0) {
     MM_LOG ("Unable to lock copy mailbox",ERROR);
+    MM_NOCRITICAL (stream);
     return NIL;
   }
   fstat (fd,&sbuf);		/* get current file size */

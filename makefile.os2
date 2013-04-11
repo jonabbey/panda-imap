@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	24 October 2000
+# Last Edited:	2 July 2002
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2000 University of Washington.
+# Copyright 2002 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -26,9 +26,10 @@ RD=rm -rf
 
 # Make the IMAP Toolkit
 
-build:	c-client mtest
+build:	c-client mtest mailutil
 	(cd c-client & $(MAKE))
 	(cd mtest & $(MAKE))
+	(cd mailutil & $(MAKE))
 
 c-client:
 	$(MKDIR) c-client
@@ -40,8 +41,12 @@ mtest:
 	$(MKDIR) mtest
 	$(COPY) src\mtest\\* mtest
 
+mailutil:
+	$(MKDIR) mailutil
+	$(COPY) src\mailutil\\* mailutil
+
 clean:
-	$(RD) c-client mtest
+	$(RD) c-client mtest mailutil
 
 # A monument to a hack of long ago and far away...
 love:

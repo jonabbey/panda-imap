@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	6 November 2001
+# Last Edited:	14 October 2002
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2001 University of Washington.
+# Copyright 2002 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -23,7 +23,7 @@
 EXTRAAUTHENTICATORS=
 EXTRADRIVERS=mbox
 PASSWDTYPE=std
-SSLTYPE=none
+SSLTYPE=nopwd
 
 
 # Extended flags needed for SSL.  You may need to modify.
@@ -111,7 +111,7 @@ DEFAULTDRIVERS=imap nntp pop3 mh mx mbx tenex mtx mmdf unix news phile
 # Normally no need to change any of these
 
 ARCHIVE=c-client.a
-BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o utf8.o siglocal.o \
+BINARIES=osdep.o mail.o misc.o newsrc.o smanager.o utf8.o siglocal.o \
  dummy.o pseudo.o netmsg.o flstring.o fdstring.o \
  rfc822.o nntp.o smtp.o imap4r1.o pop3.o \
  unix.o mbox.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
@@ -243,7 +243,7 @@ cvx:	# Convex
 
 cyg:	# Cygwin
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
-	SIGTYPE=psx CHECKPW=cyg LOGINPW=cyg CRXTYPE=nfs \
+	SIGTYPE=psx CHECKPW=cyg LOGINPW=cyg CRXTYPE=std \
 	SPOOLDIR=/var \
 	ACTIVEFILE=/usr/local/news/lib/active \
 	RSHPATH=/usr/bin/rsh \
@@ -337,7 +337,7 @@ ghp:	# GCC HP-UX 10.x
 	 RANLIB=true CC=gcc
 
 ghs:	# GCC HP-UX with Trusted Computer Base
-	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	$(BUILD) `$(CAT) SPECIALS` OS=shp \
 	 SIGTYPE=psx CHECKPW=sec CRXTYPE=nfs \
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/var/news/active \
@@ -824,6 +824,11 @@ osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	write.c sslstdio.c \
 	strerror.c strpbrk.c strstr.c strtok.c strtoul.c \
 	OSCFLAGS
+	@echo Building OS-dependent module
+	@echo If you get No such file error messages for files x509.h, ssl.h,
+	@echo pem.h, buffer.h, bio.h, and crypto.h, that means that OpenSSL
+	@echo is not installed on your system.  Either install OpenSSL first
+	@echo or build with command: make `$(CAT) OSTYPE` SSLTYPE=none
 	`$(CAT) CCTYPE` -c `$(CAT) CFLAGS` `$(CAT) OSCFLAGS` -c osdep.c
 
 osdep.c: osdepbas.c osdepckp.c osdeplog.c osdepssl.c
@@ -872,6 +877,7 @@ onceenv:
 	 -DRSHPATH=\"$(RSHPATH)\" -DLOCKPGM=\"$(LOCKPGM)\" > OSCFLAGS
 	echo $(BASELDFLAGS) $(EXTRALDFLAGS) > LDFLAGS
 	echo "$(ARRC) $(ARCHIVE) $(BINARIES);$(RANLIB) $(ARCHIVE)" > ARCHIVE
+	echo $(OS) > OSTYPE
 	./drivers $(EXTRADRIVERS) $(DEFAULTDRIVERS) dummy
 	./mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)
 	$(LN) os_$(OS).h osdep.h

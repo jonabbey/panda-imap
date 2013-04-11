@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	6 March 2001
+ * Last Edited:	11 September 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -82,7 +82,6 @@ void smtp_debug (SENDSTREAM *stream);
 void smtp_nodebug (SENDSTREAM *stream);
 long smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error);
 long smtp_send (SENDSTREAM *stream,char *command,char *args);
-long smtp_send_auth (SENDSTREAM *stream);
 long smtp_reply (SENDSTREAM *stream);
 long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb);
 long smtp_fake (SENDSTREAM *stream,long code,char *text);

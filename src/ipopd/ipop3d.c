@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	22 October 2001
+ * Last Edited:	18 December 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -57,7 +57,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2001.78";	/* server version */
+char *version = "2001.80";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -82,7 +82,7 @@ void clkint ();
 void kodint ();
 void hupint ();
 void trmint ();
-int login (char *t,int argc,char *argv[]);
+int pass_login (char *t,int argc,char *argv[]);
 char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[]);
 char *responder (void *challenge,unsigned long clen,unsigned long *rlen);
 int mbxopen (char *mailbox);
@@ -97,10 +97,12 @@ int main (int argc,char *argv[])
   char *s,*t;
   char tmp[TMPLEN];
   time_t autologouttime;
+				/* set service name before linkage */
+  mail_parameters (NIL,SET_SERVICENAME,(void *) "pop");
 #include "linkage.c"
 				/* initialize server */
   server_init (((s = strrchr (argv[0],'/')) || (s = strrchr (argv[0],'\\'))) ?
-	       s+1 : argv[0],"pop3","pop3s","pop",clkint,kodint,hupint,trmint);
+	       s+1 : argv[0],"pop3","pop3s",clkint,kodint,hupint,trmint);
   challenge[0] = '\0';		/* find the CRAM-MD5 authenticator */
   if (i = mail_lookup_auth_name ("CRAM-MD5",NIL)) {
     AUTHENTICATOR *a = mail_lookup_auth (i);
@@ -285,7 +287,7 @@ int main (int argc,char *argv[])
 	}
 	else if (!mail_parameters (NIL,GET_DISABLEPLAINTEXT,NIL) &&
 		 user && *user && !strcmp (s,"PASS"))
-	  state = login (t,argc,argv);
+	  state = pass_login (t,argc,argv);
 	else PSOUT ("-ERR Unknown AUTHORIZATION state command\015\012");
 	break;
 
@@ -492,7 +494,7 @@ void kodint ()
 				/* only if idle */
   if (idletime && ((time (0) - idletime) > KODTIMEOUT)) {
     alarm (0);			/* disable all interrupts */
-    server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+    server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
     PSOUT ("-ERR Received Kiss of Death\015\012");
     syslog (LOG_INFO,"Killed (lost mailbox lock) user=%.80s host=%.80s",
 	    user ? user : "???",tcp_clienthost ());
@@ -516,7 +518,7 @@ void kodint ()
 void hupint ()
 {
   alarm (0);			/* disable all interrupts */
-  server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   syslog (LOG_INFO,"Hangup user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
   if (critical) state = LOGOUT;	/* must defer if in critical code */
@@ -538,7 +540,7 @@ void hupint ()
 void trmint ()
 {
   alarm (0);			/* disable all interrupts */
-  server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   PSOUT ("-ERR Killed\015\012");
   syslog (LOG_INFO,"Killed user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
@@ -559,7 +561,7 @@ void trmint ()
  * Returns: new state
  */
 
-int login (char *t,int argc,char *argv[])
+int pass_login (char *t,int argc,char *argv[])
 {
   char tmp[TMPLEN];
 				/* flush old passowrd */
@@ -636,7 +638,7 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
       char *e = ferror (stdin) ?
 	strerror (errno) : "Command stream end of file";
       alarm (0);		/* disable all interrupts */
-      server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
       syslog (LOG_INFO,"%s, while reading authentication host=%.80s",
 	      e,tcp_clienthost ());
       state = UPDATE;
@@ -652,7 +654,7 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
 	char *e = ferror (stdin) ?
 	  strerror (errno) : "Command stream end of file";
 	alarm (0);		/* disable all interrupts */
-	server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	syslog (LOG_INFO,"%s, while reading auth char user=%.80s host=%.80s",
 		e,user ? user : "???",tcp_clienthost ());
 	state = UPDATE;

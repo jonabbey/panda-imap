@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 March 2000
- * Last Edited:	28 September 2001
+ * Last Edited:	19 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -34,6 +34,7 @@
 #define KRB5_CC_NOMEM (-1765328186L)
 #define KRB5_FCC_NOFILE (-1765328189L)
 #define KRB5_KT_NOTFOUND (-1765328203L)
+#define KRB5_CC_NOTFOUND (-1765328243L)
 
 
 /* Error codes */

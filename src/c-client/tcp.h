@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	7 January 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -41,7 +41,9 @@ char *tcp_host (TCPSTREAM *stream);
 char *tcp_remotehost (TCPSTREAM *stream);
 unsigned long tcp_port (TCPSTREAM *stream);
 char *tcp_localhost (TCPSTREAM *stream);
+char *tcp_clientaddr (void);
 char *tcp_clienthost (void);
+char *tcp_serveraddr (void);
 char *tcp_serverhost (void);
 long tcp_serverport (void);
 char *tcp_canonical (char *name);

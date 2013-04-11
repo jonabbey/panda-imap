@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	9 April 2001
+ * Last Edited:	19 March 2002
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -120,7 +120,16 @@ DRIVER *news_valid (char *name)
 
 void *news_parameters (long function,void *value)
 {
-  return NIL;
+  switch ((int) function) {
+  case SET_NEWSRC:
+  case GET_NEWSRC:
+    value = env_parameters (function,NIL);
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
 }
 
 

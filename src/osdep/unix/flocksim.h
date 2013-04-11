@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	16 August 2001
+ * Last Edited:	22 January 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -103,3 +103,5 @@ long slave_diskerror (MAILSTREAM *stream,long errcode,long serious);
 void slave_fatal (char *string);
 long slave_append (MAILSTREAM *stream,void *data,char **flags,char **date,
 		   STRING **message);
+long slaveproxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,
+		     long options);

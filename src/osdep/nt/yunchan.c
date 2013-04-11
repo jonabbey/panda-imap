@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 September 1996
- * Last Edited:	9 October 2001
+ * Last Edited:	25 June 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -245,4 +245,34 @@ int close_file (FILE *stream)
     fs_give ((void **) &s);	/* and flush the name */
   }
   return ret;
+}
+
+/* Get password from console
+ * Accepts: prompt
+ * Returns: password
+ */
+
+#define PWDLEN 128		/* used by Linux */
+
+char *getpass (const char *prompt)
+{
+  static char pwd[PWDLEN];
+  int ch,i,done;
+  fputs (prompt,stderr);	/* output prompt */
+  for (i = done = 0; !done; ) switch (ch = _getch()) {
+  case 0x03:			/* CTRL/C stops program */
+    _exit (1);
+  case '\b':			/* BACKSPACE erase previous character */
+    if (i) pwd[--i] = '\0';
+    break;
+  case '\n': case '\r':		/* CR or LF terminates string */
+    done = 1;
+    break;
+  default:			/* any other character is a pwd char */
+    if (i < (PWDLEN - 1)) pwd[i++] = ch;
+    break;
+  }
+  pwd[i] = '\0';		/* tie off string with null */
+  putchar ('\n');		/* echo newline */
+  return pwd;
 }

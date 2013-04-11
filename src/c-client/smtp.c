@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	12 October 2001
+ * Last Edited:	16 September 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -147,20 +147,27 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	else if ((reply = smtp_ehlo (stream,s,&mb)) == SMTPOK) {
 	  NETDRIVER *ssld =(NETDRIVER *)mail_parameters(NIL,GET_SSLDRIVER,NIL);
 	  sslstart_t stls = (sslstart_t) mail_parameters(NIL,GET_SSLSTART,NIL);
-	  ESMTP.ok = T;		/* ESMTP server, has TLS? */
-	  if (stls && ESMTP.service.starttls && !mb.sslflag && !mb.notlsflag &&
+	  ESMTP.ok = T;		/* ESMTP server, start TLS if present */
+	  if (!dv && stls && ESMTP.service.starttls &&
+	      !mb.sslflag && !mb.notlsflag &&
 	      smtp_send (stream,"STARTTLS",NIL) == SMTPGREET) {
 	    mb.tlsflag = T;	/* TLS OK, get into TLS at this end */
 	    stream->netstream->dtb = ssld;
-	    if (!(stream->netstream->stream =
-		  (*stls) (stream->netstream->stream,mb.host,NET_TLSCLIENT |
-			   (mb.novalidate ? NET_NOVALIDATECERT : NIL)))) {
-				/* drat, drop this connection */
+				/* TLS started, negotiate it */
+	    if (!(stream->netstream->stream = (*stls)
+		  (stream->netstream->stream,mb.host,
+		   NET_TLSCLIENT | (mb.novalidate ? NET_NOVALIDATECERT:NIL)))){
+				/* TLS negotiation failed after STARTTLS */
+	      sprintf (tmp,"Unable to negotiate TLS with this server: %.80s",
+		       mb.host);
+	      mm_log (tmp,ERROR);
+				/* close without doing QUIT */
 	      if (stream->netstream) net_close (stream->netstream);
 	      stream->netstream = NIL;
 	      stream = smtp_close (stream);
 	    }
-	    if (stream && ((reply = smtp_ehlo (stream,s,&mb)) != SMTPOK)) {
+				/* re-negotiate EHLO */
+	    else if ((reply = smtp_ehlo (stream,s,&mb)) != SMTPOK) {
 	      sprintf (tmp,"SMTP EHLO failure after STARTLS: %.80s",
 		       stream->reply);
 	      mm_log (tmp,ERROR);
@@ -168,9 +175,11 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	    }
 	  }
 	  else if (mb.tlsflag) {/* user specified /tls but can't do it */
-	    mm_log ("Unable to negotiate TLS with this server",ERROR);
-	    return NIL;
+	    sprintf (tmp,"TLS unavailable with this server: %.80s",mb.host);
+	    mm_log (tmp,ERROR);
+	    stream = smtp_close (stream);
 	  }
+
 				/* remote name for authentication */
 	  if (stream && ((mb.secflag || mb.user[0]))) {
 	    if (ESMTP.auth) {	/* use authenticator? */
@@ -192,7 +201,6 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	    }
 	  }
 	}
-
 	else if (mb.secflag || mb.user[0]) {
 	  sprintf (tmp,"ESMTP failure: %.80s",stream->reply);
 	  mm_log (tmp,ERROR);
@@ -235,6 +243,7 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
   char *lsterr = NIL;
   char usr[MAILTMPLEN];
   AUTHENTICATOR *at;
+  long ret = NIL;
   for (auths = ESMTP.auth; stream->netstream && auths &&
        (at = mail_lookup_auth (find_rightmost_bit (&auths) + 1)); ) {
     if (lsterr) {		/* previous authenticator failed? */
@@ -246,22 +255,24 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
     trial = 0;			/* initial trial count */
     tmp[0] = '\0';		/* empty buffer */
     if (stream->netstream) do {
-      if (tmp[0]) mm_log (tmp,WARN);
+      if (lsterr) {
+	sprintf (tmp,"Retrying %s authentication after %s",at->name,lsterr);
+	mm_log (tmp,WARN);
+	fs_give ((void **) &lsterr);
+      }
       if (smtp_send (stream,"AUTH",at->name)) {
 				/* hide client authentication responses */
 	if (!(at->flags & AU_SECURE)) stream->sensitive = T;
 	if ((*at->client) (smtp_challenge,smtp_response,"smtp",mb,stream,
 			   &trial,usr)) {
-	  if (stream->replycode == SMTPAUTHED) return LONGT;
+	  if (stream->replycode == SMTPAUTHED) ret = LONGT;
 				/* if main program requested cancellation */
-	  if (!trial) mm_log ("SMTP Authentication cancelled",ERROR);
+	  else if (!trial) mm_log ("SMTP Authentication cancelled",ERROR);
 	}
 	stream->sensitive = NIL;/* unhide */
       }
-      if (trial) {		/* only if not aborting */
-	lsterr = cpystr (stream->reply);
-	sprintf (tmp,"Retrying %s authentication after %s",at->name,lsterr);
-      }
+				/* remember response if error and no cancel */
+      if (!ret && trial) lsterr = cpystr (stream->reply);
     } while (stream->netstream && trial && (trial < smtp_maxlogintrials));
   }
   if (lsterr) {			/* previous authenticator failed? */
@@ -269,7 +280,7 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
     mm_log (tmp,ERROR);
     fs_give ((void **) &lsterr);
   }
-  return NIL;			/* authentication failed */
+  return ret;			/* authentication failed */
 }
 
 /* Get challenge to authenticator in binary
@@ -351,16 +362,31 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
    */
   char tmp[8*MAILTMPLEN];
   long error = NIL;
-  long retry;
+  long retry = NIL;
   if (!(env->to || env->cc || env->bcc)) {
   				/* no recipients in request */
     smtp_fake (stream,SMTPHARDERROR,"No recipients specified");
     return NIL;
   }
-  do {
-    retry = NIL;		/* no retry at this point */
-				/* make sure stream is in good shape */
+  do {				/* make sure stream is in good shape */
     smtp_send (stream,"RSET",NIL);
+    if (retry) {		/* need to retry with authentication? */
+      NETMBX mb;
+				/* yes, build remote name for authentication */
+      sprintf (tmp,"{%.200s/smtp%s}<none>",
+	       (int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
+	       ((int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
+		net_remotehost (stream->netstream) :
+		net_host (stream->netstream)) :
+	       stream->host,
+	       (stream->netstream->dtb ==
+		(NETDRIVER *) mail_parameters (NIL,GET_SSLDRIVER,NIL)) ?
+	       "/ssl" : "");
+      mail_valid_net_parse (tmp,&mb);
+      if (!smtp_auth (stream,&mb,tmp)) return NIL;
+      retry = NIL;		/* no retry at this point */
+    }
+
     strcpy (tmp,"FROM:<");	/* compose "MAIL FROM:<return-path>" */
 #ifdef RFC2821
     if (env->return_path && env->return_path->host &&
@@ -386,18 +412,14 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
     }
 				/* send "MAIL FROM" command */
     switch (smtp_send (stream,type,tmp)) {
-    case SMTPOK:		/* looks good */
-      break;
     case SMTPWANTAUTH:		/* wants authentication? */
     case SMTPWANTAUTH2:
-      if (ESMTP.auth && smtp_send_auth (stream)) {
-	retry = T;
-	break;
-      }
+      if (ESMTP.auth) retry = T;/* yes, retry with authentication */
+    case SMTPOK:		/* looks good */
+      break;
     default:			/* other failure */
       return NIL;
     }
-
 				/* negotiate the recipients */
     if (!retry && env->to) retry = smtp_rcpt (stream,env->to,&error);
     if (!retry && env->cc) retry = smtp_rcpt (stream,env->cc,&error);
@@ -477,7 +499,7 @@ long smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
 	  break;
 	case SMTPWANTAUTH:	/* wants authentication? */
 	case SMTPWANTAUTH2:
-	  if (ESMTP.auth && smtp_send_auth (stream)) return T;
+	  if (ESMTP.auth) return T;
 	default:		/* other failure */
 	  *error = T;		/* note that an error occurred */
 	  adr->error = cpystr (stream->reply);
@@ -515,29 +537,6 @@ long smtp_send (SENDSTREAM *stream,char *command,char *args)
   }
   fs_give ((void **) &s);
   return ret;
-}
-
-
-/* SMTP send authentication if needed
- * Accepts: SEND stream
- * Returns: T if need to redo command, NIL otherwise
- */
-
-long smtp_send_auth (SENDSTREAM *stream)
-{
-  NETMBX mb;
-  char tmp[MAILTMPLEN];
-				/* remote name for authentication */
-  sprintf (tmp,"{%.200s/smtp%s}<none>",
-	   (int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
-	   ((int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
-	    net_remotehost (stream->netstream) : net_host (stream->netstream)):
-	   stream->host,
-	   (stream->netstream->dtb ==
-	    (NETDRIVER *) mail_parameters (NIL,GET_SSLDRIVER,NIL)) ?
-	   "/ssl" : "");
-  mail_valid_net_parse (tmp,&mb);
-  return smtp_auth (stream,&mb,tmp);
 }
 
 /* Simple Mail Transfer Protocol get reply

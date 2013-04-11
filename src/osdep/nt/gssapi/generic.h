@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 March 2000
- * Last Edited:	24 October 2000
+ * Last Edited:	21 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -127,6 +127,7 @@ typedef void * gss_channel_bindings_t;
 /* GSSAPI constants */
 
 const gss_OID gss_nt_service_name;
+#define GSS_C_NT_HOSTBASED_SERVICE gss_nt_service_name
 const gss_OID gss_mech_krb5;
 const gss_OID_set gss_mech_set_krb5;
 

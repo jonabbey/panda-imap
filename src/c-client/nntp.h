@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	6 October 2001
+ * Last Edited:	5 April 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -100,7 +100,7 @@ long nntp_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
 FILE *nntp_article (MAILSTREAM *stream,char *msgid,unsigned long *size,
 		    unsigned long *hsiz);
 void nntp_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
-void nntp_search (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,long flags);
+long nntp_search (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,long flags);
 long nntp_search_msg (MAILSTREAM *stream,unsigned long msgno,SEARCHPGM *pgm,
 		      OVERVIEW *ov);
 unsigned long *nntp_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,

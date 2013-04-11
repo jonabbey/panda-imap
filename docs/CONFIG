@@ -18,6 +18,12 @@ In particular, special attention should be given to the routines:
  mailboxfile()		translate a mailbox name into the associated
 			UNIX file for opening
 
+     There are also build options in the top-level makefile which you
+can give on the command line when building the software.  The most
+common build options are "SSLTYPE=unix", to build the software with SSL,
+and "SSLTYPE=nopwd", to build the software with SSL and disable plaintext
+authentication unless the session is encrypted.
+
      You should modify these routines as necessary for local policy.
 The most common modifications are to env_init(), to modify the
 software's idea of the home directory (which is used everywhere as the
@@ -28,6 +34,7 @@ looks for newly-delivered mail.
 in the user's home directory instead of the default UNIX mail spool
 directory.  You will want to change routine sysinbox(), changing the
 line that reads:
+
     sprintf (tmp,"%s/%s",MAILSPOOL,myusername ());
 to be:
     sprintf (tmp,"%s/.mailbox",myhomedir ());
@@ -41,13 +48,40 @@ static char *mailsubdir = NIL;	/* mail subdirectory name */
  to be:
 static char *mailsubdir = "mail";/* mail subdirectory name */
 
-     Example 3: suppose you want to disable plaintext authentication.
-You will want to change variable plaintextdisabled, changing the line
-which reads:
+     Example 3: suppose you want to disable plaintext authentication in
+the IMAP and POP servers.  If you want to disable plaintext authentication
+in unencrypted sessions but permit it in encrypted sessions, you should use
+"SSLTYPE=nopwd" in the make command line when building the software.  For
+example, to do this on a Linux system with PAM authentication, do:
+	make lnp SSLTYPE=nopwd
+If you want to disable plaintext authentication under all circumstances
+(including SSL or TLS encrypted sessions), use "PASSWDTYPE=nul", e.g.:
+	make lnx EXTRAAUTHENTICATORS=gss PASSWDTYPE=nul
+which will make it impossible to log in except via Kerberos.
 
-static short plaintextdisabled = NIL;
+     Example 4: suppose you want the IMAP and POP servers to do a chroot()
+to the user's home directory.  This is not recommended; there are known
+ways of attacking chroot() based security mechanisms.  Furthermore, if you
+do this you can not use a traditional UNIX format INBOX in the mail spool
+directory, since chroot() will prevent access to that directory.  If you
+really want to do this, you need to change variable closedBox, changing
+the line which reads:
+
+static short closedBox = NIL;	/* is a closed box */
  to be:
-static short plaintextdisabled = T;
+static short closedBox = T;	/* is a closed box */
+
+     Example 5: suppose you want to disable non-namespace access to the
+filesystem root and other users' names, but do not want to go to the
+extreme of chroot() and you want to allow access to a traditional UNIX
+format INBOX in the mail spool directory.  You need to change variable
+restrictBox, changing the line which reads:
+
+static short restrictBox = NIL;	/* is a restricted box */
+ to be:
+static short restrictBox = -1;	/* is a restricted box */
+
+Other values to set in restrictBox can be found in env_unix.h.
 
      Ignore all references in env_unix.c to a configuration file; that
 code is for UW-internal use only.  It is extremely unlikely that that

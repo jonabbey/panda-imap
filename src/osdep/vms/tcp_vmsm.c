@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	24 October 2000
+ * Last Edited:	7 June 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -68,7 +68,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   struct hostent *host_name;
   char hostname[MAILTMPLEN];
   char tmp[MAILTMPLEN];
-  struct protoent *pt = getprotobyname ("ip");
+  struct protoent *pt = getprotobyname ("tcp");
   struct servent *sv = NIL;
   port &= 0xffff;		/* erase flags */
   if (service) {		/* service specified? */

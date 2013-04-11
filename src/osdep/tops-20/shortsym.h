@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	5 October 2001
+ * Last Edited:	28 October 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -134,6 +134,7 @@
 #define imap_parse_unsolicited ip_uns
 #define imap_parse_user_flag ipu_fl
 #define imap_ping i_ping
+#define imap_reform_sequence i_rfrs
 #define imap_rename i_ren
 #define imap_reply i_rep
 #define imap_response i_rspn
@@ -146,6 +147,7 @@
 #define imap_send_slist iss_sl
 #define imap_send_spgm iss_pg
 #define imap_send_sset iss_st
+#define imap_send_sset_work iss_sw
 #define imap_setacl i_sacl
 #define imap_setquota i_sqot
 #define imap_sort i_sort
@@ -155,6 +157,7 @@
 #define imap_structure i_stru
 #define imap_subscribe i_sub
 #define imap_thread i_thrd
+#define imap_thread_work i_thrw
 #define imap_uid i_uid
 #define imap_unsubscribe i_uns
 #define imap_valid i_val

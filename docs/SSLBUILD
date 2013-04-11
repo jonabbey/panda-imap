@@ -1,16 +1,15 @@
-		  SSL BUILD AND INSTALLATION NOTES FOR UNIX
-			 Last Updated: 3 October 2001
+		  SSL/TLS BUILD AND INSTALLATION NOTES FOR UNIX
+			 Last Updated: 8 October 2002
 
 PREREQUISITES BEFORE STARTING:
- 1) Make sure that you understand how to do a non-SSL build of the IMAP
-    toolkit.   If necessary, review the information in imap-2001/docs/BUILD.
+ 1) Review the information in imap-2002/docs/BUILD.
  2) Obtain a copy of OpenSSL.  OpenSSL is available from third parties.  We
     do not provide OpenSSL.
  3) Make sure that you know how to build OpenSSL properly on the standard
     /usr/local/ssl directory.  In particular, /usr/local/ssl/include (and
     /usr/local/ssl/include/openssl) and /usr/local/ssl/lib must be set up
     from the OpenSSL build.  If you have a non-standard installation, then
-    you must modify the imap-2001/src/osdep/unixMakefile.ssl file to point
+    you must modify the imap-2002/src/osdep/unix/Makefile file to point
     to the appropriate locations.
  4) Make sure that you know how to obtain appropriate certificates on your
     system.
@@ -22,12 +21,16 @@ mentioned in the OpenSSL README.
 
 SSL BUILD:
 
-     To build with SSL, add "SSLTYPE=unix" to the make command line.  For
-example, on Red Hat Linux, the appropriate command would be:
-	make lnp SSLTYPE=unix
+     By default, the IMAP toolkit builds with SSL and disabling plaintext
+passwords unless SSL/TLS encryption is in effect (SSLTYPE=nopwd).  Note that
+doing so will produce an IMAP server which is NON-COMPLIANT with current
+IESG security requirements.
+
+     To build with SSL but allow plaintext passwords in insecure sessions,
+add "SSLTYPE=unix" to the make command line.
 
      There are other make options relevant to SSL, described in
- imap-2001/src/osdep/unix/Makefile
+ imap-2002/src/osdep/unix/Makefile
 The most important of these are SSLDIR, SSLCRYPTO, and SSLRSA.
 
      SSLDIR is set to /usr/local/ssl by default.  This is the normal
@@ -49,10 +52,10 @@ is no longer any reason to do this.
 SSL INSTALLATION:
 
      Binaries from the build are:
-	imap-2001/mtest/mtest		c-client testbed program
-	imap-2001/ipopd/ipop2d		POP2 daemon
-	imap-2001/ipopd/ipop3d		POP3 daemon
-	imap-2001/imapd/imapd		IMAP4rev1 daemon
+	imap-2002/mtest/mtest		c-client testbed program
+	imap-2002/ipopd/ipop2d		POP2 daemon
+	imap-2002/ipopd/ipop3d		POP3 daemon
+	imap-2002/imapd/imapd		IMAP4rev1 daemon
 
      mtest is normally not used except by c-client developers.
 
@@ -68,10 +71,10 @@ imap	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
 pop3s	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
 imaps	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
 
-     Please refer to imap-2001/docs/BUILD for an important note about inetd's
+     Please refer to imap-2002/docs/BUILD for an important note about inetd's
 limit on the number of new connections.  If that note applies to you, and you
 can configure the number of connection in /etc/inetd.conf as described in
-imap-2001/docs/build, here is the sample /etc/inetd.conf entry with SSL:
+imap-2002/docs/build, here is the sample /etc/inetd.conf entry with SSL:
 
 pop3	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d
 pop3s	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d
@@ -111,7 +114,9 @@ WARNING: Do NOT install servers built with SSL support unless you also plan to
 install proper certificates!  It is NOT supported to run SSL-enabled servers
 on a system without the proper certificates.
 
-     You must set up certificates on /usr/local/ssl/certs.  You should install
+     You must set up certificates on /usr/local/ssl/certs (this may be
+different if you have a non-standard installation of OpenSSL; for example,
+FreeBSD has modified OpenSSL to use /usr/local/certs).  You should install
 both the certificate authority certificates from the SSL distribution after
 building OpenSSL, plus your own certificates.  The latter should have been
 purchased from a certificate authority, although self-signed certificates are

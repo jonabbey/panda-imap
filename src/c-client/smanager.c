@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 December 1992
- * Last Edited:	11 April 2001
+ * Last Edited:	13 November 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -34,6 +34,8 @@ long sm_subscribe (char *mailbox)
 {
   FILE *f;
   char *s,db[MAILTMPLEN],tmp[MAILTMPLEN];
+				/* canonicalize INBOX */
+  if (!compare_cstring (mailbox,"INBOX")) mailbox = "INBOX";
   SUBSCRIPTIONFILE (db);	/* open subscription database */
   if (f = fopen (db,"r")) {	/* make sure not already there */
     while (fgets (tmp,MAILTMPLEN,f)) {
@@ -65,6 +67,8 @@ long sm_unsubscribe (char *mailbox)
   FILE *f,*tf;
   char *s,tmp[MAILTMPLEN],old[MAILTMPLEN],newname[MAILTMPLEN];
   int found = NIL;
+				/* canonicalize INBOX */
+  if (!compare_cstring (mailbox,"INBOX")) mailbox = "INBOX";
   SUBSCRIPTIONFILE (old);	/* make file names */
   SUBSCRIPTIONTEMP (newname);
   if (!(f = fopen (old,"r")))	/* open subscription database */
@@ -86,9 +90,8 @@ long sm_unsubscribe (char *mailbox)
       sprintf (tmp,"Not subscribed to mailbox %.80s",mailbox);
       MM_LOG (tmp,ERROR);	/* error if at end */
     }
-    else if (!rename (newname,old)) return LONGT;
+    else if (!unlink (old) && !rename (newname,old)) return LONGT;
     else MM_LOG ("Can't update subscription database",ERROR);
-    unlink (newname);		/* flush temporary file if error */
   }
   return NIL;
 }

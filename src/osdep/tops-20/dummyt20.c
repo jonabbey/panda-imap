@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	13 June 1995
- * Last Edited:	9 April 2001
+ * Last Edited:	16 January 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -81,7 +81,6 @@ MAILSTREAM dummyproto = {&dummydriver};
 
 DRIVER *dummy_valid (char *name)
 {
-  char tmp[MAILTMPLEN];
 				/* must be valid local mailbox */
   return (name && *name && (*name != '{') && !compare_cstring (name,"INBOX")) ?
     &dummydriver : NIL;

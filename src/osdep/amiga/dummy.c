@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	26 October 2001
+ * Last Edited:	10 May 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -231,6 +231,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
   DIR *dp;
   struct direct *d;
   struct stat sbuf;
+  int ismx;
   char tmp[MAILTMPLEN];
 				/* punt if bogus name */
   if (!mailboxdir (tmp,dir,NIL)) return;
@@ -239,6 +240,8 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
     if (!level && dir && pmatch_full (dir,pat,'/'))
       dummy_listed (stream,'/',dir,LATT_NOSELECT,contents);
 				/* scan directory, ignore . and .. */
+    ismx = (!stat (strcat (tmp,MXINDEXNAME),&sbuf) &&
+	    ((sbuf.st_mode & S_IFMT) == S_IFREG));
     if (!dir || dir[strlen (dir) - 1] == '/') while (d = readdir (dp))
       if (((d->d_name[0] != '.') ||
 	   (((int) mail_parameters (NIL,GET_HIDEDOTFILES,NIL)) ? NIL :
@@ -271,8 +274,9 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 	      dummy_list_work (stream,tmp,pat,contents,level+1);
 	    break;
 	  case S_IFREG:		/* ordinary name */
+				/* ignore all-digit names from mx */
 	    /* Must use ctime for systems that don't update mtime properly */
-	    if (pmatch_full (tmp,pat,'/') &&
+	    if (!(ismx && mx_select (d)) && pmatch_full (tmp,pat,'/') &&
 		!(((tmp[0] == 'I') || (tmp[0] == 'i')) &&
 		  ((tmp[1] == 'N') || (tmp[1] == 'n')) &&
 		  ((tmp[2] == 'B') || (tmp[2] == 'b')) &&
@@ -386,13 +390,17 @@ long dummy_create_path (MAILSTREAM *stream,char *path,long dirmode)
   long ret = NIL;
   char *t = strrchr (path,'/');
   int wantdir = t && !t[1];
+  int mask = umask (0);
   if (wantdir) *t = '\0';	/* flush trailing delimiter for directory */
   if (s = strrchr (path,'/')) {	/* found superior to this name? */
     c = *++s;			/* remember first character of inferior */
     *s = '\0';			/* tie off to get just superior */
 				/* name doesn't exist, create it */
     if ((stat (path,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	!dummy_create_path (stream,path,dirmode)) return NIL;
+	!dummy_create_path (stream,path,dirmode)) {
+      umask (mask);		/* restore mask */
+      return NIL;
+    }
     *s = c;			/* restore full name */
   }
   if (wantdir) {		/* want to create directory? */
@@ -407,6 +415,7 @@ long dummy_create_path (MAILSTREAM *stream,char *path,long dirmode)
     sprintf (tmp,"Can't create mailbox node %s: %s",path,strerror (errno));
     MM_LOG (tmp,ERROR);
   }
+  umask (mask);			/* restore mask */
   return ret;			/* return status */
 }
 

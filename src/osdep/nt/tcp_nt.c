@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	26 October 2001
+ * Last Edited:	23 April 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -21,6 +21,8 @@
 
 /* Private functions */
 
+int tcp_socket_open (struct sockaddr_in *sin,char *tmp,char *hst,
+		     unsigned long port);
 long tcp_abort (SOCKET *sock);
 char *tcp_name (struct sockaddr_in *sin,long flag);
 long tcp_name_valid (char *s);
@@ -85,27 +87,33 @@ void *tcp_parameters (long function,void *value)
 TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 {
   TCPSTREAM *stream = NIL;
-  SOCKET sock;
+  int i;
+  SOCKET sock = INVALID_SOCKET;
+  int silent = (port & NET_SILENT) ? T : NIL;
   char *s;
   struct sockaddr_in sin;
   struct hostent *he;
+  char hostname[MAILTMPLEN];
   char tmp[MAILTMPLEN];
-  char *hostname = NIL;
+  struct servent *sv = NIL;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
-  int silent = (port & NET_SILENT) ? T : NIL;
-  port &= 0xffff;		/* erase flags */
   if (!wsa_initted++) {		/* init Windows Sockets */
     WSADATA wsock;
-    int i = (int) WSAStartup (WSA_VERSION,&wsock);
-    if (i) {			/* failed */
+    if (i = (int) WSAStartup (WSA_VERSION,&wsock)) {
       wsa_initted = 0;		/* in case we try again */
       sprintf (tmp,"Unable to start Windows Sockets (%d)",i);
       mm_log (tmp,ERROR);
       return NIL;
     }
   }
+  port &= 0xffff;		/* erase flags */
+				/* lookup service */
+  if (service && (sv = getservbyname (service,"tcp")))
+    port = ntohs (sin.sin_port = sv->s_port);
+ 				/* copy port number in network format */
+  else sin.sin_port = htons ((u_short) port);
   /* The domain literal form is used (rather than simply the dotted decimal
-     as with other Unix programs) because it has to be a valid "host name"
+     as with other Windows programs) because it has to be a valid "host name"
      in mailsystem terminology. */
   sin.sin_family = AF_INET;	/* family is always Internet */
 				/* look like domain literal? */
@@ -117,45 +125,84 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
       mm_log (tmp,ERROR);
       return NIL;
     }
-    else hostname = cpystr (host);
+    else {
+      sin.sin_family = AF_INET;	/* family is always Internet */
+      strcpy (hostname,host);
+      (*bn) (BLOCK_TCPOPEN,NIL);
+      sock = tcp_socket_open (&sin,tmp,hostname,port);
+      (*bn) (BLOCK_NONE,NIL);
+    }
   }
+
   else {			/* lookup host name */
     if (tcpdebug) {
       sprintf (tmp,"DNS resolution %.80s",host);
       mm_log (tmp,TCPDEBUG);
     }
-    (*bn) (BLOCK_DNSLOOKUP,NIL);
-    if ((he = gethostbyname (lcase (strcpy (tmp,host))))) {
-      (*bn) (BLOCK_NONE,NIL);
-				/* copy host name */
-      hostname = cpystr (he->h_name);
-				/* copy host addresses */
-      memcpy (&sin.sin_addr,he->h_addr,he->h_length);
-    }
-    else {
-      (*bn) (BLOCK_NONE,NIL);
+    (*bn) (BLOCK_DNSLOOKUP,NIL);/* look up name */
+    if (!(he = gethostbyname (lcase (strcpy (tmp,host)))))
       sprintf (tmp,"Host not found (#%d): %s",WSAGetLastError(),host);
-      mm_log (tmp,ERROR);
-      return NIL;
+    (*bn) (BLOCK_NONE,NIL);
+    if (he) {			/* DNS resolution won? */
+      if (tcpdebug) mm_log ("DNS resolution done",TCPDEBUG);
+				/* copy address type */
+      sin.sin_family = he->h_addrtype;
+				/* copy host name */
+      strcpy (hostname,he->h_name);
+      wsa_sock_open++;		/* prevent tcp_abort() from freeing in loop */
+      for (i = 0; (sock == INVALID_SOCKET) && (s = he->h_addr_list[i]); i++) {
+	if (i && !silent) mm_log (tmp,WARN);
+	memcpy (&sin.sin_addr,s,he->h_length);
+	(*bn) (BLOCK_TCPOPEN,NIL);
+	sock = tcp_socket_open (&sin,tmp,hostname,port);
+	(*bn) (BLOCK_NONE,NIL);
+      }
+      wsa_sock_open--;		/* undo protection */
     }
-    if (tcpdebug) mm_log ("DNS resolution done",TCPDEBUG);
   }
+  if (sock == INVALID_SOCKET) {	/* error? */
+    if (!silent) mm_log (tmp,ERROR);
+    tcp_abort (&sock);		/* do possible cleanup action */
+  }
+  else {			/* got a socket, create TCP/IP stream */
+    stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
+				   sizeof (TCPSTREAM));
+    stream->port = port;	/* port number */
+				/* init socket */
+    stream->tcpsi = stream->tcpso = sock;
+    stream->ictr = 0;		/* init input counter */
+				/* copy official host name */
+    stream->host = cpystr (hostname);
+    if (tcpdebug) mm_log ("Stream open and ready for read",TCPDEBUG);
+  }
+  return stream;		/* return success */
+}
 
-				/* copy port number in network format */
-  if (!(sin.sin_port = htons ((u_short) port)))
-    fatal ("Bad port argument to tcp_open");
-  (*bn) (BLOCK_TCPOPEN,NIL);
+/* Open a TCP socket
+ * Accepts: Internet socket address block
+ *	    scratch buffer
+ *	    host name for error message
+ *	    port number for error message
+ * Returns: socket if success, else -1 with error string in scratch buffer
+ */
+
+int tcp_socket_open (struct sockaddr_in *sin,char *tmp,char *hst,
+		     unsigned long port)
+{
+  int sock;
+  char *s;
+  sprintf (tmp,"Trying IP address [%s]",inet_ntoa (sin->sin_addr));
+  mm_log (tmp,NIL);
 				/* get a TCP stream */
-  if ((sock = socket (sin.sin_family,SOCK_STREAM,0)) == INVALID_SOCKET) {
+  if ((sock = socket (sin->sin_family,SOCK_STREAM,0)) == INVALID_SOCKET) {
     sprintf (tmp,"Unable to create TCP socket (%d)",WSAGetLastError());
-    mm_log (tmp,ERROR);
-    fs_give ((void **) &hostname);
-    return NIL;
+    return -1;
   }
-  wsa_sock_open++;		/* now have a socket open */
+  wsa_sock_open++;		/* count this socket as open */
 				/* open connection */
-  if (connect (sock,(struct sockaddr *) &sin,sizeof (sin)) == SOCKET_ERROR) {
-    switch (WSAGetLastError ()) {	/* analyze error */
+  if (connect (sock,(struct sockaddr *) sin,sizeof (struct sockaddr_in)) ==
+      SOCKET_ERROR) {
+    switch (WSAGetLastError ()){/* analyze error */
     case WSAECONNREFUSED:
       s = "Refused";
       break;
@@ -165,27 +212,19 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     case WSAETIMEDOUT:
       s = "Timed out";
       break;
+    case WSAEHOSTUNREACH:
+      s = "Host unreachable";
+      break;
     default:
       s = "Unknown error";
       break;
     }
-    sprintf (tmp,"Can't connect to %.80s,%ld: %s (%d)",hostname,port,s,
+    sprintf (tmp,"Can't connect to %.80s,%ld: %s (%d)",hst,port,s,
 	     WSAGetLastError ());
-    if (!silent) mm_log (tmp,ERROR);
-    fs_give ((void **) &hostname);
-    return (TCPSTREAM *) tcp_abort (&sock);
+    tcp_abort (&sock);		/* flush socket */
+    sock = INVALID_SOCKET;
   }
-  (*bn) (BLOCK_NONE,NIL);
-				/* create TCP/IP stream */
-  stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
-				 sizeof (TCPSTREAM));
-  stream->host = hostname;	/* official host name */
-  stream->port = port;		/* port number */
-				/* init socket */
-  stream->tcpsi = stream->tcpso = sock;
-  stream->ictr = 0;		/* init input counter */
-  if (tcpdebug) mm_log ("Stream open and ready for read",TCPDEBUG);
-  return stream;		/* return success */
+  return sock;			/* return the socket */
 }
   
 /* TCP/IP authenticated open
@@ -450,24 +489,26 @@ void tcp_close (TCPSTREAM *stream)
 
 /* TCP/IP abort stream
  * Accepts: WinSock socket
+ * Returns: NIL, always
  */
 
 long tcp_abort (SOCKET *sock)
 {
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
 				/* something to close? */
-  if (sock && *sock != INVALID_SOCKET) {
+  if (sock && (*sock != INVALID_SOCKET)) {
     (*bn) (BLOCK_TCPCLOSE,NIL);
     closesocket (*sock);	/* WinSock socket close */
     *sock = INVALID_SOCKET;
-				/* no more open streams? */
-    if (wsa_initted && !--wsa_sock_open) {
-      mm_log ("Winsock cleanup",NIL);
-      wsa_initted = 0;		/* no more sockets, so... */
-      WSACleanup ();		/* free up resources until needed */
-    }
+    (*bn) (BLOCK_NONE,NIL);
+    wsa_sock_open--;		/* drop this socket */
   }
-  (*bn) (BLOCK_NONE,NIL);
+				/* no more open streams? */
+  if (wsa_initted && !wsa_sock_open) {
+    mm_log ("Winsock cleanup",NIL);
+    wsa_initted = 0;		/* no more sockets, so... */
+    WSACleanup ();		/* free up resources until needed */
+  }
   return NIL;
 }
 
@@ -531,6 +572,23 @@ char *tcp_localhost (TCPSTREAM *stream)
   return stream->localhost;	/* return local host name */
 }
 
+/* TCP/IP get client host address (server calls only)
+ * Returns: client host address
+ */
+
+char *tcp_clientaddr ()
+{
+  if (!myClientAddr) {
+    struct sockaddr_in sin;
+    int sinlen = sizeof (struct sockaddr_in);
+    myClientAddr =		/* get stdin's peer name */
+      ((getpeername (0,(struct sockaddr *) &sin,&sinlen) == SOCKET_ERROR) ||
+       (sinlen <= 0)) ? cpystr ("UNKNOWN") : cpystr (inet_ntoa (sin.sin_addr));
+  }
+  return myClientAddr;
+}
+
+
 /* TCP/IP get client host name (server calls only)
  * Returns: client host name
  */
@@ -545,6 +603,22 @@ char *tcp_clienthost ()
        (sinlen <= 0)) ? cpystr ("UNKNOWN") : tcp_name (&sin,T);
   }
   return myClientHost;
+}
+
+/* TCP/IP get server host address (server calls only)
+ * Returns: server host address
+ */
+
+char *tcp_serveraddr ()
+{
+  if (!myServerAddr) {
+    struct sockaddr_in sin;
+    int sinlen = sizeof (struct sockaddr_in);
+    myServerAddr =		/* get stdin's peer name */
+      ((getsockname (0,(struct sockaddr *) &sin,&sinlen) == SOCKET_ERROR) ||
+       (sinlen <= 0)) ? cpystr ("UNKNOWN") : cpystr (inet_ntoa (sin.sin_addr));
+  }
+  return myServerAddr;
 }
 
 

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 November 2000
+ * Last Edited:	16 January 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -32,6 +32,7 @@ static char *myUserName = NIL;	/* user name */
 static char *myHomeDir = NIL;	/* home directory name */
 static char *myLocalHost = NIL;	/* local host name */
 static char *myNewsrc = NIL;	/* newsrc file name */
+static short no822tztext = NIL;	/* disable RFC [2]822 timezone text */
 
 
 #include "pmatch.c"		/* include wildcard pattern matcher */
@@ -70,6 +71,11 @@ void *env_parameters (long function,void *value)
   case GET_NEWSRC:
     ret = (void *) myNewsrc;
     break;
+  case SET_DISABLE822TZTEXT:
+    no822tztext = value ? T : NIL;
+  case GET_DISABLE822TZTEXT:
+    ret = (void *) (no822tztext ? VOIDT : NIL);
+    break;
   }
   return ret;
 }
@@ -80,20 +86,14 @@ void *env_parameters (long function,void *value)
 
 void rfc822_date (char *date)
 {
-  int zone;
-  char *zonename;
-  struct tm *t;
-  struct timeval tv;
-  struct timezone tz;
-  gettimeofday (&tv,&tz);	/* get time and timezone poop */
-  t = localtime (&tv.tv_sec);	/* convert to individual items */
-  zone = -tz.tz_minuteswest;	/* TOPS-20 doesn't have tm_gmtoff or tm_zone */
-  zonename = timezone (tz.tz_minuteswest,t->tm_isdst);
-				/* and output it */
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%.50s)",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,
-	   (t->tm_isdst ? 1 : 0) + zone/60,abs (zone) % 60,zonename);
+  char *s;
+  int argblk[4];
+  argblk[1] = (int) (date-1);
+  argblk[2] = -1;		/* time now */
+  argblk[3] = OT_822;		/* want RFC [2]822 format */
+  jsys (ODTIM,argblk);
+				/* suppress time zone text if desired */
+  if (no822tztext && (s = strstr (date," ("))) *s = NIL;
 }
 
 
@@ -103,18 +103,21 @@ void rfc822_date (char *date)
 
 void internal_date (char *date)
 {
-  int zone;
-  struct tm *t;
-  struct timeval tv;
-  struct timezone tz;
-  gettimeofday (&tv,&tz);	/* get time and timezone poop */
-  t = localtime (&tv.tv_sec);	/* convert to individual items */
-  zone = -tz.tz_minuteswest;	/* TOPS-20 doesn't have tm_gmtoff or tm_zone */
-				/* and output it */
-  sprintf (date,"%2d-%s-%d %02d:%02d:%02d %+03d%02d",
-	   t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,
-	   (t->tm_isdst ? 1 : 0) + zone/60,abs (zone) % 60);
+  int argblk[5];
+  argblk[1] = (int) (date-1);
+  argblk[2] = -1;		/* time now */
+  argblk[3] = OT_4YR;		/* output in 4-digit year format */
+  jsys (ODTIM,argblk);
+  argblk[2] = ' ';		/* delimit with space */
+  jsys (BOUT,argblk);
+  argblk[2] = -1;		/* time now */
+  argblk[4] = 0;		/* no flags */
+  jsys (ODCNV,argblk);		/* get time zone */
+  argblk[2] = ((argblk[4] & 077000000) >> 18) * -100;
+				/* add an hour if summer time */
+  if (argblk[4] & IC_ADS) argblk[2] += 100;
+  argblk[3] = 0340005000012;
+  jsys (NOUT,argblk);
 }
 
 /* Return my user name

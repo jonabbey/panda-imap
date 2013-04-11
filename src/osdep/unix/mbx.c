@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	9 October 2001
+ * Last Edited:	21 October 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -296,7 +296,8 @@ long mbx_rename (MAILSTREAM *stream,char *old,char *newname)
       MM_LOG (tmp,ERROR);
       ret = NIL;		/* set failure */
     }
-    if (s = strrchr (s,'/')) {	/* found superior to destination name? */
+				/* found superior to destination name? */
+    else if (s = strrchr (s,'/')) {
       c = *++s;			/* remember first character of inferior */
       *s = '\0';		/* tie off to get just superior */
 				/* superior name doesn't exist, create it */
@@ -810,6 +811,7 @@ long mbx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* get parse/append permission */
   if ((ld = lockfd (fd,lock,LOCK_EX)) < 0) {
     MM_LOG ("Unable to lock copy mailbox",ERROR);
+    MM_NOCRITICAL (stream);
     return NIL;
   }
   fstat (fd,&sbuf);		/* get current file size */
@@ -1451,6 +1453,8 @@ unsigned long mbx_rewrite (MAILSTREAM *stream,unsigned long *reclaimed,
     MM_LOG ("Unable to lock mailbox for rewrite",ERROR);
     return *reclaimed = 0;
   }
+				/* make sure see any newly-arrived messages */
+  if (!mbx_parse (stream)) return NIL;
 
 				/* get exclusive access */
   if (!flock (LOCAL->fd,LOCK_EX|LOCK_NB)) {

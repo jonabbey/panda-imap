@@ -1,13 +1,34 @@
+			 BUILD AND INSTALLATION NOTES
+			 Last Updated: 6 November 2002
+
+Table of Contents:
+1. UNIX Build Notes
+2. UNIX Installation Notes
+3. Win32 Build Notes
+4. Win32 Installation Notes
+5. Inactive Ports (TOPS-20, VMS)
+6. Other ports (Macintosh, DOS/Win16, Windows CE, Amiga, OS/2)
+
+
 			       UNIX BUILD NOTES
+
+     As of imap-2002, the default build is to build with SSL and disabling
+plaintext passwords unless SSL/TLS encryption is in effect (SSLTYPE=nopwd).
+This means that OpenSSL MUST be installed before building the IMAP toolkit.
+Please refer to the SSLBUILD file for more information.
+
+     To build without SSL, add "SSLTYPE=none" to the make command line.
+Note that doing so will produce an IMAP server which is NON-COMPLIANT with
+current IESG security requirements.
 
      A change has been made from previous versions of the IMAP toolkit.
 There are no longer separate ANSI and non-ANSI source trees.  Nor is it
 possible to build directly on the source tree.  Instead, you *must* build
-through the top-level imap-2001/Makefile, which will run a "process" step the
-first time and create the imap-2001/c-client, imap-2001/ipopd, and
-imap-2001/imapd directories in which building actually takes place.
+through the top-level imap-2002/Makefile, which will run a "process" step the
+first time and create the imap-2002/c-client, imap-2002/ipopd, and
+imap-2002/imapd directories in which building actually takes place.
 
-     Before doing a make on UNIX, you should read imap-2001/Makefile and see if
+     Before doing a make on UNIX, you should read imap-2002/Makefile and see if
 your system type is known.  The various system types are three-letter codes.
 If your system type is known, then use this as the make option.  After the
 first time you do a make, this option is remembered in a file called OSTYPE,
@@ -18,18 +39,18 @@ system type is either slx (shadow passwords only) or lnp (PAM), and the
 appropriate command is:
 	make slx	(or make lnp)
 
-     There are other make options, described in imap-2001/src/osdep/Makefile.
+     There are other make options, described in imap-2002/src/osdep/Makefile.
 
      It's probably best to see if an existing port will work on your system
 before inventing a new port.  Try:
-	sv4		generic SVR4
-	a32		modern SVR4, SVR4 with gcc
-	bsd		basic 4.3 BSD
-	nxt, mct, gul	modern BSD, BSD with gcc
+	sv4		generic SVR4, non-ANSI compiler
+	a32		modern SVR4
+	bsd		basic 4.3 BSD, non-ANSI compiler
+	nxt, bsf	modern BSD
 
      If you must invent a new port, you need to create an entry in
-imap-2001/Makefile and imap-2001/src/osdep/Makefile for your new port, as well as
-osdep/os_???.h and osdep/os_???.c files with the appropriate OS-dependent
+imap-2002/Makefile and imap-2002/src/osdep/Makefile for your new port, as well
+as osdep/os_???.h and osdep/os_???.c files with the appropriate OS-dependent
 support for that system.  You also need to determine which setup process to
 use.  You should use the ua process unless you are sure that your compiler
 supports *ALL* aspects of ANSI C prototyping.  Note that some compilers, such
@@ -54,10 +75,10 @@ tenex, and unix drivers.
 			   UNIX INSTALLATION NOTES
 
      Binaries from the build are:
-	imap-2001/mtest/mtest		c-client testbed program
-	imap-2001/ipopd/ipop2d		POP2 daemon
-	imap-2001/ipopd/ipop3d		POP3 daemon
-	imap-2001/imapd/imapd		IMAP4rev1 daemon
+	imap-2002/mtest/mtest		c-client testbed program
+	imap-2002/ipopd/ipop2d		POP2 daemon
+	imap-2002/ipopd/ipop3d		POP3 daemon
+	imap-2002/imapd/imapd		IMAP4rev1 daemon
 
      mtest is normally not used except by c-client developers.
 
@@ -177,52 +198,52 @@ have the -E flag.  A typical entry will lool like:
 
 Mlocal, P=/usr/lib/mail.local, F=flsSDFMmnPE, S=10, R=20, A=mail.local -d $u
 
-		      WIN32 BUILD AND INSTALLATION NOTES
+			      WIN32 BUILD NOTES
 
-     I build for Windows 9x and Windows NT using Visual C++ 6.0.  If
-you build with an earlier version of Visual C, you may need to install
-the Platform SDK (formerly called the Win32 SDK) separately.  If you
-get errors while building os_nt.c that LogonUser() is undefined, it's
-a good bet that you don't have the Platform SDK installed and/or in
-your path properly.
-
-     I build for Windows 2000 using Visual C++ 6.0 and the Windows
-2000 version of the Platform SDK.  If you get errors while building
-auth_ssl.c and gss_shim.c, it's a good bet that you don't have the
-Windows 2000 Platform SDK installed and/or in your path properly.
+     Visual C++ 6.0 along with the current Microsoft Platform SDK
+(specifically the CORE SDK and the Internet Development SDK) is required
+to build on Windows 9x/Me/NT/2K/XP.  If you do not have the Platform SDK
+installed or in your path properly, you'll get errors when building os_nt.c,
+typically in env_nt.c, ssl_nt.c, ssl_w2k.c, or gss_shim.c.  You can download
+the Microsoft Platform SDK from Microsoft's web site.
 
      There is also considerable debate about how new mail is to be snarfed.
 I am currently using something that seems to work with WinSMTP.  Look at
-the definition of MAILFILE in imap-2001/src/osdep/nt/mailfile.h and at the
-sysinbox() function in imap-2001/src/osdep/nt/env_nt.c to see what's there
+the definition of MAILFILE in imap-2002/src/osdep/nt/mailfile.h and at the
+sysinbox() function in imap-2002/src/osdep/nt/env_nt.c to see what's there
 now, so you have a clue about how to hack it.
 
-     To build under Windows 95, Windows 98, and Windows NT, connect to
-the imap-2001 directory and do:
+     To build under Windows 95/98/NT, connect to the imap-2002 directory
+and do:
 	nmake -f makefile.nt
 The resulting binaries will support SSL if either schannel.dll or
-security.dll is installed in Windows.
+security.dll is installed in Windows, using the old, undocumented, SSL
+interfaces.  You can also use this to build under Me/2000/XP, but it is
+not the preferred build on this platform.
 
-     To build with MIT Kerberos support under Windows 95, Windows 98,
-and Windows NT,connect to the imap-2001 directory and do:
-	nmake -f makefile.nt
+     To build with MIT Kerberos support, connect to the imap-2002 directory
+and do:
+	nmake -f makefile.ntk
 The resulting binaries will support SSL if either schannel.dll or
-security.dll is installed in Windows.  They will also support MIT
-Kerberos.  Note, however, that these binaries will only run on systems
-which have the MIT Kerberos DLLs installed, and will not run on other
-systems.
+security.dll is installed in Windows, using the old, undocumented SSL
+interfaces.  They will also support MIT Kerberos.  Note, however, that
+these binaries will only run on systems which have the MIT Kerberos DLLs
+installed, and will not run otherwise.
 
-     For Windows 2000, connect to the imap-2001 directory and do:
+     To build under Windows Me/2000/XP, connect to the imap-2002 directory
+and do:
 	nmake -f makefile.w2k
-The resulting binaries will support SSL and Microsoft kerberos.  Note,
-however, that these binaries will only run under Windows 2000 and will not
-run under earlier Windows systems due to DLL conflicts.
+The resulting binaries will support SSL and Microsoft Kerberos, using the
+official, documented, Microsoft interfaces.  Note, however, that these
+binaries will not run under Windows 95, Windows 98, or Windows NT4.
+
+			   WIN32 INSTALLATION NOTES
 
      The resulting binaries will be:
-	imap-2001\mtest\mtest.exe	(testbed client)
-	imap-2001\ipopd\ipop2d.exe	POP2 server
-	imap-2001\ipopd\ipop3d.exe	POP3 server
-	imap-2001\imapd\imapd.exe	IMAP4rev1 server
+	imap-2002\mtest\mtest.exe	(testbed client)
+	imap-2002\ipopd\ipop2d.exe	POP2 server
+	imap-2002\ipopd\ipop3d.exe	POP3 server
+	imap-2002\imapd\imapd.exe	IMAP4rev1 server
 
      These servers are stdio servers.  I wrote a simple network listener
 for NT called inetlisn; currently it is available as:
@@ -239,43 +260,84 @@ system is to have inetlisn run by an AT command, e.g. if the time now is
 2:05PM, try something like:
 	AT 14:06 "c:\bin\inetlisn 143 c:\mail_daemons\imapd"
 
-     Bottom line: this is not plug-and-play on NT.  If you're not a hacker
-and/or are unwilling to invest the time to do some programming, you probably
-want to buy a commercial server for NT.
+     A more advanced network lister called wsinetd is available on:
+	http://wsinetd.sourceforge.net
+It is based on inetlisn, and essentially is a "completed" version of inetlisn.
+
+     Bottom line: this is not plug-and-play.  If you're not a hacker and/or
+are unwilling to invest the time to do some programming, you probably want to
+buy a commercial server product.
 
-			     DOS/WIN16 BUILD NOTES
+				INACTIVE PORTS
 
-     If you are building a DOS client, you will need a TCP/IP stack installed
-on your DOS system along with its development environment.  The currently
-supported stacks are Beame & Whiteside, PC-NFS, Novell, PC/IP, Waterloo, and
-Winsock.  mtest and a version of Pine called PC Pine run under DOS.
+     The TOPS-20 and VMS ports were developed at one time or another, but are
+no longer actively developed.  However, from time to time I test build both
+of these to make sure that they compile without errors and that mtest runs,
+and will continue doing so as long as I have access to systems running these
+operating systems.
 
-      You do not use imap-2001/Makefile under DOS, nor do you build any
+
+			     TOPS-20 BUILD NOTES
+
+     I have provided a c-client port for TOPS-20 systems, but you're on your
+own in terms of a nice TOPS-20 like main program.  Maybe someday some nice
+person will try porting Pine to TOPS-20.  This assumes the use of KCC 6, and
+probably will not build with other compilers or older versions of KCC.
+
+     You do not use imap-2002/Makefile under TOPS-20, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2001/src/c-client, imap-2001/src/charset, imap-2001/src/mtest, and
-imap-2001/src/osdep/dos onto a single directory on DOS and build from that.  The
-MAKE command on DOS takes an argument identifying the TCP/IP stack in use.  For
-example, do:
-	MAKE MAKEFILE OS=WSK   (or MAKE -F MAKEFILE OS=WSK)
-to build for Winsock.  
+imap-2002/src/c-client, imap-2002/src/charset, imap-2002/src/mtest, and
+imap-2002/src/osdep/tops-20 onto a single directory on TOPS-20 and build from
+that.  The command:
+	DO BUILD.CTL
+will build the sources.  If you don't have MIC, then SUBMIT BUILD.CTL and let
+BATCON execute it.
 
-     If you write a program for DOS/Win16, you will probably have to write a
-replacement cache manager (look at mm_cache()) and otherwise disable most of
-c-client's caching.  Even so, memory limitations will be an ongoing problem,
-particularly with DOS, and you will have some severe performance problems.
-It's a bit better on Win16, but in my opinion you are better off writing a
-32-bit program and telling your Win16 customers to upgrade to Windows 95 or at
-least install Win32s.
+     KCC loves to give lots of diagnostics about unused parameters.  That's
+perfectly alright; just ignore them.
+
+
+			       VMS BUILD NOTES
+
+      You do not use imap-2002/Makefile under VMS, nor do you build any
+components other than c-client and mtest.  Merge the contents of
+imap-2002/src/c-client, imap-2002/src/charset, imap-2002/src/mtest, and
+imap-2002/src/osdep/vms onto a single directory on VMS and build from that.
+The command to build it is:
+	@BUILD MULTINET
+or	@BUILD NETLIB
+If you just do @BUILD it will build with dummy TCP code, and since only TCP
+based drivers are provided here this isn't too useful.
+
+     If you aren't on the Pacific coast of the US or Canada, you probably will
+need to change the wired-in timezone in the BUILD.COM file.  Apparently, the
+wonderful VMS system that DEC loves so much doesn't maintain any concept of
+time zone; the VMS C compiler returns a null pointer from gmtime()!
+
+     Otherwise you're pretty much on your own here.
 
+				 OTHER PORTS
+
+     The following ports were developed at one time or another, but are no
+longer actively developed or tested:
+
+  Port		Status
+  ----		------
+Macintosh	Obsolete; Mac OS X uses UNIX port
+DOS/Win16	Obsolete; modern PCs use Win32 port
+Windows CE	Never completed
+Amiga		Unknown
+OS/2		Unknown
+
 			     MACINTOSH BUILD NOTES
 
      If you are building a Macintosh client, you will need MacTCP installed on
 your system as well as the MacTCP C includes and libraries.
 
-     You do not use imap-2001/Makefile on the Mac, nor do you build any
+     You do not use imap-2002/Makefile on the Mac, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2001/src/c-client, imap-2001/src/charset, imap-2001/src/mtest, and
-imap-2001/src/osdep/mac onto a single directory on the Mac and build from that.
+imap-2002/src/c-client, imap-2002/src/charset, imap-2002/src/mtest, and
+imap-2002/src/osdep/mac onto a single directory on the Mac and build from that.
 mtext.sit.hqx is a THINK C project file and cute icon for building mtest,
 encoded with Binhex and StuffIt.
 
@@ -313,64 +375,50 @@ of the hostInfo structure to be long instead of int.  There are several other
 changes you need to make if you decide to compile dnr.c under THINK C instead
 of using the Apple-supplied object file; see me for details if you decide to
 undertake such an effort.  This is fixed in newer versions from Apple.
-
-			     TOPS-20 BUILD NOTES
 
-     I have provided a c-client port for TOPS-20 systems, but you're on your
-own in terms of a nice TOPS-20 like main program.  Maybe someday some nice
-person will try porting Pine to TOPS-20.  I recently built mtest on TOPS-20
-(thank you, XKL!!), so the sources are known to compile with the ANSI C
-version of KCC.
 
-     You do not use imap-2001/Makefile under TOPS-20, nor do you build any
+			     DOS/WIN16 BUILD NOTES
+
+     If you are building a DOS client, you will need a TCP/IP stack installed
+on your DOS system along with its development environment.  The currently
+supported stacks are Beame & Whiteside, PC-NFS, Novell, PC/IP, Waterloo, and
+Winsock.  mtest and a version of Pine called PC Pine run under DOS.
+
+      You do not use imap-2002/Makefile under DOS, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2001/src/c-client, imap-2001/src/charset, imap-2001/src/mtest, and
-imap-2001/src/osdep/tops-20 onto a single directory on TOPS-20 and build from
-that.  The command:
-	DO BUILD.CTL
-will build the sources.  If you don't have MIC, then SUBMIT BUILD.CTL and let
-BATCON execute it.
+imap-2002/src/c-client, imap-2002/src/charset, imap-2002/src/mtest, and
+imap-2002/src/osdep/dos onto a single directory on DOS and build from that.
+The MAKE command on DOS takes an argument identifying the TCP/IP stack in use.
+For example, do:
+	MAKE MAKEFILE OS=WSK   (or MAKE -F MAKEFILE OS=WSK)
+to build for Winsock.  
 
-     KCC loves to give lots of diagnostics about unused parameters.  That's
-perfectly alright; just ignore them.
-
-			       VMS BUILD NOTES
-
-      You do not use imap-2001/Makefile under VMS, nor do you build any
-components other than c-client and mtest.  Merge the contents of
-imap-2001/src/c-client, imap-2001/src/charset, imap-2001/src/mtest, and
-imap-2001/src/osdep/vms onto a single directory on VMS and build from that.  The
-command to build it is:
-	@BUILD MULTINET
-or	@BUILD NETLIB
-If you just do @BUILD it will build with dummy TCP code, and since only TCP
-based drivers are provided here this isn't too useful.
-
-     If you aren't on the Pacific coast of the US or Canada, you probably will
-need to change the wired-in timezone in the BUILD.COM file.  Apparently, the
-wonderful VMS system that DEC loves so much doesn't maintain any concept of
-time zone; the VMS C compiler returns a null pointer from gmtime()!
-
-     Otherwise you're pretty much on your own here.
-
-		      AMIGA BUILD AND INSTALLATION NOTES
-
-     See the UNIX build notes.  I can't tell you much more than that, since
-the Amiga code was contributed.
+     If you write a program for DOS/Win16, you will probably have to write a
+replacement cache manager (look at mm_cache()) and otherwise disable most of
+c-client's caching.  Even so, memory limitations will be an ongoing problem,
+particularly with DOS, and you will have some severe performance problems.
+It's a bit better on Win16, but in my opinion you are better off writing a
+32-bit program and telling your Win16 customers to upgrade to Windows 95 or at
+least install Win32s.
 
 
-			       WCE BUILD NOTES
+			    WINDOWS CE BUILD NOTES
 
      I build using Visual C++ 6.0 with the WCE extensions.  The current code
 has SH3 wired in for the compiler building.
 
-     To build under NT, connect to the imap-2001 directory and do:
+     To build under NT, connect to the imap-2002 directory and do:
 	nmake -f makefile.wce
 
      The only binary produced is a cclient.lib file.  I haven't gotten as far
 as building mtest on WCE, mainly because I don't have a stdlib library.
 
 
+		      AMIGA BUILD AND INSTALLATION NOTES
+
+     The Amiga port was contributed.  Maybe the UNIX notes will help.
+
+
 			       OS2 BUILD NOTES
 
-     The OS2 port is incomplete.  There are no plans to continue work on it.
+     The OS2 port was contributed.  Maybe the Win32 Build Notes will help.

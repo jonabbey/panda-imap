@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	28 September 2001
+# Last Edited:	3 April 2002
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2001 University of Washington.
+# Copyright 2002 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -24,7 +24,7 @@ EXTRACFLAGS =
 AUTHENTICATORS = gss md5 pla log
 DRIVERS = imap nntp pop3 mbx mtx tenex unix
 DEFAULTDRIVER = mbx
-CFLAGS = /MT /W3 /Ox /DWIN32 /D_WIN32_WINNT=0x0400 -nologo /I\k5\include $(EXTRACFLAGS)
+CFLAGS = /MT /W3 /Ox /DWIN32 /D_WIN32_WINNT=0x0400 /DGSS_C_NT_HOSTBASED_SERVICE=gss_nt_service_name -nologo /I\k5\include $(EXTRACFLAGS)
 CC = cl
 CCLIENTLIB = cclient.lib
 

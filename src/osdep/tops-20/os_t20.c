@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	9 March 2001
+ * Last Edited:	1 July 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -63,4 +63,35 @@ long gethostid ()
   argblk[1] = _APRID;
   jsys (GETAB,argblk);
   return (long) argblk[1];
+}
+
+
+/* Emulator for UNIX getpass() call
+ * Accepts: prompt
+ * Returns: password
+ */
+
+#define PWDLEN 128		/* used by Linux */
+
+char *getpass (const char *prompt)
+{
+  char *s;
+  static char pwd[PWDLEN];
+  int argblk[5],mode;
+  argblk[1] = (int) (prompt-1);	/* prompt user */
+  jsys (PSOUT,argblk);
+  argblk[1] = _PRIIN;		/* get current TTY mode */
+  jsys (RFMOD,argblk);
+  mode = argblk[2];		/* save for later */
+  argblk[2] &= ~06000;
+  jsys (SFMOD,argblk);
+  jsys (STPAR,argblk);
+  fgets (pwd,PWDLEN-1,stdin);
+  pwd[PWDLEN-1] = '\0';
+  if (s = strchr (pwd,'\n')) *s = '\0';
+  putchar ('\n');
+  argblk[2] = mode;
+  jsys (SFMOD,argblk);
+  jsys (STPAR,argblk);
+  return pwd;
 }

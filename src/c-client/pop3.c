@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	17 October 2001
+ * Last Edited:	18 October 2002
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -41,7 +41,7 @@ DRIVER pop3driver = {
 #ifdef INADEQUATE_MEMORY
   DR_LOWMEM |
 #endif
-  DR_MAIL|DR_NOFAST|DR_CRLF|DR_NOSTICKY,
+  DR_MAIL|DR_NOFAST|DR_CRLF|DR_NOSTICKY|DR_NOINTDATE,
   (DRIVER *) NIL,		/* next driver */
   pop3_valid,			/* mailbox is valid for us */
   pop3_parameters,		/* manipulate parameters */
@@ -695,7 +695,7 @@ void pop3_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
 	if (!elt->day && *env && (*env)->date)
 	  mail_parse_date (elt,(*env)->date);
 				/* sigh, fill in bogus default */
-	if (!elt->day) mail_parse_date (elt,"01-JAN-1969 00:00:00 +0000");
+	if (!elt->day) elt->day = elt->month = 1;
 	mail_free_envelope (&e);
       }
 }
@@ -886,7 +886,7 @@ long pop3_send (MAILSTREAM *stream,char *command,char *args)
   char *s = (char *) fs_get (strlen (command) + (args ? strlen (args) + 1: 0)
 			     + 3);
   mail_lock (stream);		/* lock up the stream */
-  if (!LOCAL->netstream) ret = pop3_fake (stream,"No-op dead stream");
+  if (!LOCAL->netstream) ret = pop3_fake (stream,"POP3 connection lost");
   else {			/* build the complete command */
     if (args) sprintf (s,"%s %s",command,args);
     else strcpy (s,command);

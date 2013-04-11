@@ -166,7 +166,7 @@ add up to major filesystem thrashing.
 
 What about Cyrus and Maildir?
 
-     Both formats are vulnerable to the filesystem trashing outlined
+     Both formats are vulnerable to the filesystem thrashing outlined
 above.
 
      The Cyrus format used by CMU's Cyrus server (and Esys' server)

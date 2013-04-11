@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	26 April 2001
+ * Last Edited:	19 July 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -86,14 +86,14 @@ MAILSTREAM dummyproto = {&dummydriver};
 
 DRIVER *dummy_valid (char *name)
 {
-  char *s,tmp[MAILTMPLEN];
+  char *s,*t,tmp[MAILTMPLEN];
   struct stat sbuf;
 				/* must be valid local mailbox */
   if (name && *name && (*name != '{') && (s = mailboxfile (tmp,name))) {
 				/* indeterminate INBOX */
     if (!*s) return &dummydriver;
 				/* remove trailing \ */
-    if ((s = strrchr (s,'\\')) && !s[1]) *s = '\0';
+    if ((t = strrchr (s,'\\')) && !t[1]) *t = '\0';
     else if (!stat (s,&sbuf)) switch (sbuf.st_mode & S_IFMT) {
     case S_IFREG:		/* file */
     case S_IFDIR:		/* future use */
