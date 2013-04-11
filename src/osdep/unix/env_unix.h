@@ -50,7 +50,6 @@ int lock_work (char *lock,void *sbuf,int op,long *pid);
 long chk_notsymlink (char *name,void *sbuf);
 void unlockfd (int fd,char *lock);
 long set_mbx_protections (char *mailbox,char *path);
-long get_dir_protection (char *mailbox);
 MAILSTREAM *user_flags (MAILSTREAM *stream);
 char *default_user_flag (unsigned long i);
 void dorc (char *file,long flag);

@@ -1,6 +1,6 @@
 		       Mailbox Name Conventions
 			     Mark Crispin
-			   28 November 2000
+			     8 August 2000
 
 
 Please refer to the file drivers.txt for related information.
@@ -53,7 +53,7 @@ available to anonymous IMAP logins.
 
 II.d. #public/ (UNIX only)
 
-The prefix #public/ is special and refers to the public files
+The prefix #publis/ is special and refers to the public files
 filesystem named with the suffix.  For example, #public/foo/bar refers
 to the file /foo/bar in the public filesystem.  Public files are
 available to anonymous IMAP logins.

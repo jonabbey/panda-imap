@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 December 2000 (last DEC-20 day in the 20th century!)
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -58,13 +58,10 @@ static long dir_protection = 0700;
 static long lock_protection = 0666;
 				/* default ftp file protection */
 static long ftp_protection = 0644;
-static long ftp_dir_protection = 0755;
 				/* default public file protection */
 static long public_protection = 0666;
-static long public_dir_protection = 0777;
 				/* default shared file protection */
 static long shared_protection = 0660;
-static long shared_dir_protection = 0770;
 static long locktimeout = 5;	/* default lock timeout */
 				/* flock() emulator is a no-op */
 static long disableFcntlLock = NIL;
@@ -233,22 +230,6 @@ void *env_parameters (long function,void *value)
   case GET_SHAREDPROTECTION:
     ret = (void *) shared_protection;
     break;
-  case SET_FTPDIRPROTECTION:
-    ftp_dir_protection = (long) value;
-  case GET_FTPDIRPROTECTION:
-    ret = (void *) ftp_dir_protection;
-    break;
-  case SET_PUBLICDIRPROTECTION:
-    public_dir_protection = (long) value;
-  case GET_PUBLICDIRPROTECTION:
-    ret = (void *) public_dir_protection;
-    break;
-  case SET_SHAREDDIRPROTECTION:
-    shared_dir_protection = (long) value;
-  case GET_SHAREDDIRPROTECTION:
-    ret = (void *) shared_dir_protection;
-    break;
-
   case SET_LOCKTIMEOUT:
     locktimeout = (long) value;
   case GET_LOCKTIMEOUT:
@@ -514,7 +495,7 @@ long anonymous_login (int argc,char *argv[])
 {
   struct passwd *pw = getpwnam ((char *) anonymous_user);
 				/* log in Mr. A. N. Onymous */
-  return pw ? pw_login (pw,NIL,NIL,ANONYMOUSHOME,argc,argv) : NIL;
+  return pw ? pw_login (pw,NIL,NIL,NIL,argc,argv) : NIL;
 }
 
 
@@ -522,7 +503,7 @@ long anonymous_login (int argc,char *argv[])
  * Accepts: passwd struct for loginpw()
  *	    authentication user name
  *	    user name (NIL for anonymous)
- *	    home directory
+ *	    home directory (NIL for anonymous)
  *	    argument count
  *	    argument vector
  * Returns: T if successful, NIL if error
@@ -537,7 +518,7 @@ long pw_login (struct passwd *pw,char *authuser,char *user,char *home,int argc,
     struct group *gr = getgrnam ((char *) admin_grp);
     char **t;
 				/* scan list of mail administrators */
-    if (gr) for (t = gr->gr_mem; t && *t; t++) if (!strcmp (authuser,*t)) {
+    for (t = gr ? gr->gr_mem : NIL; t; t++) if (!strcmp (authuser,*t)) {
       syslog (LOG_NOTICE|LOG_AUTH,"Admin %s override of user=%s host=%.80s",
 	      authuser,pw->pw_name,tcp_clienthost ());
       return pw_login (pw,NIL,user,home,argc,argv);
@@ -549,18 +530,15 @@ long pw_login (struct passwd *pw,char *authuser,char *user,char *home,int argc,
   else if (!pw->pw_uid);	/* disallow UID 0 */
 				/* if same as EUID, treat as application */
   else if (pw->pw_uid == geteuid ()) ret = env_init (user,home);
+  else {			/* in case loginpw() smashes these */
+    char *u = user ? cpystr (user) : NIL;
+    char *h = home ? cpystr (home) : NIL;
 #ifdef CHROOT_SERVER
 				/* paranoid site, lock out other directories */
-  else if (chdir (home) || chroot (home));
-#endif
-  else {			/* in case loginpw() smashes these */
-				/* in case user/home comes from pw struct */
-    char *u = user ? cpystr (user) : NIL;
-#ifdef CHROOT_SERVER
-    char *h = cpystr ("");	/* home directory now root */
+    if (chdir (home ? home : ANONYMOUSHOME) ||
+	chroot (home ? home : ANONYMOUSHOME)) return NIL;
+    home = "/";			/* home directory now root */
     closedBox = T;		/* flag that this is a closed box */
-#else
-    char *h = cpystr (home);
 #endif
 				/* log the user in */
     if (loginpw (pw,argc,argv)) ret = env_init (u,h);
@@ -647,7 +625,6 @@ long env_init (char *user,char *home)
   myHomeDir = cpystr (home ? home : ANONYMOUSHOME);
   dorc (strcat (strcpy (tmp,myHomeDir),"/.mminit"),T);
   dorc (strcat (strcpy (tmp,myHomeDir),"/.imaprc"),NIL);
-#ifndef DISABLE_AUTOMATIC_SHARED_NAMESPACES
   if (!closedBox) {		/* can't do this on closed server */
 				/* #ftp namespace */
     if (!ftpHome && (pw = getpwnam ("ftp"))) ftpHome = cpystr (pw->pw_dir);
@@ -658,7 +635,6 @@ long env_init (char *user,char *home)
     if (!anonymous && !sharedHome && (pw = getpwnam ("imapshared")))
       sharedHome = cpystr (pw->pw_dir);
   }
-#endif
   if (!myLocalHost) mylocalhost ();
   if (!myNewsrc) myNewsrc = cpystr(strcat (strcpy (tmp,myHomeDir),"/.newsrc"));
   if (!newsActive) newsActive = cpystr (ACTIVEFILE);
@@ -739,15 +715,15 @@ char *myhomedir ()
 
 static char *mymailboxdir ()
 {
-  char *home = myhomedir ();
+				/* initialize if first time */
 #ifdef MAILSUBDIR
-  if (!myMailboxDir && home) {	/* initialize if first time */
+  if (!myMailboxDir) {
     char tmp[MAILTMPLEN];
-    sprintf (tmp,"%s/%s",home,MAILSUBDIR);
+    sprintf (tmp,"%s/%s",myhomedir (),MAILSUBDIR);
     myMailboxDir = cpystr (tmp);/* use pre-defined subdirectory of home */
   }
 #else
-  if (!myMailboxDir && home) myMailboxDir = cpystr (myhomedir ());
+  if (!myMailboxDir && myHomeDir) myMailboxDir = cpystr (myhomedir ());
 #endif
   return myMailboxDir ? myMailboxDir : "";
 }
@@ -1055,9 +1031,9 @@ int lock_work (char *lock,void *sb,int op,long *pid)
 				/* make temporary lock file name */
   sprintf (lock,"%s/.%lx.%lx",
 #ifdef CHROOT_SERVER
-	   "",			/* wrong, but can't do anything better */
+	   "",
 #else
-	   "/tmp",		/* global for all users */
+	   "/tmp",
 #endif
 	   (unsigned long) sbuf->st_dev,(unsigned long) sbuf->st_ino);
   while (T) {			/* until get a good lock */
@@ -1077,15 +1053,8 @@ int lock_work (char *lock,void *sb,int op,long *pid)
     if (fd < 0) {		/* failed to get file descriptor */
       syslog (LOG_INFO,"Mailbox lock file %s open failure: %s",lock,
 	      strerror (errno));
-#ifndef CHROOT_SERVER		/* more explicit snarl for bad configuration */
-      if (stat ("/tmp",&lsb))
-	syslog (LOG_CRIT,"SYSTEM ERROR: no /tmp: %s",strerror (errno));
-      else if ((lsb.st_mode & 01777) != 01777)
-	mm_log ("Can't lock for write: /tmp must have 1777 protection",WARN);
-#endif
       return -1;		/* fail: can't open lock file */
     }
-
 				/* non-blocking form */
     if (op & LOCK_NB) i = flock (fd,op);
     else {			/* blocking form */
@@ -1182,41 +1151,9 @@ long set_mbx_protections (char *mailbox,char *path)
     if (mode & 0600) mode |= 0100;
     if (mode & 060) mode |= 010;/* set group search if allow read or write */
     if (mode & 06) mode |= 01;	/* set world search if allow read or write */
-				/* preserve directory SGID bit */
-    if (sbuf.st_mode & S_ISGID) mode |= S_ISGID;
   }
   chmod (path,mode);		/* set the new protection, ignore failure */
   return LONGT;
-}
-
-/* Get proper directory protection
- * Accepts: mailbox name
- * Returns: directory mode, always
- */
-
-long get_dir_protection (char *mailbox)
-{
-  if (*mailbox == '#') {	/* possible namespace? */
-      if (((mailbox[1] == 'f') || (mailbox[1] == 'F')) &&
-	  ((mailbox[2] == 't') || (mailbox[2] == 'T')) &&
-	  ((mailbox[3] == 'p') || (mailbox[3] == 'P')) &&
-	  (mailbox[4] == '/')) return ftp_dir_protection;
-      else if (((mailbox[1] == 'p') || (mailbox[1] == 'P')) &&
-	       ((mailbox[2] == 'u') || (mailbox[2] == 'U')) &&
-	       ((mailbox[3] == 'b') || (mailbox[3] == 'B')) &&
-	       ((mailbox[4] == 'l') || (mailbox[4] == 'L')) &&
-	       ((mailbox[5] == 'i') || (mailbox[5] == 'I')) &&
-	       ((mailbox[6] == 'c') || (mailbox[6] == 'C')) &&
-	       (mailbox[7] == '/')) return public_dir_protection;
-      else if (((mailbox[1] == 's') || (mailbox[1] == 'S')) &&
-	       ((mailbox[2] == 'h') || (mailbox[2] == 'H')) &&
-	       ((mailbox[3] == 'a') || (mailbox[3] == 'A')) &&
-	       ((mailbox[4] == 'r') || (mailbox[4] == 'R')) &&
-	       ((mailbox[5] == 'e') || (mailbox[5] == 'E')) &&
-	       ((mailbox[6] == 'd') || (mailbox[6] == 'D')) &&
-	       (mailbox[7] == '/')) return shared_dir_protection;
-  }
-  return dir_protection;
 }
 
 /* Determine default prototype stream to user
@@ -1418,12 +1355,6 @@ void dorc (char *file,long flag)
 	  public_protection = atol (k);
 	else if (!strcmp (s,"set shared-protection"))
 	  shared_protection = atol (k);
-	else if (!strcmp (s,"set ftp-directory-protection"))
-	  ftp_dir_protection = atol (k);
-	else if (!strcmp (s,"set public-directory-protection"))
-	  public_dir_protection = atol (k);
-	else if (!strcmp (s,"set shared-directory-protection"))
-	  shared_dir_protection = atol (k);
 	else if (!strcmp (s,"set dot-lock-file-timeout"))
 	  locktimeout = atol (k);
 	else if (!strcmp (s,"set disable-fcntl-locking"))

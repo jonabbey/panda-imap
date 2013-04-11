@@ -10,25 +10,26 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 September 1993
- * Last Edited:	2 January 2001
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2000 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
 
+#include <fcntl.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/file.h>
 #include <sys/dir.h>
+#include <dirent.h>
+#include <sys/file.h>
+#include <sys/select.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include </usr/include/unix.h>
-#include <time.h>
 #include <utime.h>
 
 

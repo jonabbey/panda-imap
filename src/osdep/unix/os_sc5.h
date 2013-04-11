@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	18 January 2001
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2000 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -65,7 +65,6 @@ int portable_utime (char *file,time_t timep[2]);
 #include "tcp.h"
 #include "lockfix.h"
 
-long gethostid (void);
 typedef int (*select_t) (struct direct *name);
 typedef int (*compar_t) (void *d1,void *d2);
 int scandir (char *dirname,struct direct ***namelist,select_t select,

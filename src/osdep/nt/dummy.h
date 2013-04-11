@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	19 December 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -31,7 +31,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,
 		   long attributes,char *contents);
 long dummy_create (MAILSTREAM *stream,char *mailbox);
-long dummy_create_path (MAILSTREAM *stream,char *path,long dirmode);
+long dummy_create_path (MAILSTREAM *stream,char *path);
 long dummy_delete (MAILSTREAM *stream,char *mailbox);
 long dummy_rename (MAILSTREAM *stream,char *old,char *newname);
 MAILSTREAM *dummy_open (MAILSTREAM *stream);

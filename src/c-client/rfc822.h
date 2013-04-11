@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	8 November 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -60,7 +60,6 @@ ADDRESS *rfc822_parse_mailbox (char **string,char *defaulthost);
 long rfc822_phraseonly (char *end);
 ADDRESS *rfc822_parse_routeaddr (char *string,char **ret,char *defaulthost);
 ADDRESS *rfc822_parse_addrspec (char *string,char **ret,char *defaulthost);
-char *rfc822_parse_domain (char *string,char **end);
 char *rfc822_parse_phrase (char *string);
 char *rfc822_parse_word (char *string,const char *delimiters);
 char *rfc822_cpy (char *src);

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	17 November 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -568,11 +568,6 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   fstat (fd,&sbuf);		/* get current file size */
 
   do {				/* parse flags */
-    if (!SIZE (message)) {	/* guard against zero-length */
-      mm_log ("Append of zero-length message",ERROR);
-      ret = NIL;
-      break;
-    }
     f = mail_parse_flags (stream,flags,&i);
 				/* reverse bits (dontcha wish we had CIRC?) */
     for (uf = 0; i; uf |= 1 << (29 - find_rightmost_bit (&i)));

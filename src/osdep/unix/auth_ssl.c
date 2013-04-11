@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	16 January 2001
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2000 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -519,19 +519,14 @@ long auth_plain_client (authchallenge_t challenger,authrespond_t responder,
   if (!mb->altflag)		/* snarl if not secure session */
     mm_log ("SECURITY PROBLEM: insecure server advertised AUTH=PLAIN",WARN);
 				/* get initial (empty) challenge */
-  if (chal = (*challenger) (stream,&cl)) {
+  if ((chal = (*challenger) (stream,&cl)) && !cl) {
     fs_give ((void **) &chal);
-    if (cl) {			/* abort if non-empty challenge */
-      (*responder) (stream,NIL,0);
-      *trial = 0;		/* cancel subsequent attempts */
-      return T;			/* will get a BAD response back */
-    }
 				/* prompt user */
     mm_login (mb,user,pwd,*trial);
     if (!pwd[0]) {		/* user requested abort */
       (*responder) (stream,NIL,0);
-      *trial = 0;		/* cancel subsequent attempts */
-      return T;			/* will get a BAD response back */
+      *trial = 0;		/* don't retry */
+      return T;			/* will get a NO response back */
     }
     t = s = (char *) fs_get (sl = strlen (mb->authuser) + strlen (user) +
 			     strlen (pwd) + 2);
@@ -552,7 +547,7 @@ long auth_plain_client (authchallenge_t challenger,authrespond_t responder,
     fs_give ((void **) &s);	/* free response */
   }
   if (chal) fs_give ((void **) &chal);
-  *trial = 65535;		/* don't retry */
+  *trial = 0;			/* don't retry */
   return NIL;			/* failed */
 }
 
@@ -694,47 +689,35 @@ SSLSTDIOSTREAM *ssl_server_init (char *server)
 				/* get socket address */
   if (getsockname (0,(struct sockaddr *) &sin,(void *) &sinlen))
     fatal ("Impossible getsockname failure!");
-				/* create context */
-  if (!(stream->context = SSL_CTX_new (start_tls ?
-				       TLSv1_server_method () :
-				       SSLv23_server_method ())))
-    syslog (LOG_ALERT,"Unable to create SSL context, host=%.80s",
-	    tcp_clienthost ());
-  else {			/* set context options */
-    SSL_CTX_set_options (stream->context,SSL_OP_ALL);
-			/* build specific certificate/key file name */
-    sprintf (tmp,"%s/%s-%s.pem",SSL_CERT_DIRECTORY,server,
-	     inet_ntoa (sin.sin_addr));
+				/* build specific certificate/key file name */
+  sprintf (tmp,"%s/%s-%s.pem",SSL_CERT_DIRECTORY,server,
+	   inet_ntoa (sin.sin_addr));
 				/* use non-specific name if no specific file */
-    if (stat (tmp,&sbuf)) sprintf (tmp,"%s/%s.pem",SSL_CERT_DIRECTORY,server);
+  if (stat (tmp,&sbuf)) sprintf (tmp,"%s/%s.pem",SSL_CERT_DIRECTORY,server);
+				/* create context */
+  if (stream->context = SSL_CTX_new (start_tls ?
+				     TLSv1_server_method () :
+				     SSLv23_server_method ())) {
+    SSL_CTX_set_options (stream->context,SSL_OP_ALL);
 				/* set cipher list */
     if (!SSL_CTX_set_cipher_list (stream->context,SSLCIPHERLIST))
-      syslog (LOG_ALERT,"Unable to set cipher list %.80s, host=%.80s",
-	      SSLCIPHERLIST,tcp_clienthost ());
+      syslog (LOG_ALERT,"Unable to set cipher list %s",SSLCIPHERLIST);
 				/* load certificate */
-    else if (!SSL_CTX_use_certificate_chain_file (stream->context,tmp))
-      syslog (LOG_ALERT,"Unable to load certificate from %.80s, host=%.80s",
-	      tmp,tcp_clienthost ());
+    if (!SSL_CTX_use_certificate_file (stream->context,tmp,SSL_FILETYPE_PEM))
+      syslog (LOG_ALERT,"Unable to load certificate from %s",tmp);
 				/* load key */
     else if (!(SSL_CTX_use_RSAPrivateKey_file (stream->context,tmp,
 					       SSL_FILETYPE_PEM)))
-      syslog (LOG_ALERT,"Unable to load private key from %.80s, host=%.80s",
-	      tmp,tcp_clienthost ());
-
+      syslog (LOG_ALERT,"Unable to load private key from %s",tmp);
     else {			/* generate key if needed */
       if (SSL_CTX_need_tmp_RSA (stream->context))
 	SSL_CTX_set_tmp_rsa_callback (stream->context,ssl_genkey);
 				/* create new SSL connection */
-      if (!(stream->con = SSL_new (stream->context)))
-	syslog (LOG_ALERT,"Unable to create SSL connection, host=%.80s",
-		tcp_clienthost ());
-      else {			/* set file descriptor */
+      if (stream->con = SSL_new (stream->context)) {
+				/* set file descriptor */
 	SSL_set_fd (stream->con,0);
 				/* all OK if accepted */
-	if (SSL_accept (stream->con) < 0)
-	  syslog (LOG_INFO,"Unable to accept SSL connection, host=%.80s",
-		  tcp_clienthost ());
-	else {
+	if (SSL_accept (stream->con) >= 0) {
 	  SSLSTDIOSTREAM *ret = (SSLSTDIOSTREAM *)
 	    memset (fs_get (sizeof(SSLSTDIOSTREAM)),0,sizeof(SSLSTDIOSTREAM));
 	  ret->sslstream = stream;
@@ -746,7 +729,7 @@ SSLSTDIOSTREAM *ssl_server_init (char *server)
     }  
   }
   while (i = ERR_get_error ())	/* SSL failure */
-    syslog (LOG_ERR,"SSL error status: %.80s",ERR_error_string (i,NIL));
+    syslog (LOG_ERR,"SSL error status: %s",ERR_error_string (i,NIL));
   ssl_close (stream);		/* punt stream */
   exit (1);			/* punt this program too */
 }
@@ -765,8 +748,7 @@ static RSA *ssl_genkey (SSL *con,int export,int keylength)
   if (!key) {			/* if don't have a key already */
 				/* generate key */
     if (!(key = RSA_generate_key (export ? keylength : 1024,RSA_F4,NIL,NIL))) {
-      syslog (LOG_ALERT,"Unable to generate temp key, host=%.80s",
-	      tcp_clienthost ());
+      syslog (LOG_ALERT,"Unable to generate temp key");
       while (i = ERR_get_error ())
 	syslog (LOG_ALERT,"SSL error status: %s",ERR_error_string (i,NIL));
       exit (1);

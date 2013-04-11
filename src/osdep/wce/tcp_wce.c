@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	8 November 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -80,6 +80,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 {
   TCPSTREAM *stream = NIL;
   SOCKET sock;
+  int i;
   char *s;
   struct sockaddr_in sin;
   struct hostent *he;
@@ -164,6 +165,12 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     fs_give ((void **) &hostname);
     return (TCPSTREAM *) tcp_abort (&sock);
   }
+  for (i = 65536; (i > 4096) &&	/* set receive buffer size to 64K */
+       setsockopt (sock,SOL_SOCKET,SO_RCVBUF,(void *) &i,sizeof(i));
+       i -= 1024);
+  for (i = 65536; (i > 4096) &&	/* set send buffer size to 64K */
+       setsockopt (sock,SOL_SOCKET,SO_SNDBUF,(void *) &i,sizeof(i));
+       i -= 1024);
   if (bn) (*bn) (BLOCK_NONE,NIL);
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,

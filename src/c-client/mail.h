@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	19 December 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -26,7 +26,8 @@
 				 * other:  initial text buffer size */
 #define NUSERFLAGS 30		/* # of user flags (current servers 30 max) */
 #define MAXUSERFLAG 64		/* maximum length of a user flag */
-#define BASEYEAR 1970		/* the year time began on Unix DON'T CHANGE */
+#define BASEYEAR 1970		/* the year time began on Unix (note: mx
+				 * driver depends upon this matching Unix) */
 				/* default for unqualified addresses */
 #define BADHOST ".MISSING-HOST-NAME."
 				/* default for syntax errors in addresses */
@@ -210,8 +211,6 @@
 #define SET_QUOTA (long) 447
 #define GET_QUOTAROOT (long) 448
 #define SET_QUOTAROOT (long) 449
-#define GET_IMAPTRYALT (long) 450
-#define SET_IMAPTRYALT (long) 451
 
 	/* 5xx: local file drivers */
 #define GET_MBXPROTECTION (long) 500
@@ -264,12 +263,6 @@
 #define SET_NOTIMEZONES (long) 547
 #define GET_HIDEDOTFILES (long) 548
 #define SET_HIDEDOTFILES (long) 549
-#define GET_FTPDIRPROTECTION (long) 550
-#define SET_FTPDIRPROTECTION (long) 551
-#define GET_PUBLICDIRPROTECTION (long) 552
-#define SET_PUBLICDIRPROTECTION (long) 553
-#define GET_SHAREDDIRPROTECTION (long) 554
-#define SET_SHAREDDIRPROTECTION (long) 555
 
 /* Driver flags */
 
@@ -458,7 +451,7 @@ STRINGLIST {
 
 /* Parse results from mail_valid_net_parse */
 
-#define NETMAXHOST 256
+#define NETMAXHOST 65
 #define NETMAXUSER 65
 #define NETMAXMBX (MAILTMPLEN/4)
 #define NETMAXSRV 21

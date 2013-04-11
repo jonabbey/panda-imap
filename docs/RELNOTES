@@ -1,18 +1,3 @@
-Updated: 24 January 2001
-
-imap-2000b is a maintenance release, consisting primarily of bugfixes.
-
-
-Updated: 9 January 2001
-
-imap-2000b is a maintenance release, consisting primarily of bugfixes.
-
-
-Updated: 9 November 2000
-
-imap-2000a is a maintenance release, consisting primarily of bugfixes.
-
-
 Updated: 19 September 2000
 
 imap-2000 is a major release.  There are major internal and external changes
@@ -31,14 +16,15 @@ support is now automatic for the NT, NTK, and W2K ports.  SSL use is indicated
 by the /ssl switch in the mailbox name.
 
 With SSL connections, the server certificate is validated by the client code
-on UNIX, and Windows 2000 unless /novalidate-cert is specified.  Server
-certificates are currently is not validated on Windows 9x, Windows Millenium,
+on UNIX, Windows 2000, and Windows Millenium unless /novalidate-cert is
+specified.  Server certificates are currently is not validated on Windows 9x
 or Windows NT 4; this is an artifact of the operating system and not the port
 (e.g. client code using the NT port will validate certificates if running on
 Windows 2000).  On UNIX, the server certificate must be signed by a trusted
-certificate authority.  On Windows 2000, the certificate must be signed by a
-trusted certificate authority and the match the user's entry for the server
-host name; this means that the user must enter a fully-qualified host name.
+certificate authority.  On Windows 2000 and Windows Millenium, the certificate
+must be signed by a trusted certificate authority and the match the user's
+entry for the server host name; this means that the user must enter a
+fully-qualified host name.
 
 Calendar reclama for the benefit of old broken non-Y2K compliant software.
 Two digit years from 00 to 69 will be interpreted as 2000 through 2069.  In
@@ -102,11 +88,11 @@ checkpoint is attempted at close time.
 
 Windows-specific Changes:
 
-New W2K port for Windows 2000.  In addition to supporting SSL using the
-official SSPI interface (the NT and NTK ports invoke SChannel.DLL directly),
-the W2K port also supports Microsoft Kerberos.  Note that the NT and NTK ports
-will work on Windows 2000, but the W2K port will not work on NT4, Windows
-9x, or Windows Millenium.
+New W2K port for Windows 2000 and Windows Millenium.  In addition to
+supporting SSL using the official SSPI interface (the NT and NTK ports invoke
+SChannel.DLL directly), the W2K port also supports Microsoft Kerberos.  Note
+that the NT and NTK ports will work on Windows 2000 and Windows Millenium, but
+the W2K port will not work on NT4 or Windows 9x.
 
 There is now a #user namespace, equivalent to the "~" namespace on UNIX.
 

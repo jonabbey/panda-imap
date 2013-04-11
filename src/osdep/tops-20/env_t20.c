@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 November 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -90,7 +90,7 @@ void rfc822_date (char *date)
   zone = -tz.tz_minuteswest;	/* TOPS-20 doesn't have tm_gmtoff or tm_zone */
   zonename = timezone (tz.tz_minuteswest,t->tm_isdst);
 				/* and output it */
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%.50s)",
+  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
 	   t->tm_hour,t->tm_min,t->tm_sec,
 	   (t->tm_isdst ? 1 : 0) + zone/60,abs (zone) % 60,zonename);

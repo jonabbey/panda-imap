@@ -5,11 +5,6 @@ ANSWER:
      There are no known Y2K issues in c-client; nor have there ever
 been any known Y2K issues in c-client from its inception.
 
-     Some older versions of c-client don't like the two-digit year
-"00", although the only impact of this is that messages with that year
-will sort before any other messages.  Nobody should be using two-digit
-years in email messages any more (use "2000" instead of "00").
-
      You may wish to read the document calendar.txt for more
 information about the Y4K, Y20K, and Y45K issues.  Assuming that
 c-client is still around in 2000-43,000 years, someone will have to
@@ -124,7 +119,7 @@ Y45K:
 the past 41,000 years laughing at westerners' increasingly futile
 efforts to keep the Gregorian calendar in order.  The day of reckoning
 has come; the Orthodox calendar is now one day slow.  The Patriarch of
-Istanbul (nee Constantinople) has not made any statement about how this
+Istanbul (nee Constaninople) has not made any statement about how this
 will be fixed.
 
      There is no fix for this problem in c-client.

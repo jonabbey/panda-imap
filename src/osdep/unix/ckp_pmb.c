@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 October 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -77,13 +77,9 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
       (pam_authenticate (hdl,NIL) != PAM_SUCCESS) ||
       (pam_acct_mgmt (hdl,NIL) != PAM_SUCCESS) ||
       (pam_setcred (hdl,PAM_ESTABLISH_CRED) != PAM_SUCCESS)) {
-				/* clean up */
-    pam_setcred (hdl,PAM_DELETE_CRED);
     pam_end (hdl,PAM_AUTH_ERR);	/* failed */
     return NIL;
   }
-				/* clean up */
-  pam_setcred (hdl,PAM_DELETE_CRED);
   pam_end (hdl,PAM_SUCCESS);	/* return success */
   return pw;
 }

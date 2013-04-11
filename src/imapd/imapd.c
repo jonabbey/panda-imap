@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	9 January 2001
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2000 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -181,7 +181,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2000.287";	/* version number of this server */
+char *version = "2000.283";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
@@ -364,14 +364,6 @@ int main (int argc,char *argv[])
 	if (stream)		/* allow untagged EXPUNGE */
 	  mail_parameters (stream,SET_ONETIMEEXPUNGEATPING,(void *) stream);
       }
-#ifdef NETSCAPE_BRAIN_DAMAGE
-      else if (!strcmp (cmd,"NETSCAPE")) {
-	PSOUT ("* OK [NETSCAPE]\015\012* VERSION 1.0 UNIX\015\012* ACCOUNT-URL \"");
-	PSOUT (NETSCAPE_BRAIN_DAMAGE);
-	PBOUT ('"');
-	CRLF;
-      }
-#endif
 
       else switch (state) {	/* dispatch depending upon state */
       case LOGIN:		/* waiting to get logged in */
@@ -826,8 +818,7 @@ int main (int argc,char *argv[])
 	    ad.message = &st;	/* pointer to stringstruct to use */
 	    trycreate = NIL;	/* no trycreate status */
 	    if (!mail_append_multiple (NIL,s,append_msg,(void *) &ad)) {
-	      if (response == win || response == altwin)
-		response = trycreate ? losetry : lose;
+	      response = trycreate ? losetry : lose;
 	      if (!lsterr) lsterr = cpystr ("Unexpected APPEND failure");
 	    }
 				/* clean up any message text left behind */
@@ -2392,8 +2383,7 @@ void remember (unsigned long uid,char *id,SIZEDTEXT *st)
   lastid = cpystr (id);		/* remember body part id */
   if (lastst.data) fs_give ((void **) &lastst.data);
 				/* remember text */
-  lastst.data = (unsigned char *)
-    memcpy (fs_get (st->size + 1),st->data,st->size);
+  lastst.data = (unsigned char *) cpystr ((char *) st->data);
   lastst.size = st->size;
 }
 
@@ -2970,21 +2960,7 @@ void psizedtext (SIZEDTEXT *s)
 void ptext (SIZEDTEXT *txt)
 {
   unsigned long i;
-#ifdef NETSCAPE_BRAIN_DAMAGE
-  /*  RFC 2060 technically forbids NULs in literals.  Normally, the delivering
-   * MTA would take care of MIME converting the message text so that it is
-   * NUL-free.  If it doesn't, then we have the choice of either violating
-   * IMAP by sending NULs, corrupting the data, or going to lots of work to do
-   * MIME conversion in the IMAP server.
-   *  Fortunately, with the exception of Netscape, most clients don't care if
-   * they get a NUL in a literal.
-   */
-  unsigned char c;
-  for (i = 0; ((i < txt->size) && (c = text->data[i] ? text->data[i] : 0x80) &&
-	       ((PBOUT (c)) != EOF)); i++);
-#else
   for (i = 0; ((i < txt->size) && ((PBOUT (txt->data[i])) != EOF)); i++);
-#endif
   if (i < txt->size) {		/* failed to complete? */
     alarm (0);			/* disable all interrupts */
     server_init (NIL,NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
@@ -3044,9 +3020,6 @@ void pcapability (long flag)
   PBOUT (' ');
   PSOUT (IMAPSPECIALCAP);
 #endif
-#ifdef NETSCAPE_BRAIN_DAMAGE
-  PSOUT (" X-NETSCAPE");
-#endif
   if (flag >= 0) {		/* want post-authentication capabilities? */
     PSOUT (" NAMESPACE IDLE MAILBOX-REFERRALS SCAN SORT");
     while (thr) {		/* threaders */
@@ -3064,7 +3037,7 @@ void pcapability (long flag)
     while (auth) {
 #ifdef PLAINTEXT_DISABLED
 				/* disable insecure authenticators */
-      if (!(auth->flags & AU_SECURE)) auth->server = NIL;
+      if (!auth->secflag) auth->server = NIL;
 #endif
       if (auth->server) {
 	PSOUT (" AUTH=");

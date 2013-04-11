@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 December 1995
- * Last Edited:	6 November 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -59,8 +59,8 @@ long auth_login_client (authchallenge_t challenger,authrespond_t responder,
     mm_login (mb,user,pwd,*trial);
     if (!pwd[0]) {		/* user requested abort */
       (*responder) (stream,NIL,0);
-      *trial = 0;		/* cancel subsequent attempts */
-      return T;			/* will get a BAD response back */
+      *trial = 0;		/* don't retry */
+      return T;			/* will get a NO response back */
     }
 				/* send user name */
     else if ((*responder) (stream,user,strlen (user)) &&
@@ -74,7 +74,7 @@ long auth_login_client (authchallenge_t challenger,authrespond_t responder,
       }
     }
   }
-  *trial = 65535;		/* don't retry */
+  *trial = 0;			/* don't retry */
   return NIL;			/* failed */
 }
 

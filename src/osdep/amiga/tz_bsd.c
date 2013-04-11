@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	30 August 1994
- * Last Edited:	7 November 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -26,5 +26,5 @@
 void rfc822_timezone (char *s,void *t)
 {
 				/* append timezone from tm struct */
-  sprintf (s + strlen (s)," (%.50s)",((struct tm *) t)->tm_zone);
+  sprintf (s + strlen (s)," (%s)",((struct tm *) t)->tm_zone);
 }

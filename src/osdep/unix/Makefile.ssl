@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	1 February 2001
+# Last Edited:	24 October 2000
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2001 University of Washington.
+# Copyright 2000 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -25,11 +25,9 @@ SSLCERTS=$(SSLDIR)/certs
 SSLINCLUDE=$(SSLDIR)/include
 SSLLIB=$(SSLDIR)/lib
 
-SSLCRYPTO=-lcrypto
-
-# Older versions of MIT Kerberos also have a libcrypto.  If so, you may need
-# to use this instead
-#SSLCRYPTO=$(SSLLIB)/libcrypto.a
+# Some versions of MIT Kerberos also have a libcrypto, get the right one
+#SSLCRYPTO=-lcrypto
+SSLCRYPTO=$(SSLLIB)/libcrypto.a
 
 # RSA Security Inc. released the RSA public key encryption algorithm into
 # the public domain on September 6, 2000.  There is no longer any need to
@@ -44,12 +42,6 @@ SSLLDFLAGS= -L$(SSLLIB) -lssl $(SSLCRYPTO) $(SSLRSA)
 ssl:	# SSL flags
 	echo $(SSLCFLAGS) >> OSCFLAGS
 	echo $(SSLLDFLAGS) >> LDFLAGS
-# Note: Tim Rice says that SSL has to be lunk before other libraries on SCO.
-# However, doing so breaks password validation on Linux.  If you need to do
-# link the SSL libraries first, comment out the previous line, and uncomment
-# the next two lines.
-#	echo $(SSLLDFLAGS) `cat LDFLAGS` > LDFLAGS.tmp
-#	mv LDFLAGS.tmp LDFLAGS
 	echo "void ssl_onceonlyinit (void);" >> linkage.h
 	echo "extern int ssl_getchar (void);" >> linkage.h
 	echo "extern char *ssl_gets (char *s,int n);" >> linkage.h

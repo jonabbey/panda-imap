@@ -1,5 +1,5 @@
 		   IMAP TOOLKIT FREQUENTLY ASKED QUESTIONS
-			Last Updated: 9 January 2001
+			Last Updated: 16 October 2000
 
 GENERAL QUESTIONS:
 
@@ -72,9 +72,6 @@ A: The IMAP toolkit is partially internationalized and multilingualized.
      at the present time, but such support is planned.
 
 
-Q: Why do I get the message:
-     CREATE failed: Can't create mailbox node xxxxxxxxx: File exists
-    and how do I fix it?
 Q: Are hierarchical mailboxes supported?
 A: Yes.  However, there is one important caveat.
    Some mailbox formats, including the default which is the traditional UNIX
@@ -98,7 +95,6 @@ A: Yes.  However, there is one important caveat.
     documentation for your client software to see how to do this with that
     software.
    Of course, on Windows systems you would use "\" instead of "/".
-
 
 Q: Are "dual-use" mailboxes supported?
 Q: Can I have a mailbox that has both messages and sub-mailboxes?
@@ -147,15 +143,9 @@ A: Yes.  imap-2000 supports SSL client functionality for IMAP, POP3, SMTP,
    UNIX SSL build requires that a third-party software package, OpenSSL, be
     installed on the system first.  Read imap-2000/docs/SSLBUILD for more
     information.
-   SSL is supported via undocumented Microsoft interfaces in Windows 9x,
-    Windows Millenium, and NT4; and via standard interfaces in Windows 2000.
+   SSL is supported via undocumented Microsoft interfaces in Windows 9x and
+    NT4; and via standard interfaces in Windows 2000 and Windows Millenium.
    
-
-Q: How do I build/install OpenSSL?
-Q: How do I obtain/create certificates for use with SSL?
-A: If you need help in doing this, try the contacts mentioned in the OpenSSL
-    README.  We do not offer support for OpenSSL or certificates.
-
 
 Q: Can I use CRAM-MD5 authentication?
 Q: Can I use APOP authentication?
@@ -172,15 +162,16 @@ A: There is no support for RPOP authentication.
 Q: Can I use Kerberos V5?
 A: Yes.  imap-2000 supports client and server functionality on UNIX and 32-bit
     Windows.
-   Kerberos V5 is supported by default in Windows 2000 builds:
+   Kerberos V5 is supported by default in Windows 2000 and Windows Millenium
+    builds:
      nmake -f makefile.w2k
    Other builds require that a third-party software package, MIT Kerberos, be
     installed on the system first.
    To build with Kerberos V5 on UNIX, include EXTRAAUTHENTICATORS=gss in the
     make command line, e.g.
      make lnp EXTRAAUTHENTICATORS=gss
-   To build with Kerberos V5 on Windows 9x, Windows Millenium, and NT4, use
-    the "makefile.ntk" file instead of "makefile.nt":
+   To build with Kerberos V5 on Windows 9x and NT4, use the "makefile.ntk"
+    file instead of "makefile.nt":
      nmake -f makefile.ntk
 
 
@@ -237,42 +228,14 @@ A: Server-level plaintext passwords can be disabled by setting
     the USER capability.
 
 
-Q: Can I use virtual hosts?
-A: Yes, with certain restrictions.
-   The most important one is that each virtual host must have its own IP
-    address; otherwise the server has no way of knowing which virtual
-    host is desired.
-   As distributed, the software uses a global password file; hence user
-    "fred" on one virtual host is "fred" on all virtual hosts.  You may
-    want to modify the checkpw() routine to implement some other policy
-    (e.g. separate password files).
-   Note that the security model assumes that all users have their own
-    unique UNIX UID number.  So if you use separate password files you
-    should make certain that the UID numbers do not overlap between
-    different files.
-
-
 Q: Is there support for S/Key or OTP?
 A: There is currently no support for S/Key or OTP.  There may be an OTP
     SASL authenticator available from third parties.
 
 
 Q: Is there support for NTLM or SPA?
-A: There is currently no support for NTLM or SPA, nor are there any plans
+A: There is currently no support for NTML or SPA, nor are there any plans
     to add such support.  In general, we avoid vendor-specific mechanisms.
-    We also believe that these mechanisms are being deprecated by their
-    vendor.
-
-
-Q: Is there support for mh?
-A: Yes, but only as a legacy format.  Your mh format INBOX is accessed by
-    the name "#mhinbox", and all other mh format mailboxes are accessed by
-    prefixing "#mh/" to the name, e.g. "#mh/foo".  The mh support uses the
-    "Path:" entry in your .mh_profile file to identify the root directory
-    of your mh format mailboxes.
-   Non-legacy use of mh format is not encouraged.  There is no support for
-    permanent flags or unique identifiers; furthermore there are known
-    severe performance problems with the mh format.
 
 
 Q: Is there support for qmail and the maildir format?
@@ -302,13 +265,15 @@ A: There are no known security problems in this version of the IMAP
     toolkit, including the IMAP and POP servers.  The IMAP and POP
     servers limit what can be done while not logged in, and as part of
     the login process discard all privileges except those of the user.
-   As with other software packages, there have been buffer overflow
-    vulnerabilities in past versions.  All known problems of this nature
-    are fixed in this version.
+   There were buffer overflow vulnerabilities in earlier versions which
+    were used to mount widespread attacks against unlogged-in (and hence
+    root-privileged) servers.  All known problems of this sort are fixed.
    There is every reason to believe that the bad guys are engaged in an
-    ongoing effort to find vulnerabilities in the IMAP toolkit.  Judging
-    from CERT reports, they've had much greater success in other software.
-    We look for such problems ourselves, and when we find one we fix it.
+    ongoing effort to find vulnerabilities in the IMAP toolkit; but to
+    the best of our knowledge these efforts have been futile in recent
+    years.  Judging from CERT reports, they've had much greater success
+    in other software, so it does not appear to be an ongoing problem
+    for the IMAP toolkit.
    We are unhappy that any vulnerabilities existed in past versions, and
     we're doing our best to keep the IMAP toolkit free of vulnerabilities.
    Beware of vendors who claim that their implementations can not have
@@ -481,10 +446,8 @@ A: This usually means that some "helpful" person has protected /tmp so
     lock file protection.
 
 
-Q: What do the syslog messages:
+Q: What does the syslog message:
      Command stream end of file, while reading line user=... host=...
-     Command stream end of file, while reading char user=... host=...
-     Command stream end of file, while writing text user=... host=...
     mean?
 A: This message occurs when the session is disconnected without a proper
     LOGOUT (IMAP) or QUIT (POP) command being received by the server first.
@@ -538,120 +501,3 @@ A: By default, you are connected to your home directory.  Most clients have
    It is possible to modify the IMAP server so that all users are
     automatically connected to some other directory, e.g. a subdirectory
     of the user's home directory.  Read the file CONFIG for more details.
-
-
-Q: Why does my client show that I have mailboxes named "#mhinbox", "#mh",
-    "#shared", "#ftp", "#news", and "#public"?
-A: These are IMAP namespace names.  They represent other hierarchies in
-    which messages may exist.  These hierarchies may not necessarily exist
-    on a server, but the namespace name is still in the namespace list in
-    order to mark it as reserved.
-   A few poorly-designed clients display all namespace names as if they
-    were top-level mailboxes in a user's list of mailboxes, whether or
-    not they actually exist.  This is a flaw in those clients.
-
-
-Q: Why does my IMAP client show all my files in my home directory?
-A: As distributed, the IMAP server is connected to your home directory by
-    default.  It has no way of knowing what you might call "mail" as
-    opposed to "some other file"; in fact, you can use IMAP to access any
-    file.
-   It is possible to modify the software so that the default connected
-    directory is someplace else.  Please read the file CONFIG for
-    discussion of this and other issues.
-
-
-Q: Why is there a long delay in mail_open() before I get connected to the
-    IMAP server?
-A: By default, the c-client library attempts to make a connection through
-    rsh (and ssh, if you enable that).  If the command:
-     rsh imapserver exec /etc/rimapd
-    (or ssh if that is enabled) returns with a "* PREAUTH" response, it
-    will use the resulting rsh session as the IMAP session and not require
-    an authentication step on the server.
-   Unfortunately, rsh has a design error that treats "TCP connection
-    refused" as "temporary failure, try again"; it expects the "rsh not
-    allowed" case to be implemented as a successful connection followed
-    by an error message and close the connection.
-   It must be emphasized that this is a bug in rsh.  It is NOT a bug in the
-    IMAP toolkit.
-   The use of rsh can be disabled in any the following ways:
-    (1) You can disable it for this particular session by either:
-	(a) setting an explicit port number in the mailbox name, e.g.
-	    {imapserver.foo.com:143}INBOX
-	(b) using SSL (the /ssl switch)
-    (2) You can disable it globally by setting the rsh timeout value to 0
-	with the call: mail_parameters (NIL,SET_RSHTIMEOUT,0);
-
-
-Q: Why does a message sometimes get split into two or more messages on my
-    SUN system?
-A: This is caused by an interaction of two independent design problems in
-    SUN mail software.  The first problem is that the "forward message"
-    option in SUN's "mail tool" program includes the internal "From "
-    header line in the text that it forwarded.  This internal header line
-    is specific to traditional UNIX mailbox files and is not suitable for
-    use in forwarded messages.
-   The second problem is that the mail delivery agent assumes that mail
-    reading problems will not use the traditional UNIX mailbox format but
-    instead an incompatible variant that depends upon a "Content-Length:"
-    message header.
-   Content-Length is widely recognized to have been a terrible mistake,
-    and is no longer recommended for use anywhere.
-   One symptom of the problem is that under certain circumstances, a
-    message may get broken up into several messages.
-   I'm also aware of security bugs caused by programs that foolishly
-    trust "Content-Length:" headers with evil values.
-   To fix the mailer on your system, edit your sendmail.cf to change the
-    Mlocal line to have the -E flag.  A typical entry will lool like:
-	Mlocal,	P=/usr/lib/mail.local, F=flsSDFMmnPE, S=10, R=20,
-		A=mail.local -d $u
-   This fix will also work around the problem with "mail tool", because
-    it will insert a ">" before the internal header line to prevent it
-    from being interpreted by mail reading software as an internal header
-    line.
-
-
-Q: Why did my IMAP session suddenly disconnect?  The syslog has the message:
-     Autologout user=<...my user name...> host=<...my imap server...>
-A: This is a bug in your IMAP client.  It failed to communicate with the
-    IMAP server for over 30 minutes.
-
-
-Q: Why does reading certain messages hang when using Netscape?  It works
-    fine with Pine!
-A: There are two possible causes.
-   Check the mail syslog.  If you see the message "Killed (lost mailbox
-    lock)" for the impacted user(s), read the FAQ entry regarding this
-     message.
-   Check the affected mailbox to see if there are embedded NUL characters
-    in the message.  NULs in message texts are a technical violation of both
-    the message format and IMAP specifications.  Most clients don't care, but
-    apparently Netscape does.  You can work around this by rebuilding imapd
-    with the NETSCAPE_BRAIN_DAMAGE option set (see src/imapd/Makefile); this
-    will cause imapd to convert all NULs to 0x80 characters.  A better
-    solution is to enable the feature in your MTA to MIME-convert messages
-    with binary content.  See the documentation for your MTA for how to do
-    this.
-
-
-Q: Why does Netscape say that there's a problem with the IMAP server and that
-    I should "Contact your mail server administrator."?
-A: Certain versions of Netscape do this when you click the Manage Mail button,
-    which uses an undocumented feature of Netscape's proprietary IMAP server.
-    You can work around this by rebuilding imapd with the
-    NETSCAPE_BRAIN_DAMAGE option set (see src/imapd/Makefile) to a URL that
-    points either to an alternative IMAP client (e.g. Pine) or perhaps to a
-    homebrew mail account management page.
-
-WHERE TO GO FOR ADDITIONAL INFORMATION:
-
-Q: Where can I read more about IMAP and other email protocols?
-A: I recommend "Internet Email Protocols: A Developer's Guide", by Kevin
-    Johnson, published by Addison Wesley, ISBN 0-201-43288-9.
-
-
-Q: Where can I find out more about setting up and administering an IMAP
-    server?
-A: I recommend "Managing IMAP", by Dianna Mullet & Kevin Mullet, published
-    by O'Reilly, ISBN 0-596-00012-X.

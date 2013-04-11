@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	8 November 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -259,6 +259,12 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
       return -1;
     }
   }
+  for (i = 65536; (i > 4096) &&	/* set receive buffer size to 64K */
+       setsockopt (sock,SOL_SOCKET,SO_RCVBUF,(void *) &i,sizeof(i));
+       i -= 1024);
+  for (i = 65536; (i > 4096) &&	/* set send buffer size to 64K */
+       setsockopt (sock,SOL_SOCKET,SO_SNDBUF,(void *) &i,sizeof(i));
+       i -= 1024);
   return sock;			/* return the socket */
 }
   

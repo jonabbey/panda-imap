@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	19 December 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -255,8 +255,7 @@ long mx_create (MAILSTREAM *stream,char *mailbox)
   else if (mx_isvalid (mailbox,tmp))
     sprintf (tmp,"Can't create mailbox %.80s: mailbox already exists",mailbox);
 				/* create directory */
-  else if (!dummy_create_path (stream,strcat (mx_file (mbx,mailbox),"/"),
-			       get_dir_protection (mailbox)))
+  else if (!dummy_create_path (stream,strcat (mx_file (mbx,mailbox),"/")))
     sprintf (tmp,"Can't create mailbox leaf %.80s: %s",
 	     mailbox,strerror (errno));
 				/* create index file */
@@ -833,11 +832,6 @@ long mx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 
 				/* lock the index */
   if (mx_lockindex (astream)) do {
-    if (!SIZE (message)) {	/* guard against zero-length */
-      mm_log ("Append of zero-length message",ERROR);
-      ret = NIL;
-      break;
-    }
 				/* parse flags */
     f = mail_parse_flags (astream,flags,&uf);
     if (date) {			/* want to preserve date? */

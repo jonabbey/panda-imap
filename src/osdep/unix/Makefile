@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	1 February 2001
+# Last Edited:	24 October 2000
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2001 University of Washington.
+# Copyright 2000 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -92,7 +92,7 @@ BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o utf8.o siglocal.o \
  dummy.o pseudo.o netmsg.o flstring.o fdstring.o \
  rfc822.o nntp.o smtp.o imap4r1.o pop3.o \
  unix.o mbox.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
-CFLAGS=-g
+CFLAGS=$(BASECFLAGS) $(EXTRACFLAGS)
 
 CAT=cat
 MAKE=make
@@ -103,15 +103,16 @@ SH=sh
 
 # Primary build command
 
-BUILD=$(MAKE) build EXTRACFLAGS='$(EXTRACFLAGS)'\
+BUILDOPTIONS= EXTRACFLAGS='$(EXTRACFLAGS)'\
  EXTRALDFLAGS='$(EXTRALDFLAGS)'\
  EXTRADRIVERS='$(EXTRADRIVERS)' EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
  PASSWDTYPE=$(PASSWDTYPE) SPECIALAUTHENTICATORS='$(SPECIALAUTHENTICATORS)'
+BUILD=$(MAKE) build $(BUILDOPTIONS)
 
 # Here if no make argument established
 
 missing: osdep.h
-	$(MAKE) all `$(CAT) SPECIALS`
+	$(MAKE) all CC=`$(CAT) CCTYPE` CFLAGS="`$(CAT) CFLAGS`" `$(CAT) SPECIALS`
 
 osdep.h:
 	@echo You must specify what type of system
@@ -188,7 +189,7 @@ bsd:	# BSD UNIX
 	 BASECFLAGS="-g -Dconst="
 
 bsf:	# FreeBSD
-	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	$(BUILD) `$(CAT) SPECIALS` OS=bsi \
 	 SIGTYPE=psx CRXTYPE=nfs \
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/usr/local/news/lib/active \
@@ -302,7 +303,7 @@ ghp:	# GCC HP-UX
 	 BASECFLAGS="-g -O2" \
 	 RANLIB=true CC=gcc
 
-go5:	# GCC 2.7.1 (95q4) SCO Open Server 5.0.x
+gs5:	# GCC 2.7.1 (95q4) SCO Open Server 5.0.x
 	$(BUILD) `$(CAT) SPECIALS` OS=sc5 \
 	 SIGTYPE=psx CHECKPW=sec LOGINPW=sec \
 	 CREATEPROTO=mmdfproto EMPTYPROTO=mmdfproto \
@@ -313,17 +314,10 @@ go5:	# GCC 2.7.1 (95q4) SCO Open Server 5.0.x
 	 BASELDFLAGS="-lsocket -lprot -lx -ltinfo -lm" \
 	 RANLIB=true CC=gcc
 
-gsc:	# Santa Cruz Operation
-	$(BUILD) `$(CAT) SPECIALS` OS=sco \
-	 SIGTYPE=sv4 CHECKPW=sec LOGINPW=sec \
-	 CREATEPROTO=mmdfproto EMPTYPROTO=mmdfproto \
-	 RSHPATH=/usr/bin/rcmd \
-	 BASECFLAGS="-O3" \
-	 BASELDFLAGS="-lsocket -lprot -lcrypt_i -lx -los" \
-	 RANLIB=true LN=ln CC=gcc
+# Is the bizarre MAKEFLAGS= needed here?
 
 gsg:	# GCC Silicon Graphics
-	$(BUILD) `$(CAT) SPECIALS` OS=sgi \
+	MAKEFLAGS= $(BUILD) `$(CAT) SPECIALS` OS=sgi \
 	 SIGTYPE=sv4 CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bsd/rsh \
@@ -443,14 +437,6 @@ nec:	# NEC UX
 	 BASELDFLAGS="-lsocket -lnsl -lgen" \
 	 RANLIB=true CC=/usr/abiccs/bin/cc
 
-nto:	# QNX Neutrino RTP
-	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
-	 CRXTYPE=nfs \
-	 SPOOLDIR=/var/spool \
-	 ACTIVEFILE=/var/lib/news/active \
-	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O -DNFSKLUDGE"
-
 nxt:	# NEXTSTEP
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
 	 CRXTYPE=nfs \
@@ -530,10 +516,13 @@ sco:	# Santa Cruz Operation
 	 BASELDFLAGS="-lsocket -lprot -lcrypt_i -lx -los" \
 	 RANLIB=true LN=ln
 
-# Note: setting _POSIX_SOURCE doesn't seem to build it as of SGI IRIX 5.3
+# Notes:
+# 1) setting _POSIX_SOURCE doesn't seem to build it as of SGI IRIX 5.3
+# 2) SGI make wouldn't build for Steve unless that bizarre "MAKEFLAGS="
+#    was inserted in the beginning.
 
 sgi:	# Silicon Graphics
-	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	MAKEFLAGS= $(BUILD) `$(CAT) SPECIALS` OS=$@ \
 	 SIGTYPE=sv4 CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bsd/rsh \
@@ -727,10 +716,6 @@ $(ARCHIVE): $(BINARIES)
 	@$(CAT) ARCHIVE
 	@$(SH) ARCHIVE
 
-.c.o:
-	`$(CAT) CCTYPE` -c `$(CAT) CFLAGS` $*.c
-
-
 # Cleanup
 
 clean:
@@ -780,7 +765,7 @@ osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	write.c \
 	strerror.c strpbrk.c strstr.c strtok.c strtoul.c \
 	OSCFLAGS
-	`$(CAT) CCTYPE` -c `$(CAT) CFLAGS` `$(CAT) OSCFLAGS` -c osdep.c
+	$(CC) $(CFLAGS) `$(CAT) OSCFLAGS` -c osdep.c
 
 osdep.c: osdepbas.c osdepckp.c osdeplog.c
 	$(CAT) osdepbas.c osdepckp.c osdeplog.c > osdep.c
@@ -816,7 +801,7 @@ once:	onceenv ckp$(PASSWDTYPE) osdep.c
 onceenv:
 	@echo Once-only environment setup...
 	echo $(CC) > CCTYPE
-	echo $(BASECFLAGS) '$(EXTRACFLAGS)' > CFLAGS
+	echo $(CFLAGS) > CFLAGS
 	echo -DCREATEPROTO=$(CREATEPROTO) -DEMPTYPROTO=$(EMPTYPROTO) \
 	 -DMAILSPOOL=\"$(MAILSPOOL)\" \
 	 -DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" \
@@ -858,11 +843,7 @@ ckpmd5:	# MD5 database (must have md5 AUTHENTICATOR as well)
 	$(LN) ckp_md5.c osdepckp.c
 
 ckpnul:	# NUL authenticator (disables all plaintext authentication)
-#	echo -DPLAINTEXT_DISABLED >> CFLAGS
-# Setting CFLAGS=`$(CAT) CFLAGS` won't work if there's a newline in the file,
-# so work around it this way
-	echo `$(CAT) CFLAGS` -DPLAINTEXT_DISABLED > CFLAGS.tmp
-	mv CFLAGS.tmp CFLAGS
+	echo -DPLAINTEXT_DISABLED >> CFLAGS
 	$(LN) ckp_nul.c osdepckp.c
 
 ckppam:	# Pluggable Authentication Modules authenticator

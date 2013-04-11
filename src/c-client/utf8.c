@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	23 January 2001
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2000 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -224,16 +224,15 @@ long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags)
   }
 			
   if (strlen (charset) < 128)	/* otherwise look for charset */
-    for (i = 0; utf8_csvalid[i].name; i++)
-      if (!mail_compare_cstring (charset,utf8_csvalid[i].name)) {
+    for (i = 0, ucase (strcpy (tmp,charset)); utf8_csvalid[i].name; i++)
+      if (!strcmp (tmp,utf8_csvalid[i].name)) {
 	if (ret && utf8_csvalid[i].dsp)
 	  (*utf8_csvalid[i].dsp) (text,ret,utf8_csvalid[i].tab);
 	return LONGT;		/* success */
       }
   if (flags) {			/* charset not found */
     strcpy (tmp,"[BADCHARSET (");
-    for (i = 0, t = tmp + strlen (tmp);
-	 utf8_csvalid[i].name && (t < (tmp + MAILTMPLEN - 200));
+    for (i = 0, t = tmp + strlen (tmp); utf8_csvalid[i].name;
 	 i++,t += strlen (t)) sprintf (t,"%s ",utf8_csvalid[i].name);
     sprintf (t + strlen (t) - 1,")] Unknown charset: %.80s",charset);
     mm_log (tmp,ERROR);
@@ -330,7 +329,7 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
       if ((c = text->data[i++]) & BIT8) {
 				/* yes, must have another high byte */
 	if ((i >= text->size) || !((c1 = text->data[i++]) & BIT8))
-	  c = UBOGON;		/* out of space or bogon */
+	  c = BOGON;		/* out of space or bogon */
 	else switch (c) {	/* check 8bit code set */
 	case EUC_CS2:		/* CS2 */
 	  if (p2->base_ku) {	/* CS2 set up? */
@@ -338,12 +337,12 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	      c = ((i < text->size) && ((c = text->data[i++]) & BIT8) &&
 		   ((ku = (c1 & BITS7) - p2->base_ku) < p2->max_ku) &&
 		   ((ten = (c & BITS7) - p2->base_ten) < p2->max_ten)) ?
-		     t2[(ku*p2->max_ten) + ten] : UBOGON;
+		     t2[(ku*p2->max_ten) + ten] : BOGON;
 	    else c = ((c1 >= p2->base_ku) && (c1 <= p2->max_ku)) ?
-	      c1 + ((unsigned int) p2->tab) : UBOGON;
+	      c1 + ((unsigned int) p2->tab) : BOGON;
 	  }	  
 	  else {		/* CS2 not set up */
-	    c = UBOGON;		/* swallow byte, say bogon */
+	    c = BOGON;		/* swallow byte, say bogon */
 	    if (i < text->size) i++;
 	  }
 	  break;
@@ -353,12 +352,12 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	      c = ((i < text->size) && ((c = text->data[i++]) & BIT8) &&
 		   ((ku = (c1 & BITS7) - p3->base_ku) < p3->max_ku) &&
 		   ((ten = (c & BITS7) - p3->base_ten) < p3->max_ten)) ?
-		     t3[(ku*p3->max_ten) + ten] : UBOGON;
+		     t3[(ku*p3->max_ten) + ten] : BOGON;
 	    else c = ((c1 >= p3->base_ku) && (c1 <= p3->max_ku)) ?
-	      c1 + ((unsigned int) p3->tab) : UBOGON;
+	      c1 + ((unsigned int) p3->tab) : BOGON;
 	  }	  
 	  else {		/* CS3 not set up */
-	    c = UBOGON;		/* swallow byte, say bogon */
+	    c = BOGON;		/* swallow byte, say bogon */
 	    if (i < text->size) i++;
 	  }
 	  break;
@@ -371,7 +370,7 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 		/* special hack for JIS X 0212: merge rows less than 10 */
 	      c = t3[((ku - (p3->base_ku - p1->base_ku))*p3->max_ten) + ten];
 	  }
-	  else c = UBOGON;
+	  else c = BOGON;
 	}
       }
       if (pass) UTF8_PUT (s,c)
@@ -400,14 +399,14 @@ void utf8_text_dbyte (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
       c = ((i < text->size) && (c1 = text->data[i++]) &&
 	   ((ku = c - p1->base_ku) < p1->max_ku) &&
 	   ((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-	     t1[(ku*p1->max_ten) + ten] : UBOGON;
+	     t1[(ku*p1->max_ten) + ten] : BOGON;
   s = ret->data = (unsigned char *) fs_get (ret->size + 1);
   for (i = 0; i < text->size;) {
     if ((c = text->data[i++]) & BIT8)
       c = ((i < text->size) && (c1 = text->data[i++]) &&
 	   ((ku = c - p1->base_ku) < p1->max_ku) &&
 	   ((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-	     t1[(ku*p1->max_ten) + ten] : UBOGON;
+	     t1[(ku*p1->max_ten) + ten] : BOGON;
     UTF8_PUT (s,c)		/* convert Unicode to UTF-8 */
   }
 }
@@ -429,27 +428,27 @@ void utf8_text_dbyte2 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
   for (ret->size = i = 0; i < text->size; ret->size += UTF8_SIZE (c))
     if ((c = text->data[i++]) & BIT8) {
       if ((i >= text->size) || !(c1 = text->data[i++]))
-	c = UBOGON;		/* out of space or bogon */
+	c = BOGON;		/* out of space or bogon */
       else if (c1 & BIT8)	/* high vs. low plane */
 	c = ((ku = c - p2->base_ku) < p2->max_ku &&
 	     ((ten = c1 - p2->base_ten) < p2->max_ten)) ?
-	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] :UBOGON;
+	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] : BOGON;
       else c = ((ku = c - p1->base_ku) < p1->max_ku &&
 		((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : UBOGON;
+		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : BOGON;
     }
   s = ret->data = (unsigned char *) fs_get (ret->size + 1);
   for (i = j = 0; i < text->size;) {
     if ((c = text->data[i++]) & BIT8) {
       if ((i >= text->size) || !(c1 = text->data[i++]))
-	c = UBOGON;		/* out of space or bogon */
+	c = BOGON;		/* out of space or bogon */
       else if (c1 & BIT8)	/* high vs. low plane */
 	c = ((ku = c - p2->base_ku) < p2->max_ku &&
 	     ((ten = c1 - p2->base_ten) < p2->max_ten)) ?
-	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] :UBOGON;
+	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] : BOGON;
       else c = ((ku = c - p1->base_ku) < p1->max_ku &&
 		((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : UBOGON;
+		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : BOGON;
     }
     UTF8_PUT (s,c)	/* convert Unicode to UTF-8 */
   }
@@ -471,7 +470,7 @@ void utf8_text_sjis (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
     if ((c = text->data[i++]) & BIT8) {
 				/* half-width katakana */
       if ((c >= MIN_KANA_8) && (c <= MAX_KANA_8)) c += KANA_8;
-      else if (i >= text->size) c = UBOGON;
+      else if (i >= text->size) c = BOGON;
       else {		/* Shift-JIS */
 	c1 = text->data[i++];
 	SJISTOJIS (c,c1);
@@ -919,7 +918,7 @@ long utf8_mime2text (SIZEDTEXT *src,SIZEDTEXT *dst)
 	  if (!dst->data) {	/* need to create buffer now? */
 				/* allocate for worst case */
 	    dst->data = (unsigned char *)
-	      fs_get ((size_t) ((src->size / 4) + 1) * 9);
+	      fs_get ((size_t) ((src->size / 8) + 1) * 9);
 	    memcpy (dst->data,src->data,(size_t) (dst->size = s - src->data));
 	  }
 	  for (i=0; i < rtxt.size; i++) dst->data[dst->size++] = rtxt.data[i];

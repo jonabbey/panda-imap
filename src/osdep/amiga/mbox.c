@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	19 December 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -187,11 +187,13 @@ MAILSTREAM *mbox_open (MAILSTREAM *stream)
 {
   unsigned long i = 1;
   unsigned long recent = 0;
+  char tmp[MAILTMPLEN];
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &mboxproto;
 				/* change mailbox file name */
+  sprintf (tmp,"%s/mbox",myhomedir ());
   fs_give ((void **) &stream->mailbox);
-  stream->mailbox = cpystr ("mbox");
+  stream->mailbox = cpystr (tmp);
 				/* open mailbox, snarf new mail */
   if (!(unix_open (stream) && mbox_ping (stream))) return NIL;
   stream->inbox = T;		/* mark that this is an INBOX */
@@ -241,7 +243,7 @@ long mbox_ping (MAILSTREAM *stream)
 				/* copy to mbox */
 	if ((write (LOCAL->fd,s,size) < 0) || fsync (LOCAL->fd)) {
 	  sprintf (LOCAL->buf,"New mail move failed: %s",strerror (errno));
-	  mm_log (LOCAL->buf,WARN);
+	  mm_log (LOCAL->buf,ERROR);
 				/* revert mbox to previous size */
 	  ftruncate (LOCAL->fd,LOCAL->filesize);
 	}

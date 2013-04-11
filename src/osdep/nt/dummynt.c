@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	19 December 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -332,7 +332,7 @@ long dummy_create (MAILSTREAM *stream,char *mailbox)
 {
   char tmp[MAILTMPLEN];
   if (strcmp (ucase (strcpy (tmp,mailbox)),"INBOX") && dummy_file(tmp,mailbox))
-    return dummy_create_path (stream,tmp,NIL);
+    return dummy_create_path (stream,tmp);
   sprintf (tmp,"Can't create %s: invalid name",mailbox);
   mm_log (tmp,ERROR);
   return NIL;
@@ -341,12 +341,11 @@ long dummy_create (MAILSTREAM *stream,char *mailbox)
 
 /* Dummy create path
  * Accepts: mail stream
- *	    path name to create
- *	    directory mode
+ *	    path name name to create
  * Returns: T on success, NIL on failure
  */
 
-long dummy_create_path (MAILSTREAM *stream,char *path,long dirmode)
+long dummy_create_path (MAILSTREAM *stream,char *path)
 {
   struct stat sbuf;
   char c,*s,tmp[MAILTMPLEN];
@@ -364,7 +363,7 @@ long dummy_create_path (MAILSTREAM *stream,char *path,long dirmode)
     *s = '\0';
 				/* name doesn't exist, create it */
     if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	!dummy_create_path (stream,path,dirmode)) return NIL;
+	!dummy_create_path (stream,path)) return NIL;
     *s = c;			/* restore full name */
   }
   if (wantdir) {		/* want to create directory? */

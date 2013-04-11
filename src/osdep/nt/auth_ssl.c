@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	28 November 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -241,10 +241,6 @@ SSLSTREAM *ssl_open (char *host,char *service,unsigned long port)
 	  break;
 	case SEC_E_CERT_EXPIRED:
 	  mm_log ("Certificate has expired",ERROR);
-	  done = -1;
-	  break;
-	case SEC_E_INVALID_TOKEN:
-	  mm_log ("Invalid token, probably not an SSL server",ERROR);
 	  done = -1;
 	  break;
 
@@ -616,19 +612,14 @@ long auth_plain_client (authchallenge_t challenger,authrespond_t responder,
   if (!mb->altflag)		/* snarl if not secure session */
     mm_log ("SECURITY PROBLEM: insecure server advertised AUTH=PLAIN",WARN);
 				/* get initial (empty) challenge */
-  if (chal = (*challenger) (stream,&cl)) {
+  if ((chal = (*challenger) (stream,&cl)) && !cl) {
     fs_give ((void **) &chal);
-    if (cl) {			/* abort if non-empty challenge */
-      (*responder) (stream,NIL,0);
-      *trial = 0;		/* cancel subsequent attempts */
-      return T;			/* will get a BAD response back */
-    }
 				/* prompt user */
     mm_login (mb,user,pwd,*trial);
     if (!pwd[0]) {		/* user requested abort */
       (*responder) (stream,NIL,0);
-      *trial = 0;		/* cancel subsequent attempts */
-      return T;			/* will get a BAD response back */
+      *trial = 0;		/* don't retry */
+      return T;			/* will get a NO response back */
     }
     t = s = (char *) fs_get (sl = strlen (mb->authuser) + strlen (user) +
 			     strlen (pwd) + 2);
@@ -649,7 +640,7 @@ long auth_plain_client (authchallenge_t challenger,authrespond_t responder,
     fs_give ((void **) &s);	/* free response */
   }
   if (chal) fs_give ((void **) &chal);
-  *trial = 65565;		/* don't retry */
+  *trial = 0;			/* don't retry */
   return NIL;			/* failed */
 }
 

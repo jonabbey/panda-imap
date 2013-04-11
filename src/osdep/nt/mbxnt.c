@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	19 November 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -462,18 +462,17 @@ char *mbx_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
   if (flags & FT_UID) return "";/* UID call "impossible" */
 				/* get header position, possibly header */
   i = mbx_hdrpos (stream,msgno,length,&s);
-  if (!s) {			/* mbx_hdrpos() returned header? */
-    lseek (LOCAL->fd,i,L_SET);	/* no, get to header position */
+  if (s) return s;		/* mbx_hdrpos() returned header */
+  lseek (LOCAL->fd,i,L_SET);	/* get to header position */
 				/* is buffer big enough? */
-    if (*length > LOCAL->buflen) {
-      fs_give ((void **) &LOCAL->buf);
-      LOCAL->buf = (char *) fs_get ((LOCAL->buflen = *length) + 1);
-    }
-				/* slurp the data */
-    read (LOCAL->fd,s = LOCAL->buf,*length);
+  if (*length > LOCAL->buflen) {
+    fs_give ((void **) &LOCAL->buf);
+    LOCAL->buf = (char *) fs_get ((LOCAL->buflen = *length) + 1);
   }
-  s[*length] = '\0';		/* tie off string */
-  return s;
+  LOCAL->buf[*length] = '\0';	/* tie off string */
+				/* slurp the data */
+  read (LOCAL->fd,LOCAL->buf,*length);
+  return LOCAL->buf;
 }
 
 /* MBX mail fetch message text (body only)
@@ -814,11 +813,6 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
   do {				/* parse flags */
-    if (!SIZE (message)) {	/* guard against zero-length */
-      mm_log ("Append of zero-length message",ERROR);
-      ret = NIL;
-      break;
-    }
     f = mail_parse_flags (stream,flags,&uf);
     if (date) {			/* parse date if given */
       if (!mail_parse_date (&elt,date)) {
@@ -1221,7 +1215,7 @@ void mbx_update_status (MAILSTREAM *stream,unsigned long msgno,long flags)
 unsigned long mbx_hdrpos (MAILSTREAM *stream,unsigned long msgno,
 			  unsigned long *size,char **hdr)
 {
-  unsigned long siz,done;
+  unsigned long siz;
   long i;
   char *s,*t,*te;
   MESSAGECACHE *elt = mbx_elt (stream,msgno,NIL);
@@ -1236,11 +1230,10 @@ unsigned long mbx_hdrpos (MAILSTREAM *stream,unsigned long msgno,
     LOCAL->buf = (char *) fs_get ((LOCAL->buflen = HDRBUFLEN) + SLOP);
   }
   lseek (LOCAL->fd,ret,L_SET);	/* get to header position */
-				/* read HDRBUFLEN chunks with 4 byte slop */
-  for (done = siz = 0, s = LOCAL->buf;
-       (i = min ((long) (elt->rfc822_size - done),(long) HDRBUFLEN)) &&
+  for (siz = 0, s = LOCAL->buf;	/* read HDRBUFLEN chunks with 4 byte slop */
+       (i = min ((long) (elt->rfc822_size - siz),(long) HDRBUFLEN)) &&
        (read (LOCAL->fd,s,i) == i);
-       done += i, siz += (t - LOCAL->buf) - SLOP, s = LOCAL->buf + SLOP) {
+       siz += (t - LOCAL->buf) - SLOP, s = LOCAL->buf + SLOP) {
     te = (t = s + i) - 12;	/* calculate end of fast scan */
 				/* fast scan for CR */
     for (s = LOCAL->buf; s < te;)

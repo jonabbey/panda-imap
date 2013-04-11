@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	16 January 2001
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2000 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -120,6 +120,12 @@ long mmdf_isvalid (char *name,char *tmp)
       utime (file,tp);		/* set the times */
     }
   }
+				/* in case INBOX but not MMDF format */
+  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
+	   ((name[1] == 'N') || (name[1] == 'n')) &&
+	   ((name[2] == 'B') || (name[2] == 'b')) &&
+	   ((name[3] == 'O') || (name[3] == 'o')) &&
+	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
   return ret;			/* return what we should */
 }
 
@@ -202,7 +208,7 @@ long mmdf_create (MAILSTREAM *stream,char *mailbox)
     mm_log (tmp,ERROR);
   }
 				/* create underlying file */
-  else if (dummy_create_path (stream,s,get_dir_protection (mailbox))) {
+  else if (dummy_create_path (stream,s)) {
 				/* done if made directory */
     if ((s = strrchr (s,'/')) && !s[1]) return T;
     if ((fd = open (mbx,O_WRONLY,
@@ -719,15 +725,6 @@ long mmdf_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* make sure valid mailbox */
   if (!mmdf_isvalid (mailbox,file)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
-	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
-	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
-	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
-      if (pc) return (*pc) (stream,sequence,mailbox,options);
-      mmdf_create (NIL,"INBOX");/* create empty INBOX */
-      break;
-    }
     mm_notify (stream,"[TRYCREATE] Must create mailbox before copy",NIL);
     return NIL;
   case 0:			/* merely empty file? */
@@ -826,13 +823,14 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
 	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
 	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
-      mmdf_create (NIL,"INBOX");/* create empty INBOX */
-      break;
+	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5])
+      mmdf_create (NIL,"INBOX");
+    else {
+      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+      return NIL;
     }
-    mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
-    return NIL;
-  case 0:			/* merely empty file? */
+				/* falls through */
+  case 0:			/* INBOX ENOENT or empty file? */
     break;
   case EINVAL:
     sprintf (tmp,"Invalid MMDF-format mailbox name: %.80s",mailbox);
@@ -863,8 +861,7 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
       }
 				/* use POSIX-style date */
       else date = mail_cdate (tmp,&elt);
-      if (!SIZE (message)) mm_log ("Append of zero-length message",ERROR);
-      else if (!mmdf_append_msg (stream,sf,flags,date,message)) {
+      if (!mmdf_append_msg (stream,sf,flags,date,message)) {
 	sprintf (tmp,"Error writing scratch file: %.80s",strerror (errno));
 	mm_log (tmp,ERROR);
       }

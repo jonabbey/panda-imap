@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	22 January 2001
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2000 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -312,7 +312,6 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
     if (a) {			/* if authenticator name found */
       a->client = NIL;		/* blow it away */
       a->server = NIL;
-      ret = (void *) a;
     }
     break;
 
@@ -584,7 +583,6 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
 	else if (!strcmp (s,"debug")) mb->dbgflag = T;
 	else if (!strcmp (s,"secure")) mb->secflag = T;
 	else if (!strcmp (s,"alt")) mb->altflag = mailaltdriver ? T : NIL;
-	else if (!strcmp (s,"tryalt")) mb->tryaltflag = mailaltdriver? T : NIL;
 	else if (mailaltdriver && mailaltdrivername &&
 		 !strcmp (s,mailaltdrivername)) mb->altflag = T;
 	else if (mailaltdriver && mailaltoptionname &&
@@ -656,13 +654,11 @@ void mail_list (MAILSTREAM *stream,char *ref,char *pat)
     char tmp[MAILTMPLEN];
     sprintf (tmp,"Invalid LIST reference specification: %.80s",ref);
     mm_log (tmp,ERROR);
-    return;
   }
   if (strlen (pat) > NETMAXMBX) {
     char tmp[MAILTMPLEN];
     sprintf (tmp,"Invalid LIST pattern specification: %.80s",pat);
     mm_log (tmp,ERROR);
-    return;
   }
   if (*pat == '{') ref = NIL;	/* ignore reference if pattern is remote */
   if (stream && stream->dtb) {	/* if have a stream, do it for that stream */
@@ -689,13 +685,11 @@ void mail_lsub (MAILSTREAM *stream,char *ref,char *pat)
     char tmp[MAILTMPLEN];
     sprintf (tmp,"Invalid LSUB reference specification: %.80s",ref);
     mm_log (tmp,ERROR);
-    return;
   }
   if (strlen (pat) > NETMAXMBX) {
     char tmp[MAILTMPLEN];
     sprintf (tmp,"Invalid LSUB pattern specification: %.80s",pat);
     mm_log (tmp,ERROR);
-    return;
   }
   if (*pat == '{') ref = NIL;	/* ignore reference if pattern is remote */
   if (stream && stream->dtb) {	/* if have a stream, do it for that stream */
@@ -4158,14 +4152,14 @@ THREADNODE *mail_thread_orderedsubject (MAILSTREAM *stream,char *charset,
 				/* set to msgno or UID as needed */
 	cur->num = (flags & SE_UID) ? mail_uid (stream,s->num) : s->num;
       }
-				/* make threadnode cache */
-      tc = (THREADNODE **) fs_get (i * sizeof (THREADNODE *));
+				/* size of threadnode cache */
+      j = (i + 1) * sizeof (THREADNODE *);
 				/* load threadnode cache */
+      tc = (THREADNODE **) memset (fs_get ((size_t) j),0,(size_t) j);
       for (j = 0, cur = thr; cur; cur = cur->branch) tc[j++] = cur;
       if (i != j) fatal ("Threadnode cache confusion");
       qsort ((void *) tc,i,sizeof (THREADNODE *),mail_thread_compare_date);
-      for (j = 0, --i; j < i; j++) tc[j]->branch = tc[j+1];
-      tc[j]->branch = NIL;	/* end of root */
+      for (j = 0; j < i; j++) tc[j]->branch = tc[j+1];
       thr = tc[0];		/* head of data */
       fs_give ((void **) &tc);
     }
@@ -4316,9 +4310,7 @@ THREADNODE *mail_thread_references (MAILSTREAM *stream,char *charset,
       for (sib = CHILD (nxc); sib; sib = SIBLING (sib)) SETPARENT (sib,NIL);
       SETCHILD (nxc,NIL);	/* orphan all of these */
     }
-				/* guard against being our own mother */
-    if (con == nxc) SETPARENT (nxc,NIL);
-    else {
+    if (con != nxc) {		/* guard against being our own mother */
       SETPARENT (nxc,con);	/* establish parent/child link */
       if (con) {		/* if non-root parent, set parent's child */
 	if (CHILD (con)) {	/* have a child already */
@@ -4350,21 +4342,8 @@ THREADNODE *mail_thread_references (MAILSTREAM *stream,char *charset,
 			/* Step 3 */
 				/* prune dummies, convert to threadnode */
   root = mail_thread_c2node (stream,mail_thread_prune_dummy (prc,NIL),flags);
-			/* Step 4 */
-				/* make buffer for sorting */
-  tc = (THREADNODE **) fs_get (nmsgs * sizeof (THREADNODE *));
-				/* load threadcache and count nodes to sort */
-  for (i = 0, cur = root; cur ; cur = cur->branch) tc[i++] = cur;
-  if (i > 1) {			/* only if need to sort */
-    qsort ((void *) tc,i,sizeof (THREADNODE *),mail_thread_compare_date);
-				/* relink siblings */
-    for (j = 0, --i; j < i; j++) tc[j]->branch = tc[j+1];
-    tc[j]->branch = NIL;	/* end of root */
-    root = tc[0];		/* establish new root */
-  }
-			/* Step 5A */
   hash_reset (ht);		/* discard containers, reset ht */
-			/* Step 5B */
+			/* Step 4B (4A done at top of function) */
   for (cur = root; cur; cur = cur->branch)
     if ((t = (nxt = (cur->sc ? cur : cur->next))->sc->subject) && *t) {
 				/* add new subject to hash table */
@@ -4376,9 +4355,9 @@ THREADNODE *mail_thread_references (MAILSTREAM *stream,char *charset,
 	sub[0] = (void *) cur;	/* replace with this message */
     }
 
-			/* Step 5C */
+			/* Step 4C */
   for (cur = root, sis = NIL; cur; cur = msg) {
-				/* do nothing if current message or no sub */
+				/* do nothing if current message */
     if (!(t = (cur->sc ? cur : cur->next)->sc->subject) || !*t ||
 	((lst = (THREADNODE *) (sub = hash_lookup (ht,t))[0]) == cur))
       msg = (sis = cur)->branch;
@@ -4406,14 +4385,10 @@ THREADNODE *mail_thread_references (MAILSTREAM *stream,char *charset,
 	}
 	else lst->next = cur;	/* no children, so make the eldest daughter */
       }
-
       else {			/* no re/fwd, create a new dummy */
 	msg = mail_newthreadnode (NIL);
-	if (lst == root) {	/* msg in table is root? */
-	  root = lst->branch;	/* younger sister becomes new root */
-				/* no longer older sister either */
-	  if (lst == sis) sis = NIL;
-	}
+				/* new root if msg in table is root */
+	if (lst == root) root = lst->branch;
 	else {			/* find older sister of msg in table */
 	  for (nxt = root; lst != nxt->branch; nxt = nxt->branch);
 				/* remove from older sister */
@@ -4436,13 +4411,17 @@ THREADNODE *mail_thread_references (MAILSTREAM *stream,char *charset,
     else root = msg;		/* otherwise this is the new root */
   }
   hash_destroy (&ht);		/* finished with hash table */
-			/* Step 6 */
+
+			/* Step 5 */
+				/* make buffer for sorting */
+  tc = (THREADNODE **) fs_get (nmsgs * sizeof (THREADNODE *));
 				/* sort threads */
   root = mail_thread_sort (root,tc);
   fs_give ((void **) &tc);	/* finished with sort buffer */
   return root;			/* return sorted list */
 }
-
+
+
 /* Fetch overview callback to load sortcache for threading
  * Accepts: MAIL stream
  *	    UID of this message
@@ -4452,7 +4431,7 @@ THREADNODE *mail_thread_references (MAILSTREAM *stream,char *charset,
 void mail_thread_loadcache (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov)
 {
   unsigned long msgno = mail_msgno (stream,uid);
-  if (msgno && ov) {		/* just in case */
+  if (msgno) {			/* just in case */
     MESSAGECACHE telt;
     SORTCACHE *s = (SORTCACHE *) (*mailcache) (stream,msgno,CH_SORTCACHE);
     if (!s->subject && ov->subject) {
@@ -4522,6 +4501,23 @@ STRINGLIST *mail_thread_parse_references (char *s,long flag)
   }
   return ret;
 }
+
+
+/* Test that purported mother is not a child of purported daughter
+ * Accepts: mother
+ *	    purported daugher
+ * Returns: T if circular parentage exists, else NIL
+ */
+
+long mail_thread_check_child (container_t mother,container_t daughter)
+{
+  if (mother) {			/* only if mother non-NIL */
+    if (mother == daughter) return T;
+    for (daughter = CHILD (daughter); daughter; daughter = SIBLING (daughter))
+      if (mail_thread_check_child (mother,daughter)) return T;
+  }
+  return NIL;
+}
 
 /* Prune dummy messages
  * Accepts: candidate container to prune
@@ -4575,27 +4571,9 @@ container_t mail_thread_prune_dummy_work (container_t msg,container_t ane)
 				/* prune and return new container */
     msg = mail_thread_prune_dummy_work (nxt,ane);
   }
-  else SETCHILD (msg,nxt);	/* in case child pruned */
   return msg;			/* return this message */
 }
 
-/* Test that purported mother is not a child of purported daughter
- * Accepts: mother
- *	    purported daugher
- * Returns: T if circular parentage exists, else NIL
- */
-
-long mail_thread_check_child (container_t mother,container_t daughter)
-{
-  if (mother) {			/* only if mother non-NIL */
-    if (mother == daughter) return T;
-    for (daughter = CHILD (daughter); daughter; daughter = SIBLING (daughter))
-      if (mail_thread_check_child (mother,daughter)) return T;
-  }
-  return NIL;
-}
-
-
 /* Generate threadnodes from containers
  * Accepts: Mail stream
  *	    container
@@ -4637,12 +4615,11 @@ THREADNODE *mail_thread_sort (THREADNODE *thr,THREADNODE **tc)
     if (cur->next) cur->next = mail_thread_sort (cur->next,tc);
   /* Must do this in a separate pass since recursive call will clobber tc */
 				/* load threadcache and count nodes to sort */
-  for (i = 0, cur = thr; cur; cur = cur->branch) tc[i++] = cur;
-  if (i > 1) {			/* only if need to sort */
+  for (i = 0, cur = thr; tc[i++] = cur; cur = cur->branch);
+  if (--i > 1) {		/* only if need to sort */
     qsort ((void *) tc,i,sizeof (THREADNODE *),mail_thread_compare_date);
-				/* relink root siblings */
-    for (j = 0, --i; j < i; j++) tc[j]->branch = tc[j+1];
-    tc[j]->branch = NIL;	/* end of root */
+				/* relink siblings */
+    for (j = 0; j < i; j++) tc[j]->branch = tc[j+1];
   }
   return tc[0];			/* return new head of list */
 }
@@ -4661,10 +4638,7 @@ int mail_thread_compare_date (const void *a1,const void *a2)
   THREADNODE *t2 = *(THREADNODE **) a2;
   SORTCACHE *s1 = t1->sc ? t1->sc : t1->next->sc;
   SORTCACHE *s2 = t2->sc ? t2->sc : t2->next->sc;
-				/* only compare dates if both are good  */
-  int ret = ((s1->date > 1) && (s2->date > 1)) ?
-    mail_compare_ulong (s1->date,s2->date) : 0;
-				/* use sequence if can't resolve using date */
+  int ret = mail_compare_ulong (s1->date,s2->date);
   return ret ? ret : ((s1->num) < (s2->num) ? -1 : 1);
 }
 
@@ -4793,12 +4767,8 @@ long mail_parse_flags (MAILSTREAM *stream,char *flag,unsigned long *uf)
       else for (j = 0; !i && j < NUSERFLAGS && (s =stream->user_flags[j]); ++j)
 	if (!mail_compare_cstring (t,s)) *uf |= i = 1 << j;
       if (!i) {			/* didn't find a matching flag? */
-	if (*t == '\\') {
-	  sprintf (flg,"Unsupported system flag: %.80s",t);
-	  mm_log (flg,WARN);
-	}
 				/* can we create it? */
-	else if (stream->kwd_create && (j < NUSERFLAGS) &&
+	if (stream->kwd_create && (j < NUSERFLAGS) &&
 	    (strlen (t) <= MAXUSERFLAG)) {
 	  *uf |= 1 << j;	/* set the bit */
 	  stream->user_flags[j] = cpystr (t);

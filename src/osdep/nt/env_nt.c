@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 November 2000
+ * Last Edited:	24 October 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -153,7 +153,7 @@ static void do_date (char *date,char *prefix,char *fmt,int suffix)
     char *tz;
     tzset ();			/* get timezone from TZ environment stuff */
     tz = tzname[daylight ? (((struct tm *) t)->tm_isdst > 0) : 0];
-    if (tz && tz[0]) sprintf (date + strlen (date)," (%.50s)",tz);
+    if (tz && tz[0]) sprintf (date + strlen (date)," (%s)",tz);
   }
 }
 
@@ -635,18 +635,15 @@ char *lockdir (char *lock,char *first,char *last)
   char c,*s;
   if (first && *first) {	/* first part must be non-NIL */
 				/* copy first part */
-    for (s = lock; c = *first++; *s++ = (c == '/') ? '\\' : c);
+    for (s = lock; *first; c = *s++ = *first++);
     if (last && *last) {	/* copy last part if specified */
 				/* write trailing \ in case not in first */
-      if (s[-1] != '\\') *s++ = '\\';
-      while (c = *last++) *s++ = (c == '/') ? '\\' : c;
+      if (c != '\\') *s++ = '\\';
+      while (*last) c = *s++ = *last++;
     }
-    if (s[-1] == '\\') --s;	/* delete trailing \ if any */
-    *s = s[1] = '\0';		/* tie off name at this point */
-    if (!stat (lock,&sbuf)) {	/* does the name exist? */
-      *s++ = '\\';		/* yes, reinstall trailing \ */
-      return s;			/* return the name */
-    }
+    if (c == '\\') --s;		/* delete trailing \ if any */
+    *s = '\0';			/* tie off name at this point */
+    return stat (lock,&sbuf) ? NIL : s;
   }
   return NIL;			/* failed */
 }

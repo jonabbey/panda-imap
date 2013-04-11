@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	23 January 2001
+# Last Edited:	24 October 2000
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2001 University of Washington.
+# Copyright 2000 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -59,8 +59,7 @@
 # gas	GCC Altos SVR4
 # gh9   GCC HP-UX 9.x
 # ghp	GCC HP-UX 10.x
-# go5	GCC 2.7.1 (95q4 from Skunkware _not_ 98q2!) SCO Open Server 5.0.x
-# gsc	GCC Santa Cruz Operation
+# gs5	GCC 2.7.1 (95q4 from Skunkware _not_ 98q2!) SCO Open Server 5.0.x
 # gsg	GCC SGI
 # gso	GCC Solaris
 # gsu	GCC SUN-OS
@@ -77,7 +76,6 @@
 # mnt	Atari ST Mint (not MacMint)
 # neb	NetBSD/FreeBSD
 # nec	NEC UX
-# nto	QNX Neutrine RTP
 # nxt	NEXTSTEP
 # nx3	NEXTSTEP 3.x
 # osf	OSF/1 (see sos, os4)
@@ -87,8 +85,8 @@
 # pyr	Pyramid
 # qnx	QNX 4
 # s40	SUN-OS 4.0 (*not* Solaris)
-# sc5	SCO Open Server 5.0.x (see go5)
-# sco	Santa Cruz Operation (see sc5, go5)
+# sc5	SCO Open Server 5.0.x (see gs5)
+# sco	Santa Cruz Operation (see sc5, gs5)
 # shp	HP-UX with Trusted Computer Base
 # sgi	Silicon Graphics IRIX
 # sg6	Silicon Graphics IRIX 6.5
@@ -207,15 +205,6 @@ PASSWDTYPE=std
 #	problems due to a misconfigured DNS, e.g. long startup delays or
 #	client timeouts.
 #
-# -DDISABLE_AUTOMATIC_SHARED_NAMESPACES
-#	Never look up the "ftp", "imappublic", and "imapshared" users as
-#	posssible home directories for the #ftp, #public, and #shared
-#	namespaces.  On some systems (reportedly including AIX 4.3.3)
-#	getpwnam() of an unknown user name is horrendously slow.
-#
-#	Note that this does not remove the #ftp, #public, and #shared
-#	namespaces, and they can still be set up by other means.
-#
 # -DMAILSUBDIR=\\\"xxx\\\"
 #	Change the default connected directory from the user's home directory
 #	to the named subdirectory of the user's home directory.  For example,
@@ -308,13 +297,10 @@ TOUCH=touch
 
 # Primary build command
 
-BUILD=$(MAKE) build EXTRACFLAGS='$(EXTRACFLAGS)'\
- EXTRALDFLAGS='$(EXTRALDFLAGS)'\
- EXTRADRIVERS='$(EXTRADRIVERS)'\
- EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
- SPECIALAUTHENTICATORS='$(SPECIALAUTHENTICATORS)'\
- PASSWDTYPE=$(PASSWDTYPE)\
- EXTRASPECIALS='$(EXTRASPECIALS)'
+BUILDOPTIONS= EXTRACFLAGS='$(EXTRACFLAGS)' EXTRALDFLAGS='$(EXTRALDFLAGS)'\
+ EXTRADRIVERS='$(EXTRADRIVERS)' EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
+ PASSWDTYPE=$(PASSWDTYPE) SPECIALAUTHENTICATORS='$(SPECIALAUTHENTICATORS)'
+BUILD=$(MAKE) build $(BUILDOPTIONS) EXTRASPECIALS='$(EXTRASPECIALS)'
 
 
 # Make the IMAP Toolkit
@@ -329,7 +315,7 @@ c-client:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp go5 gsc gsg gso gsu gul hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 osx ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
+a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp gs5 gsg gso gsu gul hpp hpx lnp lyn mct mnt neb nec nxt nx3 osf os4 osx ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
 	$(BUILD) OS=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
@@ -436,12 +422,7 @@ build:	OSTYPE rebuild rebuildclean bundled
 OSTYPE:
 	@echo Building c-client for $(OS)...
 	echo $(SPECIALS) $(EXTRASPECIALS) > c-client/SPECIALS
-	$(CD) c-client;$(MAKE) $(OS) EXTRACFLAGS='$(EXTRACFLAGS)'\
-	 EXTRALDFLAGS='$(EXTRALDFLAGS)'\
-	 EXTRADRIVERS='$(EXTRADRIVERS)'\
-	 EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
-	 SPECIALAUTHENTICATORS='$(SPECIALAUTHENTICATORS)'\
-	 PASSWDTYPE=$(PASSWDTYPE)\
+	$(CD) c-client;$(MAKE) $(OS) BUILDOPTIONS="$(BUILDOPTIONS)" \
 	 $(SPECIALS) $(EXTRASPECIALS)
 	echo $(OS) > OSTYPE
 	$(TOUCH) rebuild
