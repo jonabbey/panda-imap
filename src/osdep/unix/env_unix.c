@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	31 January 2007
+ * Last Edited:	4 April 2007
  */
 
 #include <grp.h>
@@ -1794,10 +1794,10 @@ void *mm_blocknotify (int reason,void *data)
   void *ret = data;
   switch (reason) {
   case BLOCK_SENSITIVE:		/* entering sensitive code */
-    ret = (void *) alarm (0);
+    ret = (void *) (unsigned long) alarm (0);
     break;
   case BLOCK_NONSENSITIVE:	/* exiting sensitive code */
-    if ((unsigned int) data) alarm ((unsigned int) data);
+    if ((unsigned long) data) alarm ((unsigned long) data);
     break;
   default:			/* ignore all other reasons */
     break;

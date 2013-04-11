@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 April 1997
- * Last Edited:	30 August 2006
+ * Last Edited:	4 April 2007
  */
 
 #include "mail.h"
@@ -53,7 +53,8 @@ STRINGDRIVER fd_string = {
 static void fd_string_init (STRING *s,void *data,unsigned long size)
 {
   FDDATA *d = (FDDATA *) data;
-  s->data = (void *) d->fd;	/* note fd */
+				/* note fd */
+  s->data = (void *) (unsigned long) d->fd;
   s->data1 = d->pos;		/* note file offset */
   s->size = size;		/* note size */
   s->curpos = s->chunk = d->chunk;
@@ -92,7 +93,7 @@ static void fd_string_setpos (STRING *s,unsigned long i)
 				/* set size of data */
   if (s->cursize = min (s->chunksize,SIZE (s))) {
 				/* move to that position in the file */
-    lseek ((int) s->data,s->data1 + s->offset,L_SET);
-    read ((int) s->data,s->curpos,(size_t) s->cursize);
+    lseek ((long) s->data,s->data1 + s->offset,L_SET);
+    read ((long) s->data,s->curpos,(size_t) s->cursize);
   }
 }

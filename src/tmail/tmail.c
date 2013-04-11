@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 April 1993
- * Last Edited:	26 March 2007
+ * Last Edited:	4 April 2007
  */
 
 #include <stdio.h>
@@ -41,7 +41,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "2006f.17";	/* tmail release version */
+char *version = "2006h.17";	/* tmail release version */
 int debug = NIL;		/* debugging (don't fork) */
 int trycreate = NIL;		/* flag saying gotta create before appending */
 int critical = NIL;		/* flag saying in critical code */

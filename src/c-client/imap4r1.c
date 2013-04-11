@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	19 March 2007
+ * Last Edited:	4 April 2007
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -891,9 +891,9 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
 	return NIL;
       }
       if (LOCAL->netstream) {	/* still in the land of the living? */
-	if ((int) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
+	if ((long) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
 				/* remote name for authentication */
-	  strncpy (mb.host,(int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL)?
+	  strncpy (mb.host,(long) mail_parameters(NIL,GET_SASLUSESPTRNAME,NIL)?
 		   net_remotehost (LOCAL->netstream) :
 		   net_host (LOCAL->netstream),NETMAXHOST-1);
 	  mb.host[NETMAXHOST-1] = '\0';
@@ -940,7 +940,7 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
       stream->perm_draft = LEVELIMAP4 (stream) ? NIL : T;
     stream->perm_user_flags = LEVELIMAP4 (stream) ? NIL : 0xffffffff;
     stream->sequence++;		/* bump sequence number */
-    sprintf (tmp,"{%s",(int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
+    sprintf (tmp,"{%s",(long) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
 	     net_host (LOCAL->netstream) : mb.host);
     if (!((i = net_port (LOCAL->netstream)) & 0xffff0000))
       sprintf (tmp + strlen (tmp),":%lu",i);

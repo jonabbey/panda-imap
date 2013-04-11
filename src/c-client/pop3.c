@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	30 January 2007
+ * Last Edited:	4 April 2007
  */
 
 
@@ -418,7 +418,7 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
       int silent = stream->silent;
       stream->silent = T;
       sprintf (tmp,"{%.200s:%lu/pop3",
-	       (int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
+	       (long) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
 	       net_host (LOCAL->netstream) : mb.host,
 	       net_port (LOCAL->netstream));
       if (mb.tlsflag) strcat (tmp,"/tls");
@@ -602,9 +602,9 @@ long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *pwd,char *usr)
     auths &= ~(1 << i);
 
   if (auths) {			/* got any authenticators? */
-    if ((int) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
+    if ((long) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
 				/* remote name for authentication */
-      strncpy (mb->host,(int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
+      strncpy (mb->host,(long) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
 	       net_remotehost (LOCAL->netstream) : net_host (LOCAL->netstream),
 	       NETMAXHOST-1);
       mb->host[NETMAXHOST-1] = '\0';

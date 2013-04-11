@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	29 March 2007
+# Last Edited:	18 April 2007
 
 
 # Normal command to build IMAP toolkit:
@@ -319,13 +319,19 @@ aos art asv aux bsd cvx dpx dyn isc pyr sv4 ult vul vu2: ua
 
 # Knotheads moved Kerberos and SSL locations on these platforms
 
+# Paul Vixie claims that all FreeBSD versions have working IPv6
+
 bsf:	an
-	$(BUILD) BUILDTYPE=$@ \
+	$(TOUCH) ip6
+	$(BUILD) BUILDTYPE=$@ IP=$(IP6) \
 	PASSWDTYPE=pam \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock PAMLDFLAGS=-lpam"
 
+# I assume that Theo did the right thing.
+
 bso:	an
-	$(BUILD) BUILDTYPE=$@ \
+	$(TOUCH) ip6
+	$(BUILD) BUILDTYPE=$@ IP=$(IP6) \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
 
 cyg:	an
@@ -340,7 +346,15 @@ ldb:	an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
 
-lfd lr5: an
+lfd:	an
+	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
+	EXTRACFLAGS="$(EXTRACFLAGS) -I/usr/kerberos/include" \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/pki/tls/certs SSLKEYS=/etc/pki/tls/private GSSDIR=/usr/kerberos LOCKPGM=/usr/sbin/mlock"
+
+# RHE5 does not have the IPv6 bug
+
+lr5:	an
+	$(TOUCH) ip6
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
 	EXTRACFLAGS="$(EXTRACFLAGS) -I/usr/kerberos/include" \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/pki/tls/certs SSLKEYS=/etc/pki/tls/private GSSDIR=/usr/kerberos LOCKPGM=/usr/sbin/mlock"
@@ -348,6 +362,8 @@ lfd lr5: an
 lmd:	an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/lib/ssl/certs SSLKEYS=/usr/lib/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
+
+# RHE3 definitely has the IPv6 bug
 
 lrh:	lrhok an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \

@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	23 March 2007
+ * Last Edited:	18 April 2007
  */
 
 
@@ -478,7 +478,7 @@ long mmdf_create (MAILSTREAM *stream,char *mailbox)
     if (((s = strrchr (s,'/')) && !s[1]) ||
 	mail_parameters (NIL,GET_USERHASNOLIFE,NIL)) ret = T;
     else if ((fd = open (mbx,O_WRONLY,
-		    (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
+		    (long) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
       sprintf (tmp,"Can't reopen mailbox node %.80s: %s",mbx,strerror (errno));
       MM_LOG (tmp,ERROR);
       unlink (mbx);		/* delete the file */
@@ -550,7 +550,7 @@ long mmdf_rename (MAILSTREAM *stream,char *old,char *newname)
 
   else {
     if ((fd = mmdf_lock (file,O_RDWR,
-			 (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL),
+			 (long) mail_parameters (NIL,GET_MBXPROTECTION,NIL),
 			 &lockx,LOCK_EX)) < 0)
        sprintf (tmp,"Can't lock mailbox %.80s: %s",old,strerror (errno));
     else {
@@ -651,7 +651,7 @@ MAILSTREAM *mmdf_open (MAILSTREAM *stream)
       LOCAL->ld = fd;		/* note lock's fd and name */
       LOCAL->lname = cpystr (tmp);
 				/* make sure mode OK (don't use fchmod()) */
-      chmod (LOCAL->lname,(int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
+      chmod (LOCAL->lname,(long) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
       if (stream->silent) i = 0;/* silent streams won't accept KOD */
       else {			/* note our PID in the lock */
 	sprintf (tmp,"%d",getpid ());
@@ -1071,7 +1071,7 @@ long mmdf_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   LOCAL->buf[0] = '\0';
   MM_CRITICAL (stream);		/* go critical */
   if ((fd = mmdf_lock (dummy_file (file,mailbox),O_WRONLY|O_APPEND,
-		       (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL),
+		       (long) mail_parameters (NIL,GET_MBXPROTECTION,NIL),
 		       &lock,LOCK_EX)) < 0) {
     MM_NOCRITICAL (stream);	/* done with critical */
     sprintf (LOCAL->buf,"Can't open destination mailbox: %s",strerror (errno));
@@ -1264,7 +1264,7 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     return NIL;
   }
   if (((fd = mmdf_lock (dummy_file (file,mailbox),O_WRONLY|O_APPEND,
-			(int) mail_parameters (NIL,GET_MBXPROTECTION,NIL),
+			(long) mail_parameters (NIL,GET_MBXPROTECTION,NIL),
 			&lock,LOCK_EX)) < 0) ||
       !(df = fdopen (fd,"ab"))) {
     MM_NOCRITICAL (stream);	/* done with critical */
@@ -1393,6 +1393,7 @@ int mmdf_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
 	    ((tmp[4] == 'u') || (tmp[4] == 'U')) &&
 	    ((tmp[5] == 's') || (tmp[5] == 'S')) && (tmp[6] == ':') &&
 	    (fputs ("X-Original-",df) == EOF)) return NIL;
+	break;
       case 'X': case 'x':	/* possible X-??? header */
 	if (hdrp && (tmp[1] == '-') &&
 				/* possible X-UID: */
@@ -1427,6 +1428,10 @@ int mmdf_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
 	      ((tmp[8] == 'd') || (tmp[8] == 'D')) &&
 	      ((tmp[9] == 's') || (tmp[9] == 'S')) && (tmp[10] == ':'))) &&
 	    (fputs ("X-Original-",df) == EOF)) return NIL;
+	break;
+      case '\n':		/* blank line */
+	hdrp = NIL;
+	break;
       default:			/* nothing to do */
 	break;
       }
@@ -1572,7 +1577,7 @@ int mmdf_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
   MM_CRITICAL (stream);		/* open and lock mailbox (shared OK) */
   if ((LOCAL->fd = mmdf_lock (stream->mailbox,(LOCAL->ld >= 0) ?
 			      O_RDWR : O_RDONLY,
-			      (int) mail_parameters(NIL,GET_MBXPROTECTION,NIL),
+			      (long)mail_parameters(NIL,GET_MBXPROTECTION,NIL),
 			      lock,op)) < 0) {
     sprintf (tmp,"Mailbox open failed, aborted: %s",strerror (errno));
     MM_LOG (tmp,ERROR);
@@ -1943,8 +1948,11 @@ int mmdf_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 	  s = mmdf_mbxline (stream,&bs,&i);
 	  if (i) {		/* got new data? */
 	    if (ISMMDF (s)) break;
-	    else {
-	      elt->rfc822_size += i + (((i < 2) || s[i - 2] != '\r') ? 1 : 0);
+	    else {		/* not a header line, add it to message */
+	      if (s[i - 1] == '\n')
+		elt->rfc822_size += i +(((i < 2) || s[i - 2] != '\r') ? 1 : 0);
+				/* file does not end with newline! */
+	      else elt->rfc822_size += i;
 				/* update current position */
 	      j = LOCAL->filesize + GETPOS (&bs);
 	    }
@@ -2069,8 +2077,8 @@ char *mmdf_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size)
 	bs->curpos += k;	/* increment new position */
 	bs->cursize -= k;	/* eat that many bytes */
       }
-      if (SIZE (bs)) SNX (bs);	/* skip over newline if one seen */
-      ret[i++] = '\n';		/* make sure newline at end */
+				/* read newline at end */
+      if (SIZE (bs)) ret[i++] = SNX (bs);
       ret[i] = '\0';		/* makes debugging easier */
     }
     else {			/* this is easy */
@@ -2364,7 +2372,7 @@ long mmdf_rewrite (MAILSTREAM *stream,unsigned long *nexp,DOTLOCK *lock,
     if (!utime (stream->mailbox,tp)) LOCAL->filetime = tp[1];
     close (LOCAL->fd);		/* close and reopen file */
     if ((LOCAL->fd = open (stream->mailbox,O_RDWR,
-			   (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL)))
+			   (long) mail_parameters (NIL,GET_MBXPROTECTION,NIL)))
 	< 0) {
       sprintf (LOCAL->buf,"Mailbox open failed, aborted: %s",strerror (errno));
       MM_LOG (LOCAL->buf,ERROR);

@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	20 December 2006
+ * Last Edited:	4 April 2007
  */
 
 
@@ -768,7 +768,7 @@ long mx_ping (MAILSTREAM *stream)
 				/* snarf message from Berkeley mailbox */
 	selt = mail_elt (sysibx,i);
 	if (((fd = open (LOCAL->buf,O_WRONLY|O_CREAT|O_EXCL,
-			 (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL)))
+			 (long) mail_parameters (NIL,GET_MBXPROTECTION,NIL)))
 	     >= 0) &&
 	    (s = mail_fetchheader_full (sysibx,i,NIL,&j,FT_PEEK)) &&
 	    (write (fd,s,j) == j) &&
@@ -1071,7 +1071,7 @@ long mx_append_msg (MAILSTREAM *stream,char *flags,MESSAGECACHE *elt,
   mx_file (tmp,stream->mailbox);/* make message file name */
   sprintf (tmp + strlen (tmp),"/%lu",++stream->uid_last);
   if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,
-		  (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
+		  (long) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
     sprintf (tmp,"Can't create append message: %s",strerror (errno));
     MM_LOG (tmp,ERROR);
     return NIL;
@@ -1167,7 +1167,7 @@ long mx_lockindex (MAILSTREAM *stream)
   if ((LOCAL->fd < 0) &&	/* get index file, no-op if already have it */
       (LOCAL->fd = open (strcat (strcpy (tmp,LOCAL->dir),MXINDEXNAME),
 			 O_RDWR|O_CREAT,
-			 (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL)))
+			 (long) mail_parameters (NIL,GET_MBXPROTECTION,NIL)))
       >= 0) {
     (*bn) (BLOCK_FILELOCK,NIL);
     flock (LOCAL->fd,LOCK_EX);	/* get exclusive lock */

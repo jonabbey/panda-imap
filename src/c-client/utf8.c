@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	16 March 2007
+ * Last Edited:	4 April 2007
  */
 
 
@@ -920,8 +920,6 @@ unsigned long utf8_get_raw (unsigned char **s,unsigned long *i)
     else if (more) return U8G_INCMPLT;
     else {			/* start of sequence */
       if (c < 0x80) ret = c;	/* U+0000 - U+007f */
-				/* multi-octet, make sure more to come */
-      else if (!j) return U8G_ENDSTRI;
       else if (c < 0xc2);	/* c0 and c1 never valid */
       else if (c < 0xe0) {	/* U+0080 - U+07ff */
 	if (c &= 0x1f) more = 1;
@@ -939,7 +937,10 @@ unsigned long utf8_get_raw (unsigned char **s,unsigned long *i)
 	if ((c &= 0x01) || (*t >= 0x84)) more = 5;
       }
 				/* fe and ff never valid */
-      if (more) ret = c;	/* continuation needed, save start bits */
+      if (more) {		/* multi-octet, make sure more to come */
+	if (!j) return U8G_ENDSTRI;
+	ret = c;		/* continuation needed, save start bits */
+      }
     }
   } while (more);
   if (!(ret & U8G_ERROR)) {	/* success return? */
@@ -1004,7 +1005,7 @@ unsigned long ucs4_cs_get (CHARSET *cs,unsigned char **s,unsigned long *i)
 	    }
 	  }
 	  else if ((c1 >= p2->base_ku) && (c1 < p2->max_ku)) {
-	    ret = c1 + ((unsigned int) p2->tab);
+	    ret = c1 + ((unsigned long) p2->tab);
 	    break;
 	  }
 	}
@@ -1022,7 +1023,7 @@ unsigned long ucs4_cs_get (CHARSET *cs,unsigned char **s,unsigned long *i)
 	    }
 	  }
 	  else if ((c1 >= p3->base_ku) && (c1 < p3->max_ku)) {
-	    ret = c1 + ((unsigned int) p3->tab);
+	    ret = c1 + ((unsigned long) p3->tab);
 	    break;
 	  }
 	}
@@ -1295,7 +1296,7 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab,ucs4cn_t cv,
 		   ((ten = (c & BITS7) - p2->base_ten) < p2->max_ten)) ?
 		     t2[(ku*p2->max_ten) + ten] : UBOGON;
 	    else c = ((c1 >= p2->base_ku) && (c1 < p2->max_ku)) ?
-	      c1 + ((unsigned int) p2->tab) : UBOGON;
+	      c1 + ((unsigned long) p2->tab) : UBOGON;
 	  }	  
 	  else {		/* CS2 not set up */
 	    c = UBOGON;		/* swallow byte, say bogon */
@@ -1310,7 +1311,7 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab,ucs4cn_t cv,
 		   ((ten = (c & BITS7) - p3->base_ten) < p3->max_ten)) ?
 		     t3[(ku*p3->max_ten) + ten] : UBOGON;
 	    else c = ((c1 >= p3->base_ku) && (c1 < p3->max_ku)) ?
-	      c1 + ((unsigned int) p3->tab) : UBOGON;
+	      c1 + ((unsigned long) p3->tab) : UBOGON;
 	  }	  
 	  else {		/* CS3 not set up */
 	    c = UBOGON;		/* swallow byte, say bogon */

@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	30 January 2007
+ * Last Edited:	4 April 2007
  */
 
 
@@ -741,7 +741,7 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   stream->rdonly = stream->perm_deleted = T;
 				/* UIDs are always valid */
   stream->uid_validity = 0xbeefface;
-  sprintf (tmp,"{%s:%lu/nntp",(int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
+  sprintf (tmp,"{%s:%lu/nntp",(long) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
 	   net_host (nstream->netstream) : mb.host,
 	   net_port (nstream->netstream));
   if (LOCAL->tlsflag) strcat (tmp,"/tls");
@@ -1685,7 +1685,7 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 				/* initialize stream */
 	memset ((void *) stream,0,sizeof (SENDSTREAM));
 	stream->netstream = netstream;
-	stream->host = cpystr ((int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
+	stream->host = cpystr ((long) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
 			       net_host (netstream) : mb.host);
 	stream->debug = (mb.dbgflag || (options & NOP_DEBUG)) ? T : NIL;
 	if (mb.loser) stream->loser = T;
@@ -1739,9 +1739,9 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
   }
   if (stream) {			/* have a session? */
     if (mb.user[0]) {		/* yes, have user name? */
-      if ((int) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
+      if ((long) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
 				/* remote name for authentication */
-	strncpy (mb.host,(int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
+	strncpy (mb.host,(long) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
 		 net_remotehost (netstream) : net_host (netstream),
 		 NETMAXHOST-1);
 	mb.host[NETMAXHOST-1] = '\0';
@@ -1764,8 +1764,8 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
     break;
   case NNTPWANTAUTH:		/* server wants auth first, do so and retry */
   case NNTPWANTAUTH2:		/* remote name for authentication */
-    if ((int) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
-      strncpy (mb.host,(int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
+    if ((long) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
+      strncpy (mb.host,(long) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
 	       net_remotehost (netstream) : net_host (netstream),NETMAXHOST-1);
       mb.host[NETMAXHOST-1] = '\0';
     }
@@ -1997,8 +1997,8 @@ long nntp_send_auth (SENDSTREAM *stream,long flags)
   NETMBX mb;
   char tmp[MAILTMPLEN];
 				/* remote name for authentication */
-  sprintf (tmp,"{%.200s/nntp",(int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
-	   ((int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
+  sprintf (tmp,"{%.200s/nntp",(long) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
+	   ((long) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
 	    net_remotehost (stream->netstream) : net_host (stream->netstream)):
 	   stream->host);
   if (stream->netstream->dtb ==

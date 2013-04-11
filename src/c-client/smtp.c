@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	30 January 2007
+ * Last Edited:	4 April 2007
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -175,7 +175,7 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	stream = (SENDSTREAM *) memset (fs_get (sizeof (SENDSTREAM)),0,
 					sizeof (SENDSTREAM));
 	stream->netstream = netstream;
-	stream->host = cpystr ((int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
+	stream->host = cpystr ((long) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
 			       net_host (netstream) : mb.host);
 	stream->debug = (mb.dbgflag || (options & OP_DEBUG)) ? T : NIL;
 	if (options & SOP_SECURE) mb.secflag = T;
@@ -238,10 +238,10 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 				/* remote name for authentication */
 	  if (stream && ((mb.secflag || mb.user[0]))) {
 	    if (ESMTP.auth) {	/* use authenticator? */
-	      if ((int) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
+	      if ((long) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
 				/* remote name for authentication */
 		strncpy (mb.host,
-			 (int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
+			 (long) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
 			 net_remotehost (netstream) : net_host (netstream),
 			 NETMAXHOST-1);
 		mb.host[NETMAXHOST-1] = '\0';
@@ -436,8 +436,8 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
       NETMBX mb;
 				/* yes, build remote name for authentication */
       sprintf (tmp,"{%.200s/smtp%s}<none>",
-	       (int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
-	       ((int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
+	       (long) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
+	       ((long) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
 		net_remotehost (stream->netstream) :
 		net_host (stream->netstream)) :
 	       stream->host,

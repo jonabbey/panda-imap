@@ -1,5 +1,5 @@
 # ========================================================================
-# Copyright 1988-2006 University of Washington
+# Copyright 1988-2007 University of Washington
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	30 August 2006
+# Last Edited:	4 April 2007
 
 
 # Extended flags needed for additional authenticators.  You may need to modify.
@@ -29,7 +29,7 @@
 GSSDIR=/usr/local
 GSSINCLUDE=$(GSSDIR)/include
 GSSLIB=$(GSSDIR)/lib
-GSSCFLAGS= -I$(GSSINCLUDE) -DGSS_C_NT_HOSTBASED_SERVICE=gss_nt_service_name
+GSSCFLAGS= -I$(GSSINCLUDE) -DGSS_C_NT_HOSTBASED_SERVICE=gss_nt_service_name -DKRB5_DEPRECATED=1
 GSSOLDLDFLAGS= -L$(GSSLIB) -lgssapi_krb5 -lkrb5 -lcrypto -lcom_err
 GSSNEWLDFLAGS= -L$(GSSLIB) -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err
 

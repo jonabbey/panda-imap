@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	26 January 2007
+ * Last Edited:	4 April 2007
  */
 
 
@@ -59,7 +59,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2006f.72";	/* server version */
+char *version = "2006h.72";	/* server version */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */

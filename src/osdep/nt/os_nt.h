@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	30 January 2007
+ * Last Edited:	27 April 2007
  */
 
 #include <stdlib.h>
@@ -40,8 +40,14 @@
 #undef ERROR
 #define ERROR (long) 2		/* must match mail.h */
 
+#if _MSC_VER >= 1400
 #define strtok_r strtok_s	/* for some reason they called it this */
-
+#else
+/* strtok() is actually MT-safe in MSVC.  Why is it that Microsoft can do
+ * their CRT right, but GNU, Sun, etc. can't?
+ */
+#define strtok_r(a,b,c) strtok(*(c) = a,b)
+#endif
 
 #include "env_nt.h"
 #include "fs.h"

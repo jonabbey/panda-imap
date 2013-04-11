@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 March 2006
- * Last Edited:	26 March 2007
+ * Last Edited:	24 April 2007
  */
 
 
@@ -634,7 +634,7 @@ MAILSTREAM *mix_open (MAILSTREAM *stream)
     stream->silent = T;
     if (mix_ping (stream)) {	/* do initial ping */
 				/* try burping in case we are exclusive */
-      if (!stream->rdonly) mix_check (stream);
+      if (!stream->rdonly) mix_expunge (stream,"",NIL);
       if (!(stream->nmsgs || stream->silent))
 	MM_LOG ("Mailbox is empty",(long) NIL);
       stream->silent = silent;	/* now notify upper level */
@@ -992,14 +992,17 @@ long mix_ping (MAILSTREAM *stream)
 
 void mix_check (MAILSTREAM *stream)
 {
-  mix_expunge (stream,"",NIL);	/* do an expunge of no messages */
+  if (stream->rdonly)		/* won't do on readonly files! */
+    MM_LOG ("Checkpoint ignored on readonly mailbox",NIL);
+				/* do an expunge of no messages */
+  if (mix_expunge (stream,"",NIL)) MM_LOG ("Check completed",(long) NIL);
 }
 
 /* MIX mail expunge mailbox
  * Accepts: MAIL stream
  *	    sequence to expunge if non-NIL
  *	    expunge options
- * Returns: T, always
+ * Returns: T on success, NIL if failure
  */
 
 long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
@@ -1018,11 +1021,8 @@ long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
 	((options & EX_UID) ?
 	 mail_uid_sequence (stream,sequence) :
 	 mail_sequence (stream,sequence))));
-  else if (stream->rdonly)	/* won't do on readonly files! */
-    MM_LOG (checkpoint ? "Checkpoint ignored on readonly mailbox" :
-	    "Expunge ignored on readonly mailbox",WARN);
-				/* read index and open status exclusive */
-  else if (statf = mix_parse (stream,&idxf,LONGT,MP_VALID)) {
+  else if (!stream->rdonly &&	/* read index and open status exclusive */
+	   (statf = mix_parse (stream,&idxf,LONGT,MP_VALID))) {
 				/* expunge unless just checkpointing */
     if (!checkpoint) for (i = 1; i <= stream->nmsgs;) {
       elt = mail_elt (stream,i);/* need to expunge this message? */
@@ -1111,15 +1111,17 @@ long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
     if (statf) fclose (statf);	/* close status if still open */
   }
   if (idxf) fclose (idxf);	/* close index if still open */
-  if (ret) {			/* don't change message if error */
-    if (nexp) sprintf (LOCAL->buf,"Expunged %lu messages",nexp);
-    else if (reclaimed)
-      sprintf (LOCAL->buf,"Reclaimed %lu bytes of expunged space",reclaimed);
-    else strcpy (LOCAL->buf,checkpoint ? "Check completed" :
-		 "No messages deleted, so no update needed");
-    MM_LOG (LOCAL->buf,(long) NIL);
-  }
   LOCAL->expok = NIL;		/* cancel expok */
+  if (ret) {			/* only if success */
+    char *s;
+    if (nexp) sprintf (s = LOCAL->buf,"Expunged %lu messages",nexp);
+    else if (reclaimed)
+      sprintf (s=LOCAL->buf,"Reclaimed %lu bytes of expunged space",reclaimed);
+    else s = checkpoint ? NIL :
+      (stream->rdonly ? "Expunge ignored on readonly mailbox" :
+       "No messages deleted, so no update needed");
+    if (s) MM_LOG (s,(long) NIL);
+  }
   return ret;
 }
 
@@ -2331,7 +2333,7 @@ FILE *mix_sortcache_open (MAILSTREAM *stream)
   if (!stream->nmsgs);		/* do nothing if mailbox empty */
 				/* open index file */
   else if (((fd = open (LOCAL->sortcache,O_RDWR|O_CREAT,
-			(int) mail_parameters (NIL,GET_MBXPROTECTION,NIL)))<0)
+			(long) mail_parameters (NIL,GET_MBXPROTECTION,NIL)))<0)
 	   && !(rdonly = ((fd = open (LOCAL->sortcache,O_RDONLY,NIL)) >= 0)))
     MM_LOG ("Error opening mix sortcache file",WARN);
 				/* acquire lock and FILE */

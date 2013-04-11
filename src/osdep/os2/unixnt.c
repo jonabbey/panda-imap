@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	23 March 2007
+ * Last Edited:	18 April 2007
  */
 
 
@@ -1196,6 +1196,7 @@ int unix_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
 	    ((tmp[4] == 'u') || (tmp[4] == 'U')) &&
 	    ((tmp[5] == 's') || (tmp[5] == 'S')) && (tmp[6] == ':') &&
 	    (fputs ("X-Original-",df) == EOF)) return NIL;
+	break;
       case 'X': case 'x':	/* possible X-??? header */
 	if (hdrp && (tmp[1] == '-') &&
 				/* possible X-UID: */
@@ -1230,6 +1231,10 @@ int unix_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
 	      ((tmp[8] == 'd') || (tmp[8] == 'D')) &&
 	      ((tmp[9] == 's') || (tmp[9] == 'S')) && (tmp[10] == ':'))) &&
 	    (fputs ("X-Original-",df) == EOF)) return NIL;
+	break;
+      case '\n':		/* blank line */
+	hdrp = NIL;
+	break;
       default:			/* nothing to do */
 	break;
       }
@@ -1727,8 +1732,13 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 	  if (i) {		/* got new data? */
 	    VALID (s,t,ti,zn);	/* yes, parse line */
 	    if (!ti) {		/* not a header line, add it to message */
-	      elt->rfc822_size += 
-		k = i + (m = (((i < 2) || s[i - 2] != '\r') ? 1 : 0));
+	      if (s[i - 1] == '\n')
+		elt->rfc822_size += 
+		  k = i + (m = (((i < 2) || s[i - 2] != '\r') ? 1 : 0));
+	      else {		/* file does not end with newline! */
+		elt->rfc822_size += i;
+		k = m = 0;
+	      }
 				/* update current position */
 	      j = LOCAL->filesize + GETPOS (&bs);
 	    }
@@ -1850,7 +1860,8 @@ char *unix_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size)
 	bs->cursize -= k;	/* eat that many bytes */
       }
       if (!bs->cursize) SETPOS (bs,GETPOS (bs));
-      if (SIZE (bs)) SNX (bs);	/* skip over newline if one seen */
+				/* read newline at end */
+      if (SIZE (bs)) ret[i++] = SNX (bs);
       ret[i++] = '\n';		/* make sure newline at end */
       ret[i] = '\0';		/* makes debugging easier */
     }

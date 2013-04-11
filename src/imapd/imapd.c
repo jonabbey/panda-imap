@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	30 January 2007
+ * Last Edited:	24 April 2007
  */
 
 /* Parameter files */
@@ -203,7 +203,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2006f.379";	/* version number of this server */
+char *version = "2006h.380";	/* version number of this server */
 char *logout = "Logout";	/* syslogreason for logout */
 char *goodbye = NIL;		/* bye reason */
 time_t alerttime = 0;		/* time of last alert */
@@ -2711,12 +2711,10 @@ void fetch_body_part_binary (unsigned long i,void *args)
 	  st.size -= ta->first;	/* reduced size */
 	  if (ta->last && (st.size > ta->last)) st.size = ta->last;
 	}
-	if (!st.size) PSOUT ("\"\"");
-	else {			/* write binary output */
-	  sprintf (tmp + strlen (tmp),"{%lu}\015\012",st.size);
-	  PSOUT (tmp);
-	  if (PSOUTR (&st) == EOF) ioerror (stdout,"writing binary");
-	}
+	if (st.size) sprintf (tmp + strlen (tmp),"{%lu}\015\012",st.size);
+	else strcat (tmp,"\"\"");
+	PSOUT (tmp);		/* write binary output */
+	if (st.size && (PSOUTR (&st) == EOF)) ioerror(stdout,"writing binary");
       }
       else {
 	sprintf (tmp,"BINARY[%s] NIL",ta->section ? ta->section : "");

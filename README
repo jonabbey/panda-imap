@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,10 +9,10 @@
  *
  * 
  * ========================================================================
-*/
+ */
 
 			   IMAP Toolkit Environment
-			        30 August 2006
+			         4 April 2007
 				 Mark Crispin
 
 
@@ -29,7 +29,7 @@ If you intend to build this software with a non-default configuration
 (including building a non-compliant server without SSL support), please
 refer to the docs/BUILD file for more information.
 
-1) Look in imap-2006/Makefile and find your system type code.  For example,
+1) Look in the top-level Makefile and find your system type code.  For example,
    modern versions of Linux will use either "slx", "lnp", or one of the
    lnp-variants (such as "lrh").
 
