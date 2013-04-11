@@ -213,7 +213,6 @@ void mmdf_close  ();
 void mmdf_fetchfast  ();
 void mmdf_fetchflags  ();
 ENVELOPE *mmdf_fetchstructure  ();
-char *bezerk_snarf  ();
 char *mmdf_fetchheader  ();
 char *mmdf_fetchtext  ();
 char *mmdf_fetchbody ();

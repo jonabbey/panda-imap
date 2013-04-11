@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	21 October 1993
+ * Last Edited:	18 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -38,7 +38,6 @@
 #include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
-#include <sys/types.h>
 #include "mail.h"
 #include "osdep.h"
 #include <sys/file.h>
@@ -1437,10 +1436,11 @@ char news_search_bcc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = news_fetchstructure (stream,msgno,NIL)->bcc;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,news_fetchstructure(stream,msgno,NIL)->bcc);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
@@ -1450,10 +1450,11 @@ char news_search_cc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = news_fetchstructure (stream,msgno,NIL)->cc;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,news_fetchstructure (stream,msgno,NIL)->cc);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
@@ -1463,11 +1464,11 @@ char news_search_from (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = news_fetchstructure (stream,msgno,NIL)->from;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			news_fetchstructure (stream,msgno,NIL)->from);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
@@ -1477,10 +1478,11 @@ char news_search_to (stream,msgno,d,n)
 	char *d;
 	long n;
 {
-  LOCAL->buf[0] = '\0';			/* initially empty string */
+  ADDRESS *a = news_fetchstructure (stream,msgno,NIL)->to;
+  LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,news_fetchstructure (stream,msgno,NIL)->to);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 /* Search parsers */

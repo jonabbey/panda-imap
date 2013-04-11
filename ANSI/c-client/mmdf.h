@@ -213,7 +213,6 @@ void mmdf_close (MAILSTREAM *stream);
 void mmdf_fetchfast (MAILSTREAM *stream,char *sequence);
 void mmdf_fetchflags (MAILSTREAM *stream,char *sequence);
 ENVELOPE *mmdf_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body);
-char *bezerk_snarf (MAILSTREAM *stream,long msgno,long *size);
 char *mmdf_fetchheader (MAILSTREAM *stream,long msgno);
 char *mmdf_fetchtext (MAILSTREAM *stream,long msgno);
 char *mmdf_fetchbody(MAILSTREAM *stream,long m,char *sec,unsigned long *len);

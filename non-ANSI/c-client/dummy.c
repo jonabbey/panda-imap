@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	17 October 1993
+ * Last Edited:	24 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -42,6 +42,7 @@ extern int errno;		/* just in case */
 #include "osdep.h"
 #include <pwd.h>
 #include <sys/file.h>
+#include <sys/stat.h>
 #include "dummy.h"
 #include "misc.h"
 
@@ -85,6 +86,9 @@ DRIVER dummydriver = {
   dummy_append,			/* append string message to mailbox */
   dummy_gc			/* garbage collect stream */
 };
+
+				/* prototype stream */
+MAILSTREAM dummyproto = {&dummydriver};
 
 /* Dummy validate mailbox
  * Accepts: mailbox name
@@ -94,7 +98,15 @@ DRIVER dummydriver = {
 DRIVER *dummy_valid (name)
 	char *name;
 {
-  return (name && *name) ? &dummydriver : NIL;
+  char tmp[MAILTMPLEN];
+  struct stat sbuf;
+				/* must be valid local mailbox */
+  return (name && *name && (*name != '*') && (*name != '{') &&
+				/* INBOX is always accepted */
+	  ((!strcmp (ucase (strcpy (tmp,name)),"INBOX")) ||
+				/* so is empty file */
+	   (!(stat (dummy_file (tmp,name),&sbuf) || sbuf.st_size))))
+    ? &dummydriver : NIL;
 }
 
 
@@ -225,7 +237,8 @@ long dummy_subscribe (stream,mailbox)
 	MAILSTREAM *stream;
 	char *mailbox;
 {
-  return NIL;			/* always fails */
+  char tmp[MAILTMPLEN];
+  return sm_subscribe (dummy_file (tmp,mailbox));
 }
 
 
@@ -239,7 +252,8 @@ long dummy_unsubscribe (stream,mailbox)
 	MAILSTREAM *stream;
 	char *mailbox;
 {
-  return NIL;			/* always fails */
+  char tmp[MAILTMPLEN];
+  return sm_unsubscribe (dummy_file (tmp,mailbox));
 }
 
 
@@ -281,7 +295,15 @@ long dummy_create (stream,mailbox)
 	MAILSTREAM *stream;
 	char *mailbox;
 {
-  return NIL;			/* always fails */
+  char tmp[MAILTMPLEN];
+  int fd;
+  if ((fd = open (dummy_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600))<0) {
+    sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  close (fd);			/* close the file */
+  return T;			/* return success */
 }
 
 
@@ -295,7 +317,13 @@ long dummy_delete (stream,mailbox)
 	MAILSTREAM *stream;
 	char *mailbox;
 {
-  return NIL;			/* always fails */
+  char tmp[MAILTMPLEN];
+  if (unlink (dummy_file (tmp,mailbox))) {
+    sprintf (tmp,"Can't delete mailbox %s: %s",mailbox,strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  return T;			/* return success */
 }
 
 
@@ -311,7 +339,13 @@ long dummy_rename (stream,old,new)
 	char *old;
 	char *new;
 {
-  return NIL;			/* always fails */
+  char tmp[MAILTMPLEN],tmpnew[MAILTMPLEN];
+  if (rename (dummy_file (tmp,old),dummy_file (tmpnew,new))) {
+    sprintf (tmp,"Can't rename mailbox %s: %s",old,strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  return T;			/* return success */
 }
 
 /* Dummy open
@@ -322,22 +356,30 @@ long dummy_rename (stream,old,new)
 MAILSTREAM *dummy_open (stream)
 	MAILSTREAM *stream;
 {
-  int fd;
   char tmp[MAILTMPLEN];
-				/* OP_PROTOTYPE call or silence */
-  if (!stream || stream->silent) return NIL;
-  if (*stream->mailbox == '*')	/* is it a bboard? */
-    sprintf (tmp,"No such bboard: %s",stream->mailbox+1);
-				/* remote specification? */
-  else if (*stream->mailbox == '{')
-    sprintf (tmp,"Invalid remote specification: %s",stream->mailbox);
-  else if ((fd = open (dummy_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0)
+  struct stat sbuf;
+  int fd = -1;
+				/* OP_PROTOTYPE call */
+  if (!stream) return &dummyproto;
+  if ((strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX")) &&
+      ((fd = open (dummy_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0))
     sprintf (tmp,"%s: %s",strerror (errno),stream->mailbox);
-  else {			/* must be bogus format file */
-    sprintf (tmp,"%s is not a mailbox",stream->mailbox);
-    close (fd);			/* toss out the fd */
+  else {			/* open as empty file */
+    if (fd >= 0) {		/* if got a file */
+      fstat (fd,&sbuf);		/* sniff at its size */
+      close (fd);
+      if (sbuf.st_size) sprintf (tmp,"Not a mailbox: %s",stream->mailbox);
+      else fd = -1;		/* a-OK */
+    }
+    if (fd < 0) {		/* no file, right? */
+      if (!stream->silent) {	/* only if silence not requested */
+	mail_exists (stream,0);	/* say there are 0 messages */
+	mail_recent (stream,0);
+      }
+      return stream;		/* return success */
+    }
   }
-  mm_log (tmp,ERROR);
+  if (!stream->silent) mm_log (tmp,ERROR);
   return NIL;			/* always fails */
 }
 
@@ -349,7 +391,7 @@ MAILSTREAM *dummy_open (stream)
 void dummy_close (stream)
 	MAILSTREAM *stream;
 {
-  /* Exit quietly */
+				/* return silently */
 }
 
 /* Dummy fetch fast information
@@ -425,7 +467,7 @@ char *dummy_fetchtext (stream,msgno)
 }
 
 
-/* Berkeley fetch message body as a structure
+/* Dummy fetch message body as a structure
  * Accepts: Mail stream
  *	    message # to fetch
  *	    section specifier
@@ -482,7 +524,7 @@ void dummy_search (stream,criteria)
 	MAILSTREAM *stream;
 	char *criteria;
 {
-  fatal ("Impossible dummy_search");
+				/* return silently */
 }
 
 /* Dummy ping mailbox
@@ -494,8 +536,11 @@ void dummy_search (stream,criteria)
 long dummy_ping (stream)
 	MAILSTREAM *stream;
 {
-  fatal ("Impossible dummy_ping");
-  return NIL;
+  MAILSTREAM *test = mail_open (NIL,stream->mailbox,OP_PROTOTYPE);
+				/* swap streams if looks like a new driver */
+  if (test && (test->dtb != stream->dtb))
+    test = mail_open (stream,stream->mailbox,NIL);
+  return test ? T : NIL;
 }
 
 
@@ -507,7 +552,7 @@ long dummy_ping (stream)
 void dummy_check (stream)
 	MAILSTREAM *stream;
 {
-  fatal ("Impossible dummy_check");
+  dummy_ping (stream);		/* invoke ping */
 }
 
 
@@ -518,7 +563,7 @@ void dummy_check (stream)
 void dummy_expunge (stream)
 	MAILSTREAM *stream;
 {
-  fatal ("Impossible dummy_expunge");
+				/* return silently */
 }
 
 /* Dummy copy message(s)
@@ -569,24 +614,29 @@ long dummy_append (stream,mailbox,message)
 	char *mailbox;
 	STRING *message;
 {
-  int fd = -1,e;
+  struct stat sbuf;
+  int fd,e;
   char tmp[MAILTMPLEN];
 				/* see if such a file */
-  if ((*mailbox != '*') && (*mailbox != '{') &&
-      (fd = open (dummy_file (tmp,mailbox),O_RDONLY,NIL)) < 0) {
+  if ((*mailbox == '*') || (*mailbox == '{'))
+    sprintf (tmp,"%s is not a valid mailbox",mailbox);
+  else if ((fd = open (dummy_file (tmp,mailbox),O_RDONLY,NIL)) < 0) {
     if ((e = errno) == ENOENT)	/* failed, was it no such file? */
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
     sprintf (tmp,"%s: %s",strerror (e),mailbox);
   }
-  else {			/* must be bogus format file */
-    sprintf (tmp,"%s is not a valid mailbox",mailbox);
+  else {			/* found a file */
+    fstat (fd,&sbuf);		/* get its size */
     close (fd);			/* toss out the fd */
+    if (sbuf.st_size) sprintf (tmp,"Invalid mailbox: %s",mailbox);
+    else if (mailstd_proto)
+      return (*mailstd_proto->dtb->append) (mailstd_proto,mailbox,message);
+    else sprintf (tmp,"Indeterminate mailbox format: %s",mailbox);
   }
   mm_log (tmp,ERROR);		/* pass up error */
   return NIL;			/* always fails */
 }
-
-
+
 /* Dummy garbage collect stream
  * Accepts: mail stream
  *	    garbage collection flags
@@ -596,9 +646,10 @@ void dummy_gc (stream,gcflags)
 	MAILSTREAM *stream;
 	long gcflags;
 {
-  fatal ("Impossible dummy_gc");
+				/* return silently */
 }
-
+
+
 /* Dummy mail generate file string
  * Accepts: temporary buffer to write into
  *	    mailbox name string
@@ -609,23 +660,7 @@ char *dummy_file (dst,name)
 	char *dst;
 	char *name;
 {
-  struct passwd *pw;
-  char *s,*t,tmp[MAILTMPLEN];
-  switch (*name) {
-  case '/':			/* absolute file path */
-    strcpy (dst,name);		/* copy the mailbox name */
-    break;
-  case '~':			/* home directory */
-    if (name[1] == '/') t = myhomedir ();
-    else {
-      strcpy (tmp,name + 1);	/* copy user name */
-      if (s = strchr (tmp,'/')) *s = '\0';
-      t = ((pw = getpwnam (tmp)) && pw->pw_dir) ? pw->pw_dir : "/NOSUCHUSER";
-    }
-    sprintf (dst,"%s%s",t,(s = strchr (name,'/')) ? s : "");
-    break;
-  default:			/* any other name */
-    sprintf (dst,"%s/%s",myhomedir (),name);
-  }
-  return dst;
+  char *s = mailboxfile (dst,name);
+				/* return our standard inbox */
+  return s ? s : strcpy (dst,sysinbox ());
 }

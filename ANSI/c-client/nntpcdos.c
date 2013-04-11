@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 January 1993
- * Last Edited:	21 October 1993
+ * Last Edited:	22 December 1993
  *
  * Copyright 1993 by the University of Washington.
  *
@@ -346,9 +346,10 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     nstream->debug = stream->debug;
     nstream->reply = NIL;
 				/* get NNTP greeting */
-    if ((smtp_reply (nstream) == NNTPGREET) &&
-	(smtp_send (nstream,"MODE","READER") == NNTPGREET))
+    if (((i = smtp_reply (nstream)) == NNTPGREET) || (i == NNTPGREETNOPOST)) {
       mm_log (nstream->reply + 4,(long) NIL);
+      smtp_send (nstream,"MODE","READER");
+    }
     else {			/* oops */
       mm_log (nstream->reply,ERROR);
       smtp_close (nstream);	/* punt stream */
@@ -379,46 +380,33 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     LOCAL->tmp = cpystr (tmp);	/* build name of tmp file we use */
     stream->sequence++;		/* bump sequence number */
     stream->readonly = T;	/* make sure higher level knows readonly */
-    if (stream->halfopen) {	/* no map or state for half-open */
-      LOCAL->number = NIL;
-      LOCAL->seen = NIL;
-    }
+    LOCAL->number = NIL;
+    LOCAL->seen = NIL;
 
-    else {			/* try to get list of valid numbers */
-      sprintf (tmp,"%ld-%ld",i,j);
-      if ((smtp_send (nstream,"LISTGROUP",mb.mailbox) == NNTPGOK) ||
-	  (smtp_send (nstream,"XHDR Date",tmp) == NNTPHEAD)) {
-				/* create number map */
-	LOCAL->number = (unsigned long *) fs_get(nmsgs*sizeof (unsigned long));
-				/* initialize c-client/NNTP map */
-	for (i = 0; (i<nmsgs) && (s = tcp_getline (nstream->tcpstream)); ++i) {
-	  LOCAL->number[i] = atol (s);
-	  fs_give ((void **) &s);
+    if (!stream->halfopen) {	/* if not half-open */
+      if (nmsgs) {		/* find what messages exist */
+	LOCAL->number = (unsigned long *) fs_get (nmsgs*sizeof(unsigned long));
+	sprintf (tmp,"%ld-%ld",i,j);
+	if ((smtp_send (nstream,"LISTGROUP",mb.mailbox) == NNTPGOK) ||
+	    (smtp_send (nstream,"XHDR Date",tmp) == NNTPHEAD)) {
+	  for (i = 0; (s = tcp_getline (nstream->tcpstream)) && strcmp (s,".");
+	       i++) {		/* initialize c-client/NNTP map */
+	    if (i < nmsgs) LOCAL->number[i] = atol (s);
+	    fs_give ((void **) &s);
+	  }
+	  if (s) fs_give ((void **) &s);
+	  if (i != nmsgs) {	/* found holes? */
+	    nmsgs = i;		/* set new size */
+	    fs_resize ((void **) &LOCAL->number,nmsgs*sizeof (unsigned long));
+	  }
 	}
-				/* get and flush the dot-line */
-	if ((s = tcp_getline (nstream->tcpstream)) && (*s == '.'))
-	  fs_give ((void **) &s);
-	else {			/* lose */
-	  mm_log ("NNTP article listing protocol failure",ERROR);
-	  nntp_close (stream);	/* do close action */
-	}
+				/* assume c-client/NNTP map is entire range */
+	else for (k = 0; k < nmsgs; ++k) LOCAL->number[k] = i + k;
+				/* create state flag cache */
+	LOCAL->seen = (char *) fs_get (nmsgs * sizeof (char));
+				/* initialize state */
+	for (i = 0; i < nmsgs; ++i) LOCAL->seen[i] = NIL;
       }
-      else {			/* a vanilla NNTP server, barf */
-				/* any holes in sequence? */
-	if (nmsgs != (k = (j - i) + 1)) {
-	  sprintf (tmp,"[HOLES] %ld non-existant message(s)",k-nmsgs);
-	  mm_notify (stream,tmp,(long) NIL);
-	  nmsgs = k;		/* sure are, set new message count */
-	}
-				/* create number map */
-	LOCAL->number = (unsigned long *) fs_get(nmsgs*sizeof (unsigned long));
-				/* initialize c-client/NNTP map */
-	for (k = 0; k < nmsgs; ++k) LOCAL->number[k] = i + k;
-      }
-				/* create state list */
-      LOCAL->seen = (char *) fs_get (nmsgs * sizeof (char));
-  				/* initialize state */
-      for (i = 0; i < nmsgs; ++i) LOCAL->seen[i] = NIL;
 
       mail_exists(stream,nmsgs);/* notify upper level about mailbox size */
       i = 0;			/* nothing scanned yet */

@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	16 August 1993
+ * Last Edited:	11 November 1993
  *
  * Copyright 1993 by Mark Crispin
  *
@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <types.h>
+#include <unix.h>
 #ifndef noErr
 #include <Desk.h>
 #include <Devices.h>
@@ -51,40 +52,16 @@
 #include <Windows.h>
 #endif
 
+extern short resolveropen;	/* make this global so caller can sniff */
 
-/* Dummy definition overridden by TCP routines */
+#include "env.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"
 
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
+#define gethostid clock
 
-/* Make this global so caller can sniff */
-
-extern short resolveropen;
-
-
-/* Function prototypes */
-
-void rfc822_date (char *date);
-void *fs_get (size_t size);
-void fs_resize (void **block,size_t size);
-void fs_give (void **block);
-void fatal (char *string);
-unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
-			  unsigned long srcl);
-unsigned long strcrlflen (STRING *s);
-TCPSTREAM *tcp_open (char *host,long port);
 pascal void tcp_dns_result (struct hostInfo *hostInfoPtr,char *userDataPtr);
-TCPSTREAM *tcp_aopen (char *host,char *service);
-char *tcp_getline (TCPSTREAM *stream);
-long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer);
-long tcp_getdata (TCPSTREAM *stream);
-long tcp_soutr (TCPSTREAM *stream,char *string);
-long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
-void tcp_close (TCPSTREAM *stream);
-char *tcp_host (TCPSTREAM *stream);
-char *tcp_localhost (TCPSTREAM *stream);
-unsigned long gethostid (void);
-long random (void);
-long getpid (void);
 long wait (void);
+long random (void);

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	21 October 1993
+ * Last Edited:	28 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -311,27 +311,39 @@ void mail_find_all_bboard (MAILSTREAM *stream,char *pat)
  * Accepts: MAIL stream
  *	    mailbox name
  *	    purpose string for error message
- *	    flag indicating this is not an open
  * Return: driver factory on success, NIL on failure
  */
 
-DRIVER *mail_valid (MAILSTREAM *stream,char *mailbox,char *purpose,long nopen)
+DRIVER *mail_valid (MAILSTREAM *stream,char *mailbox,char *purpose)
 {
-  char tmp[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN];
   DRIVER *factory;
   for (factory = maildrivers; factory && !(*factory->valid) (mailbox);
        factory = factory->next);
-				/* must match stream and not be dummy */
-  if (factory && ((stream && (stream->dtb != factory)) ||
-		  (nopen && !strcmp (factory->name,"dummy")))) factory = NIL;
+				/* must match stream if not dummy */
+  if (factory && stream && (stream->dtb != factory))
+    factory = strcmp (factory->name,"dummy") ? NIL : stream->dtb;
   if (!factory && purpose) {	/* if want an error message */
-    sprintf (tmp,"Can't %s %s: no such mailbox",purpose,mailbox);
+    switch (*mailbox) {		/* error depends upon first character */
+    case '*':			/* bboard */
+      if (mailbox[1] != '{') {	/* but only if local */
+	s = "no such bboard";
+	break;
+      }
+				/* otherwise drop into remote */
+    case '{':			/* remote specification */
+      s = "invalid remote specification";
+      break;
+    default:			/* others */
+      s = "no such mailbox";
+      break;
+    }
+    sprintf (tmp,"Can't %s %s: %s",purpose,mailbox,s);
     mm_log (tmp,ERROR);
   }
   return factory;		/* return driver factory */
 }
-
-
+
 /* Mail validate network mailbox name
  * Accepts: mailbox name
  *	    mailbox driver to validate against
@@ -349,7 +361,8 @@ DRIVER *mail_valid_net (char *name,DRIVER *drv,char *host,char *mailbox)
   if (mailbox) strcpy (mailbox,mb.mailbox);
   return drv;
 }
-
+
+
 /* Mail validate network mailbox name
  * Accepts: mailbox name
  *	    NETMBX structure to return values
@@ -431,7 +444,7 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
 
 long mail_subscribe (MAILSTREAM *stream,char *mailbox)
 {
-  DRIVER *factory = mail_valid (stream,mailbox,"subscribe to mailbox",LONGT);
+  DRIVER *factory = mail_valid (stream,mailbox,"subscribe to mailbox");
   return factory ? (*factory->subscribe) (stream,mailbox) : NIL;
 }
 
@@ -444,7 +457,7 @@ long mail_subscribe (MAILSTREAM *stream,char *mailbox)
 
 long mail_unsubscribe (MAILSTREAM *stream,char *mailbox)
 {
- DRIVER *factory = mail_valid (stream,mailbox,"unsubscribe to mailbox",LONGT);
+ DRIVER *factory = mail_valid (stream,mailbox,"unsubscribe to mailbox");
   return factory ? (*factory->unsubscribe) (stream,mailbox) : NIL;
 }
 
@@ -460,7 +473,7 @@ long mail_subscribe_bboard (MAILSTREAM *stream,char *mailbox)
   char tmp[MAILTMPLEN];
   DRIVER *factory;
   sprintf (tmp,"*%s",mailbox);
-  return (factory = mail_valid (stream,tmp,"subscribe to bboard",LONGT)) ?
+  return (factory = mail_valid (stream,tmp,"subscribe to bboard")) ?
     (*factory->subscribe_bboard) (stream,mailbox) : NIL;
 }
 
@@ -476,7 +489,7 @@ long mail_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox)
   char tmp[MAILTMPLEN];
   DRIVER *factory;
   sprintf (tmp,"*%s",mailbox);
-  return (factory = mail_valid (stream,tmp,"unsubscribe to bboard",LONGT)) ?
+  return (factory = mail_valid (stream,tmp,"unsubscribe to bboard")) ?
     (*factory->unsubscribe_bboard) (stream,mailbox) : NIL;
 }
 
@@ -490,20 +503,15 @@ long mail_create (MAILSTREAM *stream,char *mailbox)
 {
   int localp = *mailbox != '{';
   char tmp[MAILTMPLEN];
-  if (!stream) {		/* guess at driver if stream not specified */
-    if (localp) {		/* if local */
-      if (!(stream = mail_open (NIL,"INBOX",OP_PROTOTYPE)))
-	stream = mailstd_proto;	/* default to standard if no INBOX */
-    }
-    else stream = mail_open (NIL,mailbox,OP_PROTOTYPE);
-  }
-  if (!stream) {		/* damn, still no prototype! */
+				/* guess at driver if stream not specified */
+  if (!(stream || (stream = localp ? mailstd_proto :
+		   mail_open (NIL,mailbox,OP_PROTOTYPE)))) {
     sprintf (tmp,"Can't create mailbox %s: indeterminate format",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
 				/* must not already exist if local */
-  if (localp && mail_valid (stream,mailbox,NIL,LONGT)) {
+  if (localp && mail_valid (stream,mailbox,NIL)) {
     sprintf (tmp,"Can't create mailbox %s: mailbox already exists",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
@@ -519,7 +527,7 @@ long mail_create (MAILSTREAM *stream,char *mailbox)
 
 long mail_delete (MAILSTREAM *stream,char *mailbox)
 {
-  DRIVER *factory = mail_valid (stream,mailbox,"delete mailbox",LONGT);
+  DRIVER *factory = mail_valid (stream,mailbox,"delete mailbox");
   return factory ? (*factory->delete) (stream,mailbox) : NIL;
 }
 
@@ -534,8 +542,8 @@ long mail_delete (MAILSTREAM *stream,char *mailbox)
 long mail_rename (MAILSTREAM *stream,char *old,char *new)
 {
   char tmp[MAILTMPLEN];
-  DRIVER *factory = mail_valid (stream,old,"rename mailbox",LONGT);
-  if ((*old != '{') && mail_valid (NIL,new,NIL,LONGT)) {
+  DRIVER *factory = mail_valid (stream,old,"rename mailbox");
+  if ((*old != '{') && mail_valid (NIL,new,NIL)) {
     sprintf (tmp,"Can't rename to mailbox %s: mailbox already exists",new);
     mm_log (tmp,ERROR);
     return NIL;
@@ -552,8 +560,8 @@ long mail_rename (MAILSTREAM *stream,char *old,char *new)
 
 MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
 {
-  DRIVER *factory = mail_valid (NIL,name,(!(stream && stream->silent)) ?
-				"open mailbox" : NIL,(long) NIL);
+  DRIVER *factory = mail_valid (NIL,name,(options & OP_SILENT) ?
+				NIL : "open mailbox");
   if (factory) {		/* must have a factory */
     if (!stream) {		/* instantiate stream if none to recycle */
       if (options & OP_PROTOTYPE) return (*factory->open) (NIL);
@@ -922,7 +930,8 @@ long mail_move (MAILSTREAM *stream,char *sequence,char *mailbox)
 
 long mail_append (MAILSTREAM *stream,char *mailbox,STRING *message)
 {
-  DRIVER *factory = mail_valid (stream,mailbox,"append to mailbox",(long) NIL);
+  DRIVER *factory = mail_valid (stream,mailbox,"append to mailbox");
+  if (!factory && mailstd_proto) factory = mailstd_proto->dtb;
 				/* do the driver's action */
   return factory ? (factory->append) (stream,mailbox,message) : NIL;
 }

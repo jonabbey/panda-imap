@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	21 September 1993
+ * Last Edited:	2 February 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -386,7 +386,7 @@ void rfc822_parse_msg (en,bdy,s,i,bs,host,tmp)
   ENVELOPE *env = (*en = mail_newenvelope ());
   BODY *body = bdy ? (*bdy = mail_newbody ()) : NIL;
   long MIMEp = NIL;		/* flag that MIME semantics are in effect */
-  while (i > 0 && *s != '\n') {	/* until end of header */
+  while (i && *s != '\n') {	/* until end of header */
     t = tmp;			/* initialize buffer pointer */
     c = ' ';			/* and previous character */
     while (c) {			/* collect text until logical end of line */
@@ -405,7 +405,7 @@ void rfc822_parse_msg (en,bdy,s,i,bs,host,tmp)
 	*t++ = c = *s;		/* insert the character into the line */
 	break;
       }
-      if (--i > 0) s++;		/* get next character */
+      if (--i) s++;		/* get next character */
       else *t++ = c = '\0';	/* end of header */
     }
 
@@ -583,7 +583,8 @@ void rfc822_parse_content (body,bs,h,t)
 	    if ((i && i--) && ((c = SNX (bs)) == '-') &&
 		((i && i--) ? (((c = SNX (bs)) == '\015') || (c=='\012')):T)) {
 				/* if have a final part calculate its size */
-	      if (part) part->body.size.bytes = m - part->offset;
+	      if (part) part->body.size.bytes = (m > part->offset) ?
+		(m - part->offset) : 0;
 	      part = NIL; i = 1; /* terminate scan */
 	    }
 	    break;
@@ -593,7 +594,7 @@ void rfc822_parse_content (body,bs,h,t)
 	    }
 	  case '\012':		/* new line */
 	    if (part) {		/* calculate size of previous */
-	      part->body.size.bytes = m - part->offset;
+	      part->body.size.bytes = (m>part->offset) ? (m-part->offset) : 0;
 				/* instantiate next */
 	      part = part->next = mail_newbody_part ();
 	    }			/* otherwise start new list */
@@ -611,7 +612,8 @@ void rfc822_parse_content (body,bs,h,t)
 	break;
       }				/* calculate size of any final part */
     }
-    if (part) part->body.size.bytes = GETPOS (bs) - part->offset;
+    if (part) part->body.size.bytes = (GETPOS (bs) > part->offset) ?
+      (GETPOS (bs) - part->offset) : 0;
 
 				/* parse body parts */
     for (part = body->contents.part; part; part = part->next) {
@@ -619,19 +621,19 @@ void rfc822_parse_content (body,bs,h,t)
 				/* get size of this part, ignore if empty */
       if (i = part->body.size.bytes) {
 				/* until end of header */
-	while (i > 0 && (CHR (bs) != '\012')) {
+	while (i && ((c = CHR (bs)) != '\015') && (c != '\012')) {
 	  s1 = t;		/* initialize buffer pointer */
 	  c = ' ';		/* and previous character */
 	  while (c) {		/* collect text until logical end of line */
 	    switch (c1 = SNX (bs)) {
-	    case '\012':	/* newline, possible end of logical line */
-	      if ((i > 0) && (CHR (bs) == '\015')) {
-		SNX (bs); i--;	/* eat any CR following */
-	      }
-				/* tie off unless next line starts with WS */
-	      if (!i || ((CHR (bs) != ' ') && (CHR(bs)!='\t'))) *s1 = c = '\0';
-	      break;
 	    case '\015':	/* return */
+	      if (i && (CHR (bs) == '\012')) {
+		SNX (bs); i--;	/* eat any LF following */
+	      }
+	    case '\012':	/* newline, possible end of logical line */
+	      if (!i || ((CHR (bs) != ' ') && (CHR (bs) != '\t')))
+		*s1 = c = '\0';	/* tie off unless continuation */
+	      break;
 	    case '\t':		/* tab */
 	    case ' ':		/* insert whitespace if not already there */
 	      if (c != ' ') *s1++ = c = ' ';
@@ -655,8 +657,8 @@ void rfc822_parse_content (body,bs,h,t)
 	      rfc822_parse_content_header (&part->body,t+8,s);
 	  }
 	}			/* skip header trailing (CR)LF */
-	if ((i > 0) && (CHR (bs) =='\015')) {i--; SNX (bs);}
-	if ((i > 0) && (CHR (bs) =='\012')) {i--; SNX (bs);}
+	if (i && (CHR (bs) =='\015')) {i--; SNX (bs);}
+	if (i && (CHR (bs) =='\012')) {i--; SNX (bs);}
 	j = bs->size;		/* save upper level size */
       }
 				/* set offset for next level, fake size to i */
@@ -1279,7 +1281,7 @@ void rfc822_encode_body (env,body)
   case TYPEMULTIPART:		/* multi-part */
     if (!body->parameter) {	/* cookie not set up yet? */
       char tmp[MAILTMPLEN];	/* make cookie not in BASE64 or QUOTEPRINT*/
-      sprintf (tmp,"%ld-%ld-%ld:#%ld",gethostid (),random (),time (0),
+      sprintf (tmp,"%ld-%ld-%ld=:%ld",gethostid (),random (),time (0),
 	       getpid ());
       body->parameter = mail_newbody_parameter ();
       body->parameter->attribute = cpystr ("BOUNDARY");

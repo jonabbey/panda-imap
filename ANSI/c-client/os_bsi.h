@@ -1,13 +1,16 @@
 /*
  * Program:	Operating-system dependent routines -- BSDI BSD/386 version
  *
- * Author:       Mike Santangelo (based on NeXT port by Mark Crispin)
- *               UMCEES/CBL Computer and Network Systems Department
- *               Solomons, Maryland
- *               Internet: mike@cbl.umd.edu
+ * Author:	Mark Crispin
+ *		Networks and Distributed Computing
+ *		Computing & Communications
+ *		University of Washington
+ *		Administration Building, AG-44
+ *		Seattle, WA  98195
+ *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:         5 March 1993
- * Last Edited:  16 August 1993
+ * Date:	5 March 1993
+ * Last Edited: 11 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -29,9 +32,7 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
-
-extern int h_errno;
-
+
 #define MAILFILE "/var/mail/%s"
 #define ACTIVEFILE "/usr/lib/news/active"
 #define NEWSSPOOL "/usr/spool/news"
@@ -42,35 +43,9 @@ extern int h_errno;
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
-
-/* Dummy definition overridden by TCP routines */
 
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
-
-
-/* Function prototypes */
-
-void rfc822_date (char *date);
-void *fs_get (size_t size);
-void fs_resize (void **block,size_t size);
-void fs_give (void **block);
-void fatal (char *string);
-unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
-			  unsigned long srcl);
-unsigned long strcrlflen (STRING *s);
-long server_login (char *user,char *pass,char **home,int argc,char *argv[]);
-char *myusername ();
-char *myhomedir ();
-char *lockname (char *tmp,char *fname);
-TCPSTREAM *tcp_open (char *host,int port);
-TCPSTREAM *tcp_aopen (char *host,char *service);
-char *tcp_getline (TCPSTREAM *stream);
-long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer);
-long tcp_getdata (TCPSTREAM *stream);
-long tcp_soutr (TCPSTREAM *stream,char *string);
-long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
-void tcp_close (TCPSTREAM *stream);
-char *tcp_host (TCPSTREAM *stream);
-char *tcp_localhost (TCPSTREAM *stream);
+#include "env_unix.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"

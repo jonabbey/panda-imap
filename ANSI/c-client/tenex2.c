@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	14 October 1993
+ * Last Edited:	13 December 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -111,9 +111,10 @@ DRIVER *tenex_valid (char *name)
  * Returns: T if valid, NIL otherwise
  */
 
-long tenex_isvalid (char *name,char *tmp)
+int tenex_isvalid (char *name,char *tmp)
 {
   int i,fd;
+  int ret = NIL;
   char *s;
   struct stat sbuf;
   struct hostent *host_name;
@@ -122,26 +123,25 @@ long tenex_isvalid (char *name,char *tmp)
     lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
 		     host_name->h_name : tmp);
   }
+  errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
-      (stat (tenex_file (tmp,name),&sbuf) == 0)) {
-    if (sbuf.st_size != 0) {	/* if non-empty file */
-      if ((fd = open (tmp,O_RDONLY,NIL)) >= 0 && read (fd,tmp,64) >= 0) {
-	close (fd);		/* close the file */
-	if ((s = strchr (tmp,'\n')) && (s[-1] != '\015')) {
-	  *s = '\0';		/* tie off header */
+      (!stat (tenex_file (tmp,name),&sbuf)) &&
+      ((fd = open (tmp,O_RDONLY,NIL)) >= 0)) {
+    if (sbuf.st_size) {		/* if non-empty file */
+      if ((read (fd,tmp,64) >= 0) && (s = strchr (tmp,'\n')) &&
+	  (s[-1] != '\015')) {
+	*s = '\0';		/* tie off header */
 				/* must begin with dd-mmm-yy" */
-	  if (((tmp[2] == '-' && tmp[6] == '-') ||
-	       (tmp[1] == '-' && tmp[5] == '-')) &&
-	      (s = strchr (tmp+20,',')) && strchr (s+2,';')) return LONGT;
-	}
+	ret = (((tmp[2] == '-' && tmp[6] == '-') ||
+		(tmp[1] == '-' && tmp[5] == '-')) &&
+	       (s = strchr (tmp+20,',')) && strchr (s+2,';')) ? T : NIL;
       }
     }
-				/* allow empty if a ".TxT" file */
-    else if ((i = strlen (tmp)) > 4 && !strcmp (tmp + i - 4 ,".TxT"))
-      return LONGT;
+    else errno = 0;		/* no error if empty file */
+    close (fd);			/* close the file */
   }
-  return NIL;			/* failed miserably */
+  return ret;			/* return what we should */
 }
 
 
@@ -258,12 +258,7 @@ long tenex_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox)
 long tenex_create (MAILSTREAM *stream,char *mailbox)
 {
   char tmp[MAILTMPLEN];
-  int i,fd;
-				/* must be a ".TxT" file */
-  if ((i = strlen (mailbox)) < 4 || strcmp (mailbox + i - 4 ,".TxT")) {
-    mm_log ("Can't create mailbox: name must end with .TxT",ERROR);
-    return NIL;
-  }
+  int fd;
   if ((fd = open (tenex_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600)) < 0){
     sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
@@ -736,7 +731,7 @@ void tenex_search (MAILSTREAM *stream,char *criteria)
   char *d;
   search_t f;
 				/* initially all searched */
-  for (i = 1; i <= stream->nmsgs; ++i) tenex_elt (stream,i)->searched = T;
+  for (i = 1; i <= stream->nmsgs; ++i) mail_elt (stream,i)->searched = T;
 				/* get first criterion */
   if (criteria && (criteria = strtok (criteria," "))) {
 				/* for each criterion */
@@ -884,17 +879,17 @@ void tenex_snarf (MAILSTREAM *stream)
   char lock[MAILTMPLEN];
   MESSAGECACHE *elt;
   MAILSTREAM *bezerk = NIL;
-  int ld = tenex_lock (LOCAL->fd,lock,LOCK_EX);
-  if (ld < 0) return;		/* give up if can't get exclusive permission */
+  int ld;
+				/* give up if can't get exclusive permission */
+  if ((!strcmp (sysinbox (),stream->mailbox)) ||
+      ((ld = tenex_lock (LOCAL->fd,lock,LOCK_EX)) < 0)) return;
   mm_critical (stream);		/* go critical */
-				/* calculate name of bezerk file */
-  sprintf (LOCAL->buf,MAILFILE,myusername ());
-  stat (LOCAL->buf,&sbuf);	/* see if anything there */
+  stat (sysinbox (),&sbuf);	/* see if anything there */
   if (sbuf.st_size) {		/* non-empty? */
     fstat (LOCAL->fd,&sbuf);	/* yes, get current file size */
 				/* sizes match and can get bezerk mailbox? */
     if ((sbuf.st_size == LOCAL->filesize) && 
-	(bezerk = mail_open (bezerk,LOCAL->buf,OP_SILENT)) &&
+	(bezerk = mail_open (bezerk,sysinbox (),OP_SILENT)) &&
 	(!bezerk->readonly) && (r = bezerk->nmsgs)) {
 				/* yes, go to end of file in our mailbox */
       lseek (LOCAL->fd,sbuf.st_size,L_SET);
@@ -904,10 +899,10 @@ void tenex_snarf (MAILSTREAM *stream)
 	iov[1].iov_base = bezerk_snarf (bezerk,i,&j);
 				/* calculate header line */
 	mail_date ((iov[0].iov_base = LOCAL->buf),elt = mail_elt (bezerk,i));
-	sprintf (LOCAL->buf + strlen (LOCAL->buf),",%d;0000000000%02o\n",
-		 iov[1].iov_len = j,fOLD + (fSEEN * elt->seen) +
-		 (fDELETED * elt->deleted) + (fFLAGGED * elt->flagged) +
-		 (fANSWERED * elt->answered));
+	sprintf (LOCAL->buf + strlen (LOCAL->buf),",%ld;0000000000%02o\n",
+		 iov[1].iov_len = j,(fOLD * !(elt->recent)) +
+		 (fSEEN * elt->seen) + (fDELETED * elt->deleted) +
+		 (fFLAGGED * elt->flagged) + (fANSWERED * elt->answered));
 	iov[0].iov_len = strlen (iov[0].iov_base);
 				/* copy message to new mailbox */
 	if (writev (LOCAL->fd,iov,2) < 0) {
@@ -1066,7 +1061,17 @@ long tenex_append (MAILSTREAM *stream,char *mailbox,STRING *message)
   long ret = LONGT;
 				/* N.B.: can't use LOCAL->buf for tmp */
 				/* make sure valid mailbox */
-  if (!tenex_isvalid (mailbox,tmp)) {
+  if (!tenex_isvalid (mailbox,tmp)) switch (errno) {
+  case ENOENT:			/* no such file? */
+    mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+    return NIL;
+  case 0:			/* merely empty file? */
+    break;
+  case EINVAL:
+    sprintf (tmp,"Invalid Tenex-format mailbox name: %s",mailbox);
+    mm_log (tmp,ERROR);
+    return NIL;
+  default:
     sprintf (tmp,"Not a Tenex-format mailbox: %s",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
@@ -1178,31 +1183,11 @@ unsigned long tenex_size (MAILSTREAM *stream,long m)
 
 char *tenex_file (char *dst,char *name)
 {
-  struct passwd *pw;
-  char *s,*t,tmp[MAILTMPLEN];
-  switch (*name) {
-  case '*':			/* bboard? */
-    sprintf (tmp,"~ftp/%s",(name[1] == '/') ? name+2 : name+1);
-    dst = tenex_file (dst,tmp);/* recurse to get result */
-    break;
-  case '/':			/* absolute file path */
-    strcpy (dst,name);		/* copy the mailbox name */
-    break;
-  case '~':			/* home directory */
-    if (name[1] == '/') t = myhomedir ();
-    else {
-      strcpy (tmp,name + 1);	/* copy user name */
-      if (s = strchr (tmp,'/')) *s = '\0';
-      t = ((pw = getpwnam (tmp)) && pw->pw_dir) ? pw->pw_dir : "/NOSUCHUSER";
-    }
-    sprintf (dst,"%s%s",t,(s = strchr (name,'/')) ? s : "");
-    break;
-  default:			/* other name - INBOX becomes mail.TxT */
-    if (!strcmp (ucase (strcpy (dst,name)),"INBOX"))
-      name = tenex_isvalid ("~/mail.TxT",tmp) ? "mail.TxT" : "mail.txt";
-    sprintf (dst,"%s/%s",myhomedir (),name);
-  }
-  return dst;
+  char tmp[MAILTMPLEN];
+  char *s = mailboxfile (dst,name);
+				/* return our standard inbox */
+  return s ? s : mailboxfile (dst,tenex_isvalid ("~/mail.TxT",tmp) ?
+			      "mail.TxT" : "mail.txt");
 }
 
 /* Parse flag list
@@ -1379,13 +1364,19 @@ long tenex_copy_messages (MAILSTREAM *stream,char *mailbox)
   int fd,ld;
   char lock[MAILTMPLEN];
 				/* make sure valid mailbox */
-  if (!tenex_isvalid (mailbox,LOCAL->buf)) {
-    if (errno == ENOENT)	/* failed, was it no such file? */
-      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
-    else {
-      sprintf (LOCAL->buf,"Not a Tenex-format mailbox: %s",mailbox);
-      mm_log (LOCAL->buf,ERROR);
-    }
+  if (!tenex_isvalid (mailbox,LOCAL->buf)) switch (errno) {
+  case ENOENT:			/* no such file? */
+    mm_notify (stream,"[TRYCREATE] Must create mailbox before copy",NIL);
+    return NIL;
+  case 0:			/* merely empty file? */
+    break;
+  case EINVAL:
+    sprintf (LOCAL->buf,"Invalid Tenex-format mailbox name: %s",mailbox);
+    mm_log (LOCAL->buf,ERROR);
+    return NIL;
+  default:
+    sprintf (LOCAL->buf,"Not a Tenex-format mailbox: %s",mailbox);
+    mm_log (LOCAL->buf,ERROR);
     return NIL;
   }
 				/* got file? */  
@@ -1417,7 +1408,7 @@ long tenex_copy_messages (MAILSTREAM *stream,char *mailbox)
 	else {			/* first time through */
 				/* make a header */
 	  mail_date (LOCAL->buf,elt);
-	  sprintf (LOCAL->buf + strlen (LOCAL->buf),",%d;000000000000\012",
+	  sprintf (LOCAL->buf + strlen (LOCAL->buf),",%ld;000000000000\012",
 		   j = tenex_size (stream,i));
 				/* add size of header string */
 	  j += (k = strlen (LOCAL->buf));
@@ -1666,40 +1657,40 @@ char tenex_search_text (MAILSTREAM *stream,long msgno,char *d,long n)
 
 char tenex_search_bcc (MAILSTREAM *stream,long msgno,char *d,long n)
 {
+  ADDRESS *a = tenex_fetchstructure (stream,msgno,NIL)->bcc;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			tenex_fetchstructure (stream,msgno,NIL)->bcc);
+  rfc822_write_address (LOCAL->buf,a);
   return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
 char tenex_search_cc (MAILSTREAM *stream,long msgno,char *d,long n)
 {
+  ADDRESS *a = tenex_fetchstructure (stream,msgno,NIL)->cc;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			tenex_fetchstructure (stream,msgno,NIL)->cc);
+  rfc822_write_address (LOCAL->buf,a);
   return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
 char tenex_search_from (MAILSTREAM *stream,long msgno,char *d,long n)
 {
+  ADDRESS *a = tenex_fetchstructure (stream,msgno,NIL)->from;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			tenex_fetchstructure (stream,msgno,NIL)->from);
+  rfc822_write_address (LOCAL->buf,a);
   return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
 char tenex_search_to (MAILSTREAM *stream,long msgno,char *d,long n)
 {
+  ADDRESS *a = tenex_fetchstructure (stream,msgno,NIL)->to;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			tenex_fetchstructure (stream,msgno,NIL)->to);
+  rfc822_write_address (LOCAL->buf,a);
   return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 

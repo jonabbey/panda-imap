@@ -1,14 +1,16 @@
 /*
  * Program:	Operating-system dependent routines -- PTX version
  *
- * Author:	Donn Cave
- *		University Computing Services, JE-30
+ * Author:	Mark Crispin
+ *		Networks and Distributed Computing
+ *		Computing & Communications
  *		University of Washington
- *		Seattle, WA 98195
- *		Internet: donn@cac.washington.edu
+ *		Administration Building, AG-44
+ *		Seattle, WA  98195
+ *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	16 August 1993
+ * Last Edited:	12 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -58,6 +60,7 @@
 #define L_XTND SEEK_END
 
 #define direct dirent
+#define random lrand48
 
 /* For flock() emulation */
 
@@ -74,39 +77,13 @@ struct timezone {
   int tz_dsttime;		/* type of dst correction to apply */
 };
 
-
-/* Dummy definition overridden by TCP routines */
-
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
-
-/* Function prototypes */
-
-void rfc822_date  ();
-void *fs_get  ();
-void fs_resize  ();
-void fs_give  ();
-void fatal  ();
-unsigned long strcrlfcpy  ();
-unsigned long strcrlflen  ();
-long server_login  ();
-char *myusername ();
-char *myhomedir ();
-char *lockname  ();
-TCPSTREAM *tcp_open  ();
-TCPSTREAM *tcp_aopen  ();
-char *tcp_getline  ();
-long tcp_getbuffer  ();
-long tcp_getdata  ();
-long tcp_soutr  ();
-long tcp_sout  ();
-void tcp_close  ();
-char *tcp_host  ();
-char *tcp_localhost  ();
+#include "env_unix.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"
 
 long gethostid ();
-long random ();
 void *memmove ();
 int scandir ();
 int flock ();

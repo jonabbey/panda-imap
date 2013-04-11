@@ -11,9 +11,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1993
- * Last Edited:	22 October 1993
+ * Last Edited:	27 February 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -127,18 +127,16 @@ int mmdf_isvalid (name,tmp)
     lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
 		     host_name->h_name : tmp);
   }
-				/* INBOX is always accepted */
-  if (!strcmp (ucase (strcpy (tmp,name)),"INBOX")) return T;
-				/* if file, get its status */
-  if (*name != '{' && (stat (mmdf_file (tmp,name),&sbuf) == 0) &&
+  errno = EINVAL;		/* assume invalid argument */
+				/* must be non-empty file */
+  if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
+      (!stat (mmdf_file (tmp,name),&sbuf)) &&
       ((fd = open (tmp,O_RDONLY,NIL)) >= 0)) {
-    if (sbuf.st_size == 0) { 	/* allow empty file if not .TxT */
-      if ((i = strlen (tmp)) < 4 || strcmp (tmp + i - 4 ,".TxT"))
-	return LONGT;
-    }
-    else if ((read (fd,tmp,MAILTMPLEN-1) >= 0) &&
-	     (tmp[0] == (char)0x01) && VALID (s,t,ti,zn)) ret = T;
+    ret = ((sbuf.st_size > 0) && (read (fd,tmp,MAILTMPLEN-1) >= 0) &&
+	   (tmp[0] == (char) 0x01) && VALID (s,t,ti,zn)) ? T : NIL;
     close (fd);			/* close the file */
+				/* no error if file empty */
+    if (!(ret || sbuf.st_size)) errno = 0;
   }
   return ret;			/* return what we should */
 }
@@ -275,12 +273,7 @@ long mmdf_create (stream,mailbox)
 	char *mailbox;
 {
   char tmp[MAILTMPLEN];
-  int i,fd;
-				/* must not be a ".TxT" file */
-  if ((i = strlen (mailbox)) > 4 && !strcmp (mailbox + i - 4 ,".TxT")) {
-    mm_log ("Can't create mailbox: name must not end with .TxT",ERROR);
-    return NIL;
-  }
+  int fd;
   if ((fd = open (mmdf_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600))<0) {
     sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
@@ -362,13 +355,13 @@ MAILSTREAM *mmdf_open (stream)
 	MAILSTREAM *stream;
 {
   long i;
-
-  long retry = stream->silent ? 1 : KODRETRY;
   int fd;
   char tmp[MAILTMPLEN];
   struct stat sbuf;
+  long retry;
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &mmdfproto;
+  retry = stream->silent ? 1 : KODRETRY;
   if (LOCAL) {			/* close old file if stream being recycled */
     mmdf_close (stream);	/* dump and save the changes */
     stream->dtb = &mmdfdriver;/* reattach this driver */
@@ -377,8 +370,12 @@ MAILSTREAM *mmdf_open (stream)
   stream->local = fs_get (sizeof (MMDFLOCAL));
 				/* canonicalize the stream mailbox name */
   mmdf_file (tmp,stream->mailbox);
-  fs_give ((void **) &stream->mailbox);
-  stream->mailbox = cpystr (tmp);
+				/* force readonly if bboard */
+  if (*stream->mailbox == '*') stream->readonly = T;
+  else {			/* canonicalize name */
+    fs_give ((void **) &stream->mailbox);
+    stream->mailbox = cpystr (tmp);
+  }
   /* You may wonder why LOCAL->name is needed.  It isn't at all obvious from
    * the code.  The problem is that when a stream is recycled with another
    * mailbox of the same type, the driver's close method isn't called because
@@ -390,7 +387,7 @@ MAILSTREAM *mmdf_open (stream)
    */
   LOCAL->name = cpystr (tmp);	/* local copy for recycle case */
 				/* build name of our lock file */
-  LOCAL->lname = cpystr (lockname (tmp,stream->mailbox));
+  LOCAL->lname = cpystr (lockname (tmp,LOCAL->name));
   LOCAL->ld = NIL;		/* no state locking yet */
   LOCAL->filesize = 0;		/* initialize file information */
   LOCAL->filetime = 0;
@@ -410,8 +407,8 @@ MAILSTREAM *mmdf_open (stream)
       if (retry-- == KODRETRY) {/* no, first time through? */
 				/* yes, get other process' PID */
 	if (!fstat (fd,&sbuf) && (i = min (sbuf.st_size,MAILTMPLEN)) &&
-	    (read (fd,tmp,i) == i) && (i = atol (tmp))) {
-	  kill (i,SIGUSR2);	/* send the Kiss Of Death */
+	    (read (fd,tmp,i) == i) && !(tmp[i] = 0) && (i = atol (tmp))) {
+	  kill ((int) i,SIGUSR2);
 	  sprintf (tmp,"Trying to get mailbox lock from process %ld",i);
 	  mm_log (tmp,WARN);
 	}
@@ -430,7 +427,7 @@ MAILSTREAM *mmdf_open (stream)
       if (stream->silent) i = 0;/* silent streams won't accept KOD */
       else {			/* note our PID in the lock */
 	sprintf (tmp,"%d",getpid ());
-	write (fd,tmp,strlen (tmp));
+	write (fd,tmp,(i = strlen (tmp))+1);
       }
       ftruncate (fd,i);		/* make sure tied off */
       fsync (fd);		/* make sure it's available */
@@ -450,7 +447,7 @@ MAILSTREAM *mmdf_open (stream)
     fs_give ((void **) &LOCAL->lname);
   }
 				/* abort if can't get RW silent stream */
-  if (stream->silent && !stream->readonly && !LOCAL->ld) bezerk_abort (stream);
+  if (stream->silent && !stream->readonly && !LOCAL->ld) mmdf_abort (stream);
 				/* parse mailbox */
   else if ((fd = mmdf_parse (stream,tmp,LOCK_SH)) >= 0) {
     mmdf_unlock (fd,stream,tmp);
@@ -486,7 +483,7 @@ void mmdf_close (stream)
     }
     stream->silent = silent;	/* restore previous status */
   }
-  mmdf_abort (stream);	/* now punt the file and local data */
+  mmdf_abort (stream);		/* now punt the file and local data */
 }
 
 
@@ -563,33 +560,6 @@ ENVELOPE *mmdf_fetchstructure (stream,msgno,body)
   }
   if (body) *body = *b;		/* return the body */
   return *env;			/* return the envelope */
-}
-
-/* Bezerk mail snarf message, only for Tenex driver
- * Accepts: MAIL stream
- *	    message # to snarf
- *	    pointer to size to return
- * Returns: message text in RFC822 format
- */
-
-char *bezerk_snarf (stream,msgno,size)
-	MAILSTREAM *stream;
-	long msgno;
-	long *size;
-{
-  MESSAGECACHE *elt = mail_elt (stream,msgno);
-  FILECACHE *m = LOCAL->msgs[msgno - 1];
-  if (((*size = m->headersize + m->bodysize) > LOCAL->buflen) ||
-      LOCAL->buflen > CHUNK) {	/* make sure stream can hold the text */
-				/* fs_resize would do an unnecessary copy */
-    fs_give ((void **) &LOCAL->buf);
-    LOCAL->buf = (char *) fs_get((LOCAL->buflen = max (*size,(long) CHUNK))+1);
-  }
-				/* copy the text */
-  if (m->headersize) memcpy (LOCAL->buf,m->header,m->headersize);
-  if (m->bodysize) memcpy (LOCAL->buf + m->headersize,m->body,m->bodysize);
-  LOCAL->buf[*size] = '\0';	/* tie off string */
-  return LOCAL->buf;
 }
 
 /* MMDF mail fetch message header
@@ -1019,33 +989,49 @@ long mmdf_append (stream,mailbox,message)
 {
   struct stat sbuf;
   int fd;
-  char c,tmp[MAILTMPLEN],lock[MAILTMPLEN];
+  char c,buf[MAILTMPLEN],lock[MAILTMPLEN];
   int i = 0;
-  char *s = tmp;
+  char *s = buf;
   time_t t = time (0);
   long size = SIZE (message);
-  if ((fd = mmdf_lock (mmdf_file (tmp,mailbox),O_WRONLY|O_APPEND|O_CREAT,
+				/* make sure valid mailbox */
+  if (!mmdf_isvalid (mailbox,buf)) switch (errno) {
+  case ENOENT:			/* no such file? */
+    mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+    return NIL;
+  case 0:			/* merely empty file? */
+    break;
+  case EINVAL:
+    sprintf (buf,"Invalid MMDF-format mailbox name: %s",mailbox);
+    mm_log (buf,ERROR);
+    return NIL;
+  default:
+    sprintf (buf,"Not a MMDF-format mailbox: %s",mailbox);
+    mm_log (buf,ERROR);
+    return NIL;
+  }
+  if ((fd = mmdf_lock (mmdf_file (buf,mailbox),O_WRONLY|O_APPEND|O_CREAT,
 			 S_IREAD|S_IWRITE,lock,LOCK_EX)) < 0) {
-    sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
-    mm_log (tmp,ERROR);
+    sprintf (buf,"Can't open append mailbox: %s",strerror (errno));
+    mm_log (buf,ERROR);
     return NIL;
   }
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
-  sprintf (tmp,"From %s@%s %s",myusername (),lhostn,ctime (&t));
+  sprintf (buf,"\01\01\01\01\nFrom %s@%s %s",myusername (),lhostn,ctime (&t));
 				/* write header */
-  if (write (fd,tmp,strlen (tmp)) < 0) {
-    sprintf (tmp,"Header write failed: %s",strerror (errno));
-    mm_log (tmp,ERROR);
+  if (write (fd,buf,strlen (buf)) < 0) {
+    sprintf (buf,"Header write failed: %s",strerror (errno));
+    mm_log (buf,ERROR);
     ftruncate (fd,sbuf.st_size);
   }
   else while (size--) {		/* copy text, tossing out CR's */
     if ((c = SNX (message)) != '\015') s[i++] = c;
 				/* dump if filled buffer or no more data */
     if ((!size) || (i == MAILTMPLEN)) {
-      if ((write (fd,tmp,i)) < 0) {
-	sprintf (tmp,"Message append failed: %s",strerror (errno));
-	mm_log (tmp,ERROR);
+      if ((write (fd,buf,i)) < 0) {
+	sprintf (buf,"Message append failed: %s",strerror (errno));
+	mm_log (buf,ERROR);
 	ftruncate (fd,sbuf.st_size);
 	break;
       }
@@ -1115,28 +1101,9 @@ char *mmdf_file (dst,name)
 	char *dst;
 	char *name;
 {
-  struct passwd *pw;
-  char *s,*t,tmp[MAILTMPLEN];
-  switch (*name) {
-  case '/':			/* absolute file path */
-    strcpy (dst,name);		/* copy the mailbox name */
-    break;
-  case '~':			/* home directory */
-    if (name[1] == '/') t = myhomedir ();
-    else {
-      strcpy (tmp,name + 1);	/* copy user name */
-      if (s = strchr (tmp,'/')) *s = '\0';
-      t = ((pw = getpwnam (tmp)) && pw->pw_dir) ? pw->pw_dir : "/NOSUCHUSER";
-    }
-    sprintf (dst,"%s%s",t,(s = strchr (name,'/')) ? s : "");
-    break;
-  default:			/* other name */
-    if (strcmp (ucase (strcpy (dst,name)),"INBOX"))
-      sprintf (dst,"%s/%s",myhomedir (),name);
-				/* INBOX becomes mail spool directory file */
-    else sprintf (dst,MAILFILE,myusername ());
-  }
-  return dst;
+  char *s = mailboxfile (dst,name);
+				/* return our standard inbox */
+  return s ? s : strcpy (dst,sysinbox ());
 }
 
 /* MMDF open and lock mailbox
@@ -1216,7 +1183,7 @@ int mmdf_lock (file,flags,mode,lock,op)
       break;
     }
     if (ld >= 0) {		/* if made a lock file */
-      chmod (tmp,0666);		/* make sure others can break the lock */
+      chmod (lock,0666);	/* make sure others can break the lock */
       close (ld);		/* close the lock file */
     }
 #endif
@@ -1284,28 +1251,21 @@ int mmdf_parse (stream,lock,op)
 {
   int fd;
   long delta,i,j,is,is1;
-  char *s,*s1,*t,*e;
-  int ti,zn;
+  char *s,*s1,*t = NIL,*e;
+  int ti = 0,zn = 0;
   int first = T;
   long nmsgs = stream->nmsgs;
-  long recent = stream->recent;
+  long newcnt = 0;
   struct stat sbuf;
   MESSAGECACHE *elt;
-  FILECACHE *m = NIL,*n;
+  FILECACHE *m = NIL,*n = NIL;
   mail_lock (stream);		/* guard against recursion or pingers */
 				/* open and lock mailbox (shared OK) */
   if ((fd = mmdf_lock (LOCAL->name,LOCAL->ld ? O_RDWR : O_RDONLY,NIL,
 			 lock,op)) < 0) {
-				/* failed, OK for non-ex file? */
-    if ((errno != ENOENT) || LOCAL->filesize) {
-      sprintf (LOCAL->buf,"Mailbox open failed, aborted: %s",strerror (errno));
-      mm_log (LOCAL->buf,ERROR);
-      mmdf_abort (stream);
-    }
-    else {			/* this is to allow for non-ex INBOX */
-      mail_exists (stream,0);	/* make sure upper level sees this as empty */
-      mail_recent (stream,0);
-    }
+    sprintf (LOCAL->buf,"Mailbox open failed, aborted: %s",strerror (errno));
+    mm_log (LOCAL->buf,ERROR);
+    mmdf_abort (stream);
     mail_unlock (stream);
     return -1;
   }
@@ -1351,7 +1311,7 @@ int mmdf_parse (stream,lock,op)
       delta -= i;		/* account for data read in */
 				/* validate newly-appended data */
       if (first) {		/* only do this first time! */
-	if (!((*s ==(char)0x01) && VALID (s,t,ti,zn))) {
+	if (!((*s == (char) 0x01) && VALID (s,t,ti,zn))) {
 	  mm_log ("Mailbox format invalidated (consult an expert), aborted",
 		  ERROR);
 	  mmdf_unlock (fd,stream,lock);
@@ -1365,15 +1325,15 @@ int mmdf_parse (stream,lock,op)
 				/* found end of message or end of data? */
       while ((e = mmdf_eom (s,s1,i)) || !delta) {
 	nmsgs++;		/* yes, have a new message */
-	if (e) j = (e - s) - 1;	/* calculate message length */
-	else j = strlen (s) - 1;/* otherwise is remainder of data */
+				/* calculate message length */
+	j = ((e ? e : s1 + i) - s) - 1;
 	if (m) {		/* new cache needed, have previous data? */
 	  n->header = (char *) fs_get (sizeof (FILECACHE) + j + 1);
 	  n = (FILECACHE *) n->header;
 	}
 	else m = n = (FILECACHE *) fs_get (sizeof (FILECACHE) + j + 1);
 				/* copy message data */
-	strncpy (n->internal,s,j);
+	memcpy (n->internal,s,j);
 	n->internal[j] = '\0';
 	n->header = NIL;	/* initially no link */
 	n->headersize = j;	/* stash away buffer length */
@@ -1419,15 +1379,16 @@ int mmdf_parse (stream,lock,op)
      * if memory is corrupted.  Note that in the case of a totally empty
      * message, a newline is appended and counts adjusted.
      */
-    if ((!((s = m->internal) && VALID (s,t,ti,zn))) &&
-	!(s && !strchr (s,'\n') && strcat (s,"\n") && VALID (s,t,ti,zn) &&
-	  m->headersize++)) fatal ("Bogus entry in new cache list");
+    if (!((s = m->internal) && VALID (s,t,ti,zn)))
+      if (!(s && !strchr (s,'\n') && strcat (s,"\n") && VALID (s,t,ti,zn) &&
+	    m->headersize++))
+	fatal ("Bogus entry in new cache list");
 				/* pointer to message header */
     m->header = s = strchr (t++,'\n') + 1;
     m->headersize -= m->header - m->internal;
     m->body = NIL;		/* assume no body as yet */
     m->bodysize = 0;
-    recent++;			/* assume recent by default */
+    newcnt++;			/* assume recent by default */
     (elt = mail_elt (stream,i+1))->recent = T;
 				/* calculate initial Status/X-Status lines */
     mmdf_update_status (m->status,elt);
@@ -1486,8 +1447,8 @@ int mmdf_parse (stream,lock,op)
 	  break;
 	case 'O':		/* message old */
 	  if (elt->recent) {	/* don't do this more than once! */
-	    elt->recent = NIL;
-	    recent--;		/* not recent any longer... */
+	    elt->recent = NIL;	/* not recent any longer... */
+	    newcnt--;
 	  }
 	  break;
 	case 'D':		/* message deleted */
@@ -1551,8 +1512,8 @@ int mmdf_parse (stream,lock,op)
   LOCAL->filesize = sbuf.st_size;
   LOCAL->filetime = sbuf.st_mtime;
   mail_exists (stream,nmsgs);	/* notify upper level of new mailbox size */
-  mail_recent (stream,recent);	/* and of change in recent messages */
-  if (recent) LOCAL->dirty = T;	/* mark dirty so O flags are set */
+  mail_recent (stream,stream->recent + newcnt);
+  if (newcnt) LOCAL->dirty = T;	/* mark dirty so O flags are set */
   return fd;			/* return the winnage */
 }
 
@@ -1570,7 +1531,7 @@ char *mmdf_eom (som,sod,i)
 	char *sod;
 	long i;
 {
-  char *s = sod;		/* find start of line in current message */
+  char *s = (sod > som) ? sod - 1 : sod;
   char *t;
   int ti,zn;
   union {
@@ -1578,22 +1539,30 @@ char *mmdf_eom (som,sod,i)
     char ch[9];
   } wdtest;
   strcpy (wdtest.ch,"AAAA1234");/* constant for word testing */
+				/* move back *two* lines */
+  while ((s > som) && *s-- != '\n');
   while ((s > som) && *s-- != '\n');
   if (wdtest.wd != 0x41414141) {/* not a 32-bit word machine? */
-    while (s = strstr (s,"\nFrom ")) if (s++ && VALID (s,t,ti,zn)) return s;
+    while (s = strstr (s,"\01\01\01\01\nFrom "))
+      if (s++ && VALID (s,t,ti,zn)) return s;
   }
   else {			/* can do it faster this way */
     register Word m = 0x0a0a0a0a;
     while ((long) s & 3)	/* any characters before word boundary? */
-      if ((*s++ == '\n') && s[0] == (char)0x01 && VALID (s,t,ti,zn)) return s;
+      if ((*s++ == '\n') && (s[0] == (char) 0x01) && VALID (s,t,ti,zn))
+	return s;
     i = (sod + i) - s;		/* total number of tries */
     do {			/* fast search for newline */
       if (0x80808080 & (0x01010101 + (0x7f7f7f7f & ~(m ^ *(Word *) s)))) {
 				/* interesting word, check it closer */
-	if (*s++ == '\n' && s[0] == (char)0x01 && VALID (s,t,ti,zn)) return s;
-	else if (*s++ == '\n' && s[0] == (char)0x01 && VALID (s,t,ti,zn)) return s;
-	else if (*s++ == '\n' && s[0] == (char)0x01 && VALID (s,t,ti,zn)) return s;
-	else if (*s++ == '\n' && s[0] == (char)0x01 && VALID (s,t,ti,zn)) return s;
+	if (*s++ == '\n' && (s[0] == (char) 0x01) && VALID (s,t,ti,zn))
+	  return s;
+	else if (*s++ == '\n' && (s[0] == (char) 0x01) && VALID (s,t,ti,zn))
+	  return s;
+	else if (*s++ == '\n' && (s[0] == (char) 0x01) && VALID (s,t,ti,zn))
+	  return s;
+	else if (*s++ == '\n' && (s[0] == (char) 0x01) && VALID (s,t,ti,zn))
+	  return s;
       }
       else s += 4;		/* try next word */
       i -= 4;			/* count a word checked */
@@ -1719,21 +1688,26 @@ int mmdf_copy_messages (stream,mailbox)
 	MAILSTREAM *stream;
 	char *mailbox;
 {
-  char file[MAILTMPLEN];
-  char lock[MAILTMPLEN];
+  char file[MAILTMPLEN],lock[MAILTMPLEN];
   struct iovec iov[16];
   int fd,iovc;
   struct stat sbuf;
   long i;
   int ok = T;
 				/* make sure valid mailbox */
-  if (!mmdf_isvalid (mailbox,file)) {
-    if (errno == ENOENT)	/* failed, was it no such file? */
-      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
-    else {
-      sprintf (LOCAL->buf,"Not a MMDF-format mailbox: %s",mailbox);
-      mm_log (LOCAL->buf,ERROR);
-    }
+  if (!mmdf_isvalid (mailbox,file)) switch (errno) {
+  case ENOENT:			/* no such file? */
+    mm_notify (stream,"[TRYCREATE] Must create mailbox before copy",NIL);
+    return NIL;
+  case 0:			/* merely empty file? */
+    break;
+  case EINVAL:
+    sprintf (LOCAL->buf,"Invalid MMDF-format mailbox name: %s",mailbox);
+    mm_log (LOCAL->buf,ERROR);
+    return NIL;
+  default:
+    sprintf (LOCAL->buf,"Not a MMDF-format mailbox: %s",mailbox);
+    mm_log (LOCAL->buf,ERROR);
     return NIL;
   }
   if ((fd = mmdf_lock (mmdf_file (file,mailbox),O_WRONLY|O_APPEND|O_CREAT,
@@ -2041,7 +2015,7 @@ char mmdf_search_before (stream,msgno,d,n)
 	long n;
 {
   MESSAGECACHE *elt = mail_elt (stream,msgno);
-  return (char) ((long)((elt->year << 9) + (elt->month << 5) + elt->day) < n);
+  return (char) ((long) ((elt->year << 9) + (elt->month << 5) + elt->day) < n);
 }
 
 
@@ -2064,7 +2038,7 @@ char mmdf_search_since (stream,msgno,d,n)
 {
 				/* everybody interprets "since" as .GE. */
   MESSAGECACHE *elt = mail_elt (stream,msgno);
-  return (char) ((long)((elt->year << 9) + (elt->month << 5) + elt->day) >= n);
+  return (char)((long) ((elt->year << 9) + (elt->month << 5) + elt->day) >= n);
 }
 
 
@@ -2107,11 +2081,11 @@ char mmdf_search_bcc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mmdf_fetchstructure (stream,msgno,NIL)->bcc;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			mmdf_fetchstructure (stream,msgno,NIL)->bcc);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
@@ -2121,24 +2095,25 @@ char mmdf_search_cc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mmdf_fetchstructure (stream,msgno,NIL)->cc;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			mmdf_fetchstructure (stream,msgno,NIL)->cc);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
-char mmdf_search_from (stream,m,d,n)
+char mmdf_search_from (stream,msgno,d,n)
 	MAILSTREAM *stream;
-	long m;
+	long msgno;
 	char *d;
 	long n;
 {
+  ADDRESS *a = mmdf_fetchstructure (stream,msgno,NIL)->from;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,mmdf_fetchstructure (stream,m,NIL)->from);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
@@ -2148,11 +2123,11 @@ char mmdf_search_to (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mmdf_fetchstructure (stream,msgno,NIL)->to;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			mmdf_fetchstructure (stream,msgno,NIL)->to);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 /* Search parsers */

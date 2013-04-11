@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	8 September 1993
+ * Last Edited:	6 February 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -124,7 +124,6 @@ typedef struct imap_local {
 #define map_move imove
 #define map_append iappnd
 #define map_gc igc
-#define map_do_gc idogc
 #define map_gc_body igcb
 
 #define imap_host imhost
@@ -189,12 +188,11 @@ long map_copy  ();
 long map_move  ();
 long map_append  ();
 void map_gc  ();
-void map_do_gc  ();
 void map_gc_body  ();
 
 char *imap_host  ();
 IMAPPARSEDREPLY *imap_send  ();
-IMAPPARSEDREPLY *imap_send_literal  ();
+IMAPPARSEDREPLY *imap_send_quoted  ();
 IMAPPARSEDREPLY *imap_reply  ();
 IMAPPARSEDREPLY *imap_parse_reply  ();
 IMAPPARSEDREPLY *imap_fake  ();

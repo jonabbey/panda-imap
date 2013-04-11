@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	30 September 1993
+ * Last Edited:	16 February 1994
  *
- * Copyright 1993 by Mark Crispin
+ * Copyright 1994 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -47,6 +47,7 @@
 #include <TCPPB.h>
 #include <Script.h>
 
+
 /* TCP I/O stream (must be before osdep.h is included) */
 
 #define TCPSTREAM struct tcp_stream
@@ -68,126 +69,11 @@ short resolveropen = 0;		/* TCP's resolver open */
 
 				/* *** temporary *** */
 MAILSTREAM *mailstd_proto = NIL;/* standard driver's prototype */
-
-/* Write current time in RFC 822 format
- * Accepts: destination string
- *
- * This depends upon the ReadLocation() call in System 7 and the
- * user properly setting his location/timezone in the Map control
- * panel.
- * Nothing is done about the gmtFlags.dlsDelta byte yet, since I
- * don't know how it's supposed to work.
- */
 
-void rfc822_date (char *string)
-{
-  long tz,tzm;
-  time_t ti = time (0);
-  struct tm *t = localtime (&ti);
-  MachineLocation loc;
-  ReadLocation (&loc);		/* get location/timezone poop */
-  tz = loc.gmtFlags.gmtDelta |	/* get sign-extended time zone */
-    ((loc.gmtFlags.gmtDelta & 0x00800000) ? 0xff000000 : 0);
-  tz /= 60;			/* get timezone in minutes */
-  tzm = tz % 60;		/* get minutes from the hour */
-				/* output time */
-  strftime (string,MAILTMPLEN,"%a, %d %b %Y %H:%M:%S ",t);
-				/* now output time zone */
-  sprintf (string += strlen (string),"%+03ld%02ld",
-	   tz/60,tzm >= 0 ? tzm : -tzm);
-}
-
-/* Get a block of free storage
- * Accepts: size of desired block
- * Returns: free storage block
- */
-
-void *fs_get (size_t size)
-{
-  void *block = malloc (size);
-  if (!block) fatal ("Out of free storage");
-  return (block);
-}
-
-
-/* Resize a block of free storage
- * Accepts: ** pointer to current block
- *	    new size
- */
-
-void fs_resize (void **block,size_t size)
-{
-  if (!(*block = realloc (*block,size))) fatal ("Can't resize free storage");
-}
-
-
-/* Return a block of free storage
- * Accepts: ** pointer to free storage block
- */
-
-void fs_give (void **block)
-{
-  free (*block);
-  *block = NIL;
-}
-
-
-/* Report a fatal error
- * Accepts: string to output
- */
-
-void fatal (char *string)
-{
-  mm_fatal (string);		/* pass up the string */
-				/* nuke the resolver */
-  if (resolveropen) CloseResolver ();
-  abort ();			/* die horribly */
-}
-
-/* Copy string with CRLF newlines
- * Accepts: destination string
- *	    pointer to size of destination string
- *	    source string
- *	    length of source string
- * Returns: length of copied string
- */
-
-unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
-			  unsigned long srcl)
-{
-  long i,j;
-  char *d = src;
-				/* count number of LF's in source string(s) */
-  for (i = srcl,j = 0; j < srcl; j++) if (*d++ == '\012') i++;
-  if (i > *dstl) {		/* resize if not enough space */
-    fs_give ((void **) dst);	/* fs_resize does an unnecessary copy */
-    *dst = (char *) fs_get ((*dstl = i) + 1);
-  }
-  d = *dst;			/* destination string */
-  while (srcl--) {		/* copy strings */
-    *d++ = *src++;		/* copy character */
-				/* append line feed to bare CR */
-    if ((*src == '\015') && (src[1] != '\012')) *d++ = '\012';
-  }
-  *d = '\0';			/* tie off destination */
-  return d - *dst;		/* return length */
-}
-
-
-/* Length of string after strcrlfcpy applied
- * Accepts: source string
- * Returns: length of string
- */
-
-unsigned long strcrlflen (STRING *s)
-{
-  unsigned long pos = GETPOS (s);
-  unsigned long i = SIZE (s);
-  unsigned long j = i;
-  while (j--) if ((SNX (s) == '\015') && ((CHR (s) != '\012') || !j)) i++;
-  SETPOS (s,pos);		/* restore old position */
-  return i;
-}
+#include "env_mac.c"
+#include "fs_mac.c"
+#include "ftl_mac.c"
+#include "nl_mac.c"
 
 /* TCP/IP open
  * Accepts: host name
@@ -289,7 +175,7 @@ TCPSTREAM *tcp_open (char *host,long port)
   createpb->rcvBuff = fs_get (createpb->rcvBuffLen);
   createpb->notifyProc = NIL;	/* no special notify procedure */
   createpb->userDataPtr = NIL;
-  if (PBControlSync (&stream->pb)) fatal ("Can't create TCP stream");
+  if (PBControlSync ((ParmBlkPtr) &stream->pb)) fatal ("Can't create TCP stream");
   				/* open TCP connection */
   stream->pb.csCode = TCPActiveOpen;
   openpb->ulpTimeoutValue = 30;	/* time out after 30 seconds */
@@ -307,7 +193,7 @@ TCPSTREAM *tcp_open (char *host,long port)
   openpb->optionCnt = 0;	/* no IP options */
   openpb->options[0] = 0;
   openpb->userDataPtr = NIL;	/* no special data pointer */
-  PBControlAsync (&stream->pb);	/* now open the connection */
+  PBControlAsync ((ParmBlkPtr) &stream->pb);
   while (stream->pb.ioResult == inProgress && wait ());
   if (stream->pb.ioResult) {	/* got back error status? */
     sprintf (tmp,"Can't connect to %.80s,%ld",hst.cname,port);
@@ -315,7 +201,7 @@ TCPSTREAM *tcp_open (char *host,long port)
 				/* nuke the buffer */
     stream->pb.csCode = TCPRelease;
     createpb->userDataPtr = NIL;
-    if (PBControlSync (&stream->pb)) fatal ("TCPRelease lossage");
+    if (PBControlSync ((ParmBlkPtr) &stream->pb)) fatal ("TCPRelease lossage");
 				/* free its buffer */
     fs_give ((void **) &createpb->rcvBuff);
     fs_give ((void **) &stream);/* and the local stream */
@@ -449,13 +335,13 @@ long tcp_getdata (TCPSTREAM *stream)
     receivepb->rcvBuffLen = BUFLEN;
     receivepb->secondTimeStamp = 0;
     receivepb->userDataPtr = NIL;
-    PBControlAsync (&stream->pb);/* now read the data */
+    PBControlAsync ((ParmBlkPtr) &stream->pb);
     while (stream->pb.ioResult == inProgress && wait ());
     if (stream->pb.ioResult) {	/* punt if got an error */
     				/* nuke connection */
       stream->pb.csCode = TCPAbort;
       abortpb->userDataPtr = NIL;
-      PBControlSync (&stream->pb);
+      PBControlSync ((ParmBlkPtr) &stream->pb);
       return NIL;
     }
     stream->iptr = stream->ibuf;/* point at TCP buffer */
@@ -492,25 +378,29 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
     Ptr buffer;
     unsigned short trailer;
   } wds;
-  stream->pb.csCode = TCPSend;	/* send TCP data */
+  while (wds.length = (size > (unsigned long) 32768) ? 32768 : size) {
+    wds.buffer = string;	/* buffer */
+    wds.trailer = 0;		/* tie off buffer */
+    size -= wds.length;		/* this many words will be output */
+    string += wds.length;
+    stream->pb.csCode = TCPSend;/* send TCP data */
 				/* wait a maximum of 60 seconds */
-  sendpb->ulpTimeoutValue = 60;
-  sendpb->ulpTimeoutAction = 0;
-  sendpb->validityFlags = timeoutValue|timeoutAction;
-  sendpb->pushFlag = T;		/* send the data now */
-  sendpb->urgentFlag = NIL;	/* non-urgent data */
-  sendpb->wdsPtr = (Ptr) &wds;
-  sendpb->userDataPtr = NIL;
-  wds.length = size;		/* size of buffer */
-  wds.buffer = string;		/* buffer */
-  wds.trailer = 0;		/* tie off buffer */
-  PBControlAsync (&stream->pb);	/* now send the data */
-  while (stream->pb.ioResult == inProgress && wait ());
-  if (stream->pb.ioResult) {	/* punt if got an error */
-    stream->pb.csCode =TCPAbort;/* nuke connection */
-    abortpb->userDataPtr = NIL;
-    PBControlSync (&stream->pb);/* sayonara */
-    return NIL;
+    sendpb->ulpTimeoutValue = 60;
+    sendpb->ulpTimeoutAction = 0;
+    sendpb->validityFlags = timeoutValue|timeoutAction;
+    sendpb->pushFlag = T;	/* send the data now */
+    sendpb->urgentFlag = NIL;	/* non-urgent data */
+    sendpb->wdsPtr = (Ptr) &wds;
+    sendpb->userDataPtr = NIL;
+    PBControlAsync ((ParmBlkPtr) &stream->pb);
+    while (stream->pb.ioResult == inProgress && wait ());
+    if (stream->pb.ioResult) {	/* punt if got an error */
+				/* nuke connection */
+      stream->pb.csCode =TCPAbort;
+      abortpb->userDataPtr = NIL;
+      PBControlSync ((ParmBlkPtr) &stream->pb);
+      return NIL;
+    }
   }
   return T;			/* success */
 }
@@ -528,11 +418,11 @@ void tcp_close (TCPSTREAM *stream)
   closepb->ulpTimeoutAction = 0;
   closepb->validityFlags = timeoutValue|timeoutAction;
   closepb->userDataPtr = NIL;
-  PBControlAsync (&stream->pb);	/* now close the connection */
+  PBControlAsync ((ParmBlkPtr) &stream->pb);
   while (stream->pb.ioResult == inProgress && wait ());
   stream->pb.csCode =TCPRelease;/* flush the buffers */
   createpb->userDataPtr = NIL;
-  if (PBControlSync (&stream->pb)) fatal ("TCPRelease lossage");
+  if (PBControlSync ((ParmBlkPtr) &stream->pb)) fatal ("TCPRelease lossage");
 				/* free its buffer */
   fs_give ((void **) &createpb->rcvBuff);
 				/* flush host names */
@@ -560,122 +450,4 @@ char *tcp_host (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   return stream->localhost;	/* return local host name */
-}
-
-/* These functions are only used by rfc822.c for calculating cookies.  So this
- * is good enough.  If anything better is needed fancier functions will be
- * needed.
- */
-
-
-/* Return host ID
- */
-
-unsigned long gethostid ()
-{
-  return 0xdeadface;
-}
-
-
-/* Return random number
- */
-
-long random ()
-{
-  return (long) rand () << 16 + rand ();
-}
-
-
-/* Return `process ID'
- */
-
-long getpid ()
-{
-  return 1;
-}
-
-/* Block until event satisfied
- * Called as: while (wait_condition && wait ());
- * Returns T if OK, NIL if user wants to abort
- *
- * Allows user to run a desk accessory, select a different window, or go
- * to another application while waiting for the event to finish.  COMMAND/.
- * will abort the wait.
- * Assumes the Apple menu has the apple character as its first character,
- * and that the main program has disabled all other menus.
- */
-
-long wait ()
-{
-  EventRecord event;
-  WindowPtr window;
-  MenuInfo **m;
-  long r;
-  Str255 tmp;
-				/* wait for an event */
-  WaitNextEvent (everyEvent,&event,(long) 6,NIL);
-  switch (event.what) {		/* got one -- what is it? */
-  case mouseDown:		/* mouse clicked */
-    switch (FindWindow (event.where,&window)) {
-    case inMenuBar:		/* menu bar item? */
-				/* yes, interesting event? */	
-      if (r = MenuSelect (event.where)) {
-				/* round-about test for Apple menu */
-	  if ((*(m = GetMHandle (HiWord (r))))->menuData[1] == appleMark) {
-				/* get desk accessory name */ 
-	  GetItem (m,LoWord (r),&tmp);
-	  OpenDeskAcc (tmp);	/* fire it up */
-	  SetPort (window);	/* put us back at our window */
-	}
-	else SysBeep (60);	/* the fool forgot to disable it! */
-      }
-      HiliteMenu (0);		/* unhighlight it */
-      break;
-    case inContent:		/* some window was selected */
-      if (window != FrontWindow ()) SelectWindow (window);
-      break;
-    default:			/* ignore all others */
-      break;
-    }
-    break;
-  case keyDown:			/* key hit - if COMMAND/. then punt */
-    if ((event.modifiers & cmdKey) && (event.message & charCodeMask) == '.')
-      return NIL;
-    break;
-  default:			/* ignore all others */
-    break;
-  }
-  return T;			/* try wait test again */
-}
-
-/* Subscribe to mailbox
- * Accepts: mailbox name
- * Returns: T on success, NIL on failure
- */
-
-long sm_subscribe (char *mailbox)
-{
-  return NIL;			/* needs to be written */
-}
-
-
-/* Unsubscribe from mailbox
- * Accepts: mailbox name
- * Returns: T on success, NIL on failure
- */
-
-long sm_unsubscribe (char *mailbox)
-{
-  return NIL;			/* needs to be written */
-}
-
-
-/* Read subscription database
- * Accepts: pointer to subscription database handle (handle NIL if first time)
- * Returns: character string for subscription database or NIL if done
- */
-
-char *sm_read (void **sdb)
-{
-  return NIL;
 }

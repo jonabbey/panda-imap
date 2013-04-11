@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	30 June 1993
+ * Last Edited:	17 February 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,6 +40,7 @@
 #include <fcntl.h>
 #include "mail.h"
 #include "osdep.h"
+#include <sys\stat.h>
 #include "dummy.h"
 #include "misc.h"
 
@@ -91,7 +92,15 @@ DRIVER dummydriver = {
 
 DRIVER *dummy_valid (char *name)
 {
-  return (name && *name) ? &dummydriver : NIL;
+  char tmp[MAILTMPLEN];
+  struct stat sbuf;
+				/* must be valid local mailbox */
+  return (name && *name && (*name != '*') && (*name != '{') &&
+				/* INBOX is always accepted */
+	  ((!strcmp (ucase (strcpy (tmp,name)),"INBOX")) ||
+				/* so is empty file */
+	   (!(stat (dummy_file (tmp,name),&sbuf) || sbuf.st_size))))
+    ? &dummydriver : NIL;
 }
 
 

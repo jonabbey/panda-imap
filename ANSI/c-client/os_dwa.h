@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	16 August 1993
+ * Last Edited:	11 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -32,43 +32,15 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
-
-
+
 #include <stdlib.h>
 #include <string.h>
 #include <sys\types.h>
-
-/* Dummy definition overridden by TCP routines */
-
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
-
-/* Compatibility definitions */
 
 #define tcp_open TCP_open
 
-
-/* Function prototypes */
-
-void rfc822_date (char *date);
-void *fs_get (size_t size);
-void fs_resize (void **block,size_t size);
-char *myhomedir ();
-void fs_give (void **block);
-void fatal (char *string);
-unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
-			  unsigned long srcl);
-unsigned long strcrlflen (STRING *s);
-TCPSTREAM *TCP_open (char *host,long port);
-TCPSTREAM *tcp_aopen (char *host,char *service);
-char *tcp_getline (TCPSTREAM *stream);
-long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer);
-long tcp_getdata (TCPSTREAM *stream);
-long tcp_soutr (TCPSTREAM *stream,char *string);
-long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
-void tcp_close (TCPSTREAM *stream);
-char *tcp_host (TCPSTREAM *stream);
-char *tcp_localhost (TCPSTREAM *stream);
-long random (void);
-long getpid (void);
+#include "env_dos.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"

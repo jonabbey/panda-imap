@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	11 October 1993
+ * Last Edited:	16 February 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -234,7 +234,8 @@ typedef struct message_cache {
   unsigned int searched : 1;	/* message was searched */
   unsigned int sequence : 1;	/* (driver use) message is in sequence */
   unsigned int spare : 1;	/* reserved for use by main program */
-  unsigned int zzzz : 2;	/* reserved for future assignment */
+  unsigned int spare2 : 1;	/* reserved for use by main program */
+  unsigned int spare3 : 1;	/* reserved for use by main program */
   unsigned int lockcount : 8;	/* non-zero if multiple references */
 			/* internal date (2 bytes) */
   unsigned int day : 5;		/* day of month (1-31) */
@@ -290,6 +291,7 @@ STRINGDRIVER {
 #define SNX(s) (--(s)->cursize ? *(s)->curpos++ : (*(s)->dtb->next) (s))
 #define GETPOS(s) ((s)->offset + ((s)->curpos - (s)->chunk))
 #define SETPOS(s,i) (*(s)->dtb->setpos) (s,i)
+
 
 /* Mail Access I/O stream */
 

@@ -1,7 +1,7 @@
 /*
  * Program:	Operating-system dependent routines -- SGI version
  *
- * Author:	Angel Li from code by Mark Crispin
+ * Author:	Mark Crispin
  *		Networks and Distributed Computing
  *		Computing & Communications
  *		University of Washington
@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	11 September 1993
+ * Last Edited:	11 November 1993
  *
  * Copyright 1993 by the University of Washington.
  *
@@ -32,8 +32,7 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
-
-
+
 #define MAILFILE "/usr/mail/%s"
 #define ACTIVEFILE "/usr/lib/news/active"
 #define NEWSSPOOL "/usr/spool/news"
@@ -49,38 +48,11 @@
 #include <sys/uio.h>		/* needed for writev() prototypes */
 
 #define direct dirent
-
-/* Dummy definition overridden by TCP routines */
 
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
+#define fatal cclient_fatal
 
-#define fatal	cclient_fatal
-
-
-/* Function prototypes */
-
-void rfc822_date (char *date);
-void *fs_get (size_t size);
-void fs_resize (void **block,size_t size);
-void fs_give (void **block);
-void fatal (char *string);
-unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
-			  unsigned long srcl);
-unsigned long strcrlflen (STRING *s);
-long server_login (char *user,char *pass,char **home,int argc,char *argv[]);
-char *myusername ();
-char *myhomedir ();
-char *lockname (char *tmp,char *fname);
-TCPSTREAM *tcp_open (char *host,int port);
-TCPSTREAM *tcp_aopen (char *host,char *service);
-char *tcp_getline (TCPSTREAM *stream);
-long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer);
-long tcp_getdata (TCPSTREAM *stream);
-long tcp_soutr (TCPSTREAM *stream,char *string);
-long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
-void tcp_close (TCPSTREAM *stream);
-char *tcp_host (TCPSTREAM *stream);
-char *tcp_localhost (TCPSTREAM *stream);
-
+#include "env_unix.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"

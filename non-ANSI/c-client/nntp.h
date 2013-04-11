@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	8 March 1992
+ * Last Edited:	21 November 1993
  *
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -37,6 +37,7 @@
 
 #define NNTPTCPPORT (long) 119	/* assigned TCP contact port */
 #define NNTPGREET (long) 200	/* NNTP successful greeting */
+#define NNTPGREETNOPOST (long) 201
 #define NNTPOK (long) 240	/* NNTP OK code */
 #define NNTPREADY (long) 340	/* NNTP ready for data */
 

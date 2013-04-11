@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	25 April 1993
+ * Last Edited:	14 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -63,7 +63,7 @@ typedef struct tenex_local {
 /* Function prototypes */
 
 DRIVER *tenex_valid  ();
-long tenex_isvalid  ();
+int tenex_isvalid  ();
 void *tenex_parameters  ();
 void tenex_find  ();
 void tenex_find_bboards  ();

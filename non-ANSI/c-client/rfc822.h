@@ -102,7 +102,7 @@ char *rfc822_contents  ();
 #ifndef TCPSTREAM
 #define TCPSTREAM void
 #endif
-typedef long (*soutr_t) ();
+typedef long (*soutr_t)  ();
 long rfc822_output  ();
 void rfc822_encode_body  ();
 long rfc822_output_body  ();

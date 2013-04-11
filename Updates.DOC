@@ -883,3 +883,187 @@ Note: Dates in this revision history indicate when the work was completed.
 		time(0) values.
 
 23 October 1993	[nntp.c] Do MODE READER here too.
+
+25 October 1993	[os_sgi.c] Punt on timezone names on IRIX.
+
+		*** 3.1 frozen at this point ***
+
+25 October 1993	[bezerk.c, mbox.c, mmdf.c, mtx.c, os*.c/h, tenex2.c] New
+		handling of /usr/spool/mail/$USER directories for black box
+		server.
+
+26 October 1993	[mtx.c] Change SEEK_SET to L_SET.
+
+26 October 1993	[bezerk.c, dawz.c, mbox.c, mh.c, mmdf.c, mtx.c, tenex2.c]
+		Make sure errno is cleared by xxx_valid() routines.
+
+26 October 1993	[mh.c] Permit absolute path names again in mh driver.
+
+ 1 November 1993 [imap2.c] No ``Mailbox is empty'' alert when halfopen.
+
+ 2 November 1993 [bezerk.c, imapd.c, mmdf.c, os_sco.c]
+		Changes so it builds on SCO.
+
+ 2 November 1993 [mtx.c, tenex2.c] Fix recent flag not being set in snarf.
+
+ 2 November 1993 [makefile.cvx] Optimize, compile phile driver.
+
+ 4 November 1993 [imapd.c] Try to support old form COPY under MacMS kludge.
+
+ 4 November 1993 [nntp*.c] Ignore error from MODE READER command.
+
+ 4 November 1993 [mtx.c, tenex2.c] Make sure using longs when writing size.
+
+ 4 November 1993 [os_ptx.c] Don't get shadow password if have password from
+		getpwnam().
+
+ 9 November 1993 [makefile.bsi] Correct rsh path.
+
+12 November 1993 Break up the OS-dependent stuff.  Create lots of new modules.
+
+12 November 1993 [tcp_unix.c] TCP routines are now safe against EINTR.
+
+12 November 1993 [os_ptx.c] PTX now uses socket interface.
+
+12 November 1993 Created Secure SUN-OS (SSN) and Ultrix (SUL) ports.
+
+12 November 1993 [makefile.lnx] Shadow passwords by default on Linux.
+
+14 November 1993 [bezerk.c, dummy.c, mail.c/h, mmdf.c, mtx.c/h, tenex2.c/h]
+		Rewrite TRYCREATE logic.
+
+15 November 1993 [env_mac.c] Fix compilation bogon.
+
+17 November 1993 [flock.c, os_hpp.c, os_ptx.c, os_sv4.c] Newer, better flock()
+		emulator.
+
+17 November 1993 [os_a32.c/h] Don't use flock() emulator on AIX 3.2.
+
+17 November 1993 [os_hpp.c] Fix compilation errors.
+
+18 November 1993 [bezerk.c, mh.c, mmdf.c, mtx.c, news.c, nntpcunx.c, tenex2.c]
+		Fix buffer clobberage bug in address searching that caused
+		false matches (particularly on mtx and tenex).
+
+18 November 1993 [os*.c] Make sure all UNIX-based drivers include stat.h.
+
+21 November 1993 [nntp.h, nntpc*.c] Permit 201 greeting.
+
+22 November 1993 [bezerk.c, mail.c, mmdf.c, mtx.c, tenex2.c] Fix append
+		handling with empty files.
+
+23 November 1993 [flock.c, os_hpp.h, os_ptx.h, os_sv4.h] Spell fcntl right.
+
+23 November 1993 [env_unix.c, phile.c] Strip off leading context from file
+		names.
+
+24 November 1993 [flock.c] Spell fcntl arguments right!  Grr!
+
+24 November 1993 [dummy.c] Fix error from mail_ping() on dummy stream.
+
+25 November 1993 [flock.c] Spell struct right too...
+
+27 November 1993 [os_ptx.c, os_sgi.c, os_sv4.c] Missing select.h include.
+
+28 November 1993 [bezerk.c, mail.c, mmdf.c] TRYCREATE was broken in append.
+
+29 November 1993 [log_sul.c] Fix typo in secure Ultrix code.
+
+29 November 1993 [mh.c] Move lhostn setting to mh_isvalid().
+
+29 November 1993 [log_ult.c, makefile.ult, makefile.vul] Nuke separate secure
+		Ultrix (SUL) port, replace with code that works with both!
+
+30 November 1993 [imap2.c] Fix dropped temporary streams.
+
+30 November 1993 [env_unix.h, gr_wait*.c, os*.c, tcp_unix.c/h] Create new
+		code to reap zombies from rimapd attempts.
+
+ 8 December 1993 [imap2.c] Fix bad stream usage in map_append().
+
+12 December 1993 [rfc822.c] Fix crash in MIME parse with CRLF texts.
+
+12 December 1993 [bezerk.c, mmdf.c, mtx.c, tenex2.c] Fix possible reference
+		to uninitialized LOCAL struct.
+
+12 December 1993 [env_unix.c] Permit absolute pathname in black box model iff
+		matches spool directory (for tmail).
+
+13 December 1993 [mbox.c] Change slock variable to lockx for silly Solborune
+		systems.
+
+13 December 1993 [nntpc*.c] Fix attempt to malloc() 0 bytes with empty groups.
+
+13 December 1993 [env_unix.c] Case-independent black-box INBOX.
+
+13 December 1993 [mtx.c, tenex2.c] Don't attempt snarf in black-box.
+
+15 December 1993 [makefile.isc, os_isc.c/h] Add ISC port.
+
+16 December 1993 [gr_wait.c] Fix silly syntax error.
+
+16 December 1993 [memmove2.c] Fix to compile on more systems.
+
+16 December 1993 [opendir.c] Write opendir()/closedir()/scandir() emulator.
+
+16 December 1993 [os_sco.c, os_isc.c, os_ptx.c, os_sv4.c] DIR_SIZE macro is
+		now in the OS modules since not all systems have d_reclen.
+
+21 December 1993 [tcp_unix.c] Fix silly crash when host name is bogus.
+
+22 December 1993 [nntpc*.c] Don't trust message count from NNTP server; always
+		use calculated value from LISTGROUP, XHDR or range.
+
+22 December 1993 [imap2.c] Try to make rimapd mechanism more robust.
+
+22 December 1993 [tcp_unix.c] Fix ``No such host'' error report.
+
+22 December 1993 [os_osf.c] Fix compilation on Alpha.
+
+27 December 1993 [memmove.c] Fix return value.
+
+ 3 January 1994	[imap2.c] Fix spurious memmove() of bogus pointer.
+
+ 7 January 1994 [phile.c] Fix month in internaldate.
+
+12 January 1994	[rfc822.c] Fix another crash caused by negative(!) length MIME
+		segments.
+
+31 January 1994 [bezerk.c] Fix excessive file rewrites.
+
+ 2 February 1994 [rfc822.c] Make MIME boundary delimiters compliant.
+
+ 6 February 1994 [imap2.c] Better handling of literals.
+
+ 8 February 1994 [dawz.c, env_dos.c] Use numeric timezones.
+
+10 February 1994 [bezerk.c] Fix lock file PID read.
+
+11 February 1994 [fs_unix.c] Never allocate 0 bytes.
+
+12 February 1994 [mmdf.c] Proper test for CTRL/A, not F.
+
+14 February 1994 [scandir.c] Fix copy of file name.
+
+16 February 1994 [mail.h] More spare bits for main program.
+
+16 February 1994 [os_mac.c] Fix output of long strings in tcp_sout().
+
+16 February 1994 [imap2.c] Don't prefetch text if map_prefetch off.
+
+17 February 1994 [dawz.c] Fix output of timezone.
+
+17 February 1994 [dummydos.c] Validate that file exists before accepting it.
+
+17 February 1994 [mmdf.c] Make the MMDF driver more like the bezerk driver.
+
+21 February 1994 [mtx.c] Fix off-by-one bug in rewriting flags.
+
+27 February 1994 [mmdf.c] Fix next-message hunt when crossing buffers.
+
+27 February 1994 [nl_dos.c] Properly cast size argument.
+
+27 February 1994 [os_dnf.c, os_dpc.c] Fix bad memory reference in fs_give
+		of hostname.
+
+27 February 1994 [makefile.wsk, mtest.def, os_wsk.c/h] Add Winsock port.

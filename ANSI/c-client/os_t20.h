@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	16 August 1993
+ * Last Edited:	11 November 1993
  *
  * Copyright 1993 by Mark Crispin
  *
@@ -36,20 +36,19 @@
  * equaled by more `modern' operating systems.
  * Wasureru mon ka!!!!
  */
-
-
+
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-
+
 /* Coddle KCC's 6-character symbol limitation */
 
 #define rfc822_date r8date
+#define server_login slogin
 #define fs_get fsget
 #define fs_resize fsrsiz
 #define fs_give fsgive
 #define strcrlfcpy stclcp
-#define server_login slogin
 #define tcp_open topen
 #define tcp_getline tgline
 #define tcp_getbuffer tgbuf
@@ -58,31 +57,8 @@
 #define tcp_host thost
 #define tcp_localhost tlocal
 
-
-/* Dummy definition overridden by TCP routines */
-
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
-
-
-/* Function prototypes */
-
-void rfc822_date (char *date);
-void *fs_get (size_t size);
-void fs_resize (void **block,size_t size);
-void fs_give (void **block);
-void fatal (char *string);
-unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
-			  unsigned long srcl);
-unsigned long strcrlflen (STRING *s);
-long server_login (char *user,char *pass,char **home,int argc,char *argv[]);
-TCPSTREAM *tcp_open (char *host,int port);
-TCPSTREAM *tcp_aopen (char *host,char *service);
-char *tcp_getline (TCPSTREAM *stream);
-long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer);
-long tcp_soutr (TCPSTREAM *stream,char *string);
-long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
-void tcp_close (TCPSTREAM *stream);
-char *tcp_host (TCPSTREAM *stream);
-char *tcp_localhost (TCPSTREAM *stream);
+#include "env.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"

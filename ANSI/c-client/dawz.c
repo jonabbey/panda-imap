@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	14 September 1993
+ * Last Edited:	17 February 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -115,12 +115,13 @@ long dawz_isvalid (char *name)
   int fd;
   char *s,tmp[MAILTMPLEN];
   struct stat sbuf;
+  errno = NIL;			/* zap error */
 				/* INBOX is always accepted */
   if (!strcmp (ucase (strcpy (tmp,name)),"INBOX")) return T;
 				/* if file, get its status */
   if (*name != '{' && dawz_file (tmp,name) && (stat (tmp,&sbuf) == 0)) {
 				/* allow empty file */
-    if (sbuf.st_size == 0) return T;
+    if (sbuf.st_size == 0) return LONGT;
     if ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0 && read (fd,tmp,64) >= 0){
       close (fd);		/* close the file */
       if ((s = strchr (tmp,'\015')) && s[1] == '\012') {
@@ -366,8 +367,8 @@ MAILSTREAM *dawz_open (MAILSTREAM *stream)
   stream->sequence++;		/* bump sequence number */
 				/* parse mailbox */
   stream->nmsgs = stream->recent = 0;
-  if (dawz_ping (stream) && !stream->nmsgs)
-    mm_log ("Mailbox is empty",(long) NIL);
+  if (!dawz_ping (stream)) return NIL;
+  if (!stream->nmsgs) mm_log ("Mailbox is empty",(long) NIL);
   return stream;		/* return stream to caller */
 }
 
@@ -979,7 +980,7 @@ long dawz_move (MAILSTREAM *stream,char *sequence,char *mailbox)
 
 long dawz_append (MAILSTREAM *stream,char *mailbox,STRING *message)
 {
-  int fd;
+  int fd,zone;
   struct stat sbuf;
   char tmp[MAILTMPLEN];
   time_t ti;
@@ -987,8 +988,7 @@ long dawz_append (MAILSTREAM *stream,char *mailbox,STRING *message)
   long i;
   long size = SIZE (message);
   tzset ();			/* initialize timezone stuff */
-				/* make sure valid mailbox */
-  if (!dawz_isvalid (mailbox)) {
+  if (!dawz_isvalid (mailbox)) {/* make sure valid mailbox */
     sprintf (tmp,"Not a Dawz-format mailbox: %s",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
@@ -1004,9 +1004,10 @@ long dawz_append (MAILSTREAM *stream,char *mailbox,STRING *message)
   fstat (fd,&sbuf);		/* get current file size */
   ti = time (0);		/* get time now */
   t = localtime (&ti);		/* output local time */
-  sprintf (tmp,"%2d-%s-%d %02d:%02d:%02d-%s,%ld;000000000000\015\012",
+  zone = -(((int)timezone)/ 60);/* get timezone from TZ environment stuff */
+  sprintf (tmp,"%2d-%s-%d %02d:%02d:%02d %+03d%02d,%ld;000000000000\015\012",
 	   t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,tzname[t->tm_isdst],size);
+	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,size);
 
 				/* write header */
   if (write (fd,tmp,strlen (tmp)) < 0) {

@@ -1,4 +1,4 @@
-# Program:	Portable C client makefile -- SVR4 version
+# Program:	Portable C client makefile -- D-G version
 #
 # Author:	Ken Weaverling from code by Mark Crispin
 #		Networks and Distributed Computing
@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	21 October 1993
+# Last Edited:	12 November 1993
 #
 # Copyright 1993 by the University of Washington
 #
@@ -31,11 +31,14 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
+EXTRADRIVERS = #mh mbox mmdf
+DRIVERS = imap nntp mtx tenex bezerk news phile dummy
 RSH = restsh
 RSHPATH = /usr/bin/restsh
 OSDEFS = -DRSH=\"$(RSH)\" -DRSHPATH=\"$(RSHPATH)\"
 CFLAGS = -g -Dconst=
-LDFLAGS = # -lsocket -lnsl -lgen
+EXTRALDFLAGS =
+LDFLAGS = $(EXTRALDFLAGS)
 
 mtest: mtest.o c-client.a
 	echo $(CFLAGS) > CFLAGS
@@ -47,12 +50,13 @@ clean:
 
 mtest.o: mail.h smtp.h nntp.h misc.h osdep.h
 
-c-client.a: mail.o bezerk.o tenex2.o mbox.o mh.o imap2.o news.o nntpclient.o\
-	phile.o dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o sm_unix.o
-	rm -f c-client.a
-	ar rc c-client.a mail.o bezerk.o tenex2.o mbox.o mh.o imap2.o news.o \
-	nntpclient.o phile.o dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o \
+c-client.a: mail.o bezerk.o mtx.o tenex2.o mbox.o mh.o mmdf.o imap2.o news.o \
+	nntpcunx.o phile.o dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o \
 	sm_unix.o
+	rm -f c-client.a
+	ar rc c-client.a mail.o bezerk.o mtx.o tenex2.o mbox.o mh.o mmdf.o \
+	imap2.o news.o nntpcunx.o phile.o dummy.o smtp.o nntp.o rfc822.o \
+	misc.o osdep.o sm_unix.o
 
 mail.o: mail.h misc.h osdep.h
 
@@ -66,11 +70,13 @@ mbox.o: mail.h mbox.h bezerk.h misc.h osdep.h
 
 mh.o: mail.h mh.h rfc822.h misc.h osdep.h
 
+mmdf.o: mail.h mmdf.h rfc822.h misc.h osdep.h
+
 imap2.o: mail.h imap2.h misc.h osdep.h
 
 news.o: mail.h news.h misc.h osdep.h
 
-nntpclient.o: mail.h nntp.h nntpclient.h misc.h rfc822.h news.h smtp.h osdep.h
+nntpcunx.o: mail.h nntp.h nntpcunx.h misc.h rfc822.h news.h smtp.h osdep.h
 
 phile.o: mail.h phile.h misc.h osdep.h
 
@@ -86,7 +92,8 @@ misc.o: mail.h misc.h osdep.h
 
 sm_unix.o: mail.h misc.h osdep.h
 
-osdep.o: mail.h osdep.h os_d-g.c
+osdep.o: mail.h osdep.h env_unix.h fs.h ftl.h nl.h tcp.h os_d-g.c fs_unix.c \
+	ftl_unix.c nl_unix.c env_unix.c tcp_unix.c log_std.c
 	$(CC) $(CFLAGS) $(OSDEFS) -c os_d-g.c
 	mv os_d-g.o osdep.o
 

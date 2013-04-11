@@ -13,7 +13,7 @@
  *		Internet: cohen@bucrf16.bu.edu
  *
  * Date:	23 February 1992
- * Last Edited:	28 September 1993
+ * Last Edited:	29 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -41,7 +41,6 @@
 #include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
-#include <sys/types.h>
 #include "mail.h"
 #include "osdep.h"
 #include <pwd.h>
@@ -119,6 +118,13 @@ int mh_isvalid (name,tmp)
 	char *tmp;
 {
   struct stat sbuf;
+  struct hostent *host_name;
+  if (!lhostn) {		/* have local host yet? */
+    gethostname(tmp,MAILTMPLEN);/* get local host name */
+    lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
+		     host_name->h_name : tmp);
+  }
+  errno = NIL;			/* zap error */
                                 /* if file, get its status */
   return (*name != '{' && *name != '.' &&
 	  (stat (mh_file (tmp,name),&sbuf) == 0) &&
@@ -136,30 +142,10 @@ char *mh_file (dst,name)
 	char *dst;
 	char *name;
 {
-#if 0
-  struct passwd *pw;
-  char *s,*t,tmp[MAILTMPLEN];
-  switch (*name) {
-  case '/':			/* absolute file path */
-    strcpy (dst,name);		/* copy the mailbox name */
-    break;
-  case '~':			/* home directory */
-    if (name[1] == '/') t = myhomedir ();
-    else {
-      strcpy (tmp,name + 1);	/* copy user name */
-      if (s = strchr (tmp,'/')) *s = '\0';
-      t = ((pw = getpwnam (tmp)) && pw->pw_dir) ? pw->pw_dir : "/NOSUCHUSER";
-    }
-    sprintf (dst,"%s%s",t,(s = strchr (name,'/')) ? s : "");
-    break;
-  default:			/* relative path, goes in Mail folder */
-    sprintf (dst,"%s/Mail/%s",myhomedir (),name);
-    break;
-  }
-#else
-  sprintf (dst,"%s/Mail/%s",myhomedir (),name);
-#endif
-  return dst;
+  char *s,tmp[MAILTMPLEN];
+  if (*name == '/') return mailboxfile (dst,name);
+  sprintf (tmp,"Mail/%s",name);
+  return (s = mailboxfile (dst,tmp)) ? s : "";
 }
 
 
@@ -360,7 +346,6 @@ MAILSTREAM *mh_open (stream)
   long i,nmsgs;
   long recent = 0;
   char tmp[MAILTMPLEN];
-  struct hostent *host_name;
   struct direct **names;
   if (!stream) return &mhproto;	/* return prototype for OP_PROTOTYPE call */
   if (LOCAL) {			/* close old file if stream being recycled */
@@ -372,11 +357,6 @@ MAILSTREAM *mh_open (stream)
   if (!strcmp (tmp,stream->mailbox)) {
     fs_give ((void **) &stream->mailbox);
     stream->mailbox = cpystr (tmp);
-  }
-  if (!lhostn) {		/* have local host yet? */
-    gethostname(tmp,MAILTMPLEN);/* get local host name */
-    lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
-		     host_name->h_name : tmp);
   }
 				/* scan directory */
   if ((nmsgs = scandir (tmp,&names,mh_select,mh_numsort)) >= 0) {
@@ -1242,10 +1222,11 @@ char mh_search_bcc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mh_fetchstructure (stream,msgno,NIL)->bcc;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,NIL)->bcc);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
@@ -1255,10 +1236,11 @@ char mh_search_cc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mh_fetchstructure (stream,msgno,NIL)->cc;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,NIL)->cc);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
@@ -1268,10 +1250,11 @@ char mh_search_from (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mh_fetchstructure (stream,msgno,NIL)->from;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,NIL)->from);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 
@@ -1281,10 +1264,11 @@ char mh_search_to (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mh_fetchstructure (stream,msgno,NIL)->to;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,mh_fetchstructure (stream,msgno,NIL)->to);
-  return search (LOCAL->buf,strlen (LOCAL->buf),d,n);
+  rfc822_write_address (LOCAL->buf,a);
+  return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
 /* Search parsers */

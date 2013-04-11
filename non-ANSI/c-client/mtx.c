@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	19 October 1993
+ * Last Edited:	21 February 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -112,11 +112,12 @@ DRIVER *mtx_valid (name)
  * Returns: T if valid, NIL otherwise
  */
 
-long mtx_isvalid (name,tmp)
+int mtx_isvalid (name,tmp)
 	char *name;
 	char *tmp;
 {
   int i,fd;
+  int ret = NIL;
   char *s;
   struct stat sbuf;
   struct hostent *host_name;
@@ -125,26 +126,25 @@ long mtx_isvalid (name,tmp)
     lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
 		     host_name->h_name : tmp);
   }
+  errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
-      (stat (mtx_file (tmp,name),&sbuf) == 0)) {
-    if (sbuf.st_size != 0) {	/* if non-empty file */
-      if ((fd = open (tmp,O_RDONLY,NIL)) >= 0 && read (fd,tmp,64) >= 0) {
-	close (fd);		/* close the file */
-	if ((s = strchr (tmp,'\015')) && s[1] == '\012') {
-	  *s = '\0';		/* tie off header */
+      (!stat (mtx_file (tmp,name),&sbuf)) &&
+      ((fd = open (tmp,O_RDONLY,NIL)) >= 0)) {
+    if (sbuf.st_size) {		/* if non-empty file */
+      if ((read (fd,tmp,64) >= 0) && (s = strchr (tmp,'\015')) &&
+	  (s[1] == '\012')) {
+	*s = '\0';		/* tie off header */
 				/* must begin with dd-mmm-yy" */
-	  if (((tmp[2] == '-' && tmp[6] == '-') ||
-	       (tmp[1] == '-' && tmp[5] == '-')) &&
-	      (s = strchr (tmp+20,',')) && strchr (s+2,';')) return LONGT;
-	}
+	ret = (((tmp[2] == '-' && tmp[6] == '-') ||
+		(tmp[1] == '-' && tmp[5] == '-')) &&
+	       (s = strchr (tmp+20,',')) && strchr (s+2,';')) ? T : NIL;
       }
     }
-				/* allow empty if a ".MTX" file */
-    else if ((i = strlen (tmp)) > 4 && !strcmp (tmp + i - 4 ,".MTX"))
-      return LONGT;
+    else errno = 0;		/* no error if empty file */
+    close (fd);			/* close the file */
   }
-  return NIL;			/* failed miserably */
+  return ret;			/* return what we should */
 }
 
 
@@ -281,12 +281,7 @@ long mtx_create (stream,mailbox)
 	char *mailbox;
 {
   char tmp[MAILTMPLEN];
-  int i,fd;
-				/* must be a ".MTX" file */
-  if ((i = strlen (mailbox)) < 4 || strcmp (mailbox + i - 4 ,".MTX")) {
-    mm_log ("Can't create mailbox: name must end with .MTX",ERROR);
-    return NIL;
-  }
+  int fd;
   if ((fd = open (mtx_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600)) < 0){
     sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
@@ -702,8 +697,7 @@ unsigned long mtx_header (stream,msgno,size)
   long pos = elt->data1 + (elt->data2 >> 24);
 				/* is size known? */
   if (!(*size = (elt->data2 & (unsigned long) 0xffffff))) {
-				/* get to header position */
-    lseek (LOCAL->fd,pos,SEEK_SET);
+    lseek (LOCAL->fd,pos,L_SET);/* get to header position */
 				/* search message for CRLF CRLF */
     for (siz = 0; siz < elt->rfc822_size; siz++) {
 				/* read another buffer as necessary */
@@ -952,7 +946,7 @@ void mtx_check (stream)
   }
 }
 
-/* Mtx mail snarf messages from bezerk inbox
+/* Mtx mail snarf messages from system inbox
  * Accepts: MAIL stream
  */
 
@@ -962,34 +956,37 @@ void mtx_snarf (stream)
   long i = 0;
   long r,j;
   struct stat sbuf;
-  struct iovec iov[2];
+  struct iovec iov[3];
   char lock[MAILTMPLEN];
   MESSAGECACHE *elt;
-  MAILSTREAM *bezerk = NIL;
-  int ld = mtx_lock (LOCAL->fd,lock,LOCK_EX);
-  if (ld < 0) return;		/* give up if can't get exclusive permission */
+  MAILSTREAM *sysibx = NIL;
+  int ld;
+				/* give up if can't get exclusive permission */
+  if ((!strcmp (sysinbox (),stream->mailbox)) ||
+      ((ld = tenex_lock (LOCAL->fd,lock,LOCK_EX)) < 0)) return;
   mm_critical (stream);		/* go critical */
-				/* calculate name of bezerk file */
-  sprintf (LOCAL->buf,MAILFILE,myusername ());
-  stat (LOCAL->buf,&sbuf);	/* see if anything there */
+  stat (sysinbox (),&sbuf);	/* see if anything there */
   if (sbuf.st_size) {		/* non-empty? */
     fstat (LOCAL->fd,&sbuf);	/* yes, get current file size */
-				/* sizes match and can get bezerk mailbox? */
+				/* sizes match and can get sysibx mailbox? */
     if ((sbuf.st_size == LOCAL->filesize) &&
-	(bezerk = mail_open (bezerk,LOCAL->buf,OP_SILENT)) &&
-	(!bezerk->readonly) && (r = bezerk->nmsgs)) {
+	(sysibx = mail_open (sysibx,sysinbox (),OP_SILENT)) &&
+	(!sysibx->readonly) && (r = sysibx->nmsgs)) {
 				/* yes, go to end of file in our mailbox */
       lseek (LOCAL->fd,sbuf.st_size,L_SET);
-				/* for each message in bezerk mailbox */
-      while (r && (++i <= bezerk->nmsgs)) {
+				/* for each message in sysibx mailbox */
+      while (r && (++i <= sysibx->nmsgs)) {
 				/* snarf message from Berkeley mailbox */
-	iov[1].iov_base = bezerk_snarf (bezerk,i,&j);
+	iov[1].iov_base = cpystr (mail_fetchheader (sysibx,i));
+	iov[1].iov_len = strlen (iov[1].iov_base);
+	iov[2].iov_base = mail_fetchtext (sysibx,i);
+	iov[2].iov_len = strlen (iov[2].iov_base);
 				/* calculate header line */
-	mail_date ((iov[0].iov_base = LOCAL->buf),elt = mail_elt (bezerk,i));
-	sprintf (LOCAL->buf + strlen (LOCAL->buf),",%d;0000000000%02o\015\012",
-		 iov[1].iov_len = j,fOLD + (fSEEN * elt->seen) +
-		 (fDELETED * elt->deleted) + (fFLAGGED * elt->flagged) +
-		 (fANSWERED * elt->answered));
+	mail_date ((iov[0].iov_base = LOCAL->buf),elt = mail_elt (sysibx,i));
+	sprintf(LOCAL->buf + strlen (LOCAL->buf),",%ld;0000000000%02o\015\012",
+		iov[1].iov_len + iov[2].iov_len,(fOLD * !(elt->recent)) +
+		(fSEEN * elt->seen) + (fDELETED * elt->deleted) +
+		(fFLAGGED * elt->flagged) + (fANSWERED * elt->answered));
 	iov[0].iov_len = strlen (iov[0].iov_base);
 				/* copy message to new mailbox */
 	if (writev (LOCAL->fd,iov,2) < 0) {
@@ -998,16 +995,17 @@ void mtx_snarf (stream)
 	  ftruncate (LOCAL->fd,sbuf.st_size);
 	  r = 0;		/* flag that we have lost big */
 	}
+	fs_give ((void **) &iov[1].iov_base);
       }
       if (r) {			/* delete all the messages we copied */
-	for (i = 1; i <= r; i++) mail_elt (bezerk,i)->deleted = T;
-	mail_expunge (bezerk);/* now expunge all those messages */
+	for (i = 1; i <= r; i++) mail_elt (sysibx,i)->deleted = T;
+	mail_expunge (sysibx);/* now expunge all those messages */
       }
     }
-    if (bezerk) mail_close (bezerk);
+    if (sysibx) mail_close (sysibx);
   }
   mm_nocritical (stream);	/* release critical */
-  mtx_unlock (ld,lock);	/* release exclusive parse/append permission */
+  mtx_unlock (ld,lock);		/* release exclusive parse/append permission */
 }
 
 /* Mtx mail expunge mailbox
@@ -1160,8 +1158,18 @@ long mtx_append (stream,mailbox,message)
   long ret = LONGT;
 				/* N.B.: can't use LOCAL->buf for tmp */
 				/* make sure valid mailbox */
-  if (!mtx_isvalid (mailbox,tmp)) {
-    sprintf (tmp,"Not a Mtx-format mailbox: %s",mailbox);
+  if (!mtx_isvalid (mailbox,tmp)) switch (errno) {
+  case ENOENT:			/* no such file? */
+    mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+    return NIL;
+  case 0:			/* merely empty file? */
+    break;
+  case EINVAL:
+    sprintf (tmp,"Invalid MTX-format mailbox name: %s",mailbox);
+    mm_log (tmp,ERROR);
+    return NIL;
+  default:
+    sprintf (tmp,"Not a MTX-format mailbox: %s",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
@@ -1283,30 +1291,9 @@ char *mtx_file (dst,name)
 	char *dst;
 	char *name;
 {
-  struct passwd *pw;
-  char *s,*t,tmp[MAILTMPLEN];
-  switch (*name) {
-  case '*':			/* bboard? */
-    sprintf (tmp,"~ftp/%s",(name[1] == '/') ? name+2 : name+1);
-    dst = mtx_file (dst,tmp);/* recurse to get result */
-    break;
-  case '/':			/* absolute file path */
-    strcpy (dst,name);		/* copy the mailbox name */
-    break;
-  case '~':			/* home directory */
-    if (name[1] == '/') t = myhomedir ();
-    else {
-      strcpy (tmp,name + 1);	/* copy user name */
-      if (s = strchr (tmp,'/')) *s = '\0';
-      t = ((pw = getpwnam (tmp)) && pw->pw_dir) ? pw->pw_dir : "/NOSUCHUSER";
-    }
-    sprintf (dst,"%s%s",t,(s = strchr (name,'/')) ? s : "");
-    break;
-  default:			/* other name - INBOX becomes INBOX.MTX */
-    if (!strcmp (ucase (strcpy (dst,name)),"INBOX")) name = "INBOX.MTX";
-    sprintf (dst,"%s/%s",myhomedir (),name);
-  }
-  return dst;
+  char *s = mailboxfile (dst,name);
+				/* return our standard inbox */
+  return s ? s : mailboxfile (dst,"INBOX.MTX");
 }
 
 /* Parse flag list
@@ -1490,13 +1477,19 @@ long mtx_copy_messages (stream,mailbox)
   int fd,ld;
   char lock[MAILTMPLEN];
 				/* make sure valid mailbox */
-  if (!mtx_isvalid (mailbox,LOCAL->buf)) {
-    if (errno == ENOENT)	/* failed, was it no such file? */
-      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
-    else {
-      sprintf (LOCAL->buf,"Not a Mtx-format mailbox: %s",mailbox);
-      mm_log (LOCAL->buf,ERROR);
-    }
+  if (!mtx_isvalid (mailbox,LOCAL->buf)) switch (errno) {
+  case ENOENT:			/* no such file? */
+    mm_notify (stream,"[TRYCREATE] Must create mailbox before copy",NIL);
+    return NIL;
+  case 0:			/* merely empty file? */
+    break;
+  case EINVAL:
+    sprintf (LOCAL->buf,"Invalid MTX-format mailbox name: %s",mailbox);
+    mm_log (LOCAL->buf,ERROR);
+    return NIL;
+  default:
+    sprintf (LOCAL->buf,"Not a MTX-format mailbox: %s",mailbox);
+    mm_log (LOCAL->buf,ERROR);
     return NIL;
   }
 				/* got file? */
@@ -1528,7 +1521,7 @@ long mtx_copy_messages (stream,mailbox)
 	else {			/* first time through */
 				/* make a header */
 	  mail_date (LOCAL->buf,elt);
-	  sprintf (LOCAL->buf + strlen (LOCAL->buf),",%d;000000000000\015\012",
+	  sprintf(LOCAL->buf + strlen (LOCAL->buf),",%ld;000000000000\015\012",
 		   j = mtx_size (stream,i));
 				/* add size of header string */
 	  j += (k = strlen (LOCAL->buf));
@@ -1617,7 +1610,7 @@ void mtx_update_status (stream,msgno,syncflag)
 	     fOLD + (fSEEN * elt->seen) + (fDELETED * elt->deleted) +
 	     (fFLAGGED * elt->flagged) + (fANSWERED * elt->answered));
 				/* get to that place in the file */
-    lseek (LOCAL->fd,(off_t) elt->data1 + (elt->data2 >> 24) - 13,L_SET);
+    lseek (LOCAL->fd,(off_t) elt->data1 + (elt->data2 >> 24) - 14,L_SET);
 				/* write new flags */
     write (LOCAL->fd,LOCAL->buf,12);
 				/* sync if requested */
@@ -1866,10 +1859,10 @@ char mtx_search_bcc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mtx_fetchstructure (stream,msgno,NIL)->bcc;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			mtx_fetchstructure (stream,msgno,NIL)->bcc);
+  rfc822_write_address (LOCAL->buf,a);
   return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
@@ -1880,10 +1873,10 @@ char mtx_search_cc (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mtx_fetchstructure (stream,msgno,NIL)->cc;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			mtx_fetchstructure (stream,msgno,NIL)->cc);
+  rfc822_write_address (LOCAL->buf,a);
   return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
@@ -1894,10 +1887,10 @@ char mtx_search_from (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mtx_fetchstructure (stream,msgno,NIL)->from;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			mtx_fetchstructure (stream,msgno,NIL)->from);
+  rfc822_write_address (LOCAL->buf,a);
   return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 
@@ -1908,10 +1901,10 @@ char mtx_search_to (stream,msgno,d,n)
 	char *d;
 	long n;
 {
+  ADDRESS *a = mtx_fetchstructure (stream,msgno,NIL)->to;
   LOCAL->buf[0] = '\0';		/* initially empty string */
 				/* get text for address */
-  rfc822_write_address (LOCAL->buf,
-			mtx_fetchstructure (stream,msgno,NIL)->to);
+  rfc822_write_address (LOCAL->buf,a);
   return search (LOCAL->buf,(long) strlen (LOCAL->buf),d,n);
 }
 

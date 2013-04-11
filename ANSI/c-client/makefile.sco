@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	14 October 1993
+# Last Edited:	26 January 1994
 #
-# Copyright 1993 by the University of Washington
+# Copyright 1994 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -32,13 +32,13 @@
 
 
 EXTRADRIVERS = #mh mbox
-DRIVERS = imap nntp mtx tenex mmdf news phile dummy
+DRIVERS = imap nntp mtx tenex mmdf bezerk news phile dummy
 RSH = rsh
 RSHPATH = /usr/ucb/rsh
 OSDEFS = -DRSH=\"$(RSH)\" -DRSHPATH=\"$(RSHPATH)\"
 CFLAGS =
 EXTRALDFLAGS =
-LDFLAGS = -lsocket -lcrypt -lx -lprot $(EXTRALDFLAGS)
+LDFLAGS = -lsocket -lcrypt -lprot -lx $(EXTRALDFLAGS)
 
 mtest: mtest.o c-client.a
 	echo $(CFLAGS) > CFLAGS
@@ -50,17 +50,17 @@ clean:
 
 mtest.o: mail.h smtp.h nntp.h misc.h osdep.h linkage
 
-c-client.a: mail.o mmdf.o mtx.o tenex2.o mbox.o mh.o imap2.o news.o \
-	nntpclient.o phile.o dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o \
+c-client.a: mail.o bezerk.o mtx.o tenex2.o mbox.o mh.o mmdf.o imap2.o news.o \
+	nntpcunx.o phile.o dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o \
 	sm_unix.o
 	rm -f c-client.a
-	ar rc c-client.a mail.o mmdf.o mtx.o tenex2.o mbox.o mh.o imap2.o \
-	news.o nntpclient.o phile.o dummy.o smtp.o nntp.o rfc822.o misc.o \
-	osdep.o sm_unix.o
+	ar rc c-client.a mail.o bezerk.o mtx.o tenex2.o mbox.o mh.o mmdf.o \
+	imap2.o news.o nntpcunx.o phile.o dummy.o smtp.o nntp.o rfc822.o \
+	misc.o osdep.o sm_unix.o
 
 mail.o: mail.h misc.h osdep.h
 
-mmdf.o: mail.h mmdf.h rfc822.h misc.h osdep.h
+bezerk.o: mail.h bezerk.h rfc822.h misc.h osdep.h
 
 mtx.o: mail.h mtx.h rfc822.h misc.h osdep.h
 
@@ -70,11 +70,13 @@ mbox.o: mail.h mbox.h mmdf.h misc.h osdep.h
 
 mh.o: mail.h mh.h rfc822.h misc.h osdep.h
 
+mmdf.o: mail.h mmdf.h rfc822.h misc.h osdep.h
+
 imap2.o: mail.h imap2.h misc.h osdep.h
 
 news.o: mail.h news.h misc.h osdep.h
 
-nntpclient.o: mail.h nntp.h nntpclient.h rfc822.h smtp.h news.h misc.h osdep.h
+nntpcunx.o: mail.h nntp.h nntpcunx.h rfc822.h smtp.h news.h misc.h osdep.h
 
 phile.o: mail.h phile.h misc.h osdep.h
 
@@ -90,7 +92,8 @@ misc.o: mail.h misc.h osdep.h
 
 sm_unix.o: mail.h misc.h osdep.h
 
-osdep.o: mail.h osdep.h os_sco.c
+osdep.o: mail.h osdep.h env_unix.h fs.h ftl.h nl.h tcp.h os_sco.c fs_unix.c \
+	ftl_unix.c nl_unix.c env_unix.c tcp_unix.c
 	$(CC) $(CFLAGS) $(OSDEFS) -c os_sco.c
 	mv os_sco.o osdep.o
 

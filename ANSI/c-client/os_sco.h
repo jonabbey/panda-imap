@@ -1,7 +1,7 @@
 /*
  * Program:	Operating-system dependent routines -- ANSI SCO Unix version
  *
- * Author:	Mark Crispin/Ken Bobey
+ * Author:	Mark Crispin
  *		Networks and Distributed Computing
  *		Computing & Communications
  *		University of Washington
@@ -9,10 +9,10 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:	11 May 1989
- * Last Edited:	16 August 1993
+ * Date:	1 August 1988
+ * Last Edited:	4 January 1994
  *
- * Copyright 1993 by the University of Washington.
+ * Copyright 1994 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -32,8 +32,7 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
-
-
+
 #define MAILFILE "/usr/spool/mail/%s"
 #define ACTIVEFILE "/usr/lib/news/active"
 #define NEWSSPOOL "/usr/spool/news"
@@ -56,6 +55,9 @@
 #define L_XTND SEEK_END
 
 #define direct dirent
+
+#define ftruncate chsize
+#define random rand
 
 
 /* For flock() emulation */
@@ -82,42 +84,16 @@ struct iovec {
 /* For geteuid emulation */
 
 #define geteuid Geteuid
-
-/* Dummy definition overridden by TCP routines */
-
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
 
-/* Function prototypes */
-
-void rfc822_date (char *date);
-void *fs_get (size_t size);
-void fs_resize (void **block,size_t size);
-void fs_give (void **block);
-void fatal (char *string);
-unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
-			  unsigned long srcl);
-unsigned long strcrlflen (STRING *s);
-long server_login (char *user,char *pass,char **home,int argc,char *argv[]);
-char *myusername ();
-char *myhomedir ();
-char *lockname (char *tmp,char *fname);
-TCPSTREAM *tcp_open (char *host,int port);
-TCPSTREAM *tcp_aopen (char *host,char *service);
-char *tcp_getline (TCPSTREAM *stream);
-long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer);
-long tcp_getdata (TCPSTREAM *stream);
-long tcp_soutr (TCPSTREAM *stream,char *string);
-long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
-void tcp_close (TCPSTREAM *stream);
-char *tcp_host (TCPSTREAM *stream);
-char *tcp_localhost (TCPSTREAM *stream);
+#include "env_unix.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"
 
 unsigned long gethostid (void);
-long random (void);
-int scandir (char *dirname,struct direct ***namelist,int (*select)(),int (*compar)());
-int ftruncate (int fd,off_t length);
+int scandir (char *dirname,struct direct ***namelist,int (*select) (),
+	     int (*compar) ());
 int fsync (int fd);
 int writev (int fd,struct iovec *iov,int iovcnt);
 int setitimer (int which,struct itimerval *val,struct itimerval *oval);

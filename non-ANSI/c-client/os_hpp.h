@@ -8,7 +8,7 @@
  *		Internet: dmiller@beta.tricity.wsu.edu
  *
  * Date:	11 May 1989
- * Last Edited:	8 September 1993
+ * Last Edited:	12 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -47,6 +47,7 @@
 #include <time.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
 
+#define random lrand48
 
 /* For flock() emulation */
 
@@ -55,39 +56,12 @@
 #define LOCK_NB 4
 #define LOCK_UN 8
 
-
-
-/* Dummy definition overridden by TCP routines */
-
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
-
-/* Function prototypes */
-
-void rfc822_date  ();
-void *fs_get  ();
-void fs_resize  ();
-void fs_give  ();
-void fatal  ();
-unsigned long strcrlfcpy  ();
-unsigned long strcrlflen  ();
-long server_login  ();
-char *myusername ();
-char *myhomedir ();
-char *lockname  ();
-TCPSTREAM *tcp_open  ();
-TCPSTREAM *tcp_aopen  ();
-char *tcp_getline  ();
-long tcp_getbuffer  ();
-long tcp_getdata  ();
-long tcp_soutr  ();
-long tcp_sout  ();
-void tcp_close  ();
-char *tcp_host  ();
-char *tcp_localhost  ();
+#include "env_unix.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"
 
 long gethostid ();
-long random ();
 int flock ();
 int utimes ();

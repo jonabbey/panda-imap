@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	8 September 1993
+ * Last Edited:	6 February 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -124,7 +124,6 @@ typedef struct imap_local {
 #define map_move imove
 #define map_append iappnd
 #define map_gc igc
-#define map_do_gc idogc
 #define map_gc_body igcb
 
 #define imap_host imhost
@@ -189,13 +188,12 @@ long map_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long map_move (MAILSTREAM *stream,char *sequence,char *mailbox);
 long map_append (MAILSTREAM *stream,char *mailbox,STRING *message);
 void map_gc (MAILSTREAM *stream,long gcflags);
-void map_do_gc (MAILSTREAM *stream,long gcflags);
 void map_gc_body (BODY *body);
 
 char *imap_host (MAILSTREAM *stream);
 IMAPPARSEDREPLY *imap_send (MAILSTREAM *stream,char *cmd,char *arg,char *arg2);
-IMAPPARSEDREPLY *imap_send_literal (MAILSTREAM *stream,char *cmd,char *arg,
-				    STRING *arg2);
+IMAPPARSEDREPLY *imap_send_quoted (MAILSTREAM *stream,char *cmd,char *arg,
+				   char *arg2,STRING *arg3);
 IMAPPARSEDREPLY *imap_reply (MAILSTREAM *stream,char *tag);
 IMAPPARSEDREPLY *imap_parse_reply (MAILSTREAM *stream,char *text);
 IMAPPARSEDREPLY *imap_fake (MAILSTREAM *stream,char *tag,char *text);

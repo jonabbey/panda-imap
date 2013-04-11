@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	28 September 1993
+ * Last Edited:	13 December 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -100,16 +100,15 @@ DRIVER *mbox_valid (char *name)
 {
   int fd;
   char s[MAILTMPLEN];
-  char *t;
+  char *t = sysinbox ();
   int ti,zn;
   int ret = NIL;
   struct stat sbuf;
-				/* only consider INBOX */
-  if (!strcmp (ucase (strcpy (s,name)),"INBOX")) {
-				/* make what the file name would be */
-    sprintf (s,"%s/mbox",myhomedir ());
+			
+  if (!mailboxfile (s,name)) {	/* only consider INBOX */
+    mailboxfile (s,"mbox");	/* make what the file name would be */
 				/* file exist? */
-    if ((stat(s,&sbuf) == 0) && (fd = open (s,O_RDONLY,NIL)) >= 0) {
+    if ((stat (s,&sbuf) == 0) && (fd = open (s,O_RDONLY,NIL)) >= 0) {
 				/* allow empty or valid file */
       if ((sbuf.st_size == 0) || ((read (fd,s,MAILTMPLEN-1) >= 0) &&
 				  (*s == 'F') && VALID (s,t,ti,zn))) ret = T;
@@ -160,12 +159,10 @@ long mbox_ping (MAILSTREAM *stream)
   char *s,*t;
   long size;
   struct stat sbuf;
-  char lock[MAILTMPLEN],slock[MAILTMPLEN];
+  char lock[MAILTMPLEN],lockx[MAILTMPLEN];
   if (LOCAL && !stream->readonly && !stream->lock) {
     mm_critical (stream);	/* go critical */
-				/* calculate name of bezerk file */
-    sprintf (LOCAL->buf,MAILFILE,myusername ());
-    if ((sfd = bezerk_lock (LOCAL->buf,O_RDWR,NIL,slock,LOCK_EX)) >= 0) {
+    if ((sfd = bezerk_lock (sysinbox(),O_RDWR,NIL,lockx,LOCK_EX)) >= 0) {
       fstat (sfd,&sbuf);	/* get size of the poop */
       if (size = sbuf.st_size){ /* non-empty? */
 				/* yes, read it */
@@ -189,7 +186,7 @@ long mbox_ping (MAILSTREAM *stream)
 	fs_give ((void **) &s);	/* flush the poop now */
       }
 				/* all done with update */
-      bezerk_unlock (sfd,NIL,slock);
+      bezerk_unlock (sfd,NIL,lockx);
     }
     mm_nocritical (stream);	/* release critical */
   }

@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	11 October 1993
+# Last Edited:	12 November 1993
 #
 # Copyright 1993 by the University of Washington
 #
@@ -65,7 +65,8 @@ misc.obj: mail.h misc.h misc.c
 
 sm_dos.obj: mail.h misc.h sm_dos.c
 
-osdep.obj: mail.h osdep.h os_dbw.c
+osdep.obj: mail.h osdep.h env_dos.h fs.h ftl.h nl.h tcp.h os_dbw.c fs_dos.c \
+	ftl_dos.c nl_dos.c env_dos.c
 	erase osdep.obj
 	cl -c $(CFLAGS) os_dbw.c
 	rename os_dbw.obj osdep.obj

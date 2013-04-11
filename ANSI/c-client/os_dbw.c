@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	16 August 1993
+ * Last Edited:	11 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -62,122 +62,10 @@ TCPSTREAM {
 #include "bwtcp.h"
 
 
-/* Global data */
-
-unsigned long rndm = 0xfeed;	/* initial `random' number */
-
-/* Write current time in RFC 822 format
- * Accepts: destination string
- */
-
-char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
-void rfc822_date (char *date)
-{
-  time_t ti = time (0);
-  struct tm *t;
-  tzset ();			/* initialize timezone stuff */
-  t = localtime (&ti);		/* output local time */
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %s",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,tzname[t->tm_isdst]);
-}
-
-/* Get a block of free storage
- * Accepts: size of desired block
- * Returns: free storage block
- */
-
-void *fs_get (size_t size)
-{
-  void *block = malloc (size);
-  if (!block) fatal ("Out of free storage");
-  return (block);
-}
-
-
-/* Resize a block of free storage
- * Accepts: ** pointer to current block
- *	    new size
- */
-
-void fs_resize (void **block,size_t size)
-{
-  if (!(*block = realloc (*block,size))) fatal ("Can't resize free storage");
-}
-
-
-/* Return a block of free storage
- * Accepts: ** pointer to free storage block
- */
-
-void fs_give (void **block)
-{
-  free (*block);
-  *block = NIL;
-}
-
-
-/* Report a fatal error
- * Accepts: string to output
- */
-
-void fatal (char *string)
-{
-  mm_fatal (string);		/* pass the string */
-  abort ();			/* die horribly */
-}
-
-/* Copy string with CRLF newlines
- * Accepts: destination string
- *	    pointer to size of destination string
- *	    source string
- *	    length of source string
- * Returns: length of copied string
- */
-
-unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
-			  unsigned long srcl)
-{
-  if (srcl > *dstl) {		/* resize if not enough space */
-    fs_give ((void **) dst);	/* fs_resize does an unnecessary copy */
-    *dst = (char *) fs_get ((*dstl = srcl) + 1);
-  }
-				/* copy strings */
-  if (srcl) memcpy (*dst,src,srcl);
-  *(*dst + srcl) = '\0';	/* tie off destination */
-  return srcl;			/* return length */
-}
-
-
-/* Length of string after strcrlfcpy applied
- * Accepts: source string
- * Returns: length of string
- */
-
-unsigned long strcrlflen (STRING *s)
-{
-  return SIZE (s);		/* no-brainer on DOS! */
-}
-
-
-/* Return my home directory name
- * Returns: my home directory name
- */
-
-char *hdname = NIL;
-
-char *myhomedir ()
-{
-  int i;
-  char *s;
-  if (!hdname) {		/* get home directory name if not yet known */
-    hdname = cpystr ((s = getenv ("HOME")) ? s : "");
-    if ((i = strlen (hdname)) && ((hdname[i-1] == '\\') || (hdname[i-1]=='/')))
-      hdname[i-1] = '\0';	/* tie off trailing directory delimiter */
-  }
-  return hdname;
-}
+#include "fs_dos.c"
+#include "ftl_dos.c"
+#include "nl_dos.c"
+#include "env_dos.c"
 
 /* TCP/IP open
  * Accepts: host name
@@ -444,36 +332,4 @@ char *tcp_host (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   return stream->localhost;	/* return local host name */
-}
-
-/* These functions are only used by rfc822.c for calculating cookies.  So this
- * is good enough.  If anything better is needed fancier functions will be
- * needed.
- */
-
-
-/* Return host ID
- */
-
-unsigned long gethostid ()
-{
-  return (unsigned long) 0;
-}
-
-
-/* Return random number
- */
-
-long random ()
-{
-  return rndm *= 0xdae0;
-}
-
-
-/* Return `process ID'
- */
-
-long getpid ()
-{
-  return 1;
 }

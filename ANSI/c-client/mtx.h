@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	14 October 1993
+ * Last Edited:	14 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -63,7 +63,7 @@ typedef struct mtx_local {
 /* Function prototypes */
 
 DRIVER *mtx_valid (char *name);
-long mtx_isvalid (char *name,char *tmp);
+int mtx_isvalid (char *name,char *tmp);
 void *mtx_parameters (long function,void *value);
 void mtx_find (MAILSTREAM *stream,char *pat);
 void mtx_find_bboards (MAILSTREAM *stream,char *pat);
@@ -135,5 +135,3 @@ typedef char (*search_t) (MAILSTREAM *stream,long msgno,char *d,long n);
 search_t mtx_search_date (search_t f,long *n);
 search_t mtx_search_flag (search_t f,long *n,MAILSTREAM *stream);
 search_t mtx_search_string (search_t f,char **d,long *n);
-
-char *bezerk_snarf (MAILSTREAM *stream,long msgno,long *size);

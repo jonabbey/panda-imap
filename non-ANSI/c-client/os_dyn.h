@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	16 August 1992
+ * Last Edited:	12 November 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -47,12 +47,9 @@
 typedef unsigned long size_t;
 
 extern char *strtok ();
-extern char *strchr ();
-extern char *strrchr ();
 extern char *strstr ();
 extern char *strpbrk ();
 extern char *strerror ();
-extern char *memcpy ();
 extern char *memmove ();
 extern char *memset ();
 extern long strtol ();
@@ -61,33 +58,12 @@ extern void free ();
 extern void *realloc ();
 extern int errno;
 
+#define memcpy memmove
+#define strchr index
+#define strrchr rindex
 
-/* Dummy definition overridden by TCP routines */
-
-#ifndef TCPSTREAM
-#define TCPSTREAM void
-#endif
-
-/* Function prototypes */
-
-void rfc822_date  ();
-void *fs_get  ();
-void fs_resize  ();
-void fs_give  ();
-void fatal  ();
-unsigned long strcrlfcpy  ();
-unsigned long strcrlflen  ();
-long server_login  ();
-char *myusername ();
-char *myhomedir ();
-char *lockname  ();
-TCPSTREAM *tcp_open  ();
-TCPSTREAM *tcp_aopen  ();
-char *tcp_getline  ();
-long tcp_getbuffer  ();
-long tcp_getdata  ();
-long tcp_soutr  ();
-long tcp_sout  ();
-void tcp_close  ();
-char *tcp_host  ();
-char *tcp_localhost  ();
+#include "env_unix.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"

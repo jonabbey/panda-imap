@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	11 October 1993
+ * Last Edited:	2 December 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -35,6 +35,7 @@
 
 /* Parameter files */
 
+#include <sys/time.h>		/* must be before osdep.h */
 #include "mail.h"
 #include "osdep.h"
 #include <stdio.h>
@@ -45,7 +46,6 @@
 #include <pwd.h>
 #include <sys/file.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include "misc.h"
 
 
@@ -65,10 +65,11 @@
 
 /* Global storage */
 
-char *version = "7.5(72)";	/* version number of this server */
+char *version = "7.6(74)";	/* version number of this server */
 struct itimerval timer;		/* timeout state */
 int state = LOGIN;		/* server state */
 int mackludge = 0;		/* MacMS kludge */
+int trycreate = 0;		/* saw a trycreate */
 int anonymous = 0;		/* non-zero if anonymous */
 long kodcount = 0;		/* set if KOD has happened already */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -193,16 +194,10 @@ void main (int argc,char *argv[])
       }
 
 				/* kludge for MacMS */
-      else if (!strcmp (cmd,"VERSION")) {
-				/* single argument */
-	if (!(s = snarf (&arg))) response = misarg;
-	else if (arg) response = badarg;
-	else {
-	  if (!((i = atol (s)) && i > 0 && i <= 4))
-	    response = "%s BAD Unknown version\015\012";
-	  else if (mackludge = (i == 4))
-	    fputs ("* OK [MacMS] The MacMS kludge is enabled\015\012",stdout);
-	}
+      else if ((!strcmp (cmd,"VERSION")) && (s = snarf (&arg)) && (!arg) &&
+	       (i = atol (s)) && (i == 4)) {
+	mackludge = T;
+	fputs ("* OK [MacMS] The MacMS kludges are enabled\015\012",stdout);
       }
       else if (!strcmp (cmd,"NOOP")) {
 	if ((state == OPEN) && !mail_ping (stream)) {
@@ -325,9 +320,13 @@ void main (int argc,char *argv[])
 	}
 				/* copy message(s) */
 	else if (!(anonymous || strcmp (cmd,"COPY"))) {
+	  trycreate = NIL;	/* no trycreate status */
 	  if (!((s = snarf (&arg)) && (t = snarf (&arg)))) response = misarg;
 	  else if (arg) response = badarg;
-	  else if (!mail_copy (stream,s,t)) {
+	  else if ((!mail_copy (stream,s,t)) &&
+		   !(mackludge && trycreate &&
+		     (mail_create (tstream = create_policy,t)) &&
+		     (!(tstream = NIL)) && (mail_copy (stream,s,t)))) {
 	    response = lose;
 	    if (!lsterr) lsterr = cpystr ("No such destination mailbox");
 	  }
@@ -525,23 +524,6 @@ void main (int argc,char *argv[])
 	  if (!((s = snarf (&arg)) && (t = snarf (&arg)))) response = misarg;
 	  else if (arg) response = badarg;
 	  else mail_rename (NIL,s,t);
-	}
-
-				/* purge cache */
-	else if (!strcmp (cmd,"PURGE")) {
-	  response = "%s OK PURGE %s is unnecessary with this server\015\012";
-				/* get subcommand */
-	  if (!(arg && (s = strtok (arg," \015\012")) && (cmd = ucase (s))))
-	    response = misarg;	/* missing subcommand */
-	  arg = strtok (NIL,"\015\012");
-	  if (strcmp (cmd,"ALWAYS")) {
-	    if (!(arg && (s = snarf (&arg)))) response = misarg;
-	    else if (arg) response = badarg;
-	    if (strcmp (cmd,"STATUS") && strcmp (cmd,"STRUCTURE") &&
-		strcmp (cmd,"TEXTS"))
-	      response = "%s NO PURGE %s is unknown to this server\015\012";
-	  }
-	  else if (arg) response = badarg;
 	}
 
 	else response = "%s BAD Command unrecognized: %s\015\012";
@@ -810,8 +792,7 @@ void fetch_body_part (long i,char *s)
   mail_fetchstructure (stream,i,&body);
   printf ("BODY[%s] ",s);	/* output attribute */
   if (body && (s = mail_fetchbody (stream,i,s,&j))) {
-				/* and literal string */
-    printf ("{%d}\015\012",j);
+    printf ("{%d}\015\012",j);	/* and literal string */
     while (j -= k) k = fwrite (s += k,1,j,stdout);
     changed_flags (i,f);	/* output changed flags */
   }
@@ -894,8 +875,8 @@ void fetch_internaldate (long i,char *s)
 void fetch_rfc822 (long i,char *s)
 {
   int f = mail_elt (stream,i)->seen;
-  printf ("RFC822 {%d}\015\012%s",mail_elt (stream,i)->rfc822_size,
-	  mail_fetchheader (stream,i));
+  printf ("RFC822 {%d}\015\012",mail_elt (stream,i)->rfc822_size);
+  fputs (mail_fetchheader (stream,i),stdout);
   fputs (mail_fetchtext (stream,i),stdout);
   changed_flags (i,f);		/* output changed flags */
 }
@@ -1045,8 +1026,15 @@ void pstring (char *s)
   char c,*t;
   if (s) {			/* is there a string? */
 				/* must use literal string */
-    if (strpbrk (s,"\012\015\"%{\\")) printf ("{%d}\015\012%s",strlen (s),s);
-    else printf ("\"%s\"",s);	/* may use quoted string */
+    if (strpbrk (s,"\012\015\"%{\\")) {
+      printf ("{%d}\015\012",strlen (s));
+      fputs (s,stdout);		/* don't merge this with the printf() */
+    }
+    else {			/* may use quoted string */
+      putchar ('"');		/* don't even think of merging this into a */
+      fputs (s,stdout);		/*  printf().  Cretin VAXen can't do a */
+      putchar ('"');		/*  printf() of godzilla strings! */
+    }
   }
   else fputs ("NIL",stdout);	/* empty string */
 }
@@ -1189,8 +1177,11 @@ void mm_bboard (char *string)
 
 void mm_notify (MAILSTREAM *s,char *string,long errflg)
 {
+  char tmp[MAILTMPLEN];
   if (!tstream || (s != tstream)) switch (errflg) {
   case NIL:			/* information message, set as OK response */
+    tmp[11] = '\0';		/* see if TRYCREATE for MacMS kludge */
+    if (!strcmp (ucase (strncpy (tmp,string,11)),"[TRYCREATE]")) trycreate = T;
   case PARSE:			/* parse glitch, output unsolicited OK */
     printf ("* OK %s\015\012",string);
     break;

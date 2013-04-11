@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	16 August 1993
+ * Last Edited:	11 November 1993
  *
  * Copyright 1993 by Mark Crispin
  *
@@ -58,6 +58,10 @@ TCPSTREAM {
 #include "osdep.h"
 #include <sys/time.h>
 #include "misc.h"
+
+#include "fs-t20.c"
+#include "ftl_t20.c"
+#include "nl_t20.c"
 
 /* Write current time in RFC 822 format
  * Accepts: destination string
@@ -81,83 +85,6 @@ void rfc822_date (char *date)
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
 	   t->tm_hour,t->tm_min,t->tm_sec,
 	   (t->tm_isdst ? 1 : 0) + zone/60,abs (zone) % 60,zonename);
-}
-
-/* Get a block of free storage
- * Accepts: size of desired block
- * Returns: free storage block
- */
-
-void *fs_get (size_t size)
-{
-  void *block = malloc (size);
-  if (!block) fatal ("Out of free storage");
-  return (block);
-}
-
-
-/* Resize a block of free storage
- * Accepts: ** pointer to current block
- *	    new size
- */
-
-void fs_resize (void **block,size_t size)
-{
-  if (!(*block = realloc (*block,size))) fatal ("Can't resize free storage");
-}
-
-
-/* Return a block of free storage
- * Accepts: ** pointer to free storage block
- */
-
-void fs_give (void **block)
-{
-  free (*block);
-  *block = NIL;
-}
-
-
-/* Report a fatal error
- * Accepts: string to output
- */
-
-void fatal (char *string)
-{
-  mm_fatal (string);		/* pass up the string */
-  abort ();			/* die horribly */
-}
-
-/* Copy string with CRLF newlines
- * Accepts: destination string
- *	    pointer to size of destination string
- *	    source string
- *	    length of source string
- * Returns: length of copied string
- */
-
-unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
-			  unsigned long srcl)
-{
-  if (srcl > *dstl) {		/* make sure enough space for text */
-    fs_give ((void **) dst);	/* fs_resize does an unnecessary copy */
-    *dst = (char *) fs_get ((*dstl = srcl) + 1);
-  }
-				/* copy strings */
-  if (srcl) memcpy (*dst,src,srcl);
-  *(*dst + srcl) = '\0';	/* tie off destination */
-  return srcl;			/* return length */
-}
-
-
-/* Length of string after strcrlfcpy applied
- * Accepts: source string
- * Returns: length of string
- */
-
-unsigned long strcrlflen (STRING *s)
-{
-  return SIZE (s);		/* this is easy on TOPS-20 */
 }
 
 /* Server log in
@@ -199,7 +126,7 @@ long server_login (char *user,char *pass,char **home,int argc,char *argv[])
  * Returns: TCP stream if success else NIL
  */
 
-TCPSTREAM *tcp_open (char *host,int port)
+TCPSTREAM *tcp_open (char *host,long port)
 {
   char tmp[MAILTMPLEN];
   TCPSTREAM *stream = NIL;
@@ -388,36 +315,4 @@ char *tcp_host (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   return stream->localhost;	/* return local host name */
-}
-
-/* Subscribe to mailbox
- * Accepts: mailbox name
- * Returns: T on success, NIL on failure
- */
-
-long sm_subscribe (char *mailbox)
-{
-  return NIL;			/* needs to be written */
-}
-
-
-/* Unsubscribe from mailbox
- * Accepts: mailbox name
- * Returns: T on success, NIL on failure
- */
-
-long sm_unsubscribe (char *mailbox)
-{
-  return NIL;			/* needs to be written */
-}
-
-
-/* Read subscription database
- * Accepts: pointer to subscription database handle (handle NIL if first time)
- * Returns: character string for subscription database or NIL if done
- */
-
-char *sm_read (void **sdb)
-{
-  return NIL;
 }

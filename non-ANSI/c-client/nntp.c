@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	23 October 1993
+ * Last Edited:	2 November 1993
  *
  * Copyright 1993 by the University of Washington.
  *
@@ -63,8 +63,10 @@ SMTPSTREAM *nntp_open (hostlist,debug)
       stream->debug = debug;
       stream->reply = NIL;
 				/* get NNTP greeting */
-      if ((smtp_reply (stream) == NNTPGREET) &&
-	  (smtp_send (stream,"MODE","READER") == NNTPGREET)) return stream;
+      if (smtp_reply (stream) == NNTPGREET) {
+	smtp_send (stream,"MODE","READER");
+	return stream;
+      }
       smtp_close (stream);	/* otherwise punt stream */
     }
   } while (*++hostlist);	/* try next server */

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	28 September 1993
+ * Last Edited:	7 January 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -128,7 +128,8 @@ int phile_isvalid (name,tmp)
 				/* INBOX is never accepted */
   return (strcmp (ucase (strcpy (tmp,name)),"INBOX") &&
 	  (*name != '{') && !((*name == '*') && (name[1] == '{')) &&
-	  !stat (phile_file (tmp,name),&sbuf) && !(sbuf.st_mode & S_IFDIR));
+	  !stat (mailboxfile (tmp,name),&sbuf) && !(sbuf.st_mode & S_IFDIR) &&
+	  sbuf.st_size);
 }
 
 /* File manipulate driver parameters
@@ -207,7 +208,7 @@ long phile_subscribe (stream,mailbox)
 	char *mailbox;
 {
   char tmp[MAILTMPLEN];
-  return sm_subscribe (phile_file (tmp,mailbox));
+  return sm_subscribe (mailboxfile (tmp,mailbox));
 }
 
 
@@ -222,7 +223,7 @@ long phile_unsubscribe (stream,mailbox)
 	char *mailbox;
 {
   char tmp[MAILTMPLEN];
-  return sm_unsubscribe (phile_file (tmp,mailbox));
+  return sm_unsubscribe (mailboxfile (tmp,mailbox));
 }
 
 
@@ -324,7 +325,7 @@ MAILSTREAM *phile_open (stream)
     mail_free_cache (stream);	/* clean up cache */
   }
 				/* canonicalize the stream mailbox name */
-  phile_file (tmp,stream->mailbox);
+  mailboxfile (tmp,stream->mailbox);
 				/* force readonly if bboard */
   if (*stream->mailbox == '*') stream->readonly = T;
   else {			/* canonicalize name */
@@ -349,7 +350,7 @@ MAILSTREAM *phile_open (stream)
   LOCAL->body = mail_newbody ();
   t = gmtime (&sbuf.st_mtime);
   elt->hours = t->tm_hour; elt->minutes = t->tm_min; elt->seconds = t->tm_sec;
-  elt->day = t->tm_mday; elt->month = t->tm_mon;
+  elt->day = t->tm_mday; elt->month = t->tm_mon + 1;
   elt->year = t->tm_year - (BASEYEAR - 1900);
   sprintf (tmp,"%s, %d %s %d %02d:%02d:%02d +0000",
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
@@ -822,42 +823,6 @@ void phile_gc (stream,gcflags)
 /* Internal routines */
 
 
-/* File generate file string
- * Accepts: temporary buffer to write into
- *	    mailbox name string
- * Returns: local file string
- */
-
-
-char *phile_file (dst,name)
-	char *dst;
-	char *name;
-{
-  struct passwd *pw;
-  char *s,*t,tmp[MAILTMPLEN];
-  switch (*name) {
-  case '*':			/* bboard? */
-    sprintf (tmp,"~ftp/%s",(name[1] == '/') ? name+2 : name+1);
-    dst = phile_file (dst,tmp);/* recurse to get result */
-    break;
-  case '/':			/* absolute file path */
-    strcpy (dst,name);		/* copy the mailbox name */
-    break;
-  case '~':			/* home directory */
-    if (name[1] == '/') t = myhomedir ();
-    else {
-      strcpy (tmp,name + 1);	/* copy user name */
-      if (s = strchr (tmp,'/')) *s = '\0';
-      t = ((pw = getpwnam (tmp)) && pw->pw_dir) ? pw->pw_dir : "/NOSUCHUSER";
-    }
-    sprintf (dst,"%s%s",t,(s = strchr (name,'/')) ? s : "");
-    break;
-  default:			/* other name */
-    sprintf (dst,"%s/%s",myhomedir (),name);
-  }
-  return dst;
-}
-
 /* Parse flag list
  * Accepts: MAIL stream
  *	    flag list as a character string
