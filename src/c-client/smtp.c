@@ -396,7 +396,8 @@ SENDSTREAM *smtp_close (SENDSTREAM *stream)
   if (stream) {			/* send "QUIT" */
     if (stream->netstream) {	/* do close actions if have netstream */
       smtp_send (stream,"QUIT",NIL);
-      net_close (stream->netstream);
+      if (stream->netstream)	/* could have been closed during "QUIT" */
+        net_close (stream->netstream);
     }
 				/* clean up */
     if (stream->host) fs_give ((void **) &stream->host);

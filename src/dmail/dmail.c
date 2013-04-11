@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 April 1993
- * Last Edited:	10 September 2007
+ * Last Edited:	30 October 2008
  */
 
 #include <stdio.h>
@@ -39,7 +39,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "17";		/* dmail edit version */
+char *version = "18";		/* dmail edit version */
 int debug = NIL;		/* debugging (don't fork) */
 int flagseen = NIL;		/* flag message as seen */
 int trycreate = NIL;		/* flag saying gotta create before appending */
@@ -228,7 +228,7 @@ int deliver (FILE *f,unsigned long msglen,char *user)
 				/* have a mailbox specifier? */
   if (mailbox = strchr (user,'+')) {
     *mailbox++ = '\0';		/* yes, tie off user name */
-    if (!*mailbox || !strcmp ("INBOX",ucase (strcpy (tmp,mailbox))))
+    if (!*mailbox || !compare_cstring ((unsigned char *) mailbox,"INBOX"))
       mailbox = NIL;		/* user+ and user+INBOX same as user */
   }
   if (!*user) user = myusername ();
