@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	10 July 2002
+ * Last Edited:	3 June 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -35,6 +35,14 @@
   }							\
   else *b++ = c;					\
 }
+
+
+/* utf8_get() error returns */
+
+#define U8G_BADCONT 0x80000001	/* continuation when not in progress */
+#define U8G_INCMPLT 0x80000002	/* incomplete UTF-8 character */
+#define U8G_NOTUTF8 0x80000003	/* not a valid UTF-8 octet */
+#define U8G_ENDSTRG 0x80000004	/* end of string */
 
 /* ISO-2022 engine states */
 
@@ -363,7 +371,7 @@ struct utf8_eucparam {
 #define CT_ASCII 1		/* 7-bit ASCII no table */
 #define CT_UCS2 2		/* 2 byte 16-bit Unicode no table */
 #define CT_UCS4 3		/* 4 byte 32-bit Unicode no table */
-#define CT_1BYTE0 10		/* 1 byte no table */
+#define CT_1BYTE0 10		/* 1 byte ISO 8859-1 no table */
 #define CT_1BYTE 11		/* 1 byte ASCII + table 0x80-0xff */
 #define CT_1BYTE8 12		/* 1 byte table 0x00 - 0xff */
 #define CT_EUC 100		/* 2 byte ASCII + utf8_eucparam base/CS2/CS3 */
@@ -387,6 +395,13 @@ struct utf8_eucparam {
 
 CHARSET *utf8_charset (char *charset);
 long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags);
+unsigned short *utf8_rmap (char *charset);
+long utf8_cstext (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,
+		  unsigned short errch);
+unsigned long utf8_get (unsigned char **s,unsigned long *i);
+long utf8_cstocstext (SIZEDTEXT *text,char *sc,SIZEDTEXT *ret,char *dc,
+		      unsigned short errch);
+void utf8_text_1byte0 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_1byte (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_1byte8 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);
 void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab);

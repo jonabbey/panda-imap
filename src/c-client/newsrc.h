@@ -31,5 +31,5 @@ long newsrc_update (MAILSTREAM *stream,char *group,char state);
 long newsrc_read (char *group,MAILSTREAM *stream);
 long newsrc_write (char *group,MAILSTREAM *stream);
 char *newsrc_state (MAILSTREAM *stream,char *group);
-void newsrc_check_uid (char *state,unsigned long uid,unsigned long *recent,
-		       unsigned long *unseen);
+void newsrc_check_uid (unsigned char *state,unsigned long uid,
+		       unsigned long *recent,unsigned long *unseen);

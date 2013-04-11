@@ -1,37 +1,47 @@
-.TH mailutil LOCAL "31 January 2003" 
+.TH mailutil 1 "May 18, 2004" 
 .SH NAME
 mailutil - mail utility program
 .nh
 .SH SYNTAX
-.B mailutil check
-.I [-debug] [-verbose] mailbox
-.br
-.B mailutil create
-.I [-debug] [-verbose] new_mailbox
-.br
-.B mailutil copy
-.I [-debug] [-verbose] [-rwcopy] old new
-.br
-.B mailutil move
-.I [-debug] [-verbose] [-rwcopy] old new
-.br
-.B mailutil append
-.I [-debug] [-verbose] [-rwcopy] src dst
-.br
-.B mailutil appenddelete
-.I [-debug] [-verbose] [-rwcopy] src dst
-.br
-.B mailutil transfer
-.I [-debug] [-verbose] [-merge m] [-rwcopy] src dst
+.B mailutil check [-debug] [-verbose]
+.B [mailbox]
+.PP
+.B mailutil create [-debug] [-verbose]
+.B new_mailbox
+.PP
+.B mailutil delete [-debug] [-verbose]
+.B mailbox
+.PP
+.B mailutil rename [-debug] [-verbose]
+.B [-rwcopy] old new
+.PP
+.B mailutil copy [-debug] [-verbose]
+.B [-rwcopy] old new
+.PP
+.B mailutil move [-debug] [-verbose]
+.B [-rwcopy] old new
+.PP
+.B mailutil append [-debug] [-verbose]
+.B [-rwcopy] src dst
+.PP
+.B mailutil appenddelete [-debug] [-verbose]
+.B [-rwcopy] src dst
+.PP
+.B mailutil prune [-debug] [-verbose]
+.B mailbox criteria
+.PP
+.B mailutil transfer [-debug] [-verbose]
+.B [-merge m] [-rwcopy] src dst
 .SH DESCRIPTION
 .B mailutil
 replaces the old chkmail, imapcopy, imapmove, imapxfer, mbxcopy,
 mbxcreat, and mbxcvt programs.
 .PP
 .B mailutil check
-determines whether new mail exists in the given mailbox.  The number
-of new messages is defined as the number of messages that have
-"Recent" status set.  If the mailbox contains no new messages, 
+determines whether new mail exists in the given mailbox (the default
+is INBOX).  The number of new messages is defined as the number of
+messages that have "Recent" status set.  If the mailbox contains no
+new messages, 
 .B mailutil check
 will indicate that no new mail is present;
 otherwise, it will report the number of new messages.  In either case,
@@ -51,14 +61,23 @@ character.  For example, the command
 .br
 will create a new mailbox named "junkmail" in mbx format.
 .PP
+.B mailutil delete
+deletes an existing
+.I mailbox
+with the given name.
+.PP
+.B mailutil rename
+renames an existing mailbox to a new name (which must not already exist).
+This only works if the old and new names are in the same mail store.  A
+more general means to rename a mailbox is to do a
 .B mailutil copy
-and
-.B mailutil move
+of the old name to the new name, followed by a
+.B mailutil delete
+of the old name.
+.PP
+.B mailutil copy
 creates a new mailbox and copies messages from the old mailbox to the
-new mailbox.  In addition,
-.mailutil move
-will also remove (delete and expunge) the messages from the old mailbox
-after copying them to the new mailbox.  As in
+new mailbox.  As in
 .B mailutil create
 a mailbox format can be specified with the new mailbox.  For example, the
 command
@@ -67,6 +86,12 @@ command
 .br
 will copy messages from your existing INBOX to an mbx-format INBOX.
 .PP
+.B mailutil move
+is similar to
+.B mailutil copy
+but in addition will also remove (delete and expunge) the messages from the
+old mailbox after copying them to the new mailbox.
+.PP
 .B mailutil append
 and
 .B mailutil appenddelete
@@ -74,7 +99,16 @@ are similar to
 .B mailutil copy
 and
 .B mailutil move
-except that they do not create the destination mailbox.
+respecitively except that they do not create the destination mailbox.
+.PP
+.B mailutil prune
+prunes the mailbox of messages which match certain criteria, which are
+in the form of IMAP2 (RFC 1176) SEARCH arguments.  For example, the
+command.
+.br
+  mailutil prune INBOX "before 1-jan-2004"
+.br
+will delete and expunge all messages written before January 1, 2004.
 .PP
 .B mailutil transfer
 copies an entire hierarchy of mailboxes from the named source to the

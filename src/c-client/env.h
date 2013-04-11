@@ -10,18 +10,18 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 November 2001
+ * Last Edited:	27 April 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
 
 /* Function prototypes */
 
-long pmatch_full (char *s,char *pat,char delim);
-long dmatch (char *s,char *pat,char delim);
+long pmatch_full (unsigned char *s,unsigned char *pat,unsigned char delim);
+long dmatch (unsigned char *s,unsigned char *pat,unsigned char delim);
 void *env_parameters (long function,void *value);
 void rfc822_date (char *date);
 void rfc822_timezone (char *s,void *t);

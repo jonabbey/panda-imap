@@ -1,7 +1,8 @@
 /*
  * Program:	Winsock TCP/IP routines
  *
- * Author:	Mike Seibel from Unix version by Mark Crispin
+ * Author:	Mark Crispin
+ *	        Networks and Distributed Computing
  *		Computing & Communications
  *		University of Washington
  *		Administration Building, AG-44
@@ -9,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	24 October 2000
+ * Last Edited:	23 December 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -21,9 +22,9 @@
 
 #define BUFLEN 16384		/* 32768 causes stdin read() to barf */
 
-#include <windows.h>
-#define _INC_WINDOWS
-#include <winsock.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#undef ERROR			/* quell conflicting definition diagnostic */
 
 
 /* TCP I/O stream (must be before osdep.h is included) */

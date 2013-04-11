@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	25 April 2003
+ * Last Edited:	21 October 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -37,8 +37,8 @@ int flocksim (int fd,int op)
   char tmp[MAILTMPLEN];
   int logged = 0;
   struct flock fl;
-				/* lock applies to entire file */
-  fl.l_whence = fl.l_start = fl.l_len = 0;
+				/* lock zero bytes at byte 0 */
+  fl.l_whence = SEEK_SET; fl.l_start = fl.l_len = 0;
   fl.l_pid = getpid ();		/* shouldn't be necessary */
   switch (op & ~LOCK_NB) {	/* translate to fcntl() operation */
   case LOCK_EX:			/* exclusive */
@@ -220,7 +220,7 @@ main ()
  * mail_open() on the same mailbox twice.  Don't do it.
  *
  *  Once the slave is invoked, the master only has to read events from the
- * slave's stdout (see below for these events) and translate these events
+ * slave's output (see below for these events) and translate these events
  * to the appropriate c-client callback.  When end of file occurs on the pipe,
  * the master reads the slave's exit status and uses that as the function
  * return.  The append master is slightly more complicated because it has to
@@ -234,14 +234,14 @@ main ()
  * by the slave since the master will generate these events for itself.
  *
  *  The other events cause the slave to write a newline-terminated string to
- * its stdout.  The first character of string indicates the event: S for
+ * its output.  The first character of string indicates the event: S for
  * mm_status(), N for mm_notify(), L for mm_log(), C for mm_critical(), X for
  * mm_nocritical(), D for mm_diskerror(), F for mm_fatal(), and "A" for append
  * argument callback.  Most of these events also carry data, which carried as
  * text space-delimited in the string.
  *
  *  Append argument callback requires the master to provide the slave with
- * data in the slave's stdin.  The first thing that the master provides is
+ * data in the slave's input.  The first thing that the master provides is
  * either a "+" (master has data for the slave) or a "-" (master has no data).
  * If the master has data, it will then send the flags, internal date, and
  * message text, each as <text octet count><SPACE><text>.
@@ -257,6 +257,9 @@ main ()
 
 int lockslavep = 0;		/* non-zero means slave process for locking */
 static int lockproxycopy = 0;	/* non-zero means redo copy as proxy */
+FILE *slavein = NIL;		/* slave input */
+FILE *slaveout = NIL;		/* slave output */
+
 
 /* Common master
  * Accepts: permitted stream
@@ -292,8 +295,9 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
   else if (lockslavep = !pid) {	/* are we slave or master? */
     alarm (0);			/* slave doesn't have alarms or signals */
     for (c = 0; c < NSIG; c++) signal (c,SIG_DFL);
-    dup2 (pipeo[0],0);		/* parent's output in my input */
-    dup2 (pipei[1],1);		/* parent's input is my stdout */
+    if (!(slavein = fdopen (pipeo[0],"r")) ||
+	!(slaveout = fdopen (pipei[1],"w")))
+      fatal ("Can't do slave pipe buffered I/O");
     close (pipei[0]);		/* close parent's side of the pipes */
     close (pipeo[1]);
   }
@@ -303,7 +307,7 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
     close (pipei[1]);		/* close slave's side of the pipes */
     close (pipeo[0]);
     if (!(pi = fdopen (pipei[0],"r")) || !(po = fdopen (pipeo[1],"w")))
-      fatal ("Can't do pipe buffered I/O");
+      fatal ("Can't do master pipe buffered I/O");
 				/* do slave events until EOF */
 				/* read event */
     while (fgets (tmp,MAILTMPLEN,pi)) {
@@ -621,10 +625,10 @@ void slave_flags (MAILSTREAM *stream,unsigned long number)
 
 void slave_status (MAILSTREAM *stream,char *mailbox,MAILSTATUS *status)
 {
-  printf ("S%lx %lu %lu %lu %lu %lu %lu %s\n",
+  fprintf (slaveout,"S%lx %lu %lu %lu %lu %lu %lu %s\n",
 	  (unsigned long) stream,status->flags,status->messages,status->recent,
 	  status->unseen,status->uidnext,status->uidvalidity,mailbox);
-  fflush (stdout);
+  fflush (slaveout);
 }
 
 /* Notification event
@@ -635,8 +639,8 @@ void slave_status (MAILSTREAM *stream,char *mailbox,MAILSTATUS *status)
 
 void slave_notify (MAILSTREAM *stream,char *string,long errflg)
 {
-  printf ("N%lx %lu %s\n",(unsigned long) stream,errflg,string);
-  fflush (stdout);
+  fprintf (slaveout,"N%lx %lu %s\n",(unsigned long) stream,errflg,string);
+  fflush (slaveout);
 }
 
 
@@ -647,8 +651,8 @@ void slave_notify (MAILSTREAM *stream,char *string,long errflg)
 
 void slave_log (char *string,long errflg)
 {
-  printf ("L%lu %s\n",errflg,string);
-  fflush (stdout);
+  fprintf (slaveout,"L%lu %s\n",errflg,string);
+  fflush (slaveout);
 }
 
 
@@ -658,8 +662,8 @@ void slave_log (char *string,long errflg)
 
 void slave_critical (MAILSTREAM *stream)
 {
-  printf ("C%lx\n",(unsigned long) stream);
-  fflush (stdout);
+  fprintf (slaveout,"C%lx\n",(unsigned long) stream);
+  fflush (slaveout);
 }
 
 
@@ -669,8 +673,8 @@ void slave_critical (MAILSTREAM *stream)
 
 void slave_nocritical (MAILSTREAM *stream)
 {
-  printf ("X%lx\n",(unsigned long) stream);
-  fflush (stdout);
+  fprintf (slaveout,"X%lx\n",(unsigned long) stream);
+  fflush (slaveout);
 }
 
 /* Disk error found
@@ -683,9 +687,9 @@ void slave_nocritical (MAILSTREAM *stream)
 long slave_diskerror (MAILSTREAM *stream,long errcode,long serious)
 {
   int c;
-  printf ("D%lx %lu %lu\n",(unsigned long) stream,errcode,serious);
-  fflush (stdout);
-  if ((c = getchar ()) == '+') return LONGT;
+  fprintf (slaveout,"D%lx %lu %lu\n",(unsigned long) stream,errcode,serious);
+  fflush (slaveout);
+  if ((c = getc (slavein)) == '+') return LONGT;
   if (c != '-') slave_fatal ("Unknown master response for diskerror");
   return NIL;
 }
@@ -698,7 +702,8 @@ long slave_diskerror (MAILSTREAM *stream,long errcode,long serious)
 void slave_fatal (char *string)
 {
   syslog (LOG_ALERT,"IMAP toolkit slave process crash: %.100s",string);
-  printf ("F%s\n",string);
+  fprintf (slaveout,"F%s\n",string);
+  fflush (slaveout);
   abort ();			/* die */
 }
 
@@ -722,9 +727,9 @@ static char *slave_append_read (unsigned long n,char *error)
    * bug, since the problem only shows up if the application does fread()
    * on some other file
    */
-  for (t = s; n && ((i = fread (t,1,n,stdin)); t += i,n -= i);
+  for (t = s; n && ((i = fread (t,1,n,slavein)); t += i,n -= i);
 #else
-  for (t = s; n && ((c = getchar ()) != EOF); *t++ = c,--n);
+  for (t = s; n && ((c = getc (slavein)) != EOF); *t++ = c,--n);
 #endif
   if (n) {
     sprintf (tmp,"Error reading %s with %lu bytes remaining",error,n);
@@ -754,25 +759,25 @@ long slave_append (MAILSTREAM *stream,void *data,char **flags,char **date,
   if (ad->date) fs_give ((void **) &ad->date);
   if (ad->msg) fs_give ((void **) &ad->msg);
   *flags = *date = NIL;		/* assume no flags or date */
-  puts ("A");			/* tell master we're doing append callback */
-  fflush (stdout);
-  switch (c = getchar ()) {	/* what did master say? */
+  fputs ("A\n",slaveout);	/* tell master we're doing append callback */
+  fflush (slaveout);
+  switch (c = getc (slavein)) {	/* what did master say? */
   case '+':			/* have message, get size of flags */
-    for (n = 0; isdigit (c = getchar ()); n *= 10, n += (c - '0'));
+    for (n = 0; isdigit (c = getc (slavein)); n *= 10, n += (c - '0'));
     if (c != ' ') {
       sprintf (tmp,"Missing delimiter after flag size %lu: %c",n,c);
       slave_fatal (tmp);
     }
     if (n) *flags = ad->flags = slave_append_read (n,"flags");
 				/* get size of date */
-    for (n = 0; isdigit (c = getchar ()); n *= 10, n += (c - '0'));
+    for (n = 0; isdigit (c = getc (slavein)); n *= 10, n += (c - '0'));
     if (c != ' ') {
       sprintf (tmp,"Missing delimiter after date size %lu: %c",n,c);
       slave_fatal (tmp);
     }
     if (n) *date = ad->date = slave_append_read (n,"date");
 				/* get size of message */
-    for (n = 0; isdigit (c = getchar ()); n *= 10, n += (c - '0'));
+    for (n = 0; isdigit (c = getc (slavein)); n *= 10, n += (c - '0'));
     if (c != ' ') {
       sprintf (tmp,"Missing delimiter after message size %lu: %c",n,c);
       slave_fatal (tmp);
@@ -807,6 +812,7 @@ long slave_append (MAILSTREAM *stream,void *data,char **flags,char **date,
 long slaveproxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,
 		     long options)
 {
-  puts ("&");			/* redo copy as append */
+  fputs ("&\n",slaveout);	/* redo copy as append */
+  fflush (slaveout);
   return NIL;			/* failure for now */
 }

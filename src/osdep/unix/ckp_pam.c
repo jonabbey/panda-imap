@@ -10,21 +10,26 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 April 2002
+ * Last Edited:	21 June 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
-
+
+
+#ifdef MAC_OSX_KLUDGE		/* why can't Apple be compatible? */
+#include <pam/pam_appl.h>
+#else
 #include <security/pam_appl.h>
+#endif
 
 struct checkpw_cred {
   char *uname;			/* user name */
   char *pass;			/* password */
 };
-
+
 /* PAM conversation function
  * Accepts: number of messages
  *	    vector of messages
@@ -59,6 +64,20 @@ static int checkpw_conv (int num_msg,const struct pam_message **msg,
   }
   *resp = reply;
   return PAM_SUCCESS;
+}
+
+
+/* PAM cleanup
+ * Accepts: handle
+ */
+
+static void checkpw_cleanup (pam_handle_t *hdl)
+{
+#if 0	/* see checkpw() for why this is #if 0 */
+  pam_close_session (hdl,NIL);	/* close session [uw]tmp */
+#endif
+  pam_setcred (hdl,PAM_DELETE_CRED);
+  pam_end (hdl,PAM_SUCCESS);
 }
 
 /* Server log in
@@ -100,15 +119,8 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
    */
   pam_open_session (hdl,NIL);	/* make sure account doesn't go inactive */
 #endif
-#if 0
-  /*
-   * This is also a problem.  Apparently doing this breaks access to DFS home
-   * space (hence the #if 0), but there is a report that not doing it causes
-   * the credentials to stick around long after the server process is gone.
-   */
-				/* clean up */
-  pam_setcred (hdl,PAM_DELETE_CRED);
-#endif
-  pam_end (hdl,PAM_SUCCESS);	/* return success */
+				/* arm hook to delete credentials */
+  mail_parameters (NIL,SET_LOGOUTHOOK,(void *) checkpw_cleanup);
+  mail_parameters (NIL,SET_LOGOUTDATA,(void *) hdl);
   return pw;
 }

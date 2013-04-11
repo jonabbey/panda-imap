@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	21 October 1998
- * Last Edited:	29 May 2002
+ * Last Edited:	27 April 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -179,7 +179,7 @@ char *auth_md5_pwd (char *user)
 {
   struct stat sbuf;
   int fd = open (MD5ENABLE,O_RDONLY,NIL);
-  char *s,*t,*buf,*lusr,*lret;
+  unsigned char *s,*t,*buf,*lusr,*lret;
   char *ret = NIL;
   if (fd >= 0) {		/* found the file? */
     fstat (fd,&sbuf);		/* yes, slurp it into memory */

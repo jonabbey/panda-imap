@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	16 June 2003
+ * Last Edited:	8 July 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -117,8 +117,6 @@ void *env_parameters (long function,void *value)
 {
   void *ret = NIL;
   switch ((int) function) {
-  case SET_NAMESPACE:
-    fatal ("SET_NAMESPACE not permitted");
   case GET_NAMESPACE:
     ret = (void *) nslist;
     break;
@@ -437,9 +435,9 @@ long server_input_wait (long seconds)
  * Tries all-lowercase form of user name if given user name fails
  */
 
-static struct passwd *pwuser (char *user)
+static struct passwd *pwuser (unsigned char *user)
 {
-  char *s;
+  unsigned char *s;
   struct passwd *pw = getpwnam (user);
   if (!pw) {			/* failed, see if any uppercase characters */
     for (s = user; *s && !isupper (*s); s++);

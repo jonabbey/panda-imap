@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	24 October 2000
+ * Last Edited:	14 October 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -209,80 +209,3 @@
 #define KODRETRY 15		/* kiss-of-death retry in seconds */
 #define LOCKTIMEOUT 5		/* lock timeout in minutes */
 #define CHUNK 16384		/* read-in chunk size */
-
-
-/* UNIX I/O stream local data */
-
-typedef struct unix_local {
-  unsigned int dirty : 1;	/* disk copy needs updating */
-  unsigned int pseudo : 1;	/* uses a pseudo message */
-  int fd;			/* mailbox file descriptor */
-  int ld;			/* lock file descriptor */
-  char *lname;			/* lock file name */
-  off_t filesize;		/* file size parsed */
-  time_t filetime;		/* last file time */
-  time_t lastsnarf;		/* last snarf time (for mbox driver) */
-  char *buf;			/* temporary buffer */
-  unsigned long buflen;		/* current size of temporary buffer */
-  char *line;			/* returned line */
-} UNIXLOCAL;
-
-
-/* Convenient access to local data */
-
-#define LOCAL ((UNIXLOCAL *) stream->local)
-
-
-/* UNIX protected file structure */
-
-typedef struct unix_file {
-  MAILSTREAM *stream;		/* current stream */
-  off_t curpos;			/* current file position */
-  off_t protect;		/* protected position */
-  off_t filepos;		/* current last written file position */
-  char *buf;			/* overflow buffer */
-  size_t buflen;		/* current overflow buffer length */
-  char *bufpos;			/* current buffer position */
-} UNIXFILE;
-
-/* Function prototypes */
-
-DRIVER *unix_valid (char *name);
-long unix_isvalid_fd (int fd);
-void *unix_parameters (long function,void *value);
-void unix_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
-void unix_list (MAILSTREAM *stream,char *ref,char *pat);
-void unix_lsub (MAILSTREAM *stream,char *ref,char *pat);
-long unix_create (MAILSTREAM *stream,char *mailbox);
-long unix_delete (MAILSTREAM *stream,char *mailbox);
-long unix_rename (MAILSTREAM *stream,char *old,char *newname);
-MAILSTREAM *unix_open (MAILSTREAM *stream);
-void unix_close (MAILSTREAM *stream,long options);
-char *unix_header (MAILSTREAM *stream,unsigned long msgno,
-		   unsigned long *length,long flags);
-long unix_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
-char *unix_text_work (MAILSTREAM *stream,MESSAGECACHE *elt,
-		      unsigned long *length,long flags);
-void unix_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
-long unix_ping (MAILSTREAM *stream);
-void unix_check (MAILSTREAM *stream);
-void unix_check (MAILSTREAM *stream);
-void unix_expunge (MAILSTREAM *stream);
-long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
-long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
-int unix_append_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
-		     STRING *msg);
-
-void unix_abort (MAILSTREAM *stream);
-char *unix_file (char *dst,char *name);
-int unix_lock (char *file,int flags,int mode,DOTLOCK *lock,int op);
-void unix_unlock (int fd,MAILSTREAM *stream,DOTLOCK *lock);
-int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op);
-char *unix_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size);
-unsigned long unix_pseudo (MAILSTREAM *stream,char *hdr);
-unsigned long unix_xstatus (MAILSTREAM *stream,char *status,MESSAGECACHE *elt,
-			    long flag);
-long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp,DOTLOCK *lock);
-long unix_extend (MAILSTREAM *stream,unsigned long size);
-void unix_write (UNIXFILE *f,char *s,unsigned long i);
-void unix_phys_write (UNIXFILE *f,char *buf,size_t size);

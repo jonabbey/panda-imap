@@ -1,5 +1,5 @@
 /*
- * Program:	DOS/TOPS-20 newline routines
+ * Program:	Windows/TOPS-20 newline routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	27 April 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -26,8 +26,8 @@
  * Returns: length of copied string
  */
 
-unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
-			  unsigned long srcl)
+unsigned long strcrlfcpy (unsigned char **dst,unsigned long *dstl,
+			  unsigned char *src,unsigned long srcl)
 {
 				/* flush destination buffer if too small */
   if (*dst && (srcl > *dstl)) fs_give ((void **) dst);

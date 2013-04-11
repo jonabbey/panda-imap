@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	24 October 2000
+ * Last Edited:	1 May 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -38,3 +38,5 @@
 #define	gethostid clock
 #define random rand
 #define unlink delete
+
+char *getpass (const char *prompt);

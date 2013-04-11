@@ -1,14 +1,16 @@
 University of Washington's Free-Fork License
 
 University of Washington IMAP toolkit
-Version 2003 of IMAP toolkit
-Copyright 1988-2003 University of Washington
+Version 2004 of IMAP toolkit
+Copyright 1988-2004 University of Washington
 
-This University of Washington Distribution (code and documentation) is
-made available to the open source community as a public service by the
-University of Washington.  Contact the University of Washington at
-imap-license@cac.washington.edu for information on other licensing
-arrangements (e.g. for use in proprietary applications).
+This University of Washington Distribution (IMAP Toolkit code and
+documentation) is made available to the open source community as a public
+service by the University of Washington.  Contact the University of
+Washington at imap-license@cac.washington.edu for information on placing
+or integrating modifications to the Distribution into proprietary
+systems.  Unmodified distribution is governed by the terms identified
+below.
 
 Under this license, this Distribution may be modified and the original
 version and modified versions may be copied, distributed, publicly

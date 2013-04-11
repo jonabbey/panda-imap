@@ -1,4 +1,4 @@
-.TH IPOPD 8C "July 14, 2003"
+.TH IPOPD 8 "May 18, 2004"
 .UC 5
 .SH NAME
 IPOPd \- Post Office Protocol server
@@ -7,22 +7,22 @@ IPOPd \- Post Office Protocol server
 .PP
 .B /usr/etc/ipop3d
 .SH DESCRIPTION
-.I IPOP2d
+.I ipop2d
 and
-.I IPOP3d
+.I ipop3d
 are servers which support the
 .B POP2
 and
 .B POP3
 remote mail access protocols respectively.
-.I IPOP2d
+.I ipop2d
 and
-.I IPOP3d
+.I ipop3d
 can also be used by
 .B POP2
 and
 .B POP3
-clients to access mailboxes on
+clients respecitively to access mailboxes on
 .B IMAP
 servers by specifying a login user name in the form <host>:<user>
 e.g.,
@@ -31,8 +31,10 @@ e.g.,
 These daemons contain CRAM-MD5 and APOP support.  See the md5.txt
 documentation file for additional information.
 .PP
-.I POPd
-is invoked by the internet server (see
+.I ipop2d
+and
+.I ipop3d
+are invoked by the internet server (see
 .IR inetd (8)),
 normally for requests to connect to the
 .B POP
@@ -41,7 +43,7 @@ port as indicated by the
 file (see
 .IR services (5)).
 .SH "SEE ALSO"
-imapd(8C)
+imapd(8)
 .SH BUGS
 The
 .B POP2

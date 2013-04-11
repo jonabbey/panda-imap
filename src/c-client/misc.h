@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	16 October 2001
+ * Last Edited:	27 April 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -75,8 +75,8 @@ HASHTAB {
 
 /* Function prototypes */
 
-char *ucase (char *string);
-char *lcase (char *string);
+unsigned char *ucase (unsigned char *string);
+unsigned char *lcase (unsigned char *string);
 char *cpystr (const char *string);
 char *cpytxt (SIZEDTEXT *dst,char *text,unsigned long size);
 char *textcpy (SIZEDTEXT *dst,SIZEDTEXT *src);
@@ -95,5 +95,5 @@ void **hash_lookup (HASHTAB *hashtab,char *key);
 HASHENT *hash_add (HASHTAB *hashtab,char *key,void *data,long extra);
 void **hash_lookup_and_add (HASHTAB *hashtab,char *key,void *data,long extra);
 int compare_ulong (unsigned long l1,unsigned long l2);
-int compare_cstring (char *s1,char *s2);
-int compare_csizedtext (char *s1,SIZEDTEXT *s2);
+int compare_cstring (unsigned char *s1,unsigned char *s2);
+int compare_csizedtext (unsigned char *s1,SIZEDTEXT *s2);

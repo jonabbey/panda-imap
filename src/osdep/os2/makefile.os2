@@ -9,7 +9,7 @@ e# Program:	Portable C client makefile -- OS/2 version
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	7 February 2001
+# Last Edited:	14 October 2003
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 2001 University of Washington.
@@ -61,7 +61,7 @@ imap4r1.obj: mail.h imap4r1.h misc.h osdep.h imap4r1.c
 
 nntp.obj: mail.h nntp.h smtp.h rfc822.h misc.h osdep.h nntp.c
 
-pop3.obj: mail.h pop3.h rfc822.h misc.h osdep.h pop3.c
+pop3.obj: mail.h rfc822.h misc.h osdep.h pop3.c
 
 smtp.obj: mail.h smtp.h rfc822.h misc.h osdep.h smtp.c
 
@@ -71,9 +71,9 @@ os_os2.obj: mail.h osdep.h env_os2.h fs.h ftl.h nl.h tcp.h tcp_os2.h \
 
 mbxnt.obj: mail.h mbxnt.h misc.h osdep.h mbxnt.c
 
-mtxnt.obj: mail.h mtxnt.h misc.h osdep.h mtxnt.c
+mtxnt.obj: mail.h misc.h osdep.h mtxnt.c
 
-tenexnt.obj: mail.h tenexnt.h misc.h osdep.h tenexnt.c
+tenexnt.obj: mail.h misc.h osdep.h tenexnt.c
 
 unixnt.obj: mail.h unixnt.h pseudo.h misc.h osdep.h unixnt.c
 

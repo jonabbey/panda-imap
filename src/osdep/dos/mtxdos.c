@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	9 April 2001
+ * Last Edited:	4 May 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -27,11 +27,67 @@
 #include <time.h>
 #include <sys\stat.h>
 #include <dos.h>
-#include "mtxdos.h"
 #include "rfc822.h"
 #include "dummy.h"
 #include "misc.h"
 #include "fdstring.h"
+
+/* Build parameters */
+
+#define CHUNK 4096
+
+
+/* MTX I/O stream local data */
+	
+typedef struct mtx_local {
+  int fd;			/* file descriptor for I/O */
+  off_t filesize;		/* file size parsed */
+  unsigned char *buf;		/* temporary buffer */
+} MTXLOCAL;
+
+
+/* Drive-dependent data passed to init method */
+
+typedef struct mtx_data {
+  int fd;			/* file data */
+  unsigned long pos;		/* initial position */
+} MTXDATA;
+
+
+/* Convenient access to local data */
+
+#define LOCAL ((MTXLOCAL *) stream->local)
+
+
+/* Function prototypes */
+
+DRIVER *mtx_valid (char *name);
+long mtx_isvalid (char *name,char *tmp);
+void *mtx_parameters (long function,void *value);
+void mtx_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
+void mtx_list (MAILSTREAM *stream,char *ref,char *pat);
+void mtx_lsub (MAILSTREAM *stream,char *ref,char *pat);
+long mtx_create (MAILSTREAM *stream,char *mailbox);
+long mtx_delete (MAILSTREAM *stream,char *mailbox);
+long mtx_rename (MAILSTREAM *stream,char *old,char *newname);
+MAILSTREAM *mtx_open (MAILSTREAM *stream);
+void mtx_close (MAILSTREAM *stream,long options);
+char *mtx_header (MAILSTREAM *stream,unsigned long msgno,
+		  unsigned long *length,long flags);
+long mtx_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
+void mtx_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
+long mtx_ping (MAILSTREAM *stream);
+void mtx_check (MAILSTREAM *stream);
+void mtx_expunge (MAILSTREAM *stream);
+long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
+long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
+
+char *mtx_file (char *dst,char *name);
+long mtx_badname (char *tmp,char *s);
+long mtx_parse (MAILSTREAM *stream);
+void mtx_update_status (MAILSTREAM *stream,unsigned long msgno);
+unsigned long mtx_hdrpos (MAILSTREAM *stream,unsigned long msgno,
+			  unsigned long *size);
 
 /* MTX mail routines */
 
@@ -116,7 +172,7 @@ long mtx_isvalid (char *name,char *tmp)
 				/* must begin with dd-mmm-yy" */
 	ret = (((tmp[2] == '-' && tmp[6] == '-') ||
 		(tmp[1] == '-' && tmp[5] == '-')) &&
-	       (s = strchr (tmp+20,',')) && strchr (s+2,';')) ? T : NIL;
+	       (s = strchr (tmp+18,',')) && strchr (s+2,';')) ? T : NIL;
       }
       else errno = -1;		/* bogus format */
       close (fd);		/* close the file */
@@ -471,8 +527,9 @@ long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     return NIL;
   }
 				/* open the destination */
-  if ((fd = open (mailboxfile (tmp,mailbox),
-		  O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE)) < 0) {
+  if (!mailboxfile (tmp,mailbox) ||
+      (fd = open (tmp,O_BINARY|O_WRONLY|O_APPEND|O_CREAT,
+		  S_IREAD|S_IWRITE)) < 0) {
     sprintf (tmp,"Unable to open copy mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -558,7 +615,8 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* get first message */
   if (!(*af) (stream,data,&flags,&date,&message)) return NIL;
 				/* open destination mailbox */
-  if (((fd = open(mailboxfile(file,mailbox),O_BINARY|O_WRONLY|O_APPEND|O_CREAT,
+  if (!mailboxfile (file,mailbox) ||
+      ((fd = open (file,O_BINARY|O_WRONLY|O_APPEND|O_CREAT,
 		   S_IREAD|S_IWRITE)) < 0) || !(df = fdopen (fd,"ab"))) {
     sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
@@ -633,8 +691,8 @@ long mtx_parse (MAILSTREAM *stream)
 {
   struct stat sbuf;
   MESSAGECACHE *elt = NIL;
-  char *s,*t,*x;
-  char lbuf[65],tmp[MAILTMPLEN];
+  unsigned char *s,*t,*x,lbuf[65];
+  char tmp[MAILTMPLEN];
   long i;
   long curpos = LOCAL->filesize;
   long nmsgs = stream->nmsgs;
@@ -660,7 +718,7 @@ long mtx_parse (MAILSTREAM *stream)
     lbuf[i] = '\0';		/* tie off buffer just in case */
     if (!((s = strchr (lbuf,'\015')) && (s[1] == '\012'))) {
       sprintf (tmp,"Unable to find end of line at %ld in %ld bytes, text: %s",
-	       curpos,i,lbuf);
+	       curpos,i,(char *) lbuf);
       mm_log (tmp,ERROR);
       mtx_close (stream,NIL);
       return NIL;
@@ -668,7 +726,8 @@ long mtx_parse (MAILSTREAM *stream)
     *s = '\0';			/* tie off header line */
     i = (s + 2) - lbuf;		/* note start of text offset */
     if (!((s = strchr (lbuf,',')) && (t = strchr (s+1,';')))) {
-      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,lbuf);
+      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,
+	       (char *) lbuf);
       mm_log (tmp,ERROR);
       mtx_close (stream,NIL);
       return NIL;
@@ -686,13 +745,13 @@ long mtx_parse (MAILSTREAM *stream)
     elt->private.msg.header.text.size = 0;
 				/* parse the header components */
     if (!(mail_parse_date (elt,lbuf) &&
-	  (elt->rfc822_size = strtol (x = s,&s,10)) && (!(s && *s)) &&
+	  (elt->rfc822_size = strtol (x = s,(char **) &s,10)) && (!(s && *s))&&
 	  isdigit (t[0]) && isdigit (t[1]) && isdigit (t[2]) &&
 	  isdigit (t[3]) && isdigit (t[4]) && isdigit (t[5]) &&
 	  isdigit (t[6]) && isdigit (t[7]) && isdigit (t[8]) &&
 	  isdigit (t[9]) && isdigit (t[10]) && isdigit (t[11]) && !t[12])) {
       sprintf (tmp,"Unable to parse internal header elements at %ld: %s,%s;%s",
-	       curpos,lbuf,x,t);
+	       curpos,(char *) lbuf,(char *) x,(char *) t);
       mtx_close (stream,NIL);
       return NIL;
     }

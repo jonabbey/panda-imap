@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	9 April 2001
+ * Last Edited:	22 January 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -28,7 +28,7 @@
  * HUSKY FEVER!!!].
  *
  */
-
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -42,6 +42,57 @@
 #include "dummy.h"
 #include "misc.h"
 #include "fdstring.h"
+
+/* Build parameters */
+
+#define CHUNK 4096
+
+
+/* Berkeley I/O stream local data */
+	
+typedef struct bezerk_local {
+  int fd;			/* file descriptor for I/O */
+  off_t filesize;		/* file size parsed */
+  char *buf;			/* temporary buffer */
+} BEZERKLOCAL;
+
+
+/* Convenient access to local data */
+
+#define LOCAL ((BEZERKLOCAL *) stream->local)
+
+/* Function prototypes */
+
+DRIVER *bezerk_valid (char *name);
+long bezerk_isvalid (char *name,char *tmp);
+int bezerk_valid_line (char *s,char **rx,int *rzn);
+void *bezerk_parameters (long function,void *value);
+void bezerk_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
+void bezerk_list (MAILSTREAM *stream,char *ref,char *pat);
+void bezerk_lsub (MAILSTREAM *stream,char *ref,char *pat);
+long bezerk_create (MAILSTREAM *stream,char *mailbox);
+long bezerk_delete (MAILSTREAM *stream,char *mailbox);
+long bezerk_rename (MAILSTREAM *stream,char *old,char *newname);
+MAILSTREAM *bezerk_open (MAILSTREAM *stream);
+void bezerk_close (MAILSTREAM *stream,long options);
+char *bezerk_header (MAILSTREAM *stream,unsigned long msgno,
+		     unsigned long *length,long flags);
+long bezerk_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,
+		  long flags);
+long bezerk_ping (MAILSTREAM *stream);
+void bezerk_check (MAILSTREAM *stream);
+void bezerk_expunge (MAILSTREAM *stream);
+long bezerk_copy (MAILSTREAM *stream,char *sequence,char *mailbox,
+		  long options);
+long bezerk_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
+int bezerk_append_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
+		     STRING *msg);
+void bezerk_gc (MAILSTREAM *stream,long gcflags);
+char *bezerk_file (char *dst,char *name);
+long bezerk_badname (char *tmp,char *s);
+long bezerk_parse (MAILSTREAM *stream);
+unsigned long bezerk_hdrpos (MAILSTREAM *stream,unsigned long msgno,
+			     unsigned long *size);
 
 /* Berkeley mail routines */
 
@@ -461,8 +512,9 @@ long bezerk_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     return NIL;
   }
 				/* open the destination */
-  if ((fd = open (mailboxfile (tmp,mailbox),
-		  O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE)) < 0) {
+  if (!mailboxfile (tmp,mailbox) ||
+      (fd = open (tmp,O_BINARY|O_WRONLY|O_APPEND|O_CREAT,
+		  S_IREAD|S_IWRITE)) < 0) {
     sprintf (tmp,"Unable to open copy mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -582,8 +634,9 @@ long bezerk_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 
   mm_critical (stream);		/* go critical */
 				/* open the destination */
-  if (((fd = open (mailboxfile (tmp,mailbox),
-		  O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE)) < 0) ||
+  if (!mailboxfile (tmp,mailbox) || 
+      ((fd = open (tmp,O_BINARY|O_WRONLY|O_APPEND|O_CREAT,
+		   S_IREAD|S_IWRITE)) < 0) ||
       !(df = fdopen (fd,"ab"))) {
     mm_nocritical (stream);	/* done with critical */
     sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));

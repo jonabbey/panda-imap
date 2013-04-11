@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	31 October 2002
+ * Last Edited:	20 February 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -35,7 +35,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
 		     unsigned long port);
 long tcp_abort (TCPSTREAM *stream);
 char *tcp_name (struct sockaddr_in *sin,long flag);
-long tcp_name_valid (char *s);
+char *tcp_name_valid (char *s);
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -706,31 +706,32 @@ char *tcp_canonical (char *name)
 
 char *tcp_name (struct sockaddr_in *sin,long flag)
 {
-  char *s,tmp[MAILTMPLEN];
+  char *ret,*t,adr[MAILTMPLEN],tmp[MAILTMPLEN];
+  sprintf (ret = adr,"[%.80s]",inet_ntoa (sin->sin_addr));
   if (allowreversedns) {
     struct hostent *he;
     blocknotify_t bn = (blocknotify_t)mail_parameters(NIL,GET_BLOCKNOTIFY,NIL);
     void *data;
     if (tcpdebug) {
-      sprintf (tmp,"Reverse DNS resolution [%s]",inet_ntoa (sin->sin_addr));
+      sprintf (tmp,"Reverse DNS resolution %s",adr);
       mm_log (tmp,TCPDEBUG);
     }
-    (*bn) (BLOCK_DNSLOOKUP,NIL); /* quell alarms */
+    (*bn) (BLOCK_DNSLOOKUP,NIL);/* quell alarms */
     data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* translate address to name */
-    if (!(he = gethostbyaddr ((char *) &sin->sin_addr,
-			      sizeof (struct in_addr),sin->sin_family)) ||
-	!tcp_name_valid ((char *) he->h_name))
-      sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
-    else if (flag) sprintf (s = tmp,"%s [%s]",he->h_name,
-			    inet_ntoa (sin->sin_addr));
-    else s = (char *) he->h_name;
+    if (t = tcp_name_valid ((he = gethostbyaddr ((char *) &sin->sin_addr,
+						 sizeof (struct in_addr),
+						 sin->sin_family)) ?
+			    (char *) he->h_name : NIL)) {
+				/* produce verbose form if needed */
+      if (flag)	sprintf (ret = tmp,"%s %s",t,adr);
+      else ret = t;
+    }
     (*bn) (BLOCK_NONSENSITIVE,data);
     (*bn) (BLOCK_NONE,NIL);	/* alarms OK now */
     if (tcpdebug) mm_log ("Reverse DNS resolution done",TCPDEBUG);
   }
-  else sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
-  return cpystr (s);
+  return cpystr (ret);
 }
 
 
@@ -739,11 +740,17 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
  * Returns: T if valid, NIL otherwise
  */
 
-long tcp_name_valid (char *s)
+char *tcp_name_valid (char *s)
 {
   int c;
-  while (c = *s++)		/* must be alnum, dot, or hyphen */
-    if (!((c >= 'A') && (c <= 'Z')) && !((c >= 'a') && (c <= 'z')) &&
-	!((c >= '0') && (c <= '9')) && (c != '-') && (c != '.')) return NIL;
-  return LONGT;
+  char *ret,*tail;
+				/* must be non-empty and not too long */
+  if ((ret = (s && *s) ? s : NIL) && (tail = ret + NETMAXHOST)) {
+				/* must be alnum, dot, or hyphen */
+    while ((c = *s++) && (s <= tail) &&
+	   (((c >= 'A') && (c <= 'Z')) || ((c >= 'a') && (c <= 'z')) ||
+	    ((c >= '0') && (c <= '9')) || (c == '-') || (c == '.')));
+    if (c) ret = NIL;
+  }
+  return ret;
 }

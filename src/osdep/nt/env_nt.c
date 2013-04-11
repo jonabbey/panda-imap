@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	16 January 2002
+ * Last Edited:	8 July 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -67,8 +67,6 @@ void *env_parameters (long function,void *value)
 {
   void *ret = NIL;
   switch ((int) function) {
-  case SET_NAMESPACE:
-    fatal ("SET_NAMESPACE not permitted");
   case GET_NAMESPACE:
     ret = (void *) nslist;
     break;
@@ -337,11 +335,12 @@ long server_login (char *user,char *pass,char *authuser,int argc,char *argv[])
       (authuser && (strlen (authuser) >= MAILTMPLEN)))
     syslog (LOG_ALERT,"SYSTEM BREAK-IN ATTEMPT, host=%.80s",tcp_clienthost ());
   else if (logtry > 0) {	/* still have available logins? */
-    if (check_nt ()) {		/* NT: authentication user not supported yet */
-      if (authuser && *authuser);
-      else if (!pass);		/* ditto pass==NIL */
-				/* try to login and impersonate the guy */
-      else if ((
+				/* authentication user not supported */
+    if (authuser && *authuser && compare_cstring (authuser,user))
+      mm_log ("Authentication id must match authorization id",ERROR);
+    if (check_nt ()) {		/* NT: authserver_login() call not supported */
+      if (!pass) mm_log ("Unsupported authentication mechanism",ERROR);
+      else if ((		/* try to login and impersonate the guy */
 #ifdef LOGIN32_LOGON_NETWORK
 		LogonUser (user,".",pass,LOGON32_LOGON_NETWORK,
 			   LOGON32_PROVIDER_DEFAULT,&hdl) ||
@@ -354,10 +353,8 @@ long server_login (char *user,char *pass,char *authuser,int argc,char *argv[])
 			   LOGON32_PROVIDER_DEFAULT,&hdl)) &&
 	       ImpersonateLoggedOnUser (hdl)) return env_init (user,NIL);
     }
-    else {			/* Win9x: authentication user not supported */
-      if (authuser && *authuser);
-				/* done if from authserver_login() */
-      else if (!pass) server_nli = NIL;
+    else {			/* Win9x: done if from authserver_login() */
+      if (!pass) server_nli = NIL;
 				/* otherwise check MD5 database */
       else if (s = auth_md5_pwd (user)) {
 				/* change NLI state based on pwd match */
@@ -697,8 +694,8 @@ void unlockfd (int fd,char *lock)
 
 MAILSTREAM *default_proto (long type)
 {
-  extern MAILSTREAM DEFAULTPROTO;
-  return &DEFAULTPROTO;		/* return default driver's prototype */
+  extern MAILSTREAM CREATEPROTO,APPENDPROTO;
+  return type ? &APPENDPROTO : &CREATEPROTO;
 }
 
 /* Default block notify routine

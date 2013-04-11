@@ -2,6 +2,11 @@
 		    Mark Crispin, 28 November 1995
 
 
+	THIS DOCUMENT HAS BEEN UPDATED TO REFLECT THE FACT THAT
+	LINUX SUPPORTS BOTH flock() AND fcntl() AND THAT OSF/1
+	HAS BEEN BROKEN SO THAT IT ONLY SUPPORTS fcntl().
+	-- JUNE 15, 2004
+
 	THIS DOCUMENT HAS BEEN UPDATED TO REFLECT THE CODE IN THE
 	IMAP-4 TOOLKIT AS OF NOVEMBER 28, 1995.  SOME STATEMENTS
 	IN THIS DOCUMENT DO NOT APPLY TO EARLIER VERSIONS OF THE
@@ -100,8 +105,8 @@ were not added to UNIX until after the BSD vs. System V split.  Both
 of these system calls deal with file resources only.
 
      Most systems only have one or the other form of locking.  AIX
-emulates the BSD form of locking as a jacket into the System V form.
-Ultrix and OSF/1 implement both forms.
+and newer versions of OSF/1 emulate the BSD form of locking as a jacket
+into the System V form.  Ultrix and Linux implement both forms.
 
 BSD
 
@@ -165,7 +170,7 @@ down.  It blocks until all these requests are completed.
 sliced bread, and that programs which use flock() should be converted
 to fcntl() so that NFS locking will work.  However, as noted above,
 very few systems support both calls, so such an exercise is pointless
-except on Ultrix and OSF/1.
+except on Ultrix and Linux.
 
      Another religion, which I adhere to, has the opposite viewpoint.
 
@@ -220,8 +225,7 @@ of the socket buffer'', whatever that means.
 C-CLIENT USAGE
 
      c-client uses flock().  On System V systems, flock() is simulated
-by an emulator that calls fcntl().  This emulator is provided by some
-systems (e.g. AIX), or uses c-client's flock.c module.
+by an emulator that calls fcntl().
 
 
 BEZERK AND MMDF

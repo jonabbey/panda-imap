@@ -10,14 +10,15 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	5 March 2003
+ * Last Edited:	27 April 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
-
+
+
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
@@ -28,10 +29,60 @@ extern int errno;		/* just in case */
 #include <pwd.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include "phile.h"
 #include "rfc822.h"
 #include "misc.h"
 #include "dummy.h"
+
+/* Types returned from phile_type() */
+
+#define PTYPEBINARY 0		/* binary data */
+#define PTYPETEXT 1		/* textual data */
+#define PTYPECRTEXT 2		/* textual data with CR */
+#define PTYPE8 4		/* textual 8bit data */
+#define PTYPEISO2022JP 8	/* textual Japanese */
+#define PTYPEISO2022KR 16	/* textual Korean */
+#define PTYPEISO2022CN 32	/* textual Chinese */
+
+
+/* PHILE I/O stream local data */
+	
+typedef struct phile_local {
+  ENVELOPE *env;		/* file envelope */
+  BODY *body;			/* file body */
+  char tmp[MAILTMPLEN];		/* temporary buffer */
+} PHILELOCAL;
+
+
+/* Convenient access to local data */
+
+#define LOCAL ((PHILELOCAL *) stream->local)
+
+
+/* Function prototypes */
+
+DRIVER *phile_valid (char *name);
+int phile_isvalid (char *name,char *tmp);
+void *phile_parameters (long function,void *value);
+void phile_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
+void phile_list (MAILSTREAM *stream,char *ref,char *pat);
+void phile_lsub (MAILSTREAM *stream,char *ref,char *pat);
+long phile_create (MAILSTREAM *stream,char *mailbox);
+long phile_delete (MAILSTREAM *stream,char *mailbox);
+long phile_rename (MAILSTREAM *stream,char *old,char *newname);
+long phile_status (MAILSTREAM *stream,char *mbx,long flags);
+MAILSTREAM *phile_open (MAILSTREAM *stream);
+int phile_type (unsigned char *s,unsigned long i,unsigned long *j);
+void phile_close (MAILSTREAM *stream,long options);
+ENVELOPE *phile_structure (MAILSTREAM *stream,unsigned long msgno,BODY **body,
+			   long flags);
+char *phile_header (MAILSTREAM *stream,unsigned long msgno,
+		    unsigned long *length,long flags);
+long phile_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
+long phile_ping (MAILSTREAM *stream);
+void phile_check (MAILSTREAM *stream);
+void phile_expunge (MAILSTREAM *stream);
+long phile_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
+long phile_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
 /* File routines */
 
@@ -170,17 +221,20 @@ void phile_lsub (MAILSTREAM *stream,char *ref,char *pat)
 
 long phile_status (MAILSTREAM *stream,char *mbx,long flags)
 {
-  char tmp[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN];
   MAILSTATUS status;
   struct stat sbuf;
-  if (stat (mailboxfile (tmp,mbx),&sbuf)) return NIL;
-  status.flags = flags;		/* return status values */
-  status.unseen = (stream && mail_elt (stream,1)->seen) ? 0 : 1;
-  status.messages = status.recent = status.uidnext = 1;
-  status.uidvalidity = sbuf.st_mtime;
+  long ret = NIL;
+  if ((s = mailboxfile (tmp,mbx)) && *s && !stat (s,&sbuf)) {
+    status.flags = flags;	/* return status values */
+    status.unseen = (stream && mail_elt (stream,1)->seen) ? 0 : 1;
+    status.messages = status.recent = status.uidnext = 1;
+    status.uidvalidity = sbuf.st_mtime;
 				/* pass status to main program */
-  mm_status (stream,mbx,&status);
-  return T;			/* success */
+    mm_status (stream,mbx,&status);
+    ret = LONGT;		/* success */
+  }
+  return ret;
 }
 
 /* File open
@@ -201,16 +255,15 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &phileproto;
   if (stream->local) fatal ("phile recycle stream");
-				/* canonicalize the stream mailbox name */
-  mailboxfile (tmp,stream->mailbox);
-  fs_give ((void **) &stream->mailbox);
-  stream->mailbox = cpystr (tmp);
-				/* open mailbox */
-  if (stat (tmp,&sbuf) || (fd = open (tmp,O_RDONLY,NIL)) < 0) {
+				/* open associated file */
+  if (!mailboxfile (tmp,stream->mailbox) || !tmp[0] || stat (tmp,&sbuf) ||
+      (fd = open (tmp,O_RDONLY,NIL)) < 0) {
     sprintf (tmp,"Unable to open file %s",stream->mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
+  fs_give ((void **) &stream->mailbox);
+  stream->mailbox = cpystr (tmp);
   stream->local = fs_get (sizeof (PHILELOCAL));
   mail_exists (stream,1);	/* make sure upper level knows */
   mail_recent (stream,1);
@@ -263,7 +316,7 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
     if (!(i & PTYPECRTEXT)) {	/* change Internet newline format as needed */
       s = (char *) buf->data;	/* make copy of UNIX-format string */
       buf->data = NIL;		/* zap the buffer */
-      buf->size = strcrlfcpy ((char **) &buf->data,&m,s,buf->size);
+      buf->size = strcrlfcpy (&buf->data,&m,s,buf->size);
       fs_give ((void **) &s);	/* flush original UNIX-format string */
     }
     LOCAL->body->parameter = mail_newbody_parameter ();
@@ -272,7 +325,7 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
       cpystr ((i & PTYPEISO2022JP) ? "ISO-2022-JP" :
 	      (i & PTYPEISO2022KR) ? "ISO-2022-KR" :
 	      (i & PTYPEISO2022CN) ? "ISO-2022-CN" :
-	      (i & PTYPE8) ? "ISO-8859-1" : "US-ASCII");
+	      (i & PTYPE8) ? "X-UNKNOWN" : "US-ASCII");
     LOCAL->body->encoding = (i & PTYPE8) ? ENC8BIT : ENC7BIT;
     LOCAL->body->size.lines = j;
   }
@@ -479,8 +532,10 @@ long phile_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 long phile_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
   char tmp[MAILTMPLEN],file[MAILTMPLEN];
-  sprintf (tmp,"Can't append - file \"%s\" is not in valid mailbox format",
-	   mailboxfile (file,mailbox));
+  char *s = mailboxfile (file,mailbox);
+  if (s && *s) 
+    sprintf (tmp,"Can't append - not in valid mailbox format: %.80s",s);
+  else sprintf (tmp,"Can't append - invalid name: %.80s",mailbox);
   mm_log (tmp,ERROR);
   return NIL;
 }

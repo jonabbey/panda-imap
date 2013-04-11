@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	9 June 2003
+ * Last Edited:	6 July 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -24,7 +24,8 @@
  * Biomedical Research Technology Program of the National Institutes of Health
  * under grant number RR-00785.
  */
-
+
+
 #include <ctype.h>
 #include <stdio.h>
 #include "mail.h"
@@ -32,8 +33,39 @@
 #include "smtp.h"
 #include "rfc822.h"
 #include "misc.h"
+
+/* Constants */
+
+#define SMTPSSLPORT (long) 465	/* former assigned SSL TCP contact port */
+#define SMTPGREET (long) 220	/* SMTP successful greeting */
+#define SMTPAUTHED (long) 235	/* SMTP successful authentication */
+#define SMTPOK (long) 250	/* SMTP OK code */
+#define SMTPAUTHREADY (long) 334/* SMTP ready for authentication */
+#define SMTPREADY (long) 354	/* SMTP ready for data */
+#define SMTPSOFTFATAL (long) 421/* SMTP soft fatal code */
+#define SMTPWANTAUTH (long) 505	/* SMTP authentication needed */
+#define SMTPWANTAUTH2 (long) 530/* SMTP authentication needed */
+#define SMTPUNAVAIL (long) 550	/* SMTP mailbox unavailable */
+#define SMTPHARDERROR (long) 554/* SMTP miscellaneous hard failure */
 
 
+/* Convenient access to protocol-specific data */
+
+#define ESMTP stream->protocol.esmtp
+
+
+/* Function prototypes */
+
+void *smtp_challenge (void *s,unsigned long *len);
+long smtp_response (void *s,char *response,unsigned long size);
+long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp);
+long smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error);
+long smtp_send (SENDSTREAM *stream,char *command,char *args);
+long smtp_reply (SENDSTREAM *stream);
+long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb);
+long smtp_fake (SENDSTREAM *stream,long code,char *text);
+long smtp_soutr (void *stream,char *s);
+
 /* Mailer parameters */
 
 static unsigned long smtp_maxlogintrials = MAXLOGINTRIALS;
@@ -122,8 +154,11 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
     }
     else {			/* light tryssl flag if requested */
       mb.trysslflag = (options & SOP_TRYSSL) ? T : NIL;
+				/* default port */
+      if (mb.port) port = mb.port;
+      else if (!port) port = smtp_port ? smtp_port : SMTPTCPPORT;
       if (netstream =		/* try to open ordinary connection */
-	  net_open (&mb,dv,smtp_port ? smtp_port : port,
+	  net_open (&mb,dv,port,
 		    (NETDRIVER *) mail_parameters (NIL,GET_SSLDRIVER,NIL),
 		    "*smtps",smtp_sslport ? smtp_sslport : SMTPSSLPORT)) {
 	stream = (SENDSTREAM *) memset (fs_get (sizeof (SENDSTREAM)),0,
@@ -246,7 +281,8 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
   char usr[MAILTMPLEN];
   AUTHENTICATOR *at;
   long ret = NIL;
-  for (auths = ESMTP.auth; !ret && stream->netstream && auths &&
+  for (auths = ESMTP.auth, stream->saslcancel = NIL;
+       !ret && stream->netstream && auths &&
        (at = mail_lookup_auth (find_rightmost_bit (&auths) + 1)); ) {
     if (lsterr) {		/* previous authenticator failed? */
       sprintf (tmp,"Retrying using %s authentication after %.80s",
@@ -262,12 +298,16 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
 	mm_log (tmp,WARN);
 	fs_give ((void **) &lsterr);
       }
+      stream->saslcancel = NIL;
       if (smtp_send (stream,"AUTH",at->name)) {
 				/* hide client authentication responses */
 	if (!(at->flags & AU_SECURE)) stream->sensitive = T;
 	if ((*at->client) (smtp_challenge,smtp_response,"smtp",mb,stream,
 			   &trial,usr)) {
-	  if (stream->replycode == SMTPAUTHED) ret = LONGT;
+	  if (stream->replycode == SMTPAUTHED) {
+	    ESMTP.auth = NIL;	/* disable authenticators */
+	    ret = LONGT;
+	  }
 				/* if main program requested cancellation */
 	  else if (!trial) mm_log ("SMTP Authentication cancelled",ERROR);
 	}
@@ -279,8 +319,10 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
 	     (trial < smtp_maxlogintrials));
   }
   if (lsterr) {			/* previous authenticator failed? */
-    sprintf (tmp,"Can not authenticate to SMTP server: %.80s",lsterr);
-    mm_log (tmp,ERROR);
+    if (!stream->saslcancel) {	/* don't do this if a cancel */
+      sprintf (tmp,"Can not authenticate to SMTP server: %.80s",lsterr);
+      mm_log (tmp,ERROR);
+    }
     fs_give ((void **) &lsterr);
   }
   return ret;			/* authentication failed */
@@ -294,10 +336,16 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
 
 void *smtp_challenge (void *s,unsigned long *len)
 {
+  char tmp[MAILTMPLEN];
+  void *ret = NIL;
   SENDSTREAM *stream = (SENDSTREAM *) s;
-  return (stream->replycode == SMTPAUTHREADY) ?
-    rfc822_base64 ((unsigned char *) stream->reply+4,
-		   strlen (stream->reply+4),len) : NIL;
+  if ((stream->replycode == SMTPAUTHREADY) &&
+      !(ret = rfc822_base64 ((unsigned char *) stream->reply + 4,
+			     strlen (stream->reply + 4),len))) {
+    sprintf (tmp,"SMTP SERVER BUG (invalid challenge): %.80s",stream->reply+4);
+    mm_log (tmp,ERROR);
+  }
+  return ret;
 }
 
 
@@ -323,8 +371,10 @@ long smtp_response (void *s,char *response,unsigned long size)
     }
     else i = smtp_send (stream,"",NIL);
   }
-				/* abort requested */
-  else i = smtp_send (stream,"*",NIL);
+  else {			/* abort requested */
+    i = smtp_send (stream,"*",NIL);
+    stream->saslcancel = T;	/* mark protocol-requested SASL cancel */
+  }
   return LONGT;
 }
 
@@ -419,6 +469,7 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
     }
 				/* send "MAIL FROM" command */
     switch (smtp_send (stream,type,tmp)) {
+    case SMTPUNAVAIL:		/* mailbox unavailable? */
     case SMTPWANTAUTH:		/* wants authentication? */
     case SMTPWANTAUTH2:
       if (ESMTP.auth) retry = T;/* yes, retry with authentication */
@@ -510,6 +561,7 @@ long smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
 	switch (smtp_send (stream,"RCPT",tmp)) {
 	case SMTPOK:		/* looks good */
 	  break;
+	case SMTPUNAVAIL:	/* mailbox unavailable? */
 	case SMTPWANTAUTH:	/* wants authentication? */
 	case SMTPWANTAUTH2:
 	  if (ESMTP.auth) return T;

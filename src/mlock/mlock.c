@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 February 1999
- * Last Edited:	1 October 2002
+ * Last Edited:	21 June 2004
  *
  * The IMAP tools software provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -35,6 +35,10 @@
 
 #define LOCKTIMEOUT 5		/* lock timeout in minutes */
 #define LOCKPROTECTION 0775
+
+#ifndef MAXHOSTNAMELEN		/* Solaris still sucks */
+#define MAXHOSTNAMELEN 256
+#endif
 
 /* Fatal error
  * Accepts: Message string
@@ -110,6 +114,8 @@ int main (int argc,char *argv[])
       if ((ld = (sb.st_nlink != 2) ? -1 : 0) && (!stat (lock,&sb)) &&
 	  (t > sb.st_ctime + LOCKTIMEOUT * 60)) unlink (lock);
     }
+				/* give up immediately if protection failure */
+    else if (errno == EACCES) tries = 0;
     if (ld < 0) {		/* lock failed */
       if (tries--) sleep (1);	/* sleep 1 second and try again */
       else {

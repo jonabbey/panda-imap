@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	17 January 2003
+ * Last Edited:	21 June 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -51,7 +51,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2003.66";	/* server version */
+char *version = "2004.68";	/* server version */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -63,6 +63,7 @@ char status[MAILTMPLEN];	/* space for status string */
 char *user = "";		/* user name */
 char *pass = "";		/* password */
 unsigned long *msg = NIL;	/* message translation vector */
+logouthook_t lgoh = NIL;	/* logout hook */
 
 
 /* Function prototypes */
@@ -121,6 +122,9 @@ int main (int argc,char *argv[])
 	state = DONE;
 	mail_close (stream);	/* try to close the stream gracefully */
 	stream = NIL;
+				/* do logout hook if needed */
+	if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
+	  (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
 	_exit (1);
       }
     }
@@ -174,6 +178,9 @@ int main (int argc,char *argv[])
   if (stream) mail_close (stream);
   syslog (LOG_INFO,"Logout user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
+				/* do logout hook if needed */
+  if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
+    (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
   exit (0);			/* all done */
   return 0;			/* stupid compilers */
 }
@@ -193,6 +200,9 @@ void clkint ()
   if (!critical) {		/* badly host if in critical code */
     if (stream && !stream->lock) mail_close (stream);
     stream = NIL;
+				/* do logout hook if needed */
+    if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
+      (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
     _exit (1);			/* die die die */
   }
 }
@@ -215,6 +225,9 @@ void kodint ()
     if (!critical) {		/* badly host if in critical code */
       if (stream && !stream->lock) mail_close (stream);
       stream = NIL;
+				/* do logout hook if needed */
+      if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
+	(*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
       _exit (1);		/* die die die */
     }
   }
@@ -234,6 +247,9 @@ void hupint ()
   if (!critical) {		/* badly host if in critical code */
     if (stream && !stream->lock) mail_close (stream);
     stream = NIL;
+				/* do logout hook if needed */
+    if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
+      (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
     _exit (1);			/* die die die */
   }
 }
@@ -250,12 +266,11 @@ void trmint ()
   syslog (LOG_INFO,"Killed user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
   fflush (stdout);		/* make sure output blatted */
-  state = DONE;			/* mark state done in either case */
-  if (!critical) {		/* badly host if in critical code */
-    if (stream && !stream->lock) mail_close (stream);
-    stream = NIL;
-    _exit (1);			/* die die die */
-  }
+  if (critical) state = DONE;	/* mark state done in either case */
+  /* Make no attempt at graceful closure since a shutdown may be in
+   * progress, and we won't have any time to do mail_close() actions.
+   */
+  else _exit (1);		/* die die die */
 }
 
 /* Parse HELO command
@@ -512,6 +527,9 @@ void mm_expunged (MAILSTREAM *stream,unsigned long number)
     fputs ("- Mailbox expunged from under me!\015\012",stdout);
     if (stream && !stream->lock) mail_close (stream);
     stream = NIL;
+				/* do logout hook if needed */
+    if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
+      (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
     _exit (1);
   }
 }

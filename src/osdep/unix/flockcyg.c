@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	25 April 2003
+ * Last Edited:	21 October 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -22,7 +22,16 @@
 /* Cygwin does not seem to have the design flaw in fcntl() locking that
  * most other systems do (see flocksim.c for details).  If some cretin
  * decides to implement that design flaw, then Cygwin will have to use
- * flocksim.  Also, we don't test NFS either
+ * flocksim.  Also, we don't test NFS either.
+ *
+ * However, Cygwin does have the Windows misfeature (introduced in NT 4.0)
+ * that you can not write to any segment which has a shared lock, and you
+ * can't lock a zero-byte segment either.  This screws up the shared-write
+ * mailbox drivers (mbx, mtx, mx, and tenex).  As a workaround, we'll only
+ * lock the first byte of the file, meaning that you can't write that byte
+ * shared.  It's been suggested to lock the maximum off_t type, but that
+ * risks having a future version of Windows (or Cygwin) deciding that this
+ * also means "no lock".
  */
 
 #undef flock			/* name is used as a struct for fcntl */
@@ -38,8 +47,8 @@ int flocksim (int fd,int op)
   char tmp[MAILTMPLEN];
   int logged = 0;
   struct flock fl;
-				/* lock applies to entire file */
-  fl.l_whence = fl.l_start = fl.l_len = 0;
+				/* lock one bytes at byte 0 */
+  fl.l_whence = SEEK_SET; fl.l_start = 0; fl.l_len = 1;
   fl.l_pid = getpid ();		/* shouldn't be necessary */
   switch (op & ~LOCK_NB) {	/* translate to fcntl() operation */
   case LOCK_EX:			/* exclusive */

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 September 1994
- * Last Edited:	11 April 2001
+ * Last Edited:	27 April 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -477,8 +477,8 @@ char *newsrc_state (MAILSTREAM *stream,char *group)
  *	    returned unseen count
  */
 
-void newsrc_check_uid (char *state,unsigned long uid,unsigned long *recent,
-		       unsigned long *unseen)
+void newsrc_check_uid (unsigned char *state,unsigned long uid,
+		       unsigned long *recent,unsigned long *unseen)
 {
   unsigned long i,j;
   while (*state) {		/* until run out of state string */

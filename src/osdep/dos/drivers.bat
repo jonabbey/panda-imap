@@ -1,5 +1,5 @@
 @ECHO OFF
-REM Program:	Driver Linkage Generator for DOS
+REM Program:	Driver Linkage Generator for DOS/NT
 REM
 REM Author:	Mark Crispin
 REM		Networks and Distributed Computing
@@ -10,10 +10,10 @@ REM		Seattle, WA  98195
 REM		Internet: MRC@CAC.Washington.EDU
 REM
 REM Date:	11 October 1989
-REM Last Edited:24 October 2000
+REM Last Edited: 6 July 2004
 REM
 REM The IMAP toolkit provided in this Distribution is
-REM Copyright 2000 University of Washington.
+REM Copyright 1988-2004 University of Washington.
 REM
 REM The full text of our legal notices is contained in the file called
 REM CPYRIGHT, included with this Distribution.

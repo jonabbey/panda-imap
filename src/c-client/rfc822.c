@@ -1,5 +1,5 @@
 /*
- * Program:	RFC-[2]822 routines (originally from SMTP)
+ * Program:	RFC 2822 routines (originally from SMTP)
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	20 May 2003
+ * Last Edited:	27 April 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -35,9 +35,15 @@
 #include "misc.h"
 #include "utf8.h"
 
-#ifndef RFC2822
-#define RFC2822			/* RFC 2822 compliance */
-#endif
+
+/* Support for deprecated features in earlier specifications.  Note that this
+ * module follows RFC 2822, and all use of "rfc822" in function names is
+ * for compatibility.  Only the code identified by the conditionals below
+ * follows the earlier documents.
+ */
+
+#define RFC733 1		/* parse "at" */
+#define RFC822 0		/* generate A-D-L (MUST be 0 for 2822) */
 
 /* RFC-822 static data */
 
@@ -89,10 +95,10 @@ const char *wspecials = " ()<>@,;:\\\"[]\1\2\3\4\5\6\7\10\11\12\13\14\15\16\17\2
 				/* parse-token specials for parsing */
 const char *ptspecials = " ()<>@,;:\\\"[]/?=\1\2\3\4\5\6\7\10\11\12\13\14\15\16\17\20\21\22\23\24\25\26\27\30\31\32\33\34\35\36\37\177";
 
-/* RFC822 writing routines */
+/* RFC 2822 writing routines */
 
 
-/* Write RFC822 header from message structure
+/* Write RFC 2822 header from message structure
  * Accepts: scratch buffer to write into
  *	    message envelope
  *	    message body
@@ -131,7 +137,7 @@ void rfc822_header (char *header,ENVELOPE *env,BODY *body)
   strcat (header,"\015\012");	/* write terminating blank line */
 }
 
-/* Write RFC822 address from header line
+/* Write RFC 2822 address from header line
  * Accepts: pointer to destination string pointer
  *	    pointer to header type
  *	    message to interpret
@@ -152,7 +158,7 @@ void rfc822_address_line (char **header,char *type,ENVELOPE *env,ADDRESS *adr)
 }
 
 
-/* Write RFC822 text from header line
+/* Write RFC 2822 text from header line
  * Accepts: pointer to destination string pointer
  *	    pointer to header type
  *	    message to interpret
@@ -165,14 +171,14 @@ void rfc822_header_line (char **header,char *type,ENVELOPE *env,char *text)
 		     env->remail ? "ReSent-" : "",type,text);
 }
 
-/* Write RFC822 address list
+/* Write RFC 2822 address list
  * Accepts: pointer to destination string
  *	    address to interpret
  *	    header base if pretty-printing
  * Returns: end of destination string
  */
 
-				/* RFC822 continuation, must start with CRLF */
+				/* RFC 2822 continuation, must start with CRLF */
 #define RFC822CONT "\015\012    "
 
 char *rfc822_write_address_full (char *dest,ADDRESS *adr,char *base)
@@ -181,14 +187,12 @@ char *rfc822_write_address_full (char *dest,ADDRESS *adr,char *base)
   for (n = 0; adr; adr = adr->next) {
     if (adr->host) {		/* ordinary address? */
       if (!(base && n)) {	/* only write if exact form or not in group */
-				/* simple case? */
-#ifdef RFC2822			/* use phrase <route-addr> form if phrase */
-	if (adr->personal && *adr->personal) {
-	  rfc822_cat (dest,adr->personal,rspecials);
-#else				/* old code with A-D-L support */
-	if (adr->personal && *adr->personal) || adr->adl) {
-	  rfc822_cat (dest,adr->personal ? adr->personal : "",rspecials);
+	if (			/* use phrase <route-addr> if phrase */
+#if RFC822
+	    adr->adl ||		/* or A-D-L */
 #endif
+	    (adr->personal && *adr->personal)) {
+	  rfc822_cat (dest,adr->personal ? adr->personal : "",rspecials);
 	  strcat (dest," <");	/* write address delimiter */
 	  rfc822_address (dest,adr);
 	  strcat (dest,">");	/* closing delimiter */
@@ -220,7 +224,7 @@ char *rfc822_write_address_full (char *dest,ADDRESS *adr,char *base)
   return dest;			/* return end of string */
 }
 
-/* Write RFC822 route-address to string
+/* Write RFC 2822 route-address to string
  * Accepts: pointer to destination string
  *	    address to interpret
  */
@@ -228,8 +232,8 @@ char *rfc822_write_address_full (char *dest,ADDRESS *adr,char *base)
 void rfc822_address (char *dest,ADDRESS *adr)
 {
   if (adr && adr->host) {	/* no-op if no address */
-#ifndef RFC2822			/* old code with A-D-L support */
-    if (adr->adr) sprintf (dest + strlen (dest),"%s:",adr->adl);
+#if RFC822			/* old code with A-D-L support */
+    if (adr->adl) sprintf (dest + strlen (dest),"%s:",adr->adl);
 #endif
 				/* write mailbox name */
     rfc822_cat (dest,adr->mailbox,NIL);
@@ -239,7 +243,7 @@ void rfc822_address (char *dest,ADDRESS *adr)
 }
 
 
-/* Concatenate RFC822 string
+/* Concatenate RFC 2822 string
  * Accepts: pointer to destination string
  *	    pointer to string to concatenate
  *	    list of special characters
@@ -347,10 +351,10 @@ char *rfc822_default_subtype (unsigned short type)
   }
 }
 
-/* RFC822 parsing routines */
+/* RFC 2822 parsing routines */
 
 
-/* Parse an RFC822 message
+/* Parse an RFC 2822 message
  * Accepts: pointer to return envelope
  *	    pointer to return body
  *	    pointer to header
@@ -371,6 +375,7 @@ void rfc822_parse_msg_full (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
   BODY *body = bdy ? (*bdy = mail_newbody ()) : NIL;
   long MIMEp = -1;		/* flag that MIME semantics are in effect */
   parseline_t pl = (parseline_t) mail_parameters (NIL,GET_PARSELINE,NIL);
+  if (!host) host = BADHOST;	/* make sure that host is non-null */
   while (i && *s != '\n') {	/* until end of header */
     t = tmp;			/* initialize buffer pointer */
     c = ' ';			/* and previous character */
@@ -414,11 +419,12 @@ void rfc822_parse_msg_full (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
 		 (tmp[7] == '-') && body)
 	  switch (MIMEp) {
 	  case -1:		/* unknown if MIME or not */
-	    if (MIMEp = search ((unsigned char *) s-1,i,
-				(unsigned char *)"\012MIME-Version",
-				(long) 13))
+	    if (!(MIMEp =	/* see if MIME-Version header exists */
+		  search ((unsigned char *) s-1,i,
+			  (unsigned char *)"\012MIME-Version",(long) 13)))
+	      break;
 	  case T:		/* definitely MIME */
-	      rfc822_parse_content_header (body,tmp+8,d);
+	    rfc822_parse_content_header (body,tmp+8,d);
 	  }
 	break;
       case 'D':			/* possible Date: */
@@ -676,7 +682,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
 	      break;
 	    }
 				/* end of data ties off the header */
-	    if (!--i) s1[j++] = c = '\0';
+	    if (!i || !--i) s1[j++] = c = '\0';
 	  }
 
 				/* find header item type */
@@ -732,7 +738,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
   }
 }
 
-/* Parse RFC822 body content header
+/* Parse RFC 2822 body content header
  * Accepts: body to write to
  *	    possible content name
  *	    remainder of header
@@ -840,7 +846,7 @@ void rfc822_parse_content_header (BODY *body,char *name,char *s)
   }
 }
 
-/* Parse RFC822 body parameter list
+/* Parse RFC 2822 body parameter list
  * Accepts: parameter list to write to
  *	    text of list
  */
@@ -887,7 +893,7 @@ void rfc822_parse_parameter (PARAMETER **par,char *text)
   }
 }
 
-/* Parse RFC822 address list
+/* Parse RFC 2822 address list
  * Accepts: address list to write to
  *	    input string
  *	    default host name
@@ -944,7 +950,7 @@ void rfc822_parse_adrlist (ADDRESS **lst,char *string,char *host)
   }
 }
 
-/* Parse RFC822 address
+/* Parse RFC 2822 address
  * Accepts: address list to write to
  *	    tail of address list
  *	    pointer to input string
@@ -972,7 +978,7 @@ ADDRESS *rfc822_parse_address (ADDRESS **lst,ADDRESS *last,char **string,
   return last;
 }
 
-/* Parse RFC822 group
+/* Parse RFC 2822 group
  * Accepts: address list to write to
  *	    pointer to tail of address list
  *	    pointer to input string
@@ -1048,7 +1054,7 @@ ADDRESS *rfc822_parse_group (ADDRESS **lst,ADDRESS *last,char **string,
   return last;			/* return the tail */
 }
 
-/* Parse RFC822 mailbox
+/* Parse RFC 2822 mailbox
  * Accepts: pointer to string pointer
  *	    default host
  * Returns: address list
@@ -1101,7 +1107,7 @@ long rfc822_phraseonly (char *end)
   return NIL;			/* something other than phase is here */
 }
 
-/* Parse RFC822 route-address
+/* Parse RFC 2822 route-address
  * Accepts: string pointer
  *	    pointer to string pointer to update
  * Returns: address
@@ -1166,7 +1172,7 @@ ADDRESS *rfc822_parse_routeaddr (char *string,char **ret,char *defaulthost)
   return adr;			/* return the address */
 }
 
-/* Parse RFC822 address-spec
+/* Parse RFC 2822 address-spec
  * Accepts: string pointer
  *	    pointer to string pointer to update
  *	    default host
@@ -1217,6 +1223,13 @@ ADDRESS *rfc822_parse_addrspec (char *string,char **ret,char *defaulthost)
   t = end;			/* remember delimiter in case no host */
 
   rfc822_skipws (&end);		/* sniff ahead at what follows */
+#if RFC733			/* RFC 733 used "at" instead of "@" */
+  if (((*end == 'a') || (*end == 'A')) &&
+      ((end[1] == 't') || (end[1] == 'T')) &&
+      ((end[2] == ' ') || (end[2] == '\t') || (end[2] == '\015') ||
+       (end[2] == '\012') || (end[2] == '(')))
+    *++end = '@';
+#endif
   if (*end != '@') end = t;	/* host name missing */
 				/* otherwise parse host name */
   else if (!(adr->host = rfc822_parse_domain (++end,&end)))
@@ -1235,7 +1248,7 @@ ADDRESS *rfc822_parse_addrspec (char *string,char **ret,char *defaulthost)
   return adr;			/* return the address we got */
 }
 
-/* Parse RFC822 domain
+/* Parse RFC 2822 domain
  * Accepts: string pointer
  *	    pointer to return end of domain
  * Returns: domain name or NIL if failure
@@ -1290,7 +1303,7 @@ char *rfc822_parse_domain (char *string,char **end)
   return ret;
 }
 
-/* Parse RFC822 phrase
+/* Parse RFC 2822 phrase
  * Accepts: string pointer
  * Returns: pointer to end of phrase
  */
@@ -1309,7 +1322,7 @@ char *rfc822_parse_phrase (char *s)
   return (s = rfc822_parse_phrase (s)) ? s : curpos;
 }
 
-/* Parse RFC822 word
+/* Parse RFC 2822 word
  * Accepts: string pointer
  *	    delimiter (or NIL for phrase word parsing)
  * Returns: pointer to end of word
@@ -1384,7 +1397,7 @@ char *rfc822_parse_word (char *s,const char *delimiters)
   }
 }
 
-/* Copy an RFC822 format string
+/* Copy an RFC 2822 format string
  * Accepts: string
  * Returns: copy of string
  */
@@ -1396,7 +1409,7 @@ char *rfc822_cpy (char *src)
 }
 
 
-/* Unquote an RFC822 format string
+/* Unquote an RFC 2822 format string
  * Accepts: string
  * Returns: string
  */
@@ -1443,7 +1456,7 @@ ADDRESS *rfc822_cpy_adr (ADDRESS *adr)
   return (ret);			/* return the MTP address list */
 }
 
-/* Skips RFC822 whitespace
+/* Skips RFC 2822 whitespace
  * Accepts: pointer to string pointer
  */
 
@@ -1461,7 +1474,7 @@ void rfc822_skipws (char **s)
 }
 
 
-/* Skips RFC822 comment
+/* Skips RFC 2822 comment
  * Accepts: pointer to string pointer
  *	    trim flag
  * Returns: pointer to first non-blank character of comment
@@ -1522,12 +1535,12 @@ long rfc822_output (char *t,ENVELOPE *env,BODY *body,soutr_t f,void *s,
 		    long ok8bit)
 {
   rfc822out_t r822o = (rfc822out_t) mail_parameters (NIL,GET_RFC822OUTPUT,NIL);
-				/* call external RFC822 output generator */
+				/* call external RFC 2822 output generator */
   if (r822o) return (*r822o) (t,env,body,f,s,ok8bit);
 				/* encode body as necessary */
   if (ok8bit) rfc822_encode_body_8bit (env,body);
   else rfc822_encode_body_7bit (env,body);
-  rfc822_header (t,env,body);	/* build RFC822 header */
+  rfc822_header (t,env,body);	/* build RFC 2822 header */
 				/* output header and body */
   return (*f) (s,t) && (body ? rfc822_output_body (body,f,s) : T);
 }
@@ -1708,6 +1721,7 @@ long rfc822_output_body (BODY *body,soutr_t f,void *s)
  * Returns: destination as binary or NIL if error
  */
 
+#define WSP 0176		/* NUL, TAB, LF, FF, CR, SPC */
 #define JNK 0177
 #define PAD 0100
 
@@ -1718,9 +1732,9 @@ void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
   char *d = (char *) ret;
   int e;
   static char decode[256] = {
+   WSP,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,WSP,WSP,JNK,WSP,WSP,JNK,JNK,
    JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
-   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,
-   JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,076,JNK,JNK,JNK,077,
+   WSP,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,JNK,076,JNK,JNK,JNK,077,
    064,065,066,067,070,071,072,073,074,075,JNK,JNK,JNK,PAD,JNK,JNK,
    JNK,000,001,002,003,004,005,006,007,010,011,012,013,014,015,016,
    017,020,021,022,023,024,025,026,027,030,031,JNK,JNK,JNK,JNK,JNK,
@@ -1759,14 +1773,15 @@ void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
       break;
     }
     break;
-  case JNK:			/* junk character */
+  case WSP:			/* whitespace */
     break;
   case PAD:			/* padding */
     switch (e++) {		/* check quantum position */
     case 3:			/* one = is good enough in quantum 3 */
 				/* make sure no data characters in remainder */
       for (; srcl; --srcl) switch (decode[*src++]) {
-      case JNK: case PAD:	/* ignore junk and extraneous padding */
+				/* ignore space, junk and extraneous padding */
+      case WSP: case JNK: case PAD:
 	break;
       default:			/* valid BASE64 data character */
 	/* This indicates bad MIME.  One way that it can be caused is if
@@ -1791,6 +1806,9 @@ void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
       return NIL;
     }
     break;
+  case JNK:			/* junk character */
+    fs_give (&ret);
+    return NIL;
   }
   *len = d - (char *) ret;	/* calculate data length */
   return ret;			/* return the string */
@@ -1854,6 +1872,8 @@ unsigned char *rfc822_binary (void *src,unsigned long srcl,unsigned long *len)
 unsigned char *rfc822_qprint (unsigned char *src,unsigned long srcl,
 			      unsigned long *len)
 {
+  char tmp[MAILTMPLEN];
+  unsigned int bogon = NIL;
   unsigned char *ret = (unsigned char *) fs_get ((size_t) srcl + 1);
   unsigned char *d = ret;
   unsigned char *t = d;
@@ -1876,8 +1896,23 @@ unsigned char *rfc822_qprint (unsigned char *src,unsigned long srcl,
       default:			/* two hex digits then */
 	if (!(isxdigit (c) && (((unsigned long) (s - src)) < srcl) &&
 	      (e = *s++) && isxdigit (e))) {
-	  fs_give ((void **) &ret);
-	  return NIL;
+	  /* This indicates bad MIME.  One way that it can be caused is if
+	     a single-section message was QUOTED-PRINTABLE encoded and then
+	     something (e.g. a mailing list processor) appended text.  The
+	     problem is that there is no way to determine where the encoded
+	     data ended and the appended crud began.  Consequently, prudent
+	     software will always encapsulate a QUOTED-PRINTABLE segment
+	     inside a MULTIPART.
+	   */
+	  if (!bogon++) {	/* only do this once */
+	    sprintf (tmp,"Invalid quoted-printable sequence: =%.80s",
+		   (char *) s - 1);
+	    mm_log (tmp,PARSE);
+	  }
+	  *d++ = '=';		/* treat = as ordinary character */
+	  *d++ = c;		/* and the character following */
+	  t = d;		/* note point of non-space */
+	  break;
 	}
 	if (isdigit (c)) c -= '0';
 	else c -= (isupper (c) ? 'A' - 10 : 'a' - 10);

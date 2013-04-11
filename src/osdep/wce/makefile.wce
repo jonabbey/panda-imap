@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	21 August 2002
+# Last Edited:	 6 July 2004
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2002 University of Washington.
+# Copyright 1988-2004 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -35,8 +35,8 @@ all:	$(CCLIENTLIB)
 osdep.h: os_wce.h
 	copy os_wce.h osdep.h
 	drivers $(EXTRADRIVERS) $(DRIVERS) dummy
+	setproto $(DEFAULTDRIVER) $(DEFAULTDRIVER)
 	mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)
-	setproto $(DEFAULTDRIVER)
 
 mail.obj: mail.h misc.h osdep.h mail.c
 

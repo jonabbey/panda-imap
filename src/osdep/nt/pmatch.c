@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 2000
- * Last Edited:	24 October 2000
+ * Last Edited:	27 April 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -25,7 +25,7 @@
  * Returns: T if pattern matches base, else NIL
  */
 
-long pmatch_full (char *s,char *pat,char delim)
+long pmatch_full (unsigned char *s,unsigned char *pat,unsigned char delim)
 {
   switch (*pat) {
   case '%':			/* non-recursive */
@@ -58,7 +58,7 @@ long pmatch_full (char *s,char *pat,char delim)
  * Returns: T if base is a matching directory of pattern, else NIL
  */
 
-long dmatch (char *s,char *pat,char delim)
+long dmatch (unsigned char *s,unsigned char *pat,unsigned char delim)
 {
   switch (*pat) {
   case '%':			/* non-recursive */

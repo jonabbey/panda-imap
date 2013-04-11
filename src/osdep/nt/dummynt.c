@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	5 March 2003
+ * Last Edited:	2 February 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -30,6 +30,23 @@
 #include <dos.h>
 #include "dummy.h"
 #include "misc.h"
+
+/* Function prototypes */
+
+DRIVER *dummy_valid (char *name);
+void *dummy_parameters (long function,void *value);
+void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
+		      long level);
+long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,
+		   long attributes,char *contents);
+long dummy_subscribe (MAILSTREAM *stream,char *mailbox);
+MAILSTREAM *dummy_open (MAILSTREAM *stream);
+void dummy_close (MAILSTREAM *stream,long options);
+long dummy_ping (MAILSTREAM *stream);
+void dummy_check (MAILSTREAM *stream);
+void dummy_expunge (MAILSTREAM *stream);
+long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
+long dummy_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
 /* Dummy routines */
 
@@ -209,7 +226,7 @@ long dummy_subscribe (MAILSTREAM *stream,char *mailbox)
 				/* must be valid local mailbox */
   if ((s = mailboxfile (tmp,mailbox)) && *s && !stat (s,&sbuf) &&
       ((sbuf.st_mode & S_IFMT) == S_IFREG)) return sm_subscribe (mailbox);
-  sprintf (tmp,"Can't subscribe %s: not a mailbox",mailbox);
+  sprintf (tmp,"Can't subscribe %.80s: not a mailbox",mailbox);
   mm_log (tmp,ERROR);
   return NIL;
 }
@@ -297,12 +314,13 @@ long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,
   struct stat sbuf;
   int fd;
   long csiz,ssiz,bsiz;
-  char *buf,tmp[MAILTMPLEN];
+  char *s,*buf,tmp[MAILTMPLEN];
   if (contents) {		/* want to search contents? */
 				/* forget it if can't select or open */
     if ((attributes & LATT_NOSELECT) || !(csiz = strlen (contents)) ||
-	stat (dummy_file (tmp,name),&sbuf) || (csiz > sbuf.st_size) ||
-	((fd = open (tmp,O_RDONLY,NIL)) < 0)) return T;
+	!(s = dummy_file (tmp,name)) || stat (s,&sbuf) ||
+	(csiz > sbuf.st_size) || ((fd = open (tmp,O_RDONLY,NIL)) < 0))
+      return T;
 				/* get buffer including slop */    
     buf = (char *) fs_get (BUFSIZE + (ssiz = 4 * ((csiz / 4) + 1)) + 1);
     memset (buf,'\0',ssiz);	/* no slop area the first time */
@@ -333,7 +351,7 @@ long dummy_create (MAILSTREAM *stream,char *mailbox)
   char tmp[MAILTMPLEN];
   if (compare_cstring (mailbox,"INBOX") && dummy_file (tmp,mailbox))
     return dummy_create_path (stream,tmp,NIL);
-  sprintf (tmp,"Can't create %s: invalid name",mailbox);
+  sprintf (tmp,"Can't create %.80s: invalid name",mailbox);
   mm_log (tmp,ERROR);
   return NIL;
 }
@@ -375,7 +393,8 @@ long dummy_create_path (MAILSTREAM *stream,char *path,long dirmode)
   else if ((fd = open (path,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) >= 0)
     ret = !close (fd);		/* close file */
   if (!ret) {			/* error? */
-    sprintf (tmp,"Can't create mailbox node %s: %s",path,strerror (errno));
+    sprintf (tmp,"Can't create mailbox node %.80s: %.80s",path,
+	     strerror (errno));
     mm_log (tmp,ERROR);
   }
   return ret;			/* return status */
@@ -391,11 +410,15 @@ long dummy_delete (MAILSTREAM *stream,char *mailbox)
 {
   struct stat sbuf;
   char *s,tmp[MAILTMPLEN];
+  if (!(s = dummy_file (tmp,mailbox))) {
+    sprintf (tmp,"Can't delete - invalid name: %.80s",s);
+    mm_log (tmp,ERROR);
+  }
 				/* no trailing \ */
-  if ((s = strrchr (dummy_file (tmp,mailbox),'\\')) && !s[1]) *s = '\0';
+  if ((s = strrchr (tmp,'\\')) && !s[1]) *s = '\0';
   if (stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) == S_IFDIR) ?
       rmdir (tmp) : unlink (tmp)) {
-    sprintf (tmp,"Can't delete mailbox %s: %s",mailbox,strerror (errno));
+    sprintf (tmp,"Can't delete mailbox %.80s: %.80s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
   }
@@ -413,11 +436,12 @@ long dummy_delete (MAILSTREAM *stream,char *mailbox)
 long dummy_rename (MAILSTREAM *stream,char *old,char *newname)
 {
   struct stat sbuf;
-  char c,*s,tmp[MAILTMPLEN],mbx[MAILTMPLEN];
+  char c,*s,tmp[MAILTMPLEN],mbx[MAILTMPLEN],oldname[MAILTMPLEN];
   long ret = NIL;
 				/* no trailing \ allowed */
-  if (!(s = dummy_file (mbx,newname)) || ((s = strrchr (s,'\\')) && !s[1])) {
-    sprintf (mbx,"Can't rename %s to %s: invalid name",old,newname);
+  if (!dummy_file (oldname,old) || !(s = dummy_file (mbx,newname)) ||
+      ((s = strrchr (s,'\\')) && !s[1])) {
+    sprintf (mbx,"Can't rename %.80s to %.80s: invalid name",old,newname);
     mm_log (mbx,ERROR);
     return NIL;
   }
@@ -434,10 +458,10 @@ long dummy_rename (MAILSTREAM *stream,char *old,char *newname)
     s[1] = c;			/* restore character after delimiter */
   }
 				/* rename of non-ex INBOX creates dest */
-  if (!compare_cstring (old,"INBOX") &&
-      stat (dummy_file (tmp,old),&sbuf)) return dummy_create (NIL,mbx);
-  if (rename (dummy_file (tmp,old),mbx)) {
-    sprintf (tmp,"Can't rename mailbox %s to %s: %s",old,newname,
+  if (!compare_cstring (old,"INBOX") && stat (oldname,&sbuf))
+    return dummy_create (NIL,mbx);
+  if (rename (oldname,mbx)) {
+    sprintf (tmp,"Can't rename mailbox %.80s to %.80s: %.80s",old,newname,
 	     strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -459,16 +483,18 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
   if (!stream) return &dummyproto;
   err[0] = '\0';		/* no error message yet */
 				/* can we open the file? */
-  if ((fd = open (dummy_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0) {
+  if (!dummy_file (tmp,stream->mailbox))
+    sprintf (err,"Can't open this name: %.80s",stream->mailbox);
+  else if ((fd = open (tmp,O_RDONLY,NIL)) < 0) {
 				/* no, error unless INBOX */
     if (compare_cstring (stream->mailbox,"INBOX"))
-      sprintf (err,"%s: %s",strerror (errno),stream->mailbox);
+      sprintf (err,"%.80s: %.80s",strerror (errno),stream->mailbox);
   }
   else {			/* file had better be empty then */
     fstat (fd,&sbuf);		/* sniff at its size */
     close (fd);
     if (sbuf.st_size)		/* bogus format if non-empty */
-      sprintf (err,"%s (file %s) is not in valid mailbox format",
+      sprintf (err,"%.80s (file %.80s) is not in valid mailbox format",
 	       stream->mailbox,tmp);
   }
   if (err[0]) {			/* if an error happened */
@@ -502,24 +528,30 @@ void dummy_close (MAILSTREAM *stream,long options)
 
 long dummy_ping (MAILSTREAM *stream)
 {
+  MAILSTREAM *test;
 				/* time to do another test? */
   if (time (0) >= ((time_t) (stream->gensym + 30))) {
-    MAILSTREAM *test = mail_open (NIL,stream->mailbox,OP_PROTOTYPE);
-    if (!test) return NIL;	/* can't get a prototype?? */
-    if (test->dtb == stream->dtb) {
-      stream->gensym = time (0);/* still hasn't changed */
-      return T;			/* try again later */
-    }
-				/* looks like a new driver? */
-    if (!(test = mail_open (NIL,stream->mailbox,NIL))) return NIL;
-    mail_close ((MAILSTREAM *)	/* flush resources used by dummy stream */
-		memcpy (fs_get (sizeof (MAILSTREAM)),stream,
-			sizeof (MAILSTREAM)));
+				/* has mailbox format changed? */
+    if ((test = mail_open (NIL,stream->mailbox,OP_PROTOTYPE)) &&
+	(test->dtb != stream->dtb) &&
+	(test = mail_open (NIL,stream->mailbox,NIL))) {
+				/* preserve some resources */
+      test->original_mailbox = stream->original_mailbox;
+      stream->original_mailbox = NIL;
+      test->sparep = stream->sparep;
+      stream->sparep = NIL;
+      test->sequence = stream->sequence;
+      mail_close ((MAILSTREAM *) /* flush resources used by dummy stream */
+		  memcpy (fs_get (sizeof (MAILSTREAM)),stream,
+			  sizeof (MAILSTREAM)));
 				/* swap the streams */
-    memcpy (stream,test,sizeof (MAILSTREAM));
-    fs_give ((void **) &test);	/* flush test now that copied */
+      memcpy (stream,test,sizeof (MAILSTREAM));
+      fs_give ((void **) &test);/* flush test now that copied */
 				/* make sure application knows */
-    mail_exists (stream,stream->recent = stream->nmsgs);
+      mail_exists (stream,stream->recent = stream->nmsgs);
+    }
+				/* still hasn't changed */
+    else stream->gensym = time (0);
   }
   return T;
 }
@@ -576,12 +608,12 @@ long dummy_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   int e;
   char tmp[MAILTMPLEN];
   MAILSTREAM *ts = default_proto (T);
-  if (compare_cstring (mailbox,"INBOX") &&
-      ((fd = open (dummy_file (tmp,mailbox),O_RDONLY,NIL)) < 0)) {
+  if (compare_cstring (mailbox,"INBOX") && dummy_file (tmp,mailbox) &&
+      ((fd = open (tmp,O_RDONLY,NIL)) < 0)) {
     if ((e = errno) == ENOENT)	/* failed, was it no such file? */
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
 		 (long) NIL);
-    sprintf (tmp,"%s: %s",strerror (e),mailbox);
+    sprintf (tmp,"%.80s: %.80s",strerror (e),mailbox);
     mm_log (tmp,ERROR);		/* pass up error */
     return NIL;			/* always fails */
   }
@@ -591,7 +623,7 @@ long dummy_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     if (sbuf.st_size) ts = NIL;	/* non-empty file? */
   }
   if (ts) return (*ts->dtb->append) (stream,mailbox,af,data);
-  sprintf (tmp,"Indeterminate mailbox format: %s",mailbox);
+  sprintf (tmp,"Indeterminate mailbox format: %.80s",mailbox);
   mm_log (tmp,ERROR);
   return NIL;
 }

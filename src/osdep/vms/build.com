@@ -9,10 +9,10 @@ $!		Seattle, WA  98195
 $!		Internet: MRC@CAC.Washington.EDU
 $!
 $! Date:	2 August 1994
-$! Last Edited:	7 April 2003
+$! Last Edited:	6 February 2004
 $!
 $! The IMAP toolkit provided in this Distribution is
-$! Copyright 2003 University of Washington.
+$! Copyright 2004 University of Washington.
 $!
 $! The full text of our legal notices is contained in the file called
 $! CPYRIGHT, included with this Distribution.
@@ -79,8 +79,12 @@ $ CC'CC_PREF' NEWSRC
 $ CC'CC_PREF' NETMSG
 $ CC'CC_PREF' UTF8
 $ CC'CC_PREF' MTEST
+$ CC'CC_PREF' MAILUTIL
 $!
 $ LINK MTEST,OS_VMS,MAIL,IMAP4R1,SMTP,NNTP,POP3,DUMMYVMS,RFC822,MISC,UTF8,-
+	SMANAGER,FLSTRING,NEWSRC,NETMSG,SYS$INPUT:/OPTION'LINK_OPT',LINK/OPTION
+PSECT=_CTYPE_,NOWRT
+$ LINK MAILUTIL,OS_VMS,MAIL,IMAP4R1,SMTP,NNTP,POP3,DUMMYVMS,RFC822,MISC,UTF8,-
 	SMANAGER,FLSTRING,NEWSRC,NETMSG,SYS$INPUT:/OPTION'LINK_OPT',LINK/OPTION
 PSECT=_CTYPE_,NOWRT
 $ SET NOVERIFY

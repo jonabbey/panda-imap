@@ -10,14 +10,16 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	31 October 2002
+ * Last Edited:	26 May 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
 
+#include "ip_unix.c"
+
 #undef write			/* don't use redefined write() */
  
 static tcptimeout_t tmoh = NIL;	/* TCP timeout handler routine */
@@ -37,11 +39,11 @@ extern long maxposint;		/* get this from write.c */
 
 /* Local function prototypes */
 
-int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
-		     unsigned long port);
+int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
+		     char *tmp,int *ctr,char *hst);
 long tcp_abort (TCPSTREAM *stream);
-char *tcp_name (struct sockaddr_in *sin,long flag);
-long tcp_name_valid (char *s);
+char *tcp_name (struct sockaddr *sadr,long flag);
+char *tcp_name_valid (char *s);
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -132,42 +134,36 @@ void *tcp_parameters (long function,void *value)
 TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 {
   TCPSTREAM *stream = NIL;
-  int i;
+  int family;
   int sock = -1;
   int ctr = 0;
   int silent = (port & NET_SILENT) ? T : NIL;
   int *ctrp = (port & NET_NOOPENTIMEOUT) ? NIL : &ctr;
-  char *s;
-  struct sockaddr_in sin;
-  struct hostent *he;
-  char hostname[MAILTMPLEN];
-  char tmp[MAILTMPLEN];
+  char *s,*hostname,tmp[MAILTMPLEN];
+  void *adr;
+  size_t adrlen;
   struct servent *sv = NIL;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
-  void *data;
+  void *data,*next;
   port &= 0xffff;		/* erase flags */
 				/* lookup service */
   if (service && (sv = getservbyname (service,"tcp")))
-    port = ntohs (sin.sin_port = sv->s_port);
- 				/* copy port number in network format */
-  else sin.sin_port = htons (port);
+    port = ntohs (sv->s_port);
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */
 				/* look like domain literal? */
   if (host[0] == '[' && host[(strlen (host))-1] == ']') {
-    strcpy (hostname,host+1);	/* yes, copy number part */
-    hostname[(strlen (hostname))-1] = '\0';
-    if ((sin.sin_addr.s_addr = inet_addr (hostname)) == -1)
-      sprintf (tmp,"Bad format domain-literal: %.80s",host);
-    else {
-      sin.sin_family = AF_INET;	/* family is always Internet */
-      strcpy (hostname,host);	/* hostname is user's argument */
+    strcpy (tmp,host+1);	/* yes, copy number part */
+    tmp[(strlen (tmp))-1] = '\0';
+    if (adr = ip_stringtoaddr (tmp,&adrlen,&family)) {
       (*bn) (BLOCK_TCPOPEN,NIL);
 				/* get an open socket for this system */
-      sock = tcp_socket_open (&sin,tmp,ctrp,hostname,port);
+      sock = tcp_socket_open (family,adr,adrlen,port,tmp,ctrp,hostname = host);
       (*bn) (BLOCK_NONE,NIL);
+      fs_give ((void **) &adr);
     }
+    else sprintf (tmp,"Bad format domain-literal: %.80s",host);
   }
 
   else {			/* lookup host name */
@@ -177,30 +173,20 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     }
     (*bn) (BLOCK_DNSLOOKUP,NIL);/* quell alarms */
     data = (*bn) (BLOCK_SENSITIVE,NIL);
-    if (!(he = gethostbyname (lcase (strcpy (hostname,host)))))
+    if (!(s = ip_nametoaddr (host,&adrlen,&family,&hostname,&next)))
       sprintf (tmp,"No such host as %.80s",host);
     (*bn) (BLOCK_NONSENSITIVE,data);
     (*bn) (BLOCK_NONE,NIL);
-    if (he) {			/* DNS resolution won? */
+    if (s) {			/* DNS resolution won? */
       if (tcpdebug) mm_log ("DNS resolution done",TCPDEBUG);
-				/* copy address type */
-      sin.sin_family = he->h_addrtype;
-				/* copy host name */
-      strcpy (hostname,he->h_name);
-#ifdef HOST_NOT_FOUND		/* muliple addresses only on DNS systems */
-      for (sock = -1,i = 0; (sock < 0) && (s = he->h_addr_list[i]); i++) {
-	if (i && !silent) mm_log (tmp,WARN);
-	memcpy (&sin.sin_addr,s,he->h_length);
+      do {
 	(*bn) (BLOCK_TCPOPEN,NIL);
-	sock = tcp_socket_open (&sin,tmp,ctrp,hostname,port);
+	if (((sock = tcp_socket_open (family,s,adrlen,port,tmp,ctrp,
+				      hostname)) < 0) &&
+	    (s = ip_nametoaddr (NIL,&adrlen,&family,&hostname,&next)) &&
+	    !silent) mm_log (tmp,WARN);
 	(*bn) (BLOCK_NONE,NIL);
-      }
-#else				/* the one true address then */
-      memcpy (&sin.sin_addr,he->h_addr,he->h_length);
-      (*bn) (BLOCK_TCPOPEN,NIL);
-      sock = tcp_socket_open (&sin,tmp,ctrp,hostname,port);
-      (*bn) (BLOCK_NONE,NIL);
-#endif
+      } while ((sock < 0) && s);/* repeat until success or no more addreses */
     }
   }
   if (sock >= 0)  {		/* won */
@@ -220,82 +206,90 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 }
 
 /* Open a TCP socket
- * Accepts: Internet socket address block
+ * Accepts: protocol family
+ *	    address to connect to
+ *	    address length
+ *	    port
  *	    scratch buffer
  *	    pointer to "first byte read in" storage or NIL
  *	    host name for error message
- *	    port number for error message
  * Returns: socket if success, else -1 with error string in scratch buffer
  */
 
-int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
-		     unsigned long port)
+int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
+		     char *tmp,int *ctr,char *hst)
 {
   int i,ti,sock,flgs;
+  size_t len;
   time_t now;
   struct protoent *pt = getprotobyname ("tcp");
   fd_set fds,efds;
   struct timeval tmo;
+  struct sockaddr *sadr = ip_sockaddr (family,adr,adrlen,port,&len);
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
 				/* fetid Solaris */
   void *data = (*bn) (BLOCK_SENSITIVE,NIL);
-  sprintf (tmp,"Trying IP address [%s]",inet_ntoa (sin->sin_addr));
+  sprintf (tmp,"Trying IP address [%s]",ip_sockaddrtostring (sadr));
   mm_log (tmp,NIL);
 				/* make a socket */
-  if ((sock = socket (sin->sin_family,SOCK_STREAM,pt ? pt->p_proto : 0)) < 0) {
+  if ((sock = socket (sadr->sa_family,SOCK_STREAM,pt ? pt->p_proto : 0)) < 0) {
     sprintf (tmp,"Unable to create TCP socket: %s",strerror (errno));
     (*bn) (BLOCK_NONSENSITIVE,data);
-    return -1;
   }
-  flgs = fcntl (sock,F_GETFL,0);/* get current socket flags */
+  else {
+				/* get current socket flags */
+    flgs = fcntl (sock,F_GETFL,0);
 				/* set non-blocking if want open timeout */
-  if (ctr) fcntl (sock,F_SETFL,flgs | FNDELAY);
+    if (ctr) fcntl (sock,F_SETFL,flgs | FNDELAY);
 				/* open connection */
-  while ((i = connect (sock,(struct sockaddr *) sin,
-		       sizeof (struct sockaddr_in))) < 0 && (errno == EINTR));
-  (*bn) (BLOCK_NONSENSITIVE,data);
-  if (i < 0) switch (errno) {	/* failed? */
-  case EAGAIN:			/* DG brain damage */
-  case EINPROGRESS:		/* what we expect to happen */
-  case EALREADY:		/* or another form of it */
-  case EISCONN:			/* restart after interrupt? */
-  case EADDRINUSE:		/* restart after interrupt? */
-    break;			/* well, not really, it was interrupted */
-  default:
-    sprintf (tmp,"Can't connect to %.80s,%lu: %s",hst,port,strerror (errno));
-    close (sock);		/* flush socket */
-    return -1;
-  }
-
-  if (ctr) {			/* want open timeout */
-    now = time (0);		/* open timeout */
-    ti = ttmo_open ? now + ttmo_open : 0;
-    tmo.tv_usec = 0;
-    FD_ZERO (&fds);		/* initialize selection vector */
-    FD_ZERO (&efds);		/* handle errors too */
-    FD_SET (sock,&fds);		/* block for error or readable */
-    FD_SET (sock,&efds);
-    do {			/* block under timeout */
-      tmo.tv_sec = ti ? ti - now : 0;
-      i = select (sock+1,&fds,0,&efds,ti ? &tmo : 0);
-      now = time (0);		/* fake timeout if interrupt & time expired */
-      if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
-    } while ((i < 0) && (errno == EINTR));
-    if (i > 0) {		/* success, make sure really connected */
-      fcntl (sock,F_SETFL,flgs);/* restore blocking status */
-      /* This used to be a zero-byte read(), but that crashes Solaris */
-				/* get socket status */
-      while (((i = *ctr = read (sock,tmp,1)) < 0) && (errno == EINTR));
-    }	
-    if (i <= 0) {		/* timeout or error? */
-      i = i ? errno : ETIMEDOUT;/* determine error code */
-      close (sock);		/* flush socket */
-      errno = i;		/* return error code */
-      sprintf (tmp,"Connection failed to %.80s,%lu: %s",hst,port,
+    while ((i = connect (sock,sadr,len)) < 0 && (errno == EINTR));
+    (*bn) (BLOCK_NONSENSITIVE,data);
+    if (i < 0) switch (errno) {	/* failed? */
+    case EAGAIN:		/* DG brain damage */
+    case EINPROGRESS:		/* what we expect to happen */
+    case EALREADY:		/* or another form of it */
+    case EISCONN:		/* restart after interrupt? */
+    case EADDRINUSE:		/* restart after interrupt? */
+      break;			/* well, not really, it was interrupted */
+    default:
+      sprintf (tmp,"Can't connect to %.80s,%u: %s",hst,(unsigned int) port,
 	       strerror (errno));
-      return -1;
+      close (sock);		/* flush socket */
+      sock = -1;
+    }
+
+    if ((sock >= 0) && ctr) {	/* want open timeout? */
+      now = time (0);		/* open timeout */
+      ti = ttmo_open ? now + ttmo_open : 0;
+      tmo.tv_usec = 0;
+      FD_ZERO (&fds);		/* initialize selection vector */
+      FD_ZERO (&efds);		/* handle errors too */
+      FD_SET (sock,&fds);	/* block for error or readable */
+      FD_SET (sock,&efds);
+      do {			/* block under timeout */
+	tmo.tv_sec = ti ? ti - now : 0;
+	i = select (sock+1,&fds,0,&efds,ti ? &tmo : 0);
+	now = time (0);		/* fake timeout if interrupt & time expired */
+	if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
+      } while ((i < 0) && (errno == EINTR));
+      if (i > 0) {		/* success, make sure really connected */
+				/* restore blocking status */
+	fcntl (sock,F_SETFL,flgs);
+	/* This used to be a zero-byte read(), but that crashes Solaris */
+				/* get socket status */
+	while (((i = *ctr = read (sock,tmp,1)) < 0) && (errno == EINTR));
+      }	
+      if (i <= 0) {		/* timeout or error? */
+	i = i ? errno : ETIMEDOUT;/* determine error code */
+	close (sock);		/* flush socket */
+	sock = -1;
+	errno = i;		/* return error code */
+	sprintf (tmp,"Connection failed to %.80s,%lu: %s",hst,
+		 (unsigned long) port,strerror (errno));
+      }
     }
   }
+  fs_give ((void **) &sadr);
   return sock;			/* return the socket */
 }
   
@@ -311,14 +305,14 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
 TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
 {
   TCPSTREAM *stream = NIL;
-  struct hostent *he;
+  void *adr;
   char host[MAILTMPLEN],tmp[MAILTMPLEN],*path,*argv[MAXARGV+1];
   int i,ti,pipei[2],pipeo[2];
+  size_t len;
   time_t now;
   struct timeval tmo;
   fd_set fds,efds;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
-  void *data;
   if (*service == '*') {	/* want ssh? */
 				/* return immediately if ssh disabled */
     if (!(sshpath && (ti = sshtimeout))) return NIL;
@@ -335,25 +329,15 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   if (mb->host[0] == '[' && mb->host[i = (strlen (mb->host))-1] == ']') {
     strcpy (host,mb->host+1);	/* yes, copy without brackets */
     host[i-1] = '\0';
-    if (inet_addr (host) == -1) {
+				/* validate domain literal */
+    if (adr = ip_stringtoaddr (host,&len,&i)) fs_give ((void **) &adr);
+    else {
       sprintf (tmp,"Bad format domain-literal: %.80s",host);
       mm_log (tmp,ERROR);
       return NIL;
     }
   }
-  else {			/* note that Unix requires lowercase! */
-    (*bn) (BLOCK_DNSLOOKUP,NIL);
-    data = (*bn) (BLOCK_SENSITIVE,NIL);
-    if (tcpdebug) {
-      sprintf (tmp,"DNS canonicalization for rsh/ssh %.80s",mb->host);
-      mm_log (tmp,TCPDEBUG);
-    }
-    if (he = gethostbyname (lcase (strcpy (host,mb->host))))
-      strcpy (host,he->h_name);
-    if (tcpdebug) mm_log ("DNS canonicalization for rsh/ssh done",TCPDEBUG);
-    (*bn) (BLOCK_NONSENSITIVE,data);
-    (*bn) (BLOCK_NONE,NIL);
-  }
+  else strcpy (host,tcp_canonical (mb->host));
 
   if (*service == '*')		/* build ssh command */
     sprintf (tmp,sshcommand,sshpath,host,
@@ -700,12 +684,12 @@ char *tcp_host (TCPSTREAM *stream)
 char *tcp_remotehost (TCPSTREAM *stream)
 {
   if (!stream->remotehost) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     stream->remotehost =	/* get socket's peer name */
-      (getpeername (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen) ||
-       (sin.sin_family != AF_INET)) ?
-	 cpystr (stream->host) : tcp_name (&sin,NIL);
+      getpeername (stream->tcpsi,sadr,(void *) &sadrlen) ?
+        cpystr (stream->host) : tcp_name (sadr,NIL);
+    fs_give ((void **) &sadr);
   }
   return stream->remotehost;
 }
@@ -730,13 +714,13 @@ unsigned long tcp_port (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   if (!stream->localhost) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     stream->localhost =		/* get socket's name */
       ((stream->port & 0xffff000) ||
-       getsockname (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen) ||
-       (sin.sin_family != AF_INET)) ?
-	 cpystr (mylocalhost ()) : tcp_name (&sin,NIL);
+       getsockname (stream->tcpsi,sadr,(void *) &sadrlen)) ?
+      cpystr (mylocalhost ()) : tcp_name (sadr,NIL);
+    fs_give ((void **) &sadr);
   }
   return stream->localhost;	/* return local host name */
 }
@@ -750,12 +734,12 @@ static char *myClientAddr = NIL;
 char *tcp_clientaddr ()
 {
   if (!myClientAddr) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     myClientAddr =		/* get stdin's peer name */
-      cpystr (getpeername (0,(struct sockaddr *) &sin,(void *) &sinlen) ?
-	      "UNKNOWN" : ((sin.sin_family == AF_INET) ?
-			   inet_ntoa (sin.sin_addr) : "NON-IPv4"));
+      cpystr (getpeername (0,sadr,(void *) &sadrlen) ?
+	      "UNKNOWN" : ip_sockaddrtostring (sadr));
+    fs_give ((void **) &sadr);
   }
   return myClientAddr;
 }
@@ -770,12 +754,12 @@ static char *myClientHost = NIL;
 char *tcp_clienthost ()
 {
   if (!myClientHost) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     myClientHost =		/* get stdin's peer name */
-      getpeername (0,(struct sockaddr *) &sin,(void *) &sinlen) ?
-	cpystr ("UNKNOWN") : ((sin.sin_family == AF_INET) ?
-			      tcp_name (&sin,T) : cpystr ("NON-IPv4"));
+      getpeername (0,sadr,(void *) &sadrlen) ?
+        cpystr ("UNKNOWN") : tcp_name (sadr,T);
+    fs_give ((void **) &sadr);
   }
   return myClientHost;
 }
@@ -789,12 +773,12 @@ static char *myServerAddr = NIL;
 char *tcp_serveraddr ()
 {
   if (!myServerAddr) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     myServerAddr =		/* get stdin's peer name */
-      cpystr (getsockname (0,(struct sockaddr *) &sin,(void *) &sinlen) ?
-	      "UNKNOWN" : ((sin.sin_family == AF_INET) ?
-			   inet_ntoa (sin.sin_addr) : "NON-IPv4"));
+      cpystr (getsockname (0,sadr,(void *) &sadrlen) ?
+	      "UNKNOWN" : ip_sockaddrtostring (sadr));
+    fs_give ((void **) &sadr);
   }
   return myServerAddr;
 }
@@ -809,16 +793,14 @@ static long myServerPort = -1;
 
 char *tcp_serverhost ()
 {
-  if (!myServerHost) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+  if (!myServerHost) {		/* once-only */
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
 				/* get stdin's name */
-    if (getsockname (0,(struct sockaddr *) &sin,(void *) &sinlen) ||
-	(sin.sin_family != AF_INET)) myServerHost = cpystr (mylocalhost ());
-    else {
-      myServerHost = tcp_name (&sin,NIL);
-      myServerPort = ntohs (sin.sin_port);
-    }
+    myServerHost = (getsockname (0,sadr,(void *) &sadrlen) ||
+		    ((myServerPort = ip_sockaddrtoport (sadr)) < 0)) ?
+      cpystr (mylocalhost ()) : tcp_name (sadr,NIL);
+    fs_give ((void **) &sadr);
   }
   return myServerHost;
 }
@@ -842,7 +824,6 @@ long tcp_serverport ()
 char *tcp_canonical (char *name)
 {
   char *ret,host[MAILTMPLEN];
-  struct hostent *he;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   void *data;
 				/* look like domain literal? */
@@ -853,62 +834,63 @@ char *tcp_canonical (char *name)
     sprintf (host,"DNS canonicalization %.80s",name);
     mm_log (host,TCPDEBUG);
   }
-				/* note that Unix requires lowercase! */
-  ret = (he = gethostbyname (lcase (strcpy (host,name)))) ?
-    (char *) he->h_name : name;
+				/* get canonical name */
+  if (!ip_nametoaddr (name,NIL,NIL,&ret,NIL)) ret = name;
   (*bn) (BLOCK_NONSENSITIVE,data);
   (*bn) (BLOCK_NONE,NIL);	/* alarms OK now */
   if (tcpdebug) mm_log ("DNS canonicalization done",TCPDEBUG);
   return ret;
 }
-
-
+
 /* TCP/IP return name from socket
  * Accepts: socket
  *	    verbose flag
  * Returns: cpystr name
  */
 
-char *tcp_name (struct sockaddr_in *sin,long flag)
+char *tcp_name (struct sockaddr *sadr,long flag)
 {
-  char *s,tmp[MAILTMPLEN];
+  char *ret,*t,adr[MAILTMPLEN],tmp[MAILTMPLEN];
+  sprintf (ret = adr,"[%.80s]",ip_sockaddrtostring (sadr));
   if (allowreversedns) {
-    struct hostent *he;
     blocknotify_t bn = (blocknotify_t)mail_parameters(NIL,GET_BLOCKNOTIFY,NIL);
     void *data;
     if (tcpdebug) {
-      sprintf (tmp,"Reverse DNS resolution [%s]",inet_ntoa (sin->sin_addr));
+      sprintf (tmp,"Reverse DNS resolution %s",adr);
       mm_log (tmp,TCPDEBUG);
     }
-    (*bn) (BLOCK_DNSLOOKUP,NIL); /* quell alarms */
+    (*bn) (BLOCK_DNSLOOKUP,NIL);/* quell alarms */
     data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* translate address to name */
-    if (!(he = gethostbyaddr ((char *) &sin->sin_addr,
-			      sizeof (struct in_addr),sin->sin_family)) ||
-	!tcp_name_valid ((char *) he->h_name))
-      sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
-    else if (flag) sprintf (s = tmp,"%s [%s]",he->h_name,
-			    inet_ntoa (sin->sin_addr));
-    else s = (char *) he->h_name;
+    if (t = tcp_name_valid (ip_sockaddrtoname (sadr))) {
+				/* produce verbose form if needed */
+      if (flag)	sprintf (ret = tmp,"%s %s",t,adr);
+      else ret = t;
+    }
     (*bn) (BLOCK_NONSENSITIVE,data);
     (*bn) (BLOCK_NONE,NIL);	/* alarms OK now */
     if (tcpdebug) mm_log ("Reverse DNS resolution done",TCPDEBUG);
   }
-  else sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
-  return cpystr (s);
+  return cpystr (ret);
 }
 
 
 /* Validate name
  * Accepts: domain name
- * Returns: T if valid, NIL otherwise
+ * Returns: name if valid, NIL otherwise
  */
 
-long tcp_name_valid (char *s)
+char *tcp_name_valid (char *s)
 {
   int c;
-  while (c = *s++)		/* must be alnum, dot, or hyphen */
-    if (!((c >= 'A') && (c <= 'Z')) && !((c >= 'a') && (c <= 'z')) &&
-	!((c >= '0') && (c <= '9')) && (c != '-') && (c != '.')) return NIL;
-  return LONGT;
+  char *ret,*tail;
+				/* must be non-empty and not too long */
+  if ((ret = (s && *s) ? s : NIL) && (tail = ret + NETMAXHOST)) {
+				/* must be alnum, dot, or hyphen */
+    while ((c = *s++) && (s <= tail) &&
+	   (((c >= 'A') && (c <= 'Z')) || ((c >= 'a') && (c <= 'z')) ||
+	    ((c >= '0') && (c <= '9')) || (c == '-') || (c == '.')));
+    if (c) ret = NIL;
+  }
+  return ret;
 }

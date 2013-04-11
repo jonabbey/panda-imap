@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	7 February 2001
+# Last Edited:	14 October 2003
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2001 University of Washington.
+# Copyright 2003 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -75,7 +75,7 @@ ARCHIVE=c-client.a
 BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o utf8.o \
  dummy.o pseudo.o netmsg.o flstring.o fdstring.o \
  rfc822.o nntp.o smtp.o imap4r1.o pop3.o \
- unix.o mbox.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
+ unix.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
 CFLAGS=$(BASECFLAGS) $(EXTRACFLAGS)
 MAKE=make
 MV=mv
@@ -148,24 +148,23 @@ fdstring.o: mail.h misc.h osdep.h fdstring.h
 flstring.o: mail.h misc.h osdep.h flstring.h
 imap4r1.o: mail.h misc.h osdep.h imap4r1.h rfc822.h
 mail.o: mail.h misc.h osdep.h rfc822.h linkage.h
-mbox.o: mail.h misc.h osdep.h mbox.h unix.h
 mbx.o: mail.h misc.h osdep.h mbx.h dummy.h
 mh.o: mail.h misc.h osdep.h mh.h dummy.h
 mx.o: mail.h misc.h osdep.h mx.h dummy.h
 misc.o: mail.h misc.h osdep.h
-mmdf.o: mail.h misc.h osdep.h mmdf.h pseudo.h dummy.h
-mtx.o: mail.h misc.h osdep.h mtx.h dummy.h
+mmdf.o: mail.h misc.h osdep.h pseudo.h dummy.h
+mtx.o: mail.h misc.h osdep.h dummy.h
 netmsg.o: mail.h misc.h osdep.h netmsg.h
-news.o: mail.h misc.h osdep.h news.h
+news.o: mail.h misc.h osdep.h
 newsrc.o: mail.h misc.h osdep.h newsrc.h
 nntp.o: mail.h misc.h osdep.h netmsg.h smtp.h nntp.h rfc822.h
-phile.o: mail.h misc.h osdep.h phile.h rfc822.h dummy.h
+phile.o: mail.h misc.h osdep.h rfc822.h dummy.h
 pseudo.o: pseudo.h
 pop3.o: mail.h misc.h osdep.h pop3.h rfc822.h
 smanager.o: mail.h misc.h osdep.h
 smtp.o: mail.h misc.h osdep.h smtp.h rfc822.h
 rfc822.o: mail.h misc.h osdep.h rfc822.h
-tenex.o: mail.h misc.h osdep.h tenex.h dummy.h
+tenex.o: mail.h misc.h osdep.h dummy.h
 unix.o: mail.h misc.h osdep.h unix.h pseudo.h dummy.h
 utf8.o: mail.h misc.h osdep.h utf8.h
 

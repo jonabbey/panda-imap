@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	16 January 2002
+ * Last Edited:	8 July 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -56,8 +56,6 @@ void *env_parameters (long function,void *value)
 {
   void *ret = NIL;
   switch ((int) function) {
-  case SET_NAMESPACE:
-    fatal ("SET_NAMESPACE not permitted");
   case GET_NAMESPACE:
     ret = (void *) nslist;
     break;
@@ -269,8 +267,8 @@ char *mailboxfile (char *dst,char *name)
 
 MAILSTREAM *default_proto (long type)
 {
-  extern MAILSTREAM DEFAULTPROTO;
-  return &DEFAULTPROTO;		/* return default driver's prototype */
+  extern MAILSTREAM CREATEPROTO,APPENDPROTO;
+  return type ? &APPENDPROTO : &CREATEPROTO;
 }
 
 /* Emulator for BSD syslog() routine

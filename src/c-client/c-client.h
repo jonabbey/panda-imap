@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	19 May 2000
- * Last Edited:	7 February 2003
+ * Last Edited:	20 October 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -32,15 +32,10 @@ extern "C" {
 
 #include "mail.h"		/* primary interfaces */
 #include "osdep.h"		/* OS-dependent routines */
-#include "misc.h"		/* miscellaneous utility routines */
 #include "rfc822.h"		/* RFC822 and MIME routines */
 #include "smtp.h"		/* SMTP sending routines */
-
-#ifdef LOCAL
-#undef LOCAL			/* just in case */
-#endif
 #include "nntp.h"		/* NNTP sending routines */
-#undef LOCAL			/* undo driver mischief */
+#include "misc.h"		/* miscellaneous utility routines */
 
 #ifdef __cplusplus		/* undo the C++ mischief */
 #undef private

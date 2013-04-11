@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	30 June 2003
+ * Last Edited:	11 December 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -298,6 +298,11 @@ static SSLSTREAM *ssl_start (TCPSTREAM *tstream,char *host,unsigned long flags)
 	stream->sizes.cbMaximumMessage + stream->sizes.cbTrailer;
       if (stream->sizes.cbMaximumMessage < SSLBUFLEN)
 	fatal ("cbMaximumMessage is less than SSLBUFLEN!");
+      else if (stream->sizes.cbMaximumMessage < 16384) {
+	sprintf (tmp,"WINDOWS BUG: cbMaximumMessage = %ld, should be 16384",
+		 (long) stream->sizes.cbMaximumMessage);
+	mm_log (tmp,NIL);
+      }
       stream->ibuf = (char *) fs_get (stream->bufsize);
       stream->obuf = (char *) fs_get (stream->bufsize);
       return stream;

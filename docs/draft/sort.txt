@@ -6,7 +6,7 @@
 
 IMAP Extensions Working Group                                 M. Crispin
 INTERNET-DRAFT: IMAP SORT                                   K. Murchison
-Document: internet-drafts/draft-ietf-imapext-sort-13.txt        May 2003
+Document: internet-drafts/draft-ietf-imapext-sort-15.txt      April 2004
 
 
      INTERNET MESSAGE ACCESS PROTOCOL - SORT AND THREAD EXTENSIONS
@@ -38,8 +38,8 @@ Status of this Memo
    A revised version of this draft document will be submitted to the RFC
    editor as a Proposed Standard for the Internet Community.  Discussion
    and suggestions for improvement are requested, and should be sent to
-   ietf-imapext@IMC.ORG.  This document will expire before 14 November
-   2003.  Distribution of this memo is unlimited.
+   ietf-imapext@IMC.ORG.  This document will expire before 7 October 2004.
+   Distribution of this memo is unlimited.
 
 
 Abstract
@@ -49,17 +49,17 @@ Abstract
    provide substantial performance improvements for IMAP clients which
    offer sorted and threaded views.
 
+
+1. Introduction
+
+   The SORT and THREAD extensions to the [IMAP] protocol provide a means
+   of server-based sorting and threading of messages, without requiring
+   that the client download the necessary data to do so itself.  This is
+   particularly useful for online clients as described in [IMAP-MODELS].
+
    A server which supports the base-level SORT extension indicates this
    with a capability name which starts with "SORT".  Future,
    upwards-compatible extensions to the SORT extension will all start
-
-
-
-Crispin                                                         [Page 1]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
    with "SORT", indicating support for this base level.
 
    A server which supports the THREAD extension indicates this with one
@@ -67,63 +67,32 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
    supported threading algorithm name as described in this document.
    This provides for future upwards-compatible extensions.
 
+
+2. Terminology
+
    The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
    "SHOULD", "SHOULD NOT", "MAY", and "OPTIONAL" in this document are to
    be interpreted as described in [KEYWORDS].
 
+   The word "can" (not "may") is used to refer to a possible
+   circumstance or situation, as opposed to an optional facility of the
+   protocol.
+
+   "User" is used to refer to a human user, whereas "client" refers to
+   the software being run by the user.
+
+   In examples, "C:" and "S:" indicate lines sent by the client and
+   server respectively.
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Crispin                                                         [Page 2]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
-Base Subject Text
+2.1 Base Subject
 
    Subject sorting and threading use the "base subject," which has
-   specific subject artifacts of deployed Internet mail software
-   removed.  Due to the complexity of these artifacts, the formal syntax
-   for the subject extraction rules is ambiguous.  The following
-   procedure is followed to determine the actual "base subject" which is
-   used to sort by subject:
+   specific subject artifacts removed.  Due to the complexity of these
+   artifacts, the formal syntax for the subject extraction rules is
+   ambiguous.  The following procedure is followed to determine the
+   actual "base subject" which is used to sort by subject, using the
+   [ABNF] formal syntax rules described in section 5:
 
         (1) Convert any RFC 2047 encoded-words in the subject to
         UTF-8 as described in "internationalization
@@ -153,35 +122,38 @@ Base Subject Text
         (7) The resulting text is the "base subject" used in the
         SORT.
 
-   All servers and disconnected clients MUST use exactly this algorithm
-   when sorting by subject.  Otherwise there is potential for a user to
-   get inconsistent results based on whether they are running in
-   connected or disconnected IMAP mode.
+   All servers and disconnected (as described in [IMAP-MODEL]) clients
+   MUST use exactly this algorithm when sorting by subject.  Otherwise
+   there is potential for a user to get inconsistent results based on
+   whether they are running in connected or disconnected mode.
 
-Sent Date
+
+2.2 Sent Date
 
    As used in this document, the term "sent date" refers to the date and
-   time from the Date: header, adjusted by time zone.  This differs from
-   date-related criteria in SEARCH, which use just the date and not the
-   time, nor adjusts by time zone.
+   time from the Date: header, adjusted by time zone to normalize to UTC.
+   For example, "31 Dec 2000 16:01:33 -0800" is equivalent to the UTC
+   date and time of "1 Jan 2001 00:01:33 +0000".
+
+   If the time zone is invalid, the date and time SHOULD be treated as UTC.
+   If the time is also invalid, the time SHOULD be treated as 00:00:00.  If
+   there is no valid date or time, the date and time SHOULD be treated as
+   00:00:00 on the earliest possible date.
+
+   This differs from the date-related criteria in the SEARCH command
+   (described in [IMAP] section 6.4.4), which use just the date and not
+   the time, and are not adjusted by time zone.
 
 
+3. Additional Commands
 
-Crispin                                                         [Page 3]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
-Additional Commands
-
-   These commands are extension to the IMAP4rev1 base protocol.
+   These commands are extension to the [IMAP] base protocol.
 
    The section headings are intended to correspond with where they would
    be located in the main document if they were part of the base
    specification.
 
-
-6.4.SORT.       SORT Command
+BASE.6.4.SORT. SORT Command
 
    Arguments:  sort program
                charset specification
@@ -199,12 +171,17 @@ Additional Commands
       argument; a parenthesized list of sort criteria, and the searching
       charset.
 
-      Note that unlike SEARCH, the searching charset argument is
-      mandatory.  The US-ASCII and UTF-8 charsets MUST be implemented.
-      All other charsets are optional.
+      The charset argument is mandatory (unlike SEARCH) and indicates
+      the [CHARSET] of the strings that appear in the searching criteria.
+      The US-ASCII and UTF-8 charsets MUST be implemented.  All other
+      charsets are optional.
 
-      There is also a UID SORT command which corresponds to SORT the way
-      that UID SEARCH corresponds to SEARCH.
+      There is also a UID SORT command which returns unique identifiers
+      instead of message sequence numbers.  Note that there are separate
+      searching criteria for message sequence numbers and UIDs; thus the
+      arguments to UID SORT are interpreted the same as in SORT.  This is
+      analogous to the behavior of UID SEARCH, as opposed to UID COPY, UID
+      FETCH, or UID STORE.
 
       The SORT command first searches the mailbox for messages that
       match the given searching criteria using the charset argument for
@@ -220,14 +197,6 @@ Additional Commands
 
       If two or more messages exactly match according to the sorting
       criteria, these messages are sorted according to the order in
-
-
-
-Crispin                                                         [Page 4]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
       which they appear in the mailbox.  In other words, there is an
       implicit sort criterion of "sequence number".
 
@@ -275,15 +244,6 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
             client has a "reverse current ordering" command) to reverse
             the results in the client instead of issuing a new SORT.
 
-
-
-
-
-Crispin                                                         [Page 5]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
       SIZE
          Size of the message in octets.
 
@@ -305,7 +265,7 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
                S: A284 OK SORT completed
 
 
-6.4.THREAD.     THREAD Command
+BASE.6.4.THREAD. THREAD Command
 
 Arguments:  threading algorithm
             charset specification
@@ -323,23 +283,20 @@ Result:     OK - thread completed
       criteria argument; a threading algorithm, and the searching
       charset.
 
-      Note that unlike SEARCH, the searching charset argument is
-      mandatory.  The US-ASCII and UTF-8 charsets MUST be implemented.
-      All other charsets are optional.
+      The charset argument is mandatory (unlike SEARCH) and indicates
+      the [CHARSET] of the strings that appear in the searching criteria.
+      The US-ASCII and UTF-8 charsets MUST be implemented.  All other
+      charsets are optional.
 
-      There is also a UID THREAD command which corresponds to THREAD the
-      way that UID SEARCH corresponds to SEARCH.
+      There is also a UID THREAD command which returns unique identifiers
+      instead of message sequence numbers.  Note that there are separate
+      searching criteria for message sequence numbers and UIDs; thus the
+      arguments to UID THREAD are interpreted the same as in THREAD.  This is
+      analogous to the behavior of UID SEARCH, as opposed to UID COPY, UID
+      FETCH, or UID STORE.
 
       The THREAD command first searches the mailbox for messages that
       match the given searching criteria using the charset argument for
-
-
-
-Crispin                                                         [Page 6]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
       the interpretation of strings in the searching criteria.  It then
       returns the matching messages in an untagged THREAD response,
       threaded according to the specified threading algorithm.
@@ -352,6 +309,7 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
       The defined threading algorithms are as follows:
 
       ORDEREDSUBJECT
+
          The ORDEREDSUBJECT threading algorithm is also referred to as
          "poor man's threading."  The searched messages are sorted by
          base subject and then by the sent date.  The messages are then
@@ -366,7 +324,7 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
          message at the root.  Hence, there are no grandchildren in
          ORDEREDSUBJECT threading.
 
-           Note: earlier versions of this specification specified
+           Note: early drafts of this specification specified
            that each message in an ORDEREDSUBJECT thread is a child
            (as opposed to a sibling) of the previous message.  This
            is now deprecated.  For compatibility with servers which
@@ -384,18 +342,11 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
       REFERENCES
+
          The REFERENCES threading algorithm is based on the [THREADING]
          algorithm written used in "Netscape Mail and News" versions 2.0
          through 3.0.  This algorithm threads the searched messages by
          grouping them together in parent/child relationships based on
-
-
-
-Crispin                                                         [Page 7]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
          which messages are replies to others.  The parent/child
          relationships are built using two methods: reconstructing a
          message's ancestry using the references contained within it;
@@ -431,7 +382,7 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
                Note: Although [RFC 2822] permits multiple Message IDs in
                the In-Reply-To header, in actual practice this
                discipline has not been followed.  For example,
-               In-Reply-To headers have been observed with email
+               In-Reply-To headers have been observed with message
                addresses after the Message ID, and there are no good
                heuristics for software to determine the difference.
                This is not a problem with the References header however.
@@ -444,13 +395,6 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
          subject extraction rules, applied to the original subject,
          remove any of the following: a subj-refwd, a "(fwd)"
          subj-trailer, or a subj-fwd-hdr and subj-fwd-trl.
-
-
-
-Crispin                                                         [Page 8]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
 
          The REFERENCES algorithm is significantly more complex than
          ORDEREDSUBJECT and consists of six main steps.  These steps are
@@ -500,14 +444,6 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
             (or NIL if there are no references) and the current message.
             If the current message already has a parent, it is probably
             the result of a truncated References header line, so break
-
-
-
-Crispin                                                         [Page 9]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
             the current parent/child link before creating the new
             correct one.  As in step 1.A, do not create the parent/child
             link if creating that link would introduce a loop.  Note
@@ -556,14 +492,6 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
                child if the current message is a dummy.  This is the
                thread subject.
 
-
-
-
-Crispin                                                        [Page 10]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
                (ii) If the thread subject is empty, skip this message.
 
                (iii) Look up the message associated with the thread
@@ -610,15 +538,6 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
                   current message is not, make the current message a
                   child of the message in the subject table (a sibling
                   of its children).
-
-
-
-
-
-Crispin                                                        [Page 11]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
 
                   If the current message is a reply or forward and the
                   message in the subject table is not, make the current
@@ -668,79 +587,17 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
         Note: The line breaks in the first and third client
         responses are for editorial clarity and do not appear in
-
-
-
-Crispin                                                        [Page 12]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
         real THREAD responses.
 
 
+4. Additional Responses
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Crispin                                                        [Page 13]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
-Additional Responses
-
-   These responses are extensions to the IMAP4rev1 base protocol.
+   These responses are extensions to the [IMAP] base protocol.
 
    The section headings of these responses are intended to correspond
    with where they would be located in the main document.
 
-
-7.2.SORT.       SORT Response
+BASE.7.2.SORT. SORT Response
 
    Data:       zero or more numbers
 
@@ -753,8 +610,7 @@ Additional Responses
    Example:    S: * SORT 2 3 6
 
 
-
-7.2.THREAD.     THREAD Response
+BASE.7.2.THREAD. THREAD Response
 
    Data:       zero or more threads
 
@@ -780,14 +636,6 @@ Additional Responses
       splits into two subthreads; the first of which contains messages 4
       (child of 6, sibling of 44) and 23 (child of 4), and the second of
       which contains messages 44 (child of 6, sibling of 4), 7 (child of
-
-
-
-Crispin                                                        [Page 14]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
       44), and 96 (child of 7).  Since some later messages are parents
       of earlier messages, the messages were probably moved from some
       other mailbox at different times.
@@ -810,188 +658,160 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
       however they are members of the same thread.
 
 
+5. Formal Syntax of SORT and THREAD Commands and Responses
 
+   The following syntax specification uses the Augmented Backus-Naur
+   Form (ABNF) notation as specified in [ABNF].  It also uses [ABNF]
+   rules defined in [IMAP].
 
+sort            = ["UID" SP] "SORT" SP sort-criteria SP search-criteria
 
+sort-criteria   = "(" sort-criterion *(SP sort-criterion) ")"
 
+sort-criterion  = ["REVERSE" SP] sort-key
 
+sort-key        = "ARRIVAL" / "CC" / "DATE" / "FROM" / "SIZE" /
+                  "SUBJECT" / "TO"
 
+thread          = ["UID" SP] "THREAD" SP thread-alg SP search-criteria
 
+thread-alg      = "ORDEREDSUBJECT" / "REFERENCES" / thread-alg-ext
 
+thread-alg-ext  = atom
+                    ; New algorithms MUST be registered with IANA
 
+search-criteria = charset 1*(SP search-key)
 
+charset         = astring
+                    ; CHARSET values MUST be registered with IANA
 
+sort-data       = "SORT" *(SP nz-number)
 
+thread-data     = "THREAD" [SP 1*thread-list]
 
+thread-list     = "(" (thread-members / thread-nested) ")"
 
+thread-members  = nz-number *(SP nz-number) [SP thread-nested]
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Crispin                                                        [Page 15]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
-Formal Syntax of SORT and THREAD commands and Responses
-
-   sort            = ["UID" SP] "SORT" SP
-                     "(" sort-criterion *(SP sort-criterion) ")"
-                     SP charset 1*(SP search-key)
-
-   sort-criterion  = ["REVERSE" SP] sort-key
-
-   sort-key        = "ARRIVAL" / "CC" / "DATE" / "FROM" / "SIZE" /
-                     "SUBJECT" / "TO"
-   thread            = ["UID" SP] "THREAD" SP thread-algorithm
-                       SP charset 1*(SP search-key)
-
-   thread-algorithm  = "ORDEREDSUBJECT" / "REFERENCES" / atom
-
-   charset           = astring
-                       ; CHARSET argument to MUST be registered with IANA
-
-   sort-data       = "SORT" *(SP nz-number)
-
-   thread-data       = "THREAD" [SP 1*thread-list]
-
-   thread-list       = "(" thread-members / thread-nested ")"
-
-   thread-members    = nz-number *(SP nz-number) [SP thread-nested]
-
-   thread-nested     = 2*thread-list
-
+thread-nested   = 2*thread-list
 
 
    The following syntax describes base subject extraction rules (2)-(6):
 
-   subject         = *subj-leader [subj-middle] *subj-trailer
+subject         = *subj-leader [subj-middle] *subj-trailer
 
-   subj-refwd      = ("re" / ("fw" ["d"])) *WSP [subj-blob] ":"
+subj-refwd      = ("re" / ("fw" ["d"])) *WSP [subj-blob] ":"
 
-   subj-blob       = "[" *BLOBCHAR "]" *WSP
+subj-blob       = "[" *BLOBCHAR "]" *WSP
 
-   subj-fwd        = subj-fwd-hdr subject subj-fwd-trl
+subj-fwd        = subj-fwd-hdr subject subj-fwd-trl
 
-   subj-fwd-hdr    = "[fwd:"
+subj-fwd-hdr    = "[fwd:"
 
-   subj-fwd-trl    = "]"
+subj-fwd-trl    = "]"
 
-   subj-leader     = (*subj-blob subj-refwd) / WSP
+subj-leader     = (*subj-blob subj-refwd) / WSP
 
+subj-middle     = *subj-blob (subj-base / subj-fwd)
+                    ; last subj-blob is subj-base if subj-base would
+                    ; otherwise be empty
 
+subj-trailer    = "(fwd)" / WSP
 
+subj-base       = NONWSP *(*WSP NONWSP)
+                    ; can be a subj-blob
 
+BLOBCHAR        = %x01-5a / %x5c / %x5e-7f
+                    ; any CHAR except '[' and ']'
 
-
-Crispin                                                        [Page 16]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
-   subj-middle     = *subj-blob (subj-base / subj-fwd)
-                   ; last subj-blob is subj-base if subj-base would
-                   ; otherwise be empty
-
-   subj-trailer    = "(fwd)" / WSP
-
-   subj-base       = NONWSP *([*WSP] NONWSP)
-                   ; can be a subj-blob
-
-   BLOBCHAR        = %x01-5a / %x5c / %x5e-7f
-                   ; any CHAR except '[' and ']'
-
-   NONWSP          = %x01-08 / %x0a-1f / %x21-7f
-                   ; any CHAR other than WSP
+NONWSP          = %x01-08 / %x0a-1f / %x21-7f
+                    ; any CHAR other than WSP
 
 
-Security Considerations
+6. Security Considerations
 
    The SORT and THREAD extensions do not raise any security
    considerations that are not present in the base [IMAP] protocol, and
    these issues are discussed in [IMAP].  Nevertheless, it is important
-   to remember that IMAP4rev1 protocol transactions, including
-   electronic mail data, are sent in the clear over the network unless
-   protection from snooping is negotiated, either by the use of
-   STARTTLS, privacy protection is negotiated in the AUTHENTICATE
-   command, or some other protection mechanism is in effect.
+   to remember that [IMAP] protocol transactions, including message
+   data, are sent in the clear over the network unless protection from
+   snooping is negotiated, either by the use of STARTTLS, privacy
+   protection is negotiated in the AUTHENTICATE command, or some other
+   protection mechanism is in effect.
 
 
-Internationalization Considerations
+7. Internationalization Considerations
 
    Strings in charsets other than US-ASCII and UTF-8 must be converted
    to UTF-8 prior to any comparisons.  String comparisons used in SORT
    and THREAD collations are performed as described in [IMAP-I18N].
 
-   Non-English translations of "Re" or "Fw"/"Fwd" are not specified for
-   removal in the base subject extraction process.  By specifying that
-   only the English forms of the prefixes are used, it becomes a simple
-   display time task to localize the prefix language for the user.  If,
-   on the other hand, prefixes in multiple languages are permitted, the
-   result is a geometrically complex, and ultimately unimplementable,
-   task.  In order to improve the ability to support non-English display
-   in Internet mail clients, only the English form of these prefixes
-   should be transmitted in Internet mail messages.
+   Translations of the "re" or "fw"/"fwd" tokens are not specified for
+   removal in the base subject extraction process.  An attempt to add such
+   translated tokens would result in a geometrically complex, and
+   ultimately unimplementable, task.
+
+   Instead, note that [RFC-2822] section 3.6.5 recommends that "re:" (from
+   the Latin "res", in the matter of) be used to identify a reply.
+   Although it is evident that, from the multiple forms of token to
+   identify a forwarded message, there is considerable variation found in
+   the wild, the variations are (still) manageable.  Consequently, it is
+   suggested that "re:" and one of the variations of the tokens for forward
+   supported by the base subject extraction rules be adopted for Internet
+   mail messages, since doing so makes it a simple display time task to
+   localize the token language for the user.
 
 
+8. IANA Considerations
+
+   [IMAP] capabilities are registered by publishing a standards track or
+   IESG approved experimental RFC.  This document constitutes registration
+   of the SORT and THREAD capabilities in the [IMAP] capabilities registry.
+
+   This document creates a new [IMAP] threading algorithms registry, which
+   registers threading algorithms by publishing a standards track or IESG
+   approved experimental RFC.  This document constitutes registration of
+   the ORDEREDSUBJECT and REFERENCES algorithms in that registry.
 
 
+Appendices
 
-
-
-
-Crispin                                                        [Page 17]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
-
-12.     IANA Considerations
-
-   IMAP4 capabilities are registered by publishing a standards track or
-   IESG approved experimental RFC.  The registry is currently located
-   at:
-
-        http://www.iana.org/assignments/imap4-capabilities
-
-   This document consitutes registration of the SORT and THREAD IMAP
-   capabilities, as well as the ORDEREDSUBJECT and REFERENCES IMAP
-   threading algorithms.
-
-
-A.      References
+A. Normative References
 
    The following documents are normative to this document:
 
-   [ABNF] Crocker, D., and Overell, P. "Augmented BNF for Syntax
-   Specifications: ABNF", RFC 2234, November 1997.
+   [ABNF]                Crocker, D., and Overell, P. "Augmented BNF
+                         for Syntax Specifications: ABNF", RFC 2234,
+                         November 1997.
 
-   [IMAP] Crispin, M., "Internet Message Access Protocol - Version
-   4rev1", RFC 3501, March 2003.
+   [CHARSET]             Freed, N. and J. Postel, "IANA Character Set
+                         Registration Procedures", RFC 2978, October
+                         2000.
 
-   [IMAP-I18N] Newman, C. "Internet Message Access Protocol
-   Internationalization", Work in Progress.
+   [IMAP]                Crispin, M., "Internet Message Access Protocol -
+                         Version 4rev1", RFC 3501, March 2003.
 
-   [KEYWORDS] Bradner, S. "Key words for use in RFCs to Indicate
-   Requirement Levels", RFC 2119, Harvard University, March 1997.
+   [IMAP-I18N]           Newman, C. "Internet Message Access Protocol
+                         Internationalization", Work in Progress.
 
-   [RFC-2822] Resnick, P. "Internet Message Format", RFC 2822, April
-   2001.
+   [KEYWORDS]            Bradner, S. "Key words for use in RFCs to
+                         Indicate Requirement Levels", RFC 2119, Harvard
+                         University, March 1997.
+
+   [RFC-2822]            Resnick, P. "Internet Message Format", RFC 2822,
+                         April 2001.
+
+
+B. Informative References
 
    The following documents are informative to this document:
 
-   [THREADING] Zawinski, J. "message threading",
-   http://www.jwz.org/doc/threading.html, 1997-2002.
+   [IMAP-MODELS]         Crispin, M., "Distributed Electronic Mail Models
+                         in IMAP4", RFC 1733, December 1994.
+
+   [THREADING]           Zawinski, J. "Message Threading",
+                         http://www.jwz.org/doc/threading.html, 1997-2002.
+
 
 Author's Address
 
@@ -1002,15 +822,6 @@ Author's Address
    Seattle, WA  98105-4527
 
    Phone: (206) 543-5762
-
-
-
-
-
-Crispin                                                        [Page 18]
-
-INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
-
 
    EMail: MRC@CAC.Washington.EDU
 
@@ -1025,43 +836,78 @@ INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
    EMail: ken@oceana.com
 
 
+IPR Disclosure Acknowledgement
+
+   By submitting this Internet-Draft, I certify that any applicable
+   patent or other IPR claims of which I am aware have been disclosed,
+   and any of which I become aware will be disclosed, in accordance with
+   RFC 3668.
 
 
+Intellectual Property Statement
+
+   The IETF takes no position regarding the validity or scope of any
+   intellectual property or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; neither does it represent that it
+   has made any effort to identify any such rights. Information on the
+   IETF's procedures with respect to rights in standards-track and
+   standards-related documentation can be found in BCP-11. Copies of
+   claims of rights made available for publication and any assurances of
+   licenses to be made available, or the result of an attempt made to
+   obtain a general license or permission for the use of such
+   proprietary rights by implementors or users of this specification can
+   be obtained from the IETF Secretariat.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights which may cover technology that may be required to practice
+   this standard. Please address the information to the IETF Executive
+   Director.
 
 
+Full Copyright Statement
+
+   Copyright (C) The Internet Society (2004).  This document is subject
+   to the rights, licenses and restrictions contained in BCP 78 and
+   except as set forth therein, the authors retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE
+   REPRESENTS OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY AND THE
+   INTERNET ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF
+   THE INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 
 
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed
+   to pertain to the implementation or use of the technology
+   described in this document or the extent to which any license
+   under such rights might or might not be available; nor does it
+   represent that it has made any independent effort to identify any
+   such rights.  Information on the procedures with respect to
+   rights in RFC documents can be found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use
+   of such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository
+   at http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention
+   any copyrights, patents or patent applications, or other
+   proprietary rights that may cover technology that may be required
+   to implement this standard.  Please address the information to the
+   IETF at ietf-ipr@ietf.org.
 
 
+Acknowledgement
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Crispin                                                        [Page 19]
-
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.

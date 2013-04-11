@@ -10,22 +10,24 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	23 April 2002
+ * Last Edited: 26 May 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
 
+#include "ip_nt.c"
+
 
 /* Private functions */
 
-int tcp_socket_open (struct sockaddr_in *sin,char *tmp,char *hst,
-		     unsigned long port);
+int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
+		     char *tmp,char *hst);
 long tcp_abort (SOCKET *sock);
-char *tcp_name (struct sockaddr_in *sin,long flag);
-long tcp_name_valid (char *s);
+char *tcp_name (struct sockaddr *sadr,long flag);
+char *tcp_name_valid (char *s);
 
 
 /* Private data */
@@ -87,19 +89,17 @@ void *tcp_parameters (long function,void *value)
 TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 {
   TCPSTREAM *stream = NIL;
-  int i;
+  int i,family;
   SOCKET sock = INVALID_SOCKET;
   int silent = (port & NET_SILENT) ? T : NIL;
-  char *s;
-  struct sockaddr_in sin;
-  struct hostent *he;
-  char hostname[MAILTMPLEN];
-  char tmp[MAILTMPLEN];
+  char *s,*hostname,tmp[MAILTMPLEN];
+  void *adr,*next;
+  size_t adrlen;
   struct servent *sv = NIL;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   if (!wsa_initted++) {		/* init Windows Sockets */
     WSADATA wsock;
-    if (i = (int) WSAStartup (WSA_VERSION,&wsock)) {
+    if (i = (int) WSAStartup (WINSOCK_VERSION,&wsock)) {
       wsa_initted = 0;		/* in case we try again */
       sprintf (tmp,"Unable to start Windows Sockets (%d)",i);
       mm_log (tmp,ERROR);
@@ -109,29 +109,22 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   port &= 0xffff;		/* erase flags */
 				/* lookup service */
   if (service && (sv = getservbyname (service,"tcp")))
-    port = ntohs (sin.sin_port = sv->s_port);
- 				/* copy port number in network format */
-  else sin.sin_port = htons ((u_short) port);
+    port = ntohs (sv->s_port);
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Windows programs) because it has to be a valid "host name"
      in mailsystem terminology. */
-  sin.sin_family = AF_INET;	/* family is always Internet */
 				/* look like domain literal? */
   if (host[0] == '[' && host[(strlen (host))-1] == ']') {
     strcpy (tmp,host+1);	/* yes, copy number part */
     tmp[strlen (tmp)-1] = '\0';
-    if ((sin.sin_addr.s_addr = inet_addr (tmp)) == INADDR_NONE) {
-      sprintf (tmp,"Bad format domain-literal: %.80s",host);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-    else {
-      sin.sin_family = AF_INET;	/* family is always Internet */
-      strcpy (hostname,host);
+    if (adr = ip_stringtoaddr (tmp,&adrlen,&family)) {
       (*bn) (BLOCK_TCPOPEN,NIL);
-      sock = tcp_socket_open (&sin,tmp,hostname,port);
+      sock = tcp_socket_open (family,adr,adrlen,(unsigned short) port,tmp,
+			      hostname = host);
       (*bn) (BLOCK_NONE,NIL);
+      fs_give ((void **) &adr);
     }
+    else sprintf (tmp,"Bad format domain-literal: %.80s",host);
   }
 
   else {			/* lookup host name */
@@ -140,29 +133,26 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
       mm_log (tmp,TCPDEBUG);
     }
     (*bn) (BLOCK_DNSLOOKUP,NIL);/* look up name */
-    if (!(he = gethostbyname (lcase (strcpy (tmp,host)))))
-      sprintf (tmp,"Host not found (#%d): %s",WSAGetLastError(),host);
+    if (!(s = ip_nametoaddr (host,&adrlen,&family,&hostname,&next)))
+      sprintf (tmp,"Host not found (#%d): %s",WSAGetLastError (),host);
     (*bn) (BLOCK_NONE,NIL);
-    if (he) {			/* DNS resolution won? */
+    if (s) {			/* DNS resolution won? */
       if (tcpdebug) mm_log ("DNS resolution done",TCPDEBUG);
-				/* copy address type */
-      sin.sin_family = he->h_addrtype;
-				/* copy host name */
-      strcpy (hostname,he->h_name);
       wsa_sock_open++;		/* prevent tcp_abort() from freeing in loop */
-      for (i = 0; (sock == INVALID_SOCKET) && (s = he->h_addr_list[i]); i++) {
-	if (i && !silent) mm_log (tmp,WARN);
-	memcpy (&sin.sin_addr,s,he->h_length);
+      do {
 	(*bn) (BLOCK_TCPOPEN,NIL);
-	sock = tcp_socket_open (&sin,tmp,hostname,port);
+	if (((sock = tcp_socket_open (family,s,adrlen,(unsigned short) port,
+				      tmp,hostname)) == INVALID_SOCKET) &&
+	    (s = ip_nametoaddr (NIL,&adrlen,&family,&hostname,&next)) &&
+	    !silent) mm_log (tmp,WARN);
 	(*bn) (BLOCK_NONE,NIL);
-      }
+      } while ((sock == INVALID_SOCKET) && s);
       wsa_sock_open--;		/* undo protection */
     }
   }
-  if (sock == INVALID_SOCKET) {	/* error? */
+  if (sock == INVALID_SOCKET) {	/* do possible cleanup action */
     if (!silent) mm_log (tmp,ERROR);
-    tcp_abort (&sock);		/* do possible cleanup action */
+    tcp_abort (&sock);	
   }
   else {			/* got a socket, create TCP/IP stream */
     stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
@@ -179,51 +169,57 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 }
 
 /* Open a TCP socket
- * Accepts: Internet socket address block
+ * Accepts: protocol family
+ *	    address to connect to
+ *	    address length
+ *	    port
  *	    scratch buffer
- *	    host name for error message
- *	    port number for error message
- * Returns: socket if success, else -1 with error string in scratch buffer
+ *	    host name
+ * Returns: socket if success, else SOCKET_ERROR with error string in scratch
  */
 
-int tcp_socket_open (struct sockaddr_in *sin,char *tmp,char *hst,
-		     unsigned long port)
+int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
+		     char *tmp,char *hst)
 {
   int sock;
+  size_t len;
   char *s;
-  sprintf (tmp,"Trying IP address [%s]",inet_ntoa (sin->sin_addr));
+  struct protoent *pt = getprotobyname ("tcp");
+  struct sockaddr *sadr = ip_sockaddr (family,adr,adrlen,port,&len);
+  sprintf (tmp,"Trying IP address [%s]",ip_sockaddrtostring (sadr));
   mm_log (tmp,NIL);
 				/* get a TCP stream */
-  if ((sock = socket (sin->sin_family,SOCK_STREAM,0)) == INVALID_SOCKET) {
-    sprintf (tmp,"Unable to create TCP socket (%d)",WSAGetLastError());
-    return -1;
-  }
-  wsa_sock_open++;		/* count this socket as open */
+  if ((sock = socket (sadr->sa_family,SOCK_STREAM,pt ? pt->p_proto : 0)) ==
+      INVALID_SOCKET)
+    sprintf (tmp,"Unable to create TCP socket (%d)",WSAGetLastError ());
+  else {
+    wsa_sock_open++;		/* count this socket as open */
 				/* open connection */
-  if (connect (sock,(struct sockaddr *) sin,sizeof (struct sockaddr_in)) ==
-      SOCKET_ERROR) {
-    switch (WSAGetLastError ()){/* analyze error */
-    case WSAECONNREFUSED:
-      s = "Refused";
-      break;
-    case WSAENOBUFS:
-      s = "Insufficient system resources";
-      break;
-    case WSAETIMEDOUT:
-      s = "Timed out";
-      break;
-    case WSAEHOSTUNREACH:
-      s = "Host unreachable";
-      break;
-    default:
-      s = "Unknown error";
-      break;
+    if (connect (sock,sadr,len) == SOCKET_ERROR) {
+      switch (WSAGetLastError ()) {
+      case WSAECONNREFUSED:
+	s = "Refused";
+	break;
+      case WSAENOBUFS:
+	s = "Insufficient system resources";
+	break;
+      case WSAETIMEDOUT:
+	s = "Timed out";
+	break;
+      case WSAEHOSTUNREACH:
+	s = "Host unreachable";
+	break;
+      default:
+	s = "Unknown error";
+	break;
+      }
+      sprintf (tmp,"Can't connect to %.80s,%ld: %s (%d)",hst,port,s,
+	       WSAGetLastError ());
+      tcp_abort (&sock);	/* flush socket */
+      sock = INVALID_SOCKET;
     }
-    sprintf (tmp,"Can't connect to %.80s,%ld: %s (%d)",hst,port,s,
-	     WSAGetLastError ());
-    tcp_abort (&sock);		/* flush socket */
-    sock = INVALID_SOCKET;
   }
+  fs_give ((void **) &sadr);
   return sock;			/* return the socket */
 }
   
@@ -531,12 +527,12 @@ char *tcp_host (TCPSTREAM *stream)
 char *tcp_remotehost (TCPSTREAM *stream)
 {
   if (!stream->remotehost) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     stream->remotehost =	/* get socket's peer name */
-      ((getpeername (stream->tcpsi,(struct sockaddr *) &sin,&sinlen) ==
-	SOCKET_ERROR) || (sinlen <= 0)) ?
-	  cpystr (stream->host) : tcp_name (&sin,NIL);
+      ((getpeername (stream->tcpsi,sadr,&sadrlen) == SOCKET_ERROR) ||
+       (sadrlen <= 0)) ? cpystr (stream->host) : tcp_name (sadr,NIL);
+    fs_give ((void **) &sadr);
   }
   return stream->remotehost;
 }
@@ -561,13 +557,13 @@ unsigned long tcp_port (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   if (!stream->localhost) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     stream->localhost =		/* get socket's name */
       ((stream->port & 0xffff000) ||
-       ((getsockname (stream->tcpsi,(struct sockaddr *) &sin,&sinlen) ==
-	 SOCKET_ERROR) || (sinlen <= 0))) ?
-	   cpystr (mylocalhost ()) : tcp_name (&sin,NIL);
+       ((getsockname (stream->tcpsi,sadr,&sadrlen) == SOCKET_ERROR) ||
+	(sadrlen <= 0))) ? cpystr (mylocalhost ()) : tcp_name (sadr,NIL);
+    fs_give ((void **) &sadr);
   }
   return stream->localhost;	/* return local host name */
 }
@@ -579,11 +575,12 @@ char *tcp_localhost (TCPSTREAM *stream)
 char *tcp_clientaddr ()
 {
   if (!myClientAddr) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     myClientAddr =		/* get stdin's peer name */
-      ((getpeername (0,(struct sockaddr *) &sin,&sinlen) == SOCKET_ERROR) ||
-       (sinlen <= 0)) ? cpystr ("UNKNOWN") : cpystr (inet_ntoa (sin.sin_addr));
+      ((getpeername (0,sadr,&sadrlen) == SOCKET_ERROR) || (sadrlen <= 0)) ?
+      cpystr ("UNKNOWN") : ip_sockaddrtostring (sadr);
+    fs_give ((void **) &sadr);
   }
   return myClientAddr;
 }
@@ -596,11 +593,12 @@ char *tcp_clientaddr ()
 char *tcp_clienthost ()
 {
   if (!myClientHost) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     myClientHost =		/* get stdin's peer name */
-      ((getpeername (0,(struct sockaddr *) &sin,&sinlen) == SOCKET_ERROR) ||
-       (sinlen <= 0)) ? cpystr ("UNKNOWN") : tcp_name (&sin,T);
+      ((getpeername (0,sadr,&sadrlen) == SOCKET_ERROR) || (sadrlen <= 0)) ?
+      cpystr ("UNKNOWN") : tcp_name (sadr,T);
+    fs_give ((void **) &sadr);
   }
   return myClientHost;
 }
@@ -612,11 +610,12 @@ char *tcp_clienthost ()
 char *tcp_serveraddr ()
 {
   if (!myServerAddr) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     myServerAddr =		/* get stdin's peer name */
-      ((getsockname (0,(struct sockaddr *) &sin,&sinlen) == SOCKET_ERROR) ||
-       (sinlen <= 0)) ? cpystr ("UNKNOWN") : cpystr (inet_ntoa (sin.sin_addr));
+      ((getsockname (0,sadr,&sadrlen) == SOCKET_ERROR) || (sadrlen <= 0)) ?
+      cpystr ("UNKNOWN") : cpystr (ip_sockaddrtostring (sadr));
+    fs_give ((void **) &sadr);
   }
   return myServerAddr;
 }
@@ -631,22 +630,21 @@ static long myServerPort = -1;
 char *tcp_serverhost ()
 {
   if (!myServerHost) {
-    struct sockaddr_in sin;
-    int sinlen = sizeof (struct sockaddr_in);
+    size_t sadrlen;
+    struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     if (!wsa_initted++) {	/* init Windows Sockets */
       WSADATA wsock;
-      if (WSAStartup (WSA_VERSION,&wsock)) {
+      if (WSAStartup (WINSOCK_VERSION,&wsock)) {
 	wsa_initted = 0;
 	return "random-pc";	/* try again later? */
       }
     }
 				/* get stdin's name */
-    if ((getsockname (0,(struct sockaddr *) &sin,&sinlen) == SOCKET_ERROR) ||
-	(sinlen <= 0)) myServerHost = cpystr (mylocalhost ());
-    else {
-      myServerHost = tcp_name (&sin,NIL);
-      myServerPort = ntohs (sin.sin_port);
-    }
+    myServerHost = ((getsockname (0,sadr,(void *) &sadrlen) == SOCKET_ERROR)||
+		    (sadrlen <= 0) ||
+                    ((myServerPort = ip_sockaddrtoport (sadr)) < 0)) ?
+      cpystr (mylocalhost ()) : tcp_name (sadr,NIL);
+    fs_give ((void **) &sadr);
   }
   return myServerHost;
 }
@@ -670,7 +668,6 @@ long tcp_serverport ()
 char *tcp_canonical (char *name)
 {
   char *ret,host[MAILTMPLEN];
-  struct hostent *he;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
 				/* look like domain literal? */
   if (name[0] == '[' && name[strlen (name) - 1] == ']') return name;
@@ -679,9 +676,9 @@ char *tcp_canonical (char *name)
     sprintf (host,"DNS canonicalization %.80s",name);
     mm_log (host,TCPDEBUG);
   }
-				/* note that NT requires lowercase! */
-  ret = (he = gethostbyname (lcase (strcpy (host,name)))) ? he->h_name : name;
-  (*bn) (BLOCK_NONE,NIL);
+				/* get canonical name */
+  if (!ip_nametoaddr (name,NIL,NIL,&ret,NIL)) ret = name;
+  (*bn) (BLOCK_NONE,NIL);	/* alarms OK now */
   if (tcpdebug) mm_log ("DNS canonicalization done",TCPDEBUG);
   return ret;
 }
@@ -693,30 +690,27 @@ char *tcp_canonical (char *name)
  * Returns: cpystr name
  */
 
-char *tcp_name (struct sockaddr_in *sin,long flag)
+char *tcp_name (struct sockaddr *sadr,long flag)
 {
-  char *s,tmp[MAILTMPLEN];
+  char *ret,*t,adr[MAILTMPLEN],tmp[MAILTMPLEN];
+  sprintf (ret = adr,"[%.80s]",ip_sockaddrtostring (sadr));
   if (allowreversedns) {
-    struct hostent *he;
     blocknotify_t bn = (blocknotify_t)mail_parameters(NIL,GET_BLOCKNOTIFY,NIL);
     if (tcpdebug) {
-      sprintf (tmp,"Reverse DNS resolution [%s]",inet_ntoa (sin->sin_addr));
+      sprintf (tmp,"Reverse DNS resolution %s",adr);
       mm_log (tmp,TCPDEBUG);
     }
-    (*bn) (BLOCK_DNSLOOKUP,NIL);
+    (*bn) (BLOCK_DNSLOOKUP,NIL);/* quell alarms */
 				/* translate address to name */
-    if (!(he = gethostbyaddr ((char *) &sin->sin_addr,
-			      sizeof (struct in_addr),sin->sin_family)) ||
-	!tcp_name_valid (he->h_name))
-      sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
-    else if (flag) sprintf (s = tmp,"%s [%s]",he->h_name,
-			    inet_ntoa (sin->sin_addr));
-    else s = he->h_name;
-    (*bn) (BLOCK_NONE,NIL);
+    if (t = tcp_name_valid (ip_sockaddrtoname (sadr))) {
+				/* produce verbose form if needed */
+      if (flag)	sprintf (ret = tmp,"%s %s",t,adr);
+      else ret = t;
+    }
+    (*bn) (BLOCK_NONE,NIL);	/* alarms OK now */
     if (tcpdebug) mm_log ("Reverse DNS resolution done",TCPDEBUG);
   }
-  else sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
-  return cpystr (s);
+  return cpystr (ret);
 }
 
 /* Return my local host name
@@ -726,35 +720,16 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
 char *mylocalhost (void)
 {
   if (!myLocalHost) {
-    char *s,tmp[MAILTMPLEN];
-    struct hostent *he;
-    struct sockaddr_in sin, stmp;
-    int sinlen = sizeof (struct sockaddr_in);
-    SOCKET sock;
+    char tmp[MAILTMPLEN];
     if (!wsa_initted++) {	/* init Windows Sockets */
       WSADATA wsock;
-      if (WSAStartup (WSA_VERSION,&wsock)) {
+      if (WSAStartup (WINSOCK_VERSION,&wsock)) {
 	wsa_initted = 0;
 	return "random-pc";	/* try again later? */
       }
     }
-    sin.sin_family = AF_INET;	/* family is always Internet */
-    sin.sin_addr.s_addr = inet_addr ("127.0.0.1");
-    sin.sin_port = htons ((u_short) 7);
-    if (tcpdebug) mm_log ("DNS lookup of local name",TCPDEBUG);
-    if (allowreversedns &&
-	((sock = socket (sin.sin_family,SOCK_DGRAM,0)) != INVALID_SOCKET) &&
-	(getsockname (sock,(struct sockaddr *) &stmp,&sinlen)!= SOCKET_ERROR)&&
-	(sinlen > 0) &&
-	(he = gethostbyaddr ((char *) &stmp.sin_addr,
-			     sizeof (struct in_addr),stmp.sin_family)) &&
-	tcp_name_valid (he->h_name)) s = he->h_name;
-    else if (gethostname (tmp,MAILTMPLEN-1) == SOCKET_ERROR) s = "random-pc";
-    else s = (he = gethostbyname (tmp)) ? he->h_name : tmp;
-    if (tcpdebug) mm_log ("DNS lookup of local name done",TCPDEBUG);
-    myLocalHost = cpystr (s);	/* canonicalize it */
-				/* leave wsa_initted to save work later */
-    if (sock != INVALID_SOCKET) closesocket (sock);
+    myLocalHost = cpystr ((gethostname (tmp,MAILTMPLEN-1) == SOCKET_ERROR) ?
+			  "random-pc" : tcp_canonical (tmp));
   }
   return myLocalHost;
 }
@@ -765,11 +740,17 @@ char *mylocalhost (void)
  * Returns: T if valid, NIL otherwise
  */
 
-long tcp_name_valid (char *s)
+char *tcp_name_valid (char *s)
 {
   int c;
-  while (c = *s++)		/* must be alnum, dot, or hyphen */
-    if (!((c >= 'A') && (c <= 'Z')) && !((c >= 'a') && (c <= 'z')) &&
-	!((c >= '0') && (c <= '9')) && (c != '-') && (c != '.')) return NIL;
-  return LONGT;
+  char *ret,*tail;
+				/* must be non-empty and not too long */
+  if ((ret = (s && *s) ? s : NIL) && (tail = ret + NETMAXHOST)) {
+				/* must be alnum, dot, or hyphen */
+    while ((c = *s++) && (s <= tail) &&
+	   (((c >= 'A') && (c <= 'Z')) || ((c >= 'a') && (c <= 'z')) ||
+	    ((c >= '0') && (c <= '9')) || (c == '-') || (c == '.')));
+    if (c) ret = NIL;
+  }
+  return ret;
 }

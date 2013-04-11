@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	14 July 2003
+ * Last Edited:	27 April 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -52,7 +52,7 @@ static SSLSTREAM *ssl_start(TCPSTREAM *tstream,char *host,unsigned long flags);
 static char *ssl_start_work (SSLSTREAM *stream,char *host,unsigned long flags);
 static int ssl_open_verify (int ok,X509_STORE_CTX *ctx);
 static char *ssl_extract_cn (char *name);
-static long ssl_compare_hostnames (char *s,char *pat);
+static long ssl_compare_hostnames (unsigned char *s,unsigned char *pat);
 static long ssl_abort (SSLSTREAM *stream);
 static RSA *ssl_genkey (SSL *con,int export,int keylength);
 
@@ -299,7 +299,7 @@ static char *ssl_extract_cn (char *name)
  * Returns: T if pattern matches base, else NIL
  */
 
-static long ssl_compare_hostnames (char *s,char *pat)
+static long ssl_compare_hostnames (unsigned char *s,unsigned char *pat)
 {
   if (*pat != '*')		/* non-wildcard */
     return ((isupper (*pat) ? tolower (*pat) : *pat) ==

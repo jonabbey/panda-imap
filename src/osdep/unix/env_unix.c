@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 July 2003
+ * Last Edited:	8 July 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -91,6 +91,10 @@ static NAMESPACE *nslist[3];	/* namespace list */
 static int logtry = 3;		/* number of server login tries */
 				/* block notification */
 static blocknotify_t mailblocknotify = mm_blocknotify;
+				/* logout function */
+static logouthook_t maillogouthook = NIL;
+				/* logout data */
+static void *maillogoutdata = NIL;
 
 /* Note: setting disableLockWarning means that you assert that the
  * so-modified copy of this software will NEVER be used:
@@ -146,8 +150,6 @@ void *env_parameters (long function,void *value)
 {
   void *ret = NIL;
   switch ((int) function) {
-  case SET_NAMESPACE:
-    fatal ("SET_NAMESPACE not permitted");
   case GET_NAMESPACE:
     ret = (void *) nslist;
     break;
@@ -321,6 +323,7 @@ void *env_parameters (long function,void *value)
   case GET_DISABLE822TZTEXT:
     ret = (void *) (no822tztext ? VOIDT : NIL);
     break;
+
   case SET_USERHASNOLIFE:
     has_no_life = value ? T : NIL;
   case GET_USERHASNOLIFE:
@@ -336,6 +339,15 @@ void *env_parameters (long function,void *value)
   case GET_BLOCKNOTIFY:
     ret = (void *) mailblocknotify;
     break;
+  case GET_LOGOUTHOOK:
+    maillogouthook = (logouthook_t) value;
+  case SET_LOGOUTHOOK:
+    ret = maillogouthook;
+    break;
+  case GET_LOGOUTDATA:
+    maillogoutdata = (void *) value;
+  case SET_LOGOUTDATA:
+    ret = maillogoutdata;
   }
   return ret;
 }
@@ -482,9 +494,9 @@ long server_input_wait (long seconds)
  * Tries all-lowercase form of user name if given user name fails
  */
 
-static struct passwd *pwuser (char *user)
+static struct passwd *pwuser (unsigned char *user)
 {
-  char *s;
+  unsigned char *s;
   struct passwd *pw = getpwnam (user);
   if (!pw) {			/* failed, see if any uppercase characters */
     for (s = user; *s && !isupper (*s); s++);
@@ -772,11 +784,9 @@ char *myusername_full (unsigned long *flags)
 char *mylocalhost ()
 {
   char tmp[MAILTMPLEN];
-  struct hostent *host_name;
   if (!myLocalHost) {
     gethostname(tmp,MAILTMPLEN);/* get local host name */
-    myLocalHost = cpystr ((host_name = gethostbyname (tmp)) ?
-			  host_name->h_name : tmp);
+    myLocalHost = cpystr (tcp_canonical (tmp));
   }
   return myLocalHost;
 }
@@ -1585,13 +1595,18 @@ void dorc (char *file,long flag)
 long path_create (MAILSTREAM *stream,char *path)
 {
   long ret;
-				/* do the easy thing if not a black box */
-  if (!blackBox) return mail_create (stream,path);
+  short rsave = restrictBox;
+  restrictBox = NIL;		/* can't restrict */
+  if (blackBox) {		/* if black box */
 				/* toss out driver dependent names */
-  printf (path,"%s/INBOX",mymailboxdir ());
-  blackBox = NIL;		/* well that's evil - evil is going on */
-  ret = mail_create (stream,path);
-  blackBox = T;			/* restore the box */
+    printf (path,"%s/INBOX",mymailboxdir ());
+    blackBox = NIL;		/* well that's evil - evil is going on */
+    ret = mail_create (stream,path);
+    blackBox = T;		/* restore the box */
+  }
+				/* easy thing otherwise */
+  else ret = mail_create (stream,path);
+  restrictBox = rsave;		/* restore restrictions */
   return ret;
 }
 

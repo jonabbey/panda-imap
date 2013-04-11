@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	9 October 2001
+ * Last Edited:	23 December 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -26,13 +26,12 @@
 #include <io.h>
 #include <conio.h>
 #include <process.h>
-#undef ERROR
+#undef ERROR			/* quell conflicting defintion warning */
 #include <windows.h>
 #include <lm.h>
 #undef ERROR
 #define ERROR (long) 2		/* must match mail.h */
 
-#define	WSA_VERSION	((1 << 8) | 1)
 
 #include "env_nt.h"
 #include "fs.h"

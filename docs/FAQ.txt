@@ -329,16 +329,24 @@ Table of Contents
                o SMTP Authentication cancelled
             and why did this happen? There was also something about
                o SECURITY PROBLEM: insecure server advertised AUTH=PLAIN
-     * 7.48 Why do I get the message 
-          + Invalid base64 string
-       when I try to authenticate to a Cyrus server?
-     * 8. Where to Go For Additional Information 
-          + 8.1 Where can I go to ask questions? 
-          + 8.2 I have some ideas for enhancements to IMAP. Where should
+          + 7.48 Why do I get the message 
+               o Invalid base64 string
+            when I try to authenticate to a Cyrus server?
+     * 8. Licensing Questions 
+          + 8.1 Why does the UW choose to make the IMAP toolkit available
+            under this Free-Fork license? 
+          + 8.2 I want to redistribute a modified version of the IMAP
+            toolkit. How can I do this? 
+          + 8.3 Can I redistribute an unmodified version of the IMAP
+            toolkit in a proprietary application? 
+          + 8.4 Is the Free-Fork license compatible with GPL? 
+     * 9. Where to Go For Additional Information 
+          + 9.1 Where can I go to ask questions? 
+          + 9.2 I have some ideas for enhancements to IMAP. Where should
             I go? 
-          + 8.3 Where can I read more about IMAP and other email
+          + 9.3 Where can I read more about IMAP and other email
             protocols? 
-          + 8.4 Where can I find out more about setting up and
+          + 9.4 Where can I find out more about setting up and
             administering an IMAP server? 
      _________________________________________________________________
    
@@ -436,7 +444,7 @@ Table of Contents
           directory; these formats support sub-mailboxes within such
           mailboxes. However, for technical reasons, the "flat file"
           formats are generally preferred since they perform better. Read
-          imap-2002a/docs/formats.txt for more information on this topic.
+          imap-2004/docs/formats.txt for more information on this topic.
           
           It is always permissible to create a directory that is not a
           mailbox, and have sub-mailboxes under it. The easiest way to
@@ -669,7 +677,7 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
           use the new c-client.h file instead of including the other
           include files. It seems that c-client.h should define away all
           the troublesome names that conflict with C++.
-
+          
           If you use gcc, you may need to use -fno-operator-names as
           well.
      _________________________________________________________________
@@ -755,13 +763,13 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
    3.5 How do I configure SSL? 
    3.6 How do I configure TLS and the STARTTLS facility? 
    
-          imap-2002a supports SSL and TLS client functionality on UNIX and
+          imap-2004 supports SSL and TLS client functionality on UNIX and
           32-bit Windows for IMAP, POP3, SMTP, and NNTP; and SSL and TLS
           server functionality on UNIX for IMAP and POP3.
           
           UNIX SSL build requires that a third-party software package,
           OpenSSL, be installed on the system first. Read
-          imap-2002a/docs/SSLBUILD for more information.
+          imap-2004/docs/SSLBUILD for more information.
           
           SSL is supported via undocumented Microsoft interfaces in
           Windows 9x and NT4; and via standard interfaces in Windows
@@ -788,7 +796,7 @@ ftp://ftp.cac.washington.edu/mail/kerberos4-patches.tar.Z
    
    3.10 How do I configure Kerberos V5? 
    
-          imap-2002a supports client and server functionality on UNIX and
+          imap-2004 supports client and server functionality on UNIX and
           32-bit Windows.
           
           Kerberos V5 is supported by default in Windows 2000 builds:
@@ -1624,8 +1632,8 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           the vulnerable fork.
           
           The best way to solve this problem is to upgrade your SVR4
-          (Solaris, AIX, HP-UX, SGI) system to a more advanced operating
-          system, such as Linux, BSD, or OSF/1. These more advanced
+          (Solaris, AIX, HP-UX, SGI) or OSF/1 system to a more advanced
+          operating system, such as Linux or BSD. These more advanced
           operating systems have fcntl() locking for compatibility with
           SVR4, but also have flock() locking.
           
@@ -2010,7 +2018,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           try to call mlock to do it. I do not recommend doing this for
           performance reasons.
           
-          A sample mlock program is included as part of imap-2002a. We
+          A sample mlock program is included as part of imap-2004. We
           have tried to make this sample program secure, but it has not
           been thoroughly audited.
      _________________________________________________________________
@@ -2704,6 +2712,13 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           operation, Outlook Express will reconnect and new mail will
           flow again. If the user does something that causes an IMAP
           operation at least every 29 minutes, the problem won't happen.
+          
+          Modern versions of imapd attempt to work around the problem by
+          automatically reporting fake new mail after 29 minutes. This
+          causes Outlook Express to exit the IDLE state; as soon as this
+          happens imapd revokes the fake new mail. As long as this
+          behavior isn't known to cause problems with other clients, this
+          workaround will remain in imapd.
      _________________________________________________________________
    
    7.38 Why don't I get any new mail notifications from Entourage? 
@@ -2715,9 +2730,9 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           for the IDLE command. However, Entourage won't get new mail
           unless IDLE command support exists.
           
-          Note: the MICROSOFT_BRAIN_DAMAGE option is removed as of
-          imap-2002, in favor of a better way to work around IDLE
-          problems.
+          Note: the MICROSOFT_BRAIN_DAMAGE option no longer exists in
+          modern versions, as the Outlook Express problem which it
+          attempted to solve has been worked around in another way.
      _________________________________________________________________
    
    7.39 Why doesn't Entourage work at all? 
@@ -2940,11 +2955,70 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           authentication technology.
      _________________________________________________________________
    
-   8. Where to Go For Additional Information
+   8. Licensing Questions
      _________________________________________________________________
    
-   8.1 Where can I go to ask questions? 
-   8.2 I have some ideas for enhancements to IMAP. Where should I go? 
+   8.1 Why does the UW choose to make the IMAP toolkit available under
+   this Free-Fork license? 
+   
+          Unlike many other open source licenses, the Free-Fork license
+          is non-viral.
+          
+          The Free-Fork license allows developers a broad range of rights
+          to the IMAP toolkit software, and more options to combine the
+          IMAP toolkit software with other open source or private-use
+          software, without requiring that the terms of the Free-Fork
+          license be enforced on that other software.
+          
+          The Free-Fork license also allows the IMAP toolkit software to
+          be licensed under other conditions (for example, distribution
+          with proprietary software where the IMAP code remains under the
+          Free-Fork) if a need arises.
+     _________________________________________________________________
+   
+   8.2 I want to redistribute a modified version of the IMAP toolkit. How
+   can I do this? 
+   
+          The Free-Fork license permits redistributions as long as the
+          IMAP toolkit and any modifications to the toolkit remains under
+          the Free-Fork license as open source.
+          
+          Send a message to imap-license@cac.washington.edu if your
+          application will be proprietary and you need alternative
+          licensing arrangements , or if you are unsure whether this
+          blanket permission applies in your case.
+     _________________________________________________________________
+   
+   8.3 Can I redistribute an unmodified version of the IMAP toolkit in a
+   proprietary application? 
+   
+          Yes. The terms of the Free-Fork license apply to all unmodified
+          distributions.
+     _________________________________________________________________
+   
+   8.4 Is the Free-Fork license compatible with GPL? 
+   
+          Yes. A Free-Fork licensee has all the rights of a GPL licensee,
+          plus additional rights provided under the Free-Fork.
+          
+          The Free-Fork does not require that software not specifically
+          licensed under the Free-Fork use the same terms as the
+          Free-Fork. For example, if you incorporate Free-Fork software
+          in an application that you write, and put the application under
+          GPL, that does not cause the Free-Fork software to become GPL.
+          Someone else can copy your application, strip out the GPL code
+          so that only the Free-Fork code remains, and by doing so have
+          Free-Fork rights.
+          
+          Additionally, a Free-Fork licensee has the right to negotiate
+          other license terms with the UW.
+     _________________________________________________________________
+   
+   9. Where to Go For Additional Information
+     _________________________________________________________________
+   
+   9.1 Where can I go to ask questions? 
+   9.2 I have some ideas for enhancements to IMAP. Where should I go? 
    
           If you have questions about the IMAP protocol, or want to
           participate in discussions of future directions of the IMAP
@@ -2961,13 +3035,13 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           comp.mail.imap newsgroup.
      _________________________________________________________________
    
-   8.3 Where can I read more about IMAP and other email protocols? 
+   9.3 Where can I read more about IMAP and other email protocols? 
    
           We recommend Internet Email Protocols: A Developer's Guide, by
           Kevin Johnson, published by Addison Wesley, ISBN 0-201-43288-9.
      _________________________________________________________________
    
-   8.4 Where can I find out more about setting up and administering an
+   9.4 Where can I find out more about setting up and administering an
    IMAP server? 
    
           We recommend Managing IMAP, by Dianna Mullet & Kevin Mullet,
@@ -2976,4 +3050,4 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           This book also has an excellent comparison of the UW and Cyrus
           IMAP servers.
    
-   Last Updated: 7 February 2003
+   Last Updated: 15 June 2004

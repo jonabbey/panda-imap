@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	2 September 2003
+ * Last Edited:	1 May 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -28,11 +28,8 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <signal.h>
-#include "mail.h"
-#include "osdep.h"
-#include "rfc822.h"
-#include "smtp.h"
-#include "nntp.h"
+#include "c-client.h"
+#include "imap4r1.h"
 
 /* Excellent reasons to hate ifdefs, and why my real code never uses them */
 
@@ -44,7 +41,6 @@
 # define UNIXLIKE 1
 # define MACOS 0
 # include <pwd.h>
-char *getpass ();
 #else
 # define UNIXLIKE 0
 # ifdef noErr
@@ -54,7 +50,6 @@ char *getpass ();
 #  define MACOS 0
 # endif
 #endif
-#include "misc.h"
 
 char *curhst = NIL;		/* currently connected host */
 char *curusr = NIL;		/* current login user */
@@ -73,7 +68,8 @@ static char *newslist[] = {	/* Netnews server host list */
 
 int main (void);
 void mm (MAILSTREAM *stream,long debug);
-void overview_header (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov);
+void overview_header (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov,
+		      unsigned long msgno);
 void header (MAILSTREAM *stream,long msgno);
 void display_body (BODY *body,char *pfx,long i);
 void status (MAILSTREAM *stream);
@@ -96,8 +92,8 @@ int main ()
     SetApplLimit ((Ptr) (*base - (size_t) 65535L));
   }
 #endif
+  curusr = cpystr (((s = myusername ()) && *s) ? s : "somebody");
 #if UNIXLIKE
-  curusr = cpystr(myusername());/* current user is this name */
   {
     char *suffix;
     struct passwd *pwd = getpwnam (curusr);
@@ -110,7 +106,6 @@ int main ()
     else personalname[0] = '\0';
   }
 #else
-  curusr = cpystr ("somebody");
   personalname[0] = '\0';
 #endif
   curhst = cpystr (mylocalhost ());
@@ -358,13 +353,13 @@ void mm (MAILSTREAM *stream,long debug)
  *	    message number
  */
 
-void overview_header (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov)
+void overview_header (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov,
+		      unsigned long msgno)
 {
   if (ov) {
     unsigned long i;
     char *t,tmp[MAILTMPLEN];
     ADDRESS *adr;
-    unsigned long msgno = mail_msgno (stream,uid);
     MESSAGECACHE *elt = mail_elt (stream,msgno);
     MESSAGECACHE selt;
     tmp[0] = elt->recent ? (elt->seen ? 'R': 'N') : ' ';
@@ -494,8 +489,10 @@ void display_body (BODY *body,char *pfx,long i)
 
 void status (MAILSTREAM *stream)
 {
-  long i;
-  char date[MAILTMPLEN];
+  unsigned long i;
+  char *s,date[MAILTMPLEN];
+  THREADER *thr;
+  AUTHENTICATOR *auth;
   rfc822_date (date);
   puts (date);
   if (stream) {
@@ -508,6 +505,70 @@ void status (MAILSTREAM *stream)
       for (i = 1; i < NUSERFLAGS && stream->user_flags[i]; ++i)
 	printf (", %s",stream->user_flags[i]);
       puts ("");
+    }
+    if (!strcmp (stream->dtb->name,"imap")) {
+      if (LEVELIMAP4rev1 (stream)) s = "IMAP4rev1 (RFC 3501)";
+      else if (LEVEL1730 (stream)) s = "IMAP4 (RFC 1730)";
+      else if (LEVELIMAP2bis (stream)) s = "IMAP2bis";
+      else if (LEVEL1176 (stream)) s = "IMAP2 (RFC 1176)";
+      else s = "IMAP2 (RFC 1064)";
+      printf ("%s server %s\n",s,imap_host (stream));
+      if (LEVELIMAP4 (stream)) {
+	if (i = imap_cap (stream)->auth) {
+	  s = "";
+	  printf ("Mutually-supported SASL mechanisms:");
+	  while (auth = mail_lookup_auth (find_rightmost_bit (&i) + 1)) {
+	    printf (" %s",auth->name);
+	    if (!strcmp (auth->name,"PLAIN"))
+	      s = "\n  [LOGIN will not be listed here if PLAIN is supported]";
+	  }
+	  puts (s);
+	}
+	printf ("Supported standard extensions:\n");
+	if (LEVELACL (stream)) puts (" Access Control lists (RFC 2086)");
+	if (LEVELQUOTA (stream)) puts (" Quotas (RFC 2087)");
+	if (LEVELLITERALPLUS (stream))
+	  puts (" Non-synchronizing literals (RFC 2088)");
+	if (LEVELIDLE (stream)) puts (" IDLE unsolicited update (RFC 2177)");
+	if (LEVELMBX_REF (stream)) puts (" Mailbox referrals (RFC 2193)");
+	if (LEVELLOG_REF (stream)) puts (" Login referrals (RFC 2221)");
+	if (LEVELANONYMOUS (stream)) puts (" Anonymous access (RFC 2245)");
+	if (LEVELNAMESPACE (stream)) puts (" Multiple namespaces (RFC 2342)");
+	if (LEVELUIDPLUS (stream)) puts (" Extended UID behavior (RFC 2359)");
+	if (LEVELSTARTTLS (stream))
+	  puts (" Transport Layer Security (RFC 2595)");
+	if (LEVELLOGINDISABLED (stream))
+	  puts (" LOGIN command disabled (RFC 2595)");
+	if (LEVELID (stream))
+	  puts (" Implementation identity negotiation (RFC 2971)");
+	if (LEVELCHILDREN (stream))
+	  puts (" LIST children announcement (RFC 3398)");
+	if (LEVELMULTIAPPEND (stream))
+	  puts (" Atomic multiple APPEND (RFC 3502)");
+	if (LEVELBINARY (stream))
+	  puts (" Binary body content (RFC 3516)");
+	puts ("Supported draft extensions:");
+	if (LEVELUNSELECT (stream)) puts (" Mailbox unselect");
+	if (LEVELSASLIR (stream)) puts (" SASL initial client response");
+	if (LEVELSORT (stream)) puts (" Server-based sorting");
+	if (LEVELTHREAD (stream)) {
+	  printf (" Server-based threading:");
+	  for (thr = imap_cap (stream)->threader; thr; thr = thr->next)
+	    printf (" %s",thr->name);
+	  putchar ('\n');
+	}
+	if (LEVELSCAN (stream)) puts (" Mailbox text scan");
+	if (i = imap_cap (stream)->extlevel) {
+	  printf ("Supported BODYSTRUCTURE extensions:");
+	  switch (i) {
+	  case BODYEXTLOC: printf (" location");
+	  case BODYEXTLANG: printf (" language");
+	  case BODYEXTDSP: printf (" disposition");
+	  case BODYEXTMD5: printf (" MD5\n");
+	  }
+	}
+      }
+      else putchar ('\n');
     }
   }
 }
@@ -695,6 +756,7 @@ void smtptest (long debug)
       mail_free_body (&body);
       mail_free_envelope (&msg);
       fs_give ((void **) &text);
+      return;
     }
   }
   prompt ("Subject: ",line);

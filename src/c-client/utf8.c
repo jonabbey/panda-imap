@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	20 May 2003
+ * Last Edited:	3 June 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -111,7 +111,7 @@ static const CHARSET utf8_csvalid[] = {
   {"US-ASCII",CT_ASCII,NIL,NIL,NIL},
   {"UTF-8",CT_UTF8,NIL,SC_UNICODE,NIL},
   {"UTF-7",CT_UTF7,NIL,SC_UNICODE,"UTF-8"},
-  {"ISO-8859-1",CT_1BYTE,NIL,SC_LATIN_1,NIL},
+  {"ISO-8859-1",CT_1BYTE0,NIL,SC_LATIN_1,NIL},
   {"ISO-8859-2",CT_1BYTE,(void *) iso8859_2tab,SC_LATIN_2,NIL},
   {"ISO-8859-3",CT_1BYTE,(void *) iso8859_3tab,SC_LATIN_3,NIL},
   {"ISO-8859-4",CT_1BYTE,(void *) iso8859_4tab,SC_LATIN_4,NIL},
@@ -148,8 +148,8 @@ static const CHARSET utf8_csvalid[] = {
 #endif
 #ifdef BIG5TOUNICODE
   {"BIG5",CT_DBYTE2,(void *) big5_param,SC_CHINESE_TRADITIONAL,NIL},
-  {"CN-BIG5",CT_DBYTE2,(void *) big5_param,SC_CHINESE_TRADITIONAL,
-     "BIG5"},
+  {"CN-BIG5",CT_DBYTE2,(void *) big5_param,SC_CHINESE_TRADITIONAL,"BIG5"},
+  {"BIG-5",CT_DBYTE2,(void *) big5_param,SC_CHINESE_TRADITIONAL,"BIG5"},
 #endif
 #ifdef JISTOUNICODE
   {"ISO-2022-JP",CT_2022,NIL,SC_JAPANESE,NIL},
@@ -226,9 +226,9 @@ static const CHARSET utf8_csvalid[] = {
 /* Defaults for untagged text */
 
 				/* untagged 7-bit */
-static const CHARSET text_7bit = {"UNTAGGED-7BIT",CT_ASCII,NIL,NIL,NIL};
+static const CHARSET text_7bit = {"UNTAGGED-7BIT",CT_ASCII,NIL,NIL,"US-ASCII"};
 				/* untagged 8-bit */
-static const CHARSET text_8bit = {"UNTAGGED-8BIT",CT_1BYTE,NIL,0xffffffff,NIL};
+static const CHARSET text_8bit = {"UNTAGGED-8BIT",CT_UTF8,NIL,0xffffffff,NIL};
 				/* untagged ISO 2022 */
 static const CHARSET iso2022 = {"ISO-2022",CT_2022,NIL,0xffffffff,NIL};
 
@@ -292,6 +292,9 @@ long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags)
     case CT_ASCII:		/* 7-bit ASCII no table */
     case CT_UTF8:		/* variable UTF-8 encoded Unicode no table */
       break;
+    case CT_1BYTE0:		/* 1 byte no table */
+      utf8_text_1byte0 (text,ret,cs->tab);
+      break;
     case CT_1BYTE:		/* 1 byte ASCII + table 0x80-0xff */
       utf8_text_1byte (text,ret,cs->tab);
       break;
@@ -323,6 +326,338 @@ long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags)
   return cs ? LONGT : NIL;	/* return charset lookup status */
 }
 
+/* Return map for UTF-8 -> character set
+ * Accepts: character set name
+ * Returns: map if character set found, else NIL
+ *
+ * This routine only supports character sets, not all possible charsets.  In
+ * particular, it does not support any Unicode encodings or ISO 2022.
+ *
+ * No attempt is made to map "equivalent" Unicode characters or Unicode
+ * characters that have the same glyph; nor is there any attempt to handle
+ * combining characters or otherwise do any stringprep.  Maybe later.
+ */
+
+unsigned short *utf8_rmap (char *charset)
+{
+  unsigned short u,*tab;
+  unsigned int i,ku,ten;
+  struct utf8_eucparam *param;
+  CHARSET *cs;
+  static char *rmapcs = NIL;	/* current mapped character set */
+				/* current UCS-2 -> character set map */
+  static unsigned short *rmap = NIL;
+				/* done if already mapped that character set */
+  if (rmapcs && !compare_cstring (charset,rmapcs)) return rmap;
+				/* lookup character set */
+  if (!(cs = utf8_charset (charset))) return NIL;
+  switch (cs->type) {		/* found charset, is a character set? */
+  default:			/* unsupported charset */
+    return NIL;
+  case CT_ASCII:		/* 7-bit ASCII no table */
+  case CT_1BYTE0:		/* 1 byte no table */
+  case CT_1BYTE:		/* 1 byte ASCII + table 0x80-0xff */
+  case CT_1BYTE8:		/* 1 byte table 0x00 - 0xff */
+  case CT_EUC:			/* 2 byte ASCII + utf8_eucparam base/CS2/CS3 */
+  case CT_DBYTE:		/* 2 byte ASCII + utf8_eucparam */
+  case CT_DBYTE2:		/* 2 byte ASCII + utf8_eucparam plane1/2 */
+  case CT_SJIS:			/* 2 byte Shift-JIS */
+    rmapcs = cs->name;		/* remember current rmap charset */
+    if (!rmap)			/* create reverse map if none yet */
+      rmap = (unsigned short *) fs_get (65536 * sizeof (unsigned short));
+				/* initialize table for ASCII */
+    for (i = 0; i < 128; i++) rmap[i] = (unsigned short) i;
+				/* populate remainder of table with 0xffff */
+    memset (rmap + 128,0xffff,(65536 - 128) * sizeof (unsigned short));
+
+    switch (cs->type) {		/* additional reverse map actions */
+    case CT_1BYTE0:		/* 1 byte no table */
+      for (i = 128; i < 256; i++) rmap[i] = (unsigned short) i;
+      break;
+    case CT_1BYTE:		/* 1 byte ASCII + table 0x80-0xff */
+      for (tab = (unsigned short *) cs->tab,i = 128; i < 256; i++)
+	if (tab[i & BITS7] != UBOGON) rmap[tab[i & BITS7]] =
+	  (unsigned short) i;
+      break;
+    case CT_1BYTE8:		/* 1 byte table 0x00 - 0xff */
+      for (tab = (unsigned short *) cs->tab,i = 0; i < 256; i++)
+	if (tab[i] != UBOGON) rmap[tab[i]] = (unsigned short) i;
+      break;
+    case CT_EUC:		/* 2 byte ASCII + utf8_eucparam base/CS2/CS3 */
+    case CT_DBYTE:		/* 2 byte ASCII + utf8_eucparam */
+      for (param = (struct utf8_eucparam *) cs->tab,
+	   tab = (unsigned short *) param->tab,
+	   ku = 0; ku <= param->max_ku; ku++)
+	for (ten = 0; ten <= param->max_ten; ten++)
+	  if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
+	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten) +
+	      0x8080;
+      break;
+    case CT_DBYTE2:		/* 2 byte ASCII + utf8_eucparam plane1/2 */
+      for (param = (struct utf8_eucparam *) cs->tab,
+	   tab = (unsigned short *) param->tab,
+	   ku = 0; ku <= param->max_ku; ku++)
+	for (ten = 0; ten <= param->max_ten; ten++)
+	  if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
+	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten) +
+	      0x8080;
+      param++;
+      for (ku = 0; ku <= param->max_ku; ku++)
+	for (ten = 0; ten <= param->max_ten; ten++)
+	  if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
+	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten) +
+	      0x8080;
+      break;
+    case CT_SJIS:		/* 2 byte Shift-JIS */
+      for (ku = 0; ku <= MAX_JIS0208_KU; ku++)
+	for (ten = 0; ten <= MAX_JIS0208_TEN; ten++)
+	  if ((u = jis0208tab[ku][ten]) != UBOGON) {
+	    int sku = ku + BASE_JIS0208_KU;
+	    int sten = ten + BASE_JIS0208_TEN;
+	    rmap[u] = ((((sku + 1) >> 1) + ((sku < 95) ? 112 : 176)) << 8) +
+	      sten + ((sku % 2) ? ((sten > 95) ? 32 : 31) : 126);
+	  }
+      break;
+    }
+    break;
+  }
+  return rmap;			/* return map */
+}
+
+/* Convert UTF8 sized text to charset
+ * Accepts: source sized text
+ *	    destination charset
+ *	    pointer to returned sized text
+ *	    substitute character if not in cs, else NIL to return failure
+ * Returns: T if successful, NIL if failure
+ *
+ * This routine doesn't try to convert to all possible charsets; in particular
+ * it doesn't support other Unicode encodings or any ISO 2022 other than
+ * ISO-2022-JP.
+ */
+
+long utf8_cstext (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,
+		  unsigned short errch)
+{
+  unsigned long i,u;
+  unsigned char *s,*t;
+  unsigned short c,*rmap;
+  short iso2022 = !compare_cstring (charset,"ISO-2022-JP");
+				/* can map this charset? */
+  if (!(rmap = utf8_rmap (iso2022 ? "EUC-JP" : charset))) return NIL;
+				/* yes, determine size of destination string */
+  for (ret->size = 0,s = text->data,i = text->size; i;) {
+				/* map, punt if not in cs and no error char */
+    if ((((u = utf8_get (&s,&i)) & 0xffff0000) || ((c = rmap[u]) == 0xffff)) &&
+	!(c = errch)) return NIL;
+    switch (iso2022) {		/* depends upon ISO 2022 mode */
+    case 0:			/* ISO 2022 not in effect */
+      ret->size += (c > 0xff) ? 2 : 1;
+      break;
+    case 1:			/* ISO 2022 Roman */
+				/* <ch> */
+      if (c < 0x80) ret->size += 1;
+      else {			/* JIS character */
+	ret->size += 5;		/* ESC $ B <hi> <lo> */
+	iso2022 = 2;		/* shift to ISO 2022 JIS */
+      }
+      break;
+    case 2:			/* ISO 2022 JIS */
+				/* <hi> <lo> */
+      if (c > 0x7f) ret->size += 2;
+      else {			/* ASCII character */
+	ret->size += 4;		/* ESC ( J <ch> */
+	iso2022 = 1;		/* shift to ISO 2022 Roman */
+      }
+      break;
+    }
+  }
+  if (iso2022 == 2) {		/* ISO-2022-JP string must end in Roman */
+    ret->size += 3;		/* ESC ( J */
+    iso2022 = 1;		/* reset state to Roman */
+  }
+
+				/* make destination buffer */
+  ret->data = (unsigned char *) fs_get (ret->size + 1);
+				/* convert string */
+  for (t = ret->data,s = text->data,i = text->size; i;) {
+				/* map to destination character set */
+    if (((u = utf8_get (&s,&i)) & 0xffff0000) || ((c = rmap[u]) == 0xffff))
+      c = errch;		/* substitute error character */
+    switch (iso2022) {		/* depends upon ISO 2022 mode */
+    case 0:			/* ISO 2022 not in effect */
+				/* two-byte character */
+      if (c > 0xff) *t++ = (unsigned char) (c >> 8);
+				/* single-byte or low-byte of two-byte */
+      *t++ = (unsigned char) (c & 0xff);
+      break;
+    case 1:			/* ISO 2022 Roman */
+				/* <ch> */
+      if (c < 0x80) *t++ = (unsigned char) c;
+      else {			/* JIS character */
+	*t++ = I2C_ESC;		/* ESC $ B <hi> <lo> */
+	*t++ = I2C_MULTI;
+	*t++ = I2CS_94x94_JIS_NEW;
+	*t++ = (unsigned char) (c >> 8) & 0x7f;
+	*t++ = (unsigned char) c & 0x7f;
+	iso2022 = 2;		/* shift to ISO 2022 JIS */
+      }
+      break;
+    case 2:			/* ISO 2022 JIS */
+      if (c > 0x7f) {	/* <hi> <lo> */
+	*t++ = (unsigned char) (c >> 8) & 0x7f;
+	*t++ = (unsigned char) c & 0x7f;
+      }
+      else {			/* ASCII character */
+	*t++ = I2C_ESC;		/* ESC ( J <ch> */
+	*t++ = I2C_G0_94;
+	*t++ = I2CS_94_JIS_ROMAN;
+	*t++ = (unsigned char) c;
+	iso2022 = 1;		/* shift to ISO 2022 Roman */
+      }
+      break;
+    }
+  }
+  if (iso2022 == 2) {		/* ISO-2022-JP string must end in Roman */
+    *t++ = I2C_ESC;		/* ESC ( J */
+    *t++ = I2C_G0_94;
+    *t++ = I2CS_94_JIS_ROMAN;
+  }
+  *t++ = NIL;			/* tie off returned data */
+  return LONGT;			/* return success */
+}
+
+/* Return UCS-4 character from UTF-8 string
+ * Accepts: pointer to string
+ *	    remaining octets in string
+ * Returns: UCS-4 character or negative if error, pointer and count updated
+ */
+
+unsigned long utf8_get (unsigned char **s,unsigned long *i)
+{
+  unsigned char c;
+  unsigned long ret = 0;
+  int more = 0;
+  while (*i) {			/* until run out of input */
+    (*i)--;			/* count this character */
+				/* UTF-8 continuation? */
+    if (((c = *(*s)++) > 0x7f) && (c < 0xc0)) {
+      if (more) {
+	ret <<= 6;		/* shift current value by 6 bits */
+	ret |= c & 0x3f;
+	if (!--more) return ret;/* last octet */
+      }
+      else return U8G_BADCONT;	/* continuation when not in progress */
+    }
+				/* incomplete UTF-8 character */
+    else if (more) return U8G_INCMPLT;
+				/* U+0000 - U+007f */
+    else if (c < 0x80) return (unsigned long) c;
+    else if (c < 0xe0) {	/* U+0080 - U+07ff */
+      ret = c & 0x1f;		/* first 5 bits of 12 */
+      more = 1;
+    }
+    else if (c < 0xf0) {	/* U+1000 - U+ffff */
+      ret = c & 0x0f;		/* first 4 bits of 16 */
+      more = 2;
+    }
+				/* non-BMP Unicode */
+    else if (c < 0xf8) {	/* U+10000 - U+10ffff (U+1fffff) */
+      ret = c & 0x07;		/* first 3 bits of 20.5 (21) */
+      more = 3;
+    }
+    else if (c < 0xfc) {	/* ISO 10646 200000 - 3fffffff */
+      ret = c & 0x03;		/* first 2 bits of 26 */
+      more = 4;
+    }
+    else if (c < 0xfe) {	/* ISO 10646 4000000-7fffffff*/
+      ret = c & 0x01;		/* first bit of 31 */
+      more = 5;
+    }
+    else return U8G_NOTUTF8;	/* not in ISO 10646 */
+  }
+				/* end of string */
+  return more ? U8G_INCMPLT : U8G_ENDSTRG;
+}
+
+/* Convert charset labelled sized text to another charset
+ * Accepts: source sized text
+ *	    source charset
+ *	    pointer to returned sized text
+ *	    destination charset
+ *	    substitute character if not in dest cs, else NIL to return failure
+ * Returns: T if successful, NIL if failure
+ *
+ * This routine has the same restricts as utf8_cstext().
+ */
+
+long utf8_cstocstext (SIZEDTEXT *src,char *sc,SIZEDTEXT *dst,char *dc,
+		      unsigned short errch)
+{
+  SIZEDTEXT utf8;
+  const CHARSET *scs,*dcs;
+  unsigned long i;
+  long ret = NIL;
+				/* lookup charsets */
+  if (dc && (dcs = utf8_charset (dc))) {
+    if (sc && *sc) scs = utf8_charset (sc);
+    else {			/* try to infer source cs */
+      scs = &text_7bit;		/* start by assuming 7-bit */
+				/* try harder if converting */
+      if (ret) for (i = 0; i < src->size; i++) {
+				/* looks like East Asian ISO 2022? */
+	if ((src->data[i] == I2C_ESC) && (++i < src->size) &&
+	    (src->data[i] == I2C_MULTI) && (++i < src->size)) {
+	  scs = &iso2022;	/* yes, set ISO-2022 */
+	  break;		/* punt scan */
+	}
+				/* remember if we see 8-bit anywhere */
+	else if (src->data[i] & BIT8) scs = &text_8bit;
+      }
+      sc = scs->name;		/* get charset name */
+    }
+				/* init temporary buffer */
+    memset (&utf8,NIL,sizeof (SIZEDTEXT));
+				/* source cs equivalent to dest cs? */
+    if ((scs->type == dcs->type) && (scs->tab == dcs->tab)) {
+      dst->data = src->data;	/* yes, just copy pointers */
+      dst->size = src->size;
+      ret = LONGT;
+    }
+				/* otherwise do the convertsion */
+    else if (utf8_rmap (dc) && utf8_text (src,sc,&utf8,NIL) &&
+	     utf8_cstext (&utf8,dc,dst,errch)) ret = LONGT;
+				/* flush temporary buffer */
+    if (utf8.data && (utf8.data != src->data) && (utf8.data != dst->data))
+      fs_give ((void **) &utf8.data);
+  }
+  return ret;
+}
+
+/* Convert ISO 8859-1 to UTF-8
+ * Accepts: source sized text
+ *	    pointer to return sized text
+ *	    conversion table
+ */
+
+void utf8_text_1byte0 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
+{
+  unsigned long i;
+  unsigned char *s;
+  unsigned int c;
+  for (ret->size = i = 0; i < text->size;
+       ret->size += (text->data[i++] & BIT8) ? 2 : 1);
+  (s = ret->data = (unsigned char *) fs_get (ret->size + 1))[ret->size] =NIL;
+  for (i = 0; i < text->size;) {
+    if ((c = text->data[i++]) & BIT8) {
+      *s++ = 0xc0 | ((c >> 6) & 0x3f);
+      *s++ = BIT8 | (c & 0x3f);
+    }
+    else *s++ = c;		/* ASCII character */
+  }
+}
+
+
 /* Convert single byte ASCII+8bit character set sized text to UTF-8
  * Accepts: source sized text
  *	    pointer to return sized text
@@ -334,31 +669,16 @@ void utf8_text_1byte (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
   unsigned long i;
   unsigned char *s;
   unsigned int c;
-  if (tab) {
-    unsigned short *tbl = (unsigned short *) tab;
-    for (ret->size = i = 0; i < text->size; ret->size += UTF8_SIZE (c))
-      if ((c = text->data[i++]) & BIT8) c = tbl[c & BITS7];
-    s = ret->data = (unsigned char *) fs_get (ret->size + 1);
-    for (i = 0; i < text->size;) {
-      if ((c = text->data[i++]) & BIT8) c = tbl[c & BITS7];
-      UTF8_PUT (s,c)		/* convert Unicode to UTF-8 */
-    }
-  }
-  else {			/* ISO-8859-1 */
-    for (ret->size = i = 0; i < text->size;
-	 ret->size += (text->data[i++] & BIT8) ? 2 : 1);
-    s = ret->data = (unsigned char *) fs_get (ret->size + 1);
-    for (i = 0; i < text->size;) {
-      if ((c = text->data[i++]) & BIT8) {
-	*s++ = 0xc0 | ((c >> 6) & 0x3f);
-	*s++ = BIT8 | (c & 0x3f);
-      }
-      else *s++ = c;		/* ASCII character */
-    }
+  unsigned short *tbl = (unsigned short *) tab;
+  for (ret->size = i = 0; i < text->size; ret->size += UTF8_SIZE (c))
+    if ((c = text->data[i++]) & BIT8) c = tbl[c & BITS7];
+  (s = ret->data = (unsigned char *) fs_get (ret->size + 1))[ret->size] =NIL;
+  for (i = 0; i < text->size;) {
+    if ((c = text->data[i++]) & BIT8) c = tbl[c & BITS7];
+    UTF8_PUT (s,c)		/* convert Unicode to UTF-8 */
   }
 }
-
-
+
 /* Convert single byte 8bit character set sized text to UTF-8
  * Accepts: source sized text
  *	    pointer to return sized text
@@ -373,7 +693,7 @@ void utf8_text_1byte8 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
   unsigned short *tbl = (unsigned short *) tab;
   for (ret->size = i = 0; i < text->size; ret->size += UTF8_SIZE (c))
     c = tbl[text->data[i++]];
-  s = ret->data = (unsigned char *) fs_get (ret->size + 1);
+  (s = ret->data = (unsigned char *) fs_get (ret->size + 1))[ret->size] =NIL;
   for (i = 0; i < text->size;) {
     c = tbl[text->data[i++]];
     UTF8_PUT (s,c)		/* convert Unicode to UTF-8 */
@@ -448,7 +768,8 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
       if (pass) UTF8_PUT (s,c)
       else ret->size += UTF8_SIZE (c);
     }
-    if (!pass) s = ret->data = (unsigned char *) fs_get (ret->size + 1);
+    if (!pass) (s = ret->data = (unsigned char *)
+		fs_get (ret->size + 1))[ret->size] =NIL;
   }
 }
 
@@ -472,7 +793,7 @@ void utf8_text_dbyte (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	   ((ku = c - p1->base_ku) < p1->max_ku) &&
 	   ((ten = c1 - p1->base_ten) < p1->max_ten)) ?
 	     t1[(ku*p1->max_ten) + ten] : UBOGON;
-  s = ret->data = (unsigned char *) fs_get (ret->size + 1);
+  (s = ret->data = (unsigned char *) fs_get (ret->size + 1))[ret->size] = NIL;
   for (i = 0; i < text->size;) {
     if ((c = text->data[i++]) & BIT8)
       c = ((i < text->size) && (c1 = text->data[i++]) &&
@@ -509,7 +830,7 @@ void utf8_text_dbyte2 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 		((ten = c1 - p1->base_ten) < p1->max_ten)) ?
 		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : UBOGON;
     }
-  s = ret->data = (unsigned char *) fs_get (ret->size + 1);
+  (s = ret->data = (unsigned char *) fs_get (ret->size + 1))[ret->size] = NIL;
   for (i = 0; i < text->size;) {
     if ((c = text->data[i++]) & BIT8) {
       if ((i >= text->size) || !(c1 = text->data[i++]))
@@ -548,7 +869,7 @@ void utf8_text_sjis (SIZEDTEXT *text,SIZEDTEXT *ret)
 	c = JISTOUNICODE (c,c1,ku,ten);
       }
     }
-  s = ret->data = (unsigned char *) fs_get (ret->size + 1);
+  (s = ret->data = (unsigned char *) fs_get (ret->size + 1))[ret->size] = NIL;
   for (i = 0; i < text->size;) {
     if ((c = text->data[i++]) & BIT8) {
 				/* half-width katakana */
@@ -821,7 +1142,8 @@ void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret)
 	}
       }
     }
-    if (!pass) s = ret->data = (unsigned char *) fs_get (ret->size + 1);
+    if (!pass) (s = ret->data = (unsigned char *)
+		fs_get (ret->size + 1))[ret->size] = NIL;
     else if (((unsigned long) (s - ret->data)) != ret->size)
       fatal ("ISO-2022 to UTF-8 botch");
   }
@@ -900,7 +1222,8 @@ void utf8_text_utf7 (SIZEDTEXT *text,SIZEDTEXT *ret)
 	else ret->size += UTF8_SIZE (c);
       }
     }
-    if (!pass) s = ret->data = (unsigned char *) fs_get (ret->size + 1);
+    if (!pass) (s = ret->data = (unsigned char *)
+		fs_get (ret->size + 1))[ret->size] = NIL;
     else if (((unsigned long) (s - ret->data)) != ret->size)
       fatal ("UTF-7 to UTF-8 botch");
   }

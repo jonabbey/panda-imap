@@ -26,6 +26,18 @@
 #include "dummy.h"
 #include "misc.h"
 
+/* Function prototypes */
+
+DRIVER *dummy_valid (char *name);
+void *dummy_parameters (long function,void *value);
+MAILSTREAM *dummy_open (MAILSTREAM *stream);
+void dummy_close (MAILSTREAM *stream,long options);
+long dummy_ping (MAILSTREAM *stream);
+void dummy_check (MAILSTREAM *stream);
+void dummy_expunge (MAILSTREAM *stream);
+long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
+long dummy_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
+
 /* Dummy routines */
 
 

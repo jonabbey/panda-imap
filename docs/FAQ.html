@@ -1001,7 +1001,6 @@ and why did this happen?  There was also something about
  SECURITY PROBLEM: insecure server advertised AUTH=PLAIN
 </UL>
 </A>
-</UL>
 <LI>
 <A HREF="#7.48">
 7.48
@@ -1012,29 +1011,59 @@ Why do I get the message
 </UL>
 when I try to authenticate to a Cyrus server?
 </A>
+</UL>
 <LI>
-<A HREF="#additional">
-8. Where to Go For Additional Information
+<A HREF="#license">
+8. Licensing Questions
 </A>
 <UL>
 <LI>
 <A HREF="#8.1">
 8.1
-Where can I go to ask questions?
+Why does the UW choose to make the IMAP toolkit available under this 
+Free-Fork license?
 </A>
 <LI>
 <A HREF="#8.2">
 8.2
-I have some ideas for enhancements to IMAP.  Where should I go?
+I want to redistribute a modified version of the IMAP toolkit.  How can I 
+do this?
 </A>
 <LI>
 <A HREF="#8.3">
 8.3
-Where can I read more about IMAP and other email protocols?
+Can I redistribute an unmodified version of the IMAP toolkit in a 
+proprietary application?
 </A>
 <LI>
 <A HREF="#8.4">
 8.4
+Is the Free-Fork license compatible with GPL?
+</A>
+</UL>
+<LI>
+<A HREF="#additional">
+9. Where to Go For Additional Information
+</A>
+<UL>
+<LI>
+<A HREF="#9.1">
+9.1
+Where can I go to ask questions?
+</A>
+<LI>
+<A HREF="#9.2">
+9.2
+I have some ideas for enhancements to IMAP.  Where should I go?
+</A>
+<LI>
+<A HREF="#9.3">
+9.3
+Where can I read more about IMAP and other email protocols?
+</A>
+<LI>
+<A HREF="#9.4">
+9.4
 Where can I find out more about setting up and administering an IMAP
 server?
 </A>
@@ -1204,7 +1233,7 @@ For example, there are mailbox formats in which the name is a directory
 and each message is a file within that directory; these formats support
 sub-mailboxes within such mailboxes.  However, for technical reasons, the
 "flat file" formats are generally preferred since they perform better.
-Read imap-2002a/docs/formats.txt for more information on this topic.
+Read imap-2004/docs/formats.txt for more information on this topic.
 <P>
 It is always permissible to create a directory that is not a mailbox, and
 have sub-mailboxes under it.  The easiest way to create a directory is to
@@ -1873,12 +1902,12 @@ How do I configure TLS and the STARTTLS facility?
 </B>
 </A>
 <DL><DD>
-imap-2002a supports SSL and TLS client functionality on UNIX and 32-bit
+imap-2004 supports SSL and TLS client functionality on UNIX and 32-bit
 Windows for IMAP, POP3, SMTP, and NNTP; and SSL and TLS server
 functionality on UNIX for IMAP and POP3.
 <P>
 UNIX SSL build requires that a third-party software package, OpenSSL, be
-installed on the system first.  Read imap-2002a/docs/SSLBUILD for more
+installed on the system first.  Read imap-2004/docs/SSLBUILD for more
 information.
 <P>
 SSL is supported via undocumented Microsoft interfaces in Windows 9x
@@ -1934,7 +1963,7 @@ How do I configure Kerberos V5?
 </B>
 </A>
 <DL><DD>
-imap-2002a supports client and server functionality on UNIX and 32-bit
+imap-2004 supports client and server functionality on UNIX and 32-bit
 Windows.
 <P>
 Kerberos V5 is supported by default in Windows 2000 builds:
@@ -3060,8 +3089,8 @@ corruption.  The workaround is to do certain "dangerous operations" in
 another fork, thus avoiding doing a close() in the vulnerable fork.
 <P>
 The best way to solve this problem is to upgrade your SVR4 (Solaris, AIX,
-HP-UX, SGI) system to a more advanced operating system, such as Linux,
-BSD, or OSF/1.  These more advanced operating systems have fcntl() locking
+HP-UX, SGI) or OSF/1 system to a more advanced operating system, such as
+Linux or BSD.  These more advanced operating systems have fcntl() locking
 for compatibility with SVR4, but also have flock() locking.
 <P>
 Beware of certain SVR4 systems, such as AIX, which have an "flock()"
@@ -3597,7 +3626,7 @@ the toolkit is unable to create a &lt...mailbox...&gt.lock file in the
 directory by itself, it will try to call mlock to do it.  I do not recommend
 doing this for performance reasons.
 <P>
-A sample mlock program is included as part of imap-2002a.  We have tried
+A sample mlock program is included as part of imap-2004.  We have tried
 to make this sample program secure, but it has not been thoroughly
 audited.
 </DL>
@@ -4557,6 +4586,12 @@ As soon as the user does anything that would cause an IMAP operation,
 Outlook Express will reconnect and new mail will flow again.  If the user
 does something that causes an IMAP operation at least every 29 minutes,
 the problem won't happen.
+<P>
+Modern versions of imapd attempt to work around the problem by automatically
+reporting fake new mail after 29 minutes.  This causes Outlook Express to
+exit the IDLE state; as soon as this happens imapd revokes the fake new mail.
+As long as this behavior isn't known to cause problems with other clients,
+this workaround will remain in imapd.
 </DL>
 <A HREF="#top">
 Back to top
@@ -4575,8 +4610,9 @@ You built an older version of imapd with the <B>MICROSOFT_BRAIN_DAMAGE</B>
 option set, in order to disable support for the IDLE command.  However,
 Entourage won't get new mail unless IDLE command support exists.
 <P>
-Note: the MICROSOFT_BRAIN_DAMAGE option is removed as of imap-2002, in favor
-of a better way to work around IDLE problems.
+Note: the MICROSOFT_BRAIN_DAMAGE option no longer exists in modern versions,
+as the Outlook Express problem which it attempted to solve has been worked
+around in another way.
 </DL>
 <A HREF="#top">
 Back to top
@@ -4868,6 +4904,7 @@ Why do I get the message
 </TT>
 <B>
 when I try to authenticate to a Cyrus server?
+</B>
 </A>
 <DL><DD>
 This slightly misleading message is the way that a Cyrus server indicates
@@ -4887,21 +4924,115 @@ Back to top
 <H2>
 <HR>
 <BR>
-<A NAME="additional">
-8. Where to Go For Additional Information
+<A NAME="license">
+8. Licensing Questions
 </A>
 </H2>
 <HR>
 <A NAME="8.1">
 <B>
 8.1
+Why does the UW choose to make the IMAP toolkit available under this 
+Free-Fork license?
+</B>
+</A>
+<DL><DD>
+Unlike many other open source licenses, the Free-Fork license is 
+non-viral.
+<P>
+The Free-Fork license allows developers a broad range of rights to the
+IMAP toolkit software, and more options to combine the IMAP toolkit
+software with other open source or private-use software, without requiring
+that the terms of the Free-Fork license be enforced on that other
+software.
+<P>
+The Free-Fork license also allows the IMAP toolkit software to be licensed
+under other conditions (for example, distribution with proprietary
+software where the IMAP code remains under the Free-Fork) if a need
+arises.
+</DL>
+<A HREF="#top">
+Back to top
+</A>
+<HR>
+<A NAME="8.2">
+<B>
+8.2
+I want to redistribute a modified version of the IMAP toolkit.  How can I 
+do this?
+</B>
+</A>
+<DL><DD>
+The Free-Fork license permits redistributions as long as the IMAP toolkit
+and any modifications to the toolkit remains under the Free-Fork license
+as open source.
+<P>
+Send a message to <i>imap-license@cac.washington.edu</i> if your
+application will be proprietary and you need alternative licensing
+arrangements , or if you are unsure whether this blanket permission
+applies in your case.
+</DL>
+<A HREF="#top">
+Back to top
+</A>
+<HR>
+<A NAME="8.3">
+<B>
+8.3
+Can I redistribute an unmodified version of the IMAP toolkit in a 
+proprietary application?
+</B>
+</A>
+<DL><DD>
+Yes.  The terms of the Free-Fork license apply to all unmodified 
+distributions.
+</DL>
+<A HREF="#top">
+Back to top
+</A>
+<HR>
+<A NAME="8.4">
+<B>
+8.4
+Is the Free-Fork license compatible with GPL?
+</B>
+</A>
+<DL><DD>
+Yes.  A Free-Fork licensee has all the rights of a GPL licensee, plus
+additional rights provided under the Free-Fork.
+<P>
+The Free-Fork does not require that software not specifically licensed
+under the Free-Fork use the same terms as the Free-Fork.  For example, if
+you incorporate Free-Fork software in an application that you write, and
+put the application under GPL, that does not cause the Free-Fork software
+to become GPL.  Someone else can copy your application, strip out the GPL
+code so that only the Free-Fork code remains, and by doing so have
+Free-Fork rights.
+<P>
+Additionally, a Free-Fork licensee has the right to negotiate other
+license terms with the UW.
+</DL>
+<A HREF="#top">
+Back to top
+</A>
+<H2>
+<HR>
+<BR>
+<A NAME="additional">
+9. Where to Go For Additional Information
+</A>
+</H2>
+<HR>
+<A NAME="9.1">
+<B>
+9.1
 Where can I go to ask questions?
 </B>
 </A>
 <BR>
-<A NAME="8.2">
+<A NAME="9.2">
 <B>
-8.2
+9.2
 I have some ideas for enhancements to IMAP.  Where should I go?
 </B>
 </A>
@@ -4932,9 +5063,9 @@ newsgroup.
 Back to top
 </A>
 <HR>
-<A NAME="8.3">
+<A NAME="9.3">
 <B>
-8.3
+9.3
 Where can I read more about IMAP and other email protocols?
 </B>
 </A>
@@ -4946,9 +5077,9 @@ Kevin Johnson, published by Addison Wesley, ISBN 0-201-43288-9.
 Back to top
 </A>
 <HR>
-<A NAME="8.4">
+<A NAME="9.4">
 <B>
-8.4
+9.4
 Where can I find out more about setting up and administering an IMAP
 server?
 </B>
@@ -4964,6 +5095,6 @@ This book also has an excellent comparison of the UW and Cyrus IMAP servers.
 Back to top
 </A>
 <P>
-Last Updated: 7 February 2003
+Last Updated: 15 June 2004
 <P>
 <!--chtml include "//imap/incs/bottom.inc"-->

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 January 1998
- * Last Edited:	4 March 2003
+ * Last Edited:	15 March 2004
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
+ * Copyright 1988-2004 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -23,6 +23,9 @@ long auth_gssapi_valid (void);
 long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
 			 char *service,NETMBX *mb,void *stream,
 			 unsigned long *trial,char *user);
+long auth_gssapi_client_work (authchallenge_t challenger,gss_buffer_desc chal,
+			      authrespond_t responder,char *service,NETMBX *mb,
+			      void *stream,char *user,kinit_t ki);
 char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[]);
 
 
@@ -81,11 +84,48 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
 			 char *service,NETMBX *mb,void *stream,
 			 unsigned long *trial,char *user)
 {
+  gss_buffer_desc chal;
+  kinit_t ki = (kinit_t) mail_parameters (NIL,GET_KINIT,NIL);
+  long ret = NIL;
+  *trial = 65535;		/* never retry */
+				/* get initial (empty) challenge */
+  if (chal.value = (*challenger) (stream,(unsigned long *) &chal.length)) {
+    if (chal.length) {		/* abort if challenge non-empty */
+      mm_log ("Server bug: non-empty initial GSSAPI challenge",WARN);
+      (*responder) (stream,NIL,0);
+      ret = LONGT;		/* will get a BAD response back */
+    }
+    else if (mb->authuser[0] && strcmp (mb->authuser,myusername ())) {
+      mm_log ("Can't use Kerberos: invalid /authuser",WARN);
+      (*responder) (stream,NIL,0);
+      ret = LONGT;		/* will get a BAD response back */
+    }
+    else ret = auth_gssapi_client_work (challenger,chal,responder,service,mb,
+					stream,user,ki);
+  }
+  return ret;
+}
+
+/* Client authenticator worker function
+ * Accepts: challenger function
+ *	    responder function
+ *	    SASL service name
+ *	    parsed network mailbox structure
+ *	    stream argument for functions
+ *	    returned user name
+ *	    kinit function pointer if should retry with kinit
+ * Returns: T if success, NIL otherwise
+ */
+
+long auth_gssapi_client_work (authchallenge_t challenger,gss_buffer_desc chal,
+			      authrespond_t responder,char *service,NETMBX *mb,
+			      void *stream,char *user,kinit_t ki)
+{
   char tmp[MAILTMPLEN];
   OM_uint32 smj,smn,dsmj,dsmn;
   OM_uint32 mctx = 0;
   gss_ctx_id_t ctx = GSS_C_NO_CONTEXT;
-  gss_buffer_desc chal,resp,buf;
+  gss_buffer_desc resp,buf;
   long i;
   int conf;
   gss_qop_t qop;
@@ -93,21 +133,14 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   void *data;
   long ret = NIL;
-  *trial = 65535;		/* never retry */
-  if (!(chal.value = (*challenger) (stream,(unsigned long *) &chal.length)))
-    return NIL;			/* get initial (empty) challenge */
-  if (chal.length) {		/* abort if challenge non-empty */
-    (*responder) (stream,NIL,0);
-    *trial = 0;			/* cancel subsequent attempts */
-    return T;			/* will get a BAD response back */
-  }
   sprintf (tmp,"%s@%s",service,mb->host);
   buf.length = strlen (buf.value = tmp);
-				/* must be me if authuser; get service name */
-  if ((mb->authuser[0] && strcmp (mb->authuser,myusername ())) ||
-      (gss_import_name (&smn,&buf,GSS_C_NT_HOSTBASED_SERVICE,&crname) !=
-       GSS_S_COMPLETE))
-    (*responder) (stream,NIL,0); /* can't do Kerberos if either fails */
+				/* get service name */
+  if (gss_import_name (&smn,&buf,GSS_C_NT_HOSTBASED_SERVICE,&crname) !=
+       GSS_S_COMPLETE) {
+    mm_log ("Can't import Kerberos service name",WARN);
+    (*responder) (stream,NIL,0);
+  }
   else {
     data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* negotiate with KDC */
@@ -116,33 +149,44 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
 				GSS_C_NO_CHANNEL_BINDINGS,GSS_C_NO_BUFFER,NIL,
 				&resp,NIL,NIL);
     (*bn) (BLOCK_NONSENSITIVE,data);
-    switch (smj) {
-    case GSS_S_CONTINUE_NEEDED:
-      do {			/* negotiate authentication */
-	if (chal.value) fs_give ((void **) &chal.value);
+
+				/* while continuation needed */
+    while (smj == GSS_S_CONTINUE_NEEDED) {
+      if (chal.value) fs_give ((void **) &chal.value);
 				/* send response, get next challenge */
-	i = (*responder) (stream,resp.value,resp.length) &&
-	  (chal.value = (*challenger) (stream,(unsigned long *) &chal.length));
-	gss_release_buffer (&smn,&resp);
-	if (i) {		/* negotiate continuation with KDC */
-	  data = (*bn) (BLOCK_SENSITIVE,NIL);
-	  smj = gss_init_sec_context (&smn,GSS_C_NO_CREDENTIAL,&ctx,crname,
-				      GSS_C_NO_OID,
+      i = (*responder) (stream,resp.value,resp.length) &&
+	(chal.value = (*challenger) (stream,(unsigned long *) &chal.length));
+      gss_release_buffer (&smn,&resp);
+      if (i) {			/* negotiate continuation with KDC */
+	data = (*bn) (BLOCK_SENSITIVE,NIL);
+	switch (smj =		/* make sure continuation going OK */
+		gss_init_sec_context (&smn,GSS_C_NO_CREDENTIAL,&ctx,
+				      crname,GSS_C_NO_OID,
 				      GSS_C_MUTUAL_FLAG|GSS_C_REPLAY_FLAG,0,
 				      GSS_C_NO_CHANNEL_BINDINGS,&chal,NIL,
-				      &resp,NIL,NIL);
-	  (*bn) (BLOCK_NONSENSITIVE,data);
+				      &resp,NIL,NIL)) {
+	case GSS_S_CONTINUE_NEEDED:
+	case GSS_S_COMPLETE:
+	  break;
+	default:		/* error, don't need context any more */
+	  gss_delete_sec_context (&smn,&ctx,NIL);
 	}
-      } while (i && (smj == GSS_S_CONTINUE_NEEDED));
-
-    case GSS_S_COMPLETE:
-      if (chal.value) {
-	fs_give ((void **) &chal.value);
-	if (smj != GSS_S_COMPLETE) (*responder) (stream,NIL,0);
+	(*bn) (BLOCK_NONSENSITIVE,data);
       }
+      else {			/* error in continuation */
+	mm_log ("Error in negotiating Kerberos continuation",WARN);
+	(*responder) (stream,NIL,0);
+				/* don't need context any more */
+	gss_delete_sec_context (&smn,&ctx,NIL);
+	break;
+      }
+    }
+
+    switch (smj) {		/* done - deal with final condition */
+    case GSS_S_COMPLETE:
+      if (chal.value) fs_give ((void **) &chal.value);
 				/* get prot mechanisms and max size */
-      if ((smj == GSS_S_COMPLETE) &&
-	  (*responder) (stream,resp.value ? resp.value : "",resp.length) &&
+      if ((*responder) (stream,resp.value ? resp.value : "",resp.length) &&
 	  (chal.value = (*challenger) (stream,(unsigned long *)&chal.length))&&
 	  (gss_unwrap (&smn,ctx,&chal,&resp,&conf,&qop) == GSS_S_COMPLETE) &&
 	  (resp.length >= 4) && (*((char *) resp.value) & AUTH_GSSAPI_P_NONE)){
@@ -159,7 +203,10 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
 	  if ((*responder) (stream,resp.value,resp.length)) ret = T;
 	  gss_release_buffer (&smn,&resp);
 	}
-	else (*responder) (stream,NIL,0);
+	else {
+	  mm_log ("Unknown gss_wrap error",WARN);
+	  (*responder) (stream,NIL,0);
+	}
       }
 				/* flush final challenge */
       if (chal.value) fs_give ((void **) &chal.value);
@@ -169,24 +216,39 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
 
     case GSS_S_CREDENTIALS_EXPIRED:
       if (chal.value) fs_give ((void **) &chal.value);
-      sprintf (tmp,"Kerberos credentials expired (try running kinit) for %s",
-	       mb->host);
-      mm_log (tmp,WARN);
-      (*responder) (stream,NIL,0);
+				/* retry if application kinits */
+      if (ki && (*ki) (mb->host,"Kerberos credentials expired"))
+	ret = auth_gssapi_client_work (challenger,chal,responder,service,mb,
+				       stream,user,NIL);
+      else {			/* application can't kinit */
+	sprintf (tmp,"Kerberos credentials expired (try running kinit) for %s",
+		 mb->host);
+	mm_log (tmp,WARN);
+	(*responder) (stream,NIL,0);
+      }
       break;
     case GSS_S_FAILURE:
       if (chal.value) fs_give ((void **) &chal.value);
-      if (!kerberos_try_kinit (smn,mb->host)) do
-	switch (dsmj = gss_display_status (&dsmn,smn,GSS_C_MECH_CODE,
-					      GSS_C_NO_OID,&mctx,&resp)) {
-	case GSS_S_COMPLETE:
-	case GSS_S_CONTINUE_NEEDED:
-	  sprintf (tmp,"GSSAPI failure: %s",(char *) resp.value);
-	  mm_log (tmp,WARN);
+      do switch (dsmj = gss_display_status (&dsmn,smn,GSS_C_MECH_CODE,
+					    GSS_C_NO_OID,&mctx,&resp)) {
+      case GSS_S_COMPLETE:	/* end of message, can kinit? */
+	if (ki && kerberos_try_kinit (smn) &&
+	    (*ki) (mb->host,(char *) resp.value)) {
 	  gss_release_buffer (&dsmn,&resp);
-	} while (dsmj == GSS_S_CONTINUE_NEEDED);
-      (*responder) (stream,NIL,0);
+	  ret = auth_gssapi_client_work (challenger,chal,responder,service,mb,
+					 stream,user,NIL);
+	  break;		/* done */
+	}
+	else (*responder) (stream,NIL,0);
+      case GSS_S_CONTINUE_NEEDED:
+	sprintf (tmp,kerberos_try_kinit (smn) ?
+		 "Kerberos error: %.80s (try running kinit) for %.80s" :
+		 "GSSAPI failure: %s for %.80s",(char *) resp.value,mb->host);
+	mm_log (tmp,WARN);
+	gss_release_buffer (&dsmn,&resp);
+      } while (dsmj == GSS_S_CONTINUE_NEEDED);
       break;
+
     default:			/* miscellaneous errors */
       if (chal.value) fs_give ((void **) &chal.value);
       do switch (dsmj = gss_display_status (&dsmn,smj,GSS_C_GSS_CODE,

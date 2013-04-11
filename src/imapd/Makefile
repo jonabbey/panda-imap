@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		5 November 1990
-# Last Edited:	18 November 2002
+# Last Edited:	29 June 2004
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2002 University of Washington.
+# Copyright 1988-2004 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -22,6 +22,7 @@ ALERT=/etc/imapd.alert
 USERALERT=.imapalert
 SHUTDOWN=/etc/nologin
 ANO=/etc/anonymous.newsgroups
+NNTP=/etc/imapd.nntp
 SHELL= /bin/sh
 
 
@@ -46,8 +47,8 @@ SHELL= /bin/sh
 C = ../c-client
 CCLIENTLIB = $C/c-client.a
 CC = `cat $C/CCTYPE`
-CFLAGS = -I$C `cat $C/CFLAGS` $(NSBD) $(ENBD) \
-	-DANOFILE=\"$(ANO)\" -DALERTFILE=\"$(ALERT)\" \
+CFLAGS = -I$C `cat $C/CFLAGS` $(NSBD) $(ENBD) -DANOFILE=\"$(ANO)\" \
+	-DALERTFILE=\"$(ALERT)\" -DNNTPFILE=\"$(NNTP)\" \
 	-DUSERALERTFILE=\"$(USERALERT)\" -DSHUTDOWNFILE=\"$(SHUTDOWN)\"
 LDFLAGS = $(CCLIENTLIB) `cat $C/LDFLAGS`
 

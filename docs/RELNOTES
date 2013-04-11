@@ -1,7 +1,79 @@
+Updated: 8 July 2004
+
+imap-2004a is a maintenance release, consisting primarily of critical
+bugfixes.  Programs written for imap-2004 will build with this version
+without modification.
+
+imapd now has a supported NNTP proxy capability.  If the file /etc/imapd.nntp
+exists, the contents of that file are used as the host name of an NNTP
+server which will be used whenever a #news. name is used.  For example, if
+/etc/imapd.nntp contains nntp.example.com, and the IMAP client SELECTs or
+EXAMINEs the name #news.comp.mail.imap, what will actually be opened in
+imapd is {nntp.example.com/nntp}comp.mail.imap
+
+The OSF/1 port (Digital UNIX, Tru64) now uses flocksim instead of flcksafe.
+Some cretin decided to delete the winning flock() call and make flock() use
+the losing fcntl() call instead.
+
+The unix[nt] and mmdf drivers now prevent mail_append() from writing Status:,
+X-Status:, X-UID, X-IMAP[base]:, and X-Keywords: header lines to a
+traditional UNIX or MMDF format mailbox.  If any such lines are in the
+text supplied to mail_append(), they will be quoted by prefixing with
+"X-Original-" (e.g. Status: will become X-Original-Status:).
+
+There are no user-visible functional enhancements in this version.
+
+
+Updated: 10 May 2004
+
+imap-2004 is a major release.  Programs written for imap-2002e should
+build with this version with minor modification.  imap-2003 was not
+released except as development snapshots.
+
+mailutil has three new commands: delete, rename, and prune.
+
+IPv6 support now exists for UNIX and W2K.  It is the default in W2K builds.
+On UNIX, add "IP=6" to the make command line.  Windows IPv6 support is
+only for W2K builds.
+
+The NNTP driver now supports NNTP SASL and TLS.
+
+The ldb (Debian) and lrh (RedHat) ports now look for mlock on
+/usr/sbin/mlock instead of /etc/mlock.
+
+imapd now supports the LITERAL+ and SASL-IR initial-response extensions.
+
+The IMAP driver has some additional checks to reduce the amount of network
+traffic, including executing "silly searches" (searches of sequence numbers
+only) locally.
+
+The IMAP, POP, SMTP, and NNTP drivers now have diagnostic code to provide
+better information about servers which violate SASL's empty challenge
+requirements (e.g. with the PLAIN mechanism).
+
+There is a new mail_fetch_overview_sequence() function which is like
+mail_fetch_overview() but takes a sequence number string as an argument.
+There should have been a flags argument and FT_UID bit as in all the other
+mail_fetch_???() functions but compatibility with the past... :-(
+
+The overview_t callback (from mail_fetch_overview()) now has a fourth
+argument which contains the message sequence number (as opposed to the UID
+which is in the second argument).  It turned out that some applications were
+calling mail_msgno() (which can be moderately expensive) to get the sequence
+number, and c-client already knew it.
+
+Many declarations which are completely internal to a driver have been removed
+from the driver .h file, and in those cases where there are no external
+declarations left the .h file has been eliminated entirely.  As part of this,
+the mbox driver routines are now incorporated with the unix driver routines
+as opposed to being a separate file.  The mbox driver still needs to be lunk
+in order to get the mbox functionality.
+
+
 Updated: 27 August 2003
 
-imap-2002e is a minor release, released concurrently with Pine 4.57, and
-contains primarily bugfixes.  Programs written for imap-2002d should build
+imap-2002e is a minor release, released concurrently with Pine 4.58, and
+contains primarily bugfixes.  Programs written for imap-2002d will build
 with this version without modification.
 
 The NNTP client code now tries to perform better with legacy NNTP servers
@@ -295,8 +367,7 @@ extremely unlikely that a program written for imap-3.x or earlier series will
 build with this version without modifications.  Drivers written for earlier
 versions will definitely need to be rewritten.
 
-In addition to the usual bugfixes, the following features are new in
-imap-2000:
+In addition to the usual bugfixes, the following features are new in imap-2000:
 
 SSL support is now available.  For UNIX, it is necessary to install some
 version of OpenSSL; see imap-2000/docs/SSLBUILD for more information.  SSL

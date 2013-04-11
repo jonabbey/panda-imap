@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 March 2003
- * Last Edited:	4 March 2003
+ * Last Edited:	17 October 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -24,7 +24,7 @@
 
 
 long kerberos_server_valid (void);
-long kerberos_try_kinit (OM_uint32 error,char *host);
+long kerberos_try_kinit (OM_uint32 error);
 char *kerberos_login (char *user,char *authuser,int argc,char *argv[]);
 
 /* Kerberos server valid check
@@ -51,18 +51,16 @@ long kerberos_server_valid ()
 }
 
 
-/* Kerberos check for missing credentials
- * Returns: T if missing credentials, NIL if should do standard message
+/* Kerberos check for missing or expired credentials
+ * Returns: T if should suggest running kinit, NIL otherwise
  */
 
-long kerberos_try_kinit (OM_uint32 error,char *host)
+long kerberos_try_kinit (OM_uint32 error)
 {
-  char tmp[MAILTMPLEN];
   switch (error) {
+  case KRB5KRB_AP_ERR_TKT_EXPIRED:
   case KRB5_FCC_NOFILE:		/* MIT */
   case KRB5_CC_NOTFOUND:	/* Heimdal */
-    sprintf (tmp,"No credentials cache found (try running kinit) for %s",host);
-    mm_log (tmp,WARN);
     return LONGT;
   }
   return NIL;
