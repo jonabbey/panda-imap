@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	17 May 1996
+ * Last Edited:	4 January 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -45,12 +45,9 @@ typedef struct tenex_local {
   int fd;			/* file descriptor for I/O */
   off_t filesize;		/* file size parsed */
   time_t filetime;		/* last file time */
+  time_t lastsnarf;		/* local snarf time */
   char *buf;			/* temporary buffer */
   unsigned long buflen;		/* current size of temporary buffer */
-  unsigned long hdrmsgno;	/* message number of last header */
-  char *hdr;			/* last header read */
-  unsigned long txtmsgno;	/* message number of last text */
-  char *txt;			/* last text read */
 } TENEXLOCAL;
 
 
@@ -69,26 +66,16 @@ void tenex_lsub (MAILSTREAM *stream,char *ref,char *pat);
 long tenex_create (MAILSTREAM *stream,char *mailbox);
 long tenex_delete (MAILSTREAM *stream,char *mailbox);
 long tenex_rename (MAILSTREAM *stream,char *old,char *newname);
+long tenex_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *tenex_open (MAILSTREAM *stream);
 void tenex_close (MAILSTREAM *stream,long options);
-void tenex_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
-void tenex_fetchflags (MAILSTREAM *stream,char *sequence,long flags);
-ENVELOPE *tenex_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-				BODY **body,long flags);
-char *tenex_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			 STRINGLIST *lines,unsigned long *len,long flags);
-char *tenex_fetchheader_work (MAILSTREAM *stream,unsigned long msgno,
-			      unsigned long *len);
-char *tenex_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		       unsigned long *len,long flags);
-char *tenex_fetchtext_work (MAILSTREAM *stream,unsigned long msgno,
-			    unsigned long *len);
-char *tenex_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		       unsigned long *len,long flags);
-unsigned long tenex_header (MAILSTREAM *stream,unsigned long msgno,
-			    unsigned long *len);
-void tenex_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
-void tenex_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
+void tenex_fast (MAILSTREAM *stream,char *sequence,long flags);
+void tenex_flags (MAILSTREAM *stream,char *sequence,long flags);
+char *tenex_header (MAILSTREAM *stream,unsigned long msgno,
+		    unsigned long *length,long flags);
+long tenex_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
+void tenex_flag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
+void tenex_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
 long tenex_ping (MAILSTREAM *stream);
 void tenex_check (MAILSTREAM *stream);
 void tenex_snarf (MAILSTREAM *stream);
@@ -96,13 +83,13 @@ void tenex_expunge (MAILSTREAM *stream);
 long tenex_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long tenex_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		   STRING *message);
-void tenex_gc (MAILSTREAM *stream,long gcflags);
 
 unsigned long tenex_size (MAILSTREAM *stream,unsigned long m);
-unsigned long tenex_822size (MAILSTREAM *stream,unsigned long msgno);
 char *tenex_file (char *dst,char *name);
 long tenex_parse (MAILSTREAM *stream);
-long tenex_copy_messages (MAILSTREAM *stream,char *mailbox);
 MESSAGECACHE *tenex_elt (MAILSTREAM *stream,unsigned long msgno);
+void tenex_read_flags (MAILSTREAM *stream,MESSAGECACHE *elt);
 void tenex_update_status (MAILSTREAM *stream,unsigned long msgno,
 			  long syncflag);
+unsigned long tenex_hdrpos (MAILSTREAM *stream,unsigned long msgno,
+			    unsigned long *size);

@@ -1,0 +1,43 @@
+			  TOOLKIT DIRECTORY CONTENTS
+
+Documentation:
+ . CONTENTS		this file
+ . README		read this file first
+ . docs/BUILD		build and installation instructions
+ . docs/CONFIG		detailed configuration notes
+ . docs/RELNOTES	release notes
+ . docs/bugs.txt	known bugs and deficiencies in this software
+ . docs/drivers.txt	how various mailbox format drivers interact, and
+			 comparable features and performance
+ . docs/internal.doc	programming interfaces
+ . docs/locking.txt	how file locking works
+ . docs/rfc		Internet protocol documentation
+
+Sources:
+ . Makefile		master makefile for UNIX
+ . makefile.nt		master makefile for NT/Win32
+ . makefile.wce		master makefile for Windows CE
+ . src			portable C sources
+ . src/ansilib		pre-processed ANSI library routines
+ . src/c-client		pre-processed c-client sources
+ . src/charset		pre-processed character set conversion tables
+ . src/ipopd		pre-processed POP2/POP3 daemon sources
+ . src/imapd		pre-processed IMAP4rev1 daemon sources
+ . src/kerberos		unsupported Kerberos 4 modules from CMU
+ . src/mtest		pre-processed c-client testbed sources
+ . src/osdep/amiga	pre-processed Amiga-specific sources
+ . src/osdep/dos	pre-processed DOS-specific sources
+ . src/osdep/mac	pre-processed Mac-specific sources
+ . src/osdep/nt		pre-processed NT-specific sources
+ . src/osdep/os2	pre-processed OS/2-specific sources (incomplete)
+ . src/osdep/tops-20	pre-processed TOPS-20 specific sources
+ . src/osdep/unix	pre-processed UNIX-specific sources
+ . src/osdep/vms	pre-processed VAX/VMS specific sources
+ . src/osdep/wce	pre-processed Windows CE-specific sources (incomplete)
+ . tools		internal tools needed as part of the build process
+
+Directories created at build time on UNIX and NT/Win32:
+ . c-client		post-processed c-client sources and binary
+ . ipopd		post-processed POP2/POP3 daemon sources and binaries
+ . imapd		post-processed IMAP4rev1 daemon sources and binaries
+ . mtest		post-processed c-client testbed sources and binaries

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	22 May 1996
+ * Last Edited:	19 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -43,10 +43,9 @@
 
 #include "env.h"
 
-long anonymous_login ();
 long env_init (char *user,char *home);
+long check_nt (void);
 static char *defaultDrive (void);
-static char *defaultPath (char *path);
 static char *homeDrive (void);
 static char *homePath (char *path);
 char *myusername_full (unsigned long *flags);
@@ -58,9 +57,6 @@ char *myusername_full (unsigned long *flags);
 char *sysinbox ();
 int lockname (char *lock,char *fname,int op);
 void unlockfd (int fd,char *lock);
-unsigned long unix_crlfcpy (char **dst,unsigned long *dstl,char *src,
-			    unsigned long srcl);
-unsigned long unix_crlflen (STRING *s);
 long safe_write (int fd,char *buf,long nbytes);
 long random ();
 #if _MSC_VER < 700

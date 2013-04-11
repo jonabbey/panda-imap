@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	13 February 1996
+ * Last Edited:	15 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -53,11 +53,11 @@
 #include <time.h>
 #include <sys\stat.h>
 #include <dos.h>
-#include <io.h>
 #include "bezrkdos.h"
 #include "rfc822.h"
 #include "dummy.h"
 #include "misc.h"
+#include "fdstring.h"
 
 /* Berkeley mail routines */
 
@@ -66,7 +66,8 @@
 
 DRIVER bezerkdriver = {
   "bezerk",			/* driver name */
-  DR_LOCAL|DR_MAIL|DR_LOWMEM,	/* driver flags */
+				/* driver flags */
+  DR_LOCAL|DR_MAIL|DR_LOWMEM|DR_CRLF,
   (DRIVER *) NIL,		/* next driver */
   bezerk_valid,			/* mailbox is valid for us */
   bezerk_parameters,		/* manipulate parameters */
@@ -81,15 +82,17 @@ DRIVER bezerkdriver = {
   NIL,				/* status of mailbox */
   bezerk_open,			/* open mailbox */
   bezerk_close,			/* close mailbox */
-  bezerk_fetchfast,		/* fetch message "fast" attributes */
-  bezerk_fetchflags,		/* fetch message flags */
-  bezerk_fetchstructure,	/* fetch message envelopes */
-  bezerk_fetchheader,		/* fetch message header only */
-  bezerk_fetchtext,		/* fetch message body only */
-  bezerk_fetchbody,		/* fetch message body section */
+  NIL,				/* fetch message "fast" attributes */
+  NIL,				/* fetch message flags */
+  NIL,				/* fetch overview */
+  NIL,				/* fetch message envelopes */
+  bezerk_header,		/* fetch message header */
+  bezerk_text,			/* fetch message text */
+  NIL,				/* fetch partial message text */
   NIL,				/* unique identifier */
-  bezerk_setflag,		/* set message flag */
-  bezerk_clearflag,		/* clear message flag */
+  NIL,				/* message number */
+  NIL,				/* modify flags */
+  NIL,				/* per-message modify flags */
   NIL,				/* search for message based on criteria */
   NIL,				/* sort messages */
   NIL,				/* thread messages */
@@ -98,7 +101,7 @@ DRIVER bezerkdriver = {
   bezerk_expunge,		/* expunge deleted messages */
   bezerk_copy,			/* copy messages to another mailbox */
   bezerk_append,		/* append string message to mailbox */
-  bezerk_gc			/* garbage collect stream */
+  NIL				/* garbage collect stream */
 };
 
 				/* prototype stream */
@@ -312,6 +315,7 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
   stream->mailbox = cpystr (tmp);
   LOCAL->fd = fd;		/* note the file */
   LOCAL->filesize = 0;		/* initialize parsed file size */
+  LOCAL->buf = NIL;		/* initially no local buffer */
   stream->sequence++;		/* bump sequence number */
   stream->uid_validity = time (0);
 				/* parse mailbox */
@@ -336,170 +340,11 @@ void bezerk_close (MAILSTREAM *stream,long options)
     stream->silent = T;
     if (options & CL_EXPUNGE) bezerk_expunge (stream);
     close (LOCAL->fd);		/* close the local file */
+    if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
     stream->dtb = NIL;		/* log out the DTB */
   }
-}
-
-
-/* Berkeley mail fetch fast information
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void bezerk_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
-{
-  unsigned long i;
-  if (stream && LOCAL &&	/* make sure have RFC-822 size for messages */
-      ((flags & FT_UID) ? mail_uid_sequence (stream,sequence) :
-       mail_sequence (stream,sequence)))
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_elt (stream,i)->sequence) bezerk_822size (stream,i);
-}
-
-
-/* Berkeley mail fetch flags
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void bezerk_fetchflags (MAILSTREAM *stream,char *sequence,long flags)
-{
-  return;			/* no-op for local mail */
-}
-
-/* Berkeley string driver for file stringstructs */
-
-STRINGDRIVER bezerk_string = {
-  bezerk_string_init,		/* initialize string structure */
-  bezerk_string_next,		/* get next byte in string structure */
-  bezerk_string_setpos		/* set position in string structure */
-};
-
-
-/* Cache buffer for file stringstructs */
-
-#define DOSCHUNKLEN 4096
-char dos_chunk[DOSCHUNKLEN];
-
-
-/* Initialize BEZERK string structure for file stringstruct
- * Accepts: string structure
- *	    pointer to string
- *	    size of string
- */
-
-void bezerk_string_init (STRING *s,void *data,unsigned long size)
-{
-  BEZERKDATA *d = (BEZERKDATA *) data;
-  s->data = (void *) d->fd;	/* note fd */
-  s->data1 = d->pos;		/* note file offset */
-  s->size = size;		/* note size */
-  s->curpos = s->chunk = dos_chunk;
-  s->chunksize = (unsigned long) DOSCHUNKLEN;
-  s->offset = 0;		/* initial position */
-				/* and size of data */
-  s->cursize = min (s->chunksize,size);
-				/* move to that position in the file */
-  lseek (d->fd,d->pos,SEEK_SET);
-  read (d->fd,s->chunk,(size_t) s->cursize);
-}
-
-/* Get next character from file stringstruct
- * Accepts: string structure
- * Returns: character, string structure chunk refreshed
- */
-
-char bezerk_string_next (STRING *s)
-{
-  char c = *s->curpos++;	/* get next byte */
-				/* move to next chunk */
-  SETPOS (s,s->offset + s->chunksize);
-  return c;			/* return the byte */
-}
-
-
-/* Set string pointer position for file stringstruct
- * Accepts: string structure
- *	    new position
- */
-
-void bezerk_string_setpos (STRING *s,unsigned long i)
-{
-  s->offset = i;		/* set new offset */
-  s->curpos = s->chunk;		/* reset position */
-				/* set size of data */
-  if (s->cursize = s->size > s->offset ? min (s->chunksize,SIZE (s)) : 0) {
-				/* move to that position in the file */
-    lseek ((int) s->data,s->data1 + s->offset,SEEK_SET);
-    read ((int) s->data,s->curpos,(size_t) s->cursize);
-  }
-}
-
-/* Berkeley mail fetch structure
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to return body
- *	    option flags
- * Returns: envelope of this message, body returned in body value
- *
- * Fetches the "fast" information as well
- */
-
-#define MAXHDR (unsigned long) 4*MAILTMPLEN
-
-ENVELOPE *bezerk_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-				BODY **body,long flags)
-{
-  LONGCACHE *lelt;
-  ENVELOPE **env;
-  BODY **b;
-  STRING bs;
-  BEZERKDATA d;
-  unsigned long i,hdrsize,hdrpos,textsize;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return bezerk_fetchstructure (stream,i,body,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  hdrpos = bezerk_header (stream,msgno,&hdrsize);
-  textsize = bezerk_size (stream,msgno) - hdrsize;
-  bezerk_822size (stream,msgno);	/* make sure we have message size */
-  if (stream->scache) {		/* short cache */
-    if (msgno != stream->msgno){/* flush old poop if a different message */
-      mail_free_envelope (&stream->env);
-      mail_free_body (&stream->body);
-    }
-    stream->msgno = msgno;
-    env = &stream->env;		/* get pointers to envelope and body */
-    b = &stream->body;
-  }
-  else {			/* long cache */
-    lelt = mail_lelt (stream,msgno);
-    env = &lelt->env;		/* get pointers to envelope and body */
-    b = &lelt->body;
-  }
-
-  if ((body && !*b) || !*env) {	/* have the poop we need? */
-    char *hdr = bezerk_fetchheader (stream,msgno,NIL,&i,NIL);
-    char *tmp = (char *) fs_get ((size_t) MAXHDR);
-				/* make sure last line ends */
-    if (hdr[i-1] != '\012') hdr[i-1] = '\012';
-    mail_free_envelope (env);	/* flush old envelope and body */
-    mail_free_body (b);
-    d.fd = LOCAL->fd;		/* set initial stringstruct */
-    d.pos = hdrpos + hdrsize;
-    INIT (&bs,bezerk_string,(void *) &d,textsize);
-				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,hdr,i,&bs,mylocalhost (),tmp);
-    fs_give ((void **) &tmp);
-  }
-  if (body) *body = *b;		/* return the body */
-  return *env;			/* return the envelope */
 }
 
 /* Berkeley mail fetch message header
@@ -510,292 +355,54 @@ ENVELOPE *bezerk_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
  * Returns: message header in RFC822 format
  */
 
-char *bezerk_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			 STRINGLIST *lines,unsigned long *len,long flags)
+char *bezerk_header (MAILSTREAM *stream,unsigned long msgno,
+		     unsigned long *length,long flags)
 {
-  unsigned long hdrsize,hdrpos,i;
-  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return bezerk_fetchheader (stream,i,lines,len,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  hdrpos = bezerk_header (stream,msgno,&hdrsize);
-				/* limit header size */
-  if (hdrsize > MAXHDR) hdrsize = MAXHDR;
-  if (stream->text) fs_give ((void **) &stream->text);
-				/* slurp, force into memory */
-  mail_parameters (NIL,SET_GETS,NIL);
-  stream->text = bezerk_slurp (stream,hdrpos,&hdrsize);
-				/* restore mailgets routine */
-  mail_parameters (NIL,SET_GETS,(void *) mg);
-				/* filter if necessary */
-  if (lines) hdrsize = mail_filter (stream->text,hdrsize,lines,flags);
-  if (len) *len = hdrsize;
-  return stream->text;
+  char tmp[MAILTMPLEN];
+  *length = 0;			/* default to empty */
+  if (flags & FT_UID) return "";/* UID call "impossible" */
+				/* get to header position */
+  lseek (LOCAL->fd,bezerk_hdrpos (stream,msgno,length),L_SET);
+				/* is buffer big enough? */
+  if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
+  LOCAL->buf = (char *) fs_get ((size_t) *length + 1);
+  LOCAL->buf[*length] = '\0';	/* tie off string */
+				/* slurp the data */
+  read (LOCAL->fd,LOCAL->buf,(size_t) *length);
+  return LOCAL->buf;
 }
 
 
 /* Berkeley mail fetch message text (body only)
  * Accepts: MAIL stream
  *	    message # to fetch
- * Returns: message text in RFC822 format
- */
-
-char *bezerk_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		       unsigned long *len,long flags)
-{
-  unsigned long i,hdrsize,hdrpos,textsize;
-  MESSAGECACHE *elt;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return bezerk_fetchtext (stream,i,len,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  elt = mail_elt (stream,msgno);/* get message status */
-  hdrpos = bezerk_header (stream,msgno,&hdrsize);
-  textsize = bezerk_size (stream,msgno) - hdrsize;
-  if (stream->text) fs_give ((void **) &stream->text);
-				/* if message not seen */
-  if (!(flags & FT_PEEK) && !elt->seen) elt->seen = T;
-  stream->text = bezerk_slurp (stream,hdrpos + hdrsize,&textsize);
-  if (len) *len = textsize;	/* return size */
-  return stream->text;
-}
-
-/* Berkeley fetch message body as a structure
- * Accepts: Mail stream
- *	    message # to fetch
- *	    section specifier
- *	    pointer to length
+ *	    pointer to returned header text length
  *	    option flags
- * Returns: pointer to section of message body
+ * Returns: T, always
  */
 
-char *bezerk_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *s,
-		       unsigned long *len,long flags)
-{
-  BODY *b;
-  PART *pt;
-  unsigned long offset = 0;
-  unsigned long i,base,hdrpos,size = 0;
-  MESSAGECACHE *elt;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return bezerk_fetchbody (stream,i,s,len,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  hdrpos = bezerk_header (stream,msgno,&base);
-  elt = mail_elt (stream,msgno);
-  if (stream->text) fs_give ((void **) &stream->text);
-				/* make sure have a body */
-  if (!(bezerk_fetchstructure (stream,msgno,&b,flags & ~FT_UID) && b && s &&
-	*s && isdigit (*s))) return NIL;
-  if (!(i = strtoul (s,&s,10)))	/* section 0 */
-    return *s ? NIL : bezerk_fetchheader (stream,msgno,NIL,len,flags);
-  do {				/* until find desired body part */
-				/* multipart content? */
-    if (b->type == TYPEMULTIPART) {
-      pt = b->contents.part;	/* yes, find desired part */
-      while (--i && (pt = pt->next));
-      if (!pt) return NIL;	/* bad specifier */
-				/* note new body, check valid nesting */
-      if (((b = &pt->body)->type == TYPEMULTIPART) && !*s) return NIL;
-      offset = pt->offset;	/* get new offset */
-    }
-    else if (i != 1) return NIL;/* otherwise must be section 1 */
-
-				/* need to go down further? */
-    if (i = *s) switch (b->type) {
-    case TYPEMESSAGE:		/* embedded message, calculate new base */
-      if (!((*s++ == '.') && isdigit (*s))) return NIL;
-				/* get message's body if non-zero */
-      if (i = strtoul (s,&s,10)) {
-	offset = b->contents.msg.offset;
-	b = b->contents.msg.body;
-      }
-      else {			/* want header */
-	size = b->contents.msg.offset - offset;
-	b = NIL;		/* make sure the code below knows */
-      }
-      break;
-    case TYPEMULTIPART:		/* multipart, get next section */
-      if ((*s++ == '.') && isdigit (*s) && (i = strtoul (s,&s,10)) > 0) break;
-    default:			/* bogus subpart specification */
-      return NIL;
-    }
-  } while (i);
-  if (b) {			/* looking at a non-multipart body? */
-    if (b->type == TYPEMULTIPART) return NIL;
-    size = b->size.ibytes;	/* yes, get its size */
-  }
-  else if (!size) return NIL;	/* lose if not getting a header */
-				/* if message not seen */
-  if (!(flags & FT_PEEK) && !elt->seen) elt->seen = T;
-  *len = b->size.bytes;		/* number of bytes from file */
-  return stream->text = bezerk_slurp (stream,hdrpos + base + offset,len);
-}
-
-/* Berkeley mail slurp
- * Accepts: MAIL stream
- *	    file position
- *	    pointer to number of file bytes to read
- * Returns: buffer address, actual number of bytes written
- */
-
-char *bezerk_slurp (MAILSTREAM *stream,unsigned long pos,unsigned long *count)
-{
-  unsigned long cnt = *count;
-  int i,j;
-  char tmp[MAILTMPLEN];
-  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
-  lseek(LOCAL->fd,pos,SEEK_SET);/* get to desired position */
-  LOCAL->ch = '\0';		/* initialize CR mechanism */
-  while (cnt) {			/* until checked all bytes */
-				/* number of bytes this chunk */
-    cnt -= (i = (int) min (cnt,(unsigned long) MAILTMPLEN));
-				/* read a chunk */
-    if (read (LOCAL->fd,tmp,i) != i) return NIL;
-    for (j = 0; j < i; j++) {	/* count bytes in chunk */
-				/* if see bare LF, count next as CR */
-      if ((tmp[j] == '\012') && (LOCAL->ch != '\015')) ++*count;
-      LOCAL->ch = tmp[j];
-    }
-  }
-  lseek(LOCAL->fd,pos,SEEK_SET);/* get to desired position */
-  LOCAL->ch = '\0';		/* initialize CR mechanism */
-  return (mg ? *mg : mm_gets) (bezerk_read,stream,*count);
-}
-
-
-/* Berkeley mail read
- * Accepts: MAIL stream
- *	    number of bytes to read
- *	    buffer address
- * Returns: T if success, NIL otherwise
- */
-
-long bezerk_read (MAILSTREAM *stream,unsigned long count,char *buffer)
-{
-  char tmp[MAILTMPLEN];
-  int i,j;
-  while (count) {		/* until no more bytes to do */
-				/* read a chunk */
-    if ((i = read (LOCAL->fd,tmp,(int) min (count,(unsigned long) MAILTMPLEN)))
-	< 0) return NIL;
-				/* for each byte in chunk (or filled) */
-    for (j = 0; count && (j < i); count--) {
-				/* if see LF, insert CR unless already there */
-      if ((tmp[j] == '\012') && (LOCAL->ch != '\015')) LOCAL->ch = '\015';
-      else LOCAL->ch = tmp[j++];/* regular character */
-      *buffer++ = LOCAL->ch;	/* poop in buffer */
-    }
-    if (i -= j) lseek (LOCAL->fd,-((long) i),SEEK_CUR);
-  }
-  return T;
-}
-
-/* Berkeley locate header for a message
- * Accepts: MAIL stream
- *	    message number
- *	    pointer to returned header size
- * Returns: position of header in file
- */
-
-unsigned long bezerk_header (MAILSTREAM *stream,unsigned long msgno,
-			     unsigned long *size)
-{
-  long siz;
-  size_t i = 0;
-  char c = '\0';
-  char *s;
-  char tmp[MAILTMPLEN];
-  MESSAGECACHE *elt = mail_elt (stream,msgno);
-  long pos = elt->data1 + (elt->data2 >> 24);
-  long msiz = bezerk_size (stream,msgno);
-				/* is size known? */
-  if (!(*size = (elt->data2 & (unsigned long) 0xffffff))) {
-				/* get to header position */
-    lseek (LOCAL->fd,pos,SEEK_SET);
-				/* search message for CRLF CRLF */
-    for (siz = 1; siz <= msiz; siz++) {
-				/* buffer empty? */
-      if (!i && (read (LOCAL->fd,s = tmp,
-		       i = (size_t) min (msiz - siz,(long) MAILTMPLEN)) <= 0))
-	return pos;
-      else i--;
-				/* two newline sequence? */
-      if ((c == '\012') && (*s == '\012')) {
-				/* yes, note for later */
-	elt->data2 |= (*size = siz);
-	return pos;		/* return to caller */
-      }
-      else if ((c == '\012') && (*s == '\015')) {
-				/* yes, note for later */
-	elt->data2 |= (*size = siz + 1);
-	return pos;		/* return to caller */
-      }
-      else c = *s++;		/* next character */
-    }
-  }
-  return pos;			/* have position */
-}
-
-/* Berkeley mail set flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    option flags
- */
-
-void bezerk_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
+long bezerk_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 {
   MESSAGECACHE *elt;
-  unsigned long i,uf;
-  short f = (short) mail_parse_flags (stream,flag,&uf);
-  if (!(f || uf)) return;	/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if ((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
-      mail_sequence (stream,sequence))
-    for (i = 1; i <= stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i))->sequence) {
-				/* set all requested flags */
-	if (f&fSEEN) elt->seen = T;
-	if (f&fDELETED) elt->deleted = T;
-	if (f&fFLAGGED) elt->flagged = T;
-	if (f&fANSWERED) elt->answered = T;
-	if (f&fDRAFT) elt->draft = T;
-    }
-}
-
-/* Berkeley mail clear flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    option flags
- */
-
-void bezerk_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  MESSAGECACHE *elt;
-  unsigned long i,uf;
-  short f = (short) mail_parse_flags (stream,flag,&uf);
-  if (!(f || uf)) return;	/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if ((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
-      mail_sequence (stream,sequence))
-    for (i = 1; i <= stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i))->sequence) {
-				/* clear all requested flags */
-	if (f&fSEEN) elt->seen = NIL;
-	if (f&fDELETED) elt->deleted = NIL;
-	if (f&fFLAGGED) elt->flagged = NIL;
-	if (f&fANSWERED) elt->answered = NIL;
-	if (f&fDRAFT) elt->draft = NIL;
-      }
+  FDDATA d;
+  unsigned long hdrsize,hdrpos;
+				/* UID call "impossible" */
+  if (flags & FT_UID) return NIL;
+  elt = mail_elt (stream,msgno);/* if message not seen */
+				/* mark message as seen */
+  if (elt->seen && !(flags & FT_PEEK)) {
+    elt->seen = T;
+    mm_flags (stream,msgno);
+  }
+				/* get location of text data */
+  hdrpos = bezerk_hdrpos (stream,msgno,&hdrsize);
+  d.fd = LOCAL->fd;		/* set initial stringstruct */
+  d.pos = hdrpos + hdrsize;
+				/* flush old buffer */
+  if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
+  d.chunk = LOCAL->buf = (char *) fs_get ((size_t) d.chunksize = CHUNK);
+  INIT (bs,fd_string,(void *) &d,elt->rfc822_size - hdrsize);
+  return T;			/* success */
 }
 
 /* Berkeley mail ping mailbox
@@ -850,6 +457,8 @@ long bezerk_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   MESSAGECACHE *elt;
   unsigned long i,j,k;
   int fd;
+  mailproxycopy_t pc =
+    (mailproxycopy_t) mail_parameters (stream,GET_MAILPROXYCOPY,NIL);
   if (!((options & CP_UID) ? mail_uid_sequence (stream,sequence) :
 	mail_sequence (stream,sequence))) return NIL;
 				/* make sure valid mailbox */
@@ -857,6 +466,7 @@ long bezerk_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     if (errno == ENOENT)
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
 		 (long) NIL);
+    else if (pc) return (*pc) (stream,sequence,mailbox,options);
     else if (mailboxfile (tmp,mailbox)) {
       sprintf (tmp,"Not a Bezerk-format mailbox: %s",mailbox);
       mm_log (tmp,ERROR);
@@ -877,9 +487,9 @@ long bezerk_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* for each requested message */
   for (i = 1; i <= stream->nmsgs; i++)
     if ((elt = mail_elt (stream,i))->sequence) {
-      lseek (LOCAL->fd,elt->data1,SEEK_SET);
+      lseek (LOCAL->fd,elt->private.special.offset,SEEK_SET);
 				/* number of bytes to copy */
-      j = (elt->data2 >> 24) + bezerk_size (stream,i);
+      j = elt->private.msg.full.offset + elt->rfc822_size;
       do {			/* read from source position */
 	k = min (j,(unsigned long) MAILTMPLEN);
 	read (LOCAL->fd,tmp,(unsigned int) k);
@@ -924,18 +534,27 @@ long bezerk_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
     if (!mail_parse_date (&elt,date)) {
-      sprintf (tmp,"Bad date in append: %s",date);
+      sprintf (tmp,"Bad date in append: %.80ss",date);
       mm_log (tmp,ERROR);
       return NIL;
     }
   }
 				/* make sure valid mailbox */
   if (!bezerk_isvalid (mailbox,tmp) && errno) {
-    if (errno == ENOENT)
-      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
-		 (long) NIL);
+    if (errno == ENOENT) {
+      if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
+	  ((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
+	  ((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
+	  ((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
+	  ((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5])
+	bezerk_create (NIL,"INBOX");
+      else {
+	mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+	return NIL;
+      }
+    }
     else if (mailboxfile (tmp,mailbox)) {
-      sprintf (tmp,"Not a Bezerk-format mailbox: %s",mailbox);
+      sprintf (tmp,"Not a Bezerk-format mailbox: %.80ss",mailbox);
       mm_log (tmp,ERROR);
     }
     else bezerk_badname (tmp,mailbox);
@@ -1017,65 +636,6 @@ long bezerk_append_putc (int fd,char *s,int *i,char c)
 }
 
 
-/* Berkeley mail garbage collect stream
- * Accepts: Mail stream
- *	    garbage collection flags
- */
-
-void bezerk_gc (MAILSTREAM *stream,long gcflags)
-{
-  /* nothing here for now */
-}
-
-/* Internal routines */
-
-
-/* Berkeley mail return internal message size in bytes
- * Accepts: MAIL stream
- *	    message #
- * Returns: internal size of message
- */
-
-unsigned long bezerk_size (MAILSTREAM *stream,unsigned long m)
-{
-  unsigned long end = (m < stream->nmsgs) ?
-    mail_elt (stream,m+1)->data1 : LOCAL->filesize;
-  MESSAGECACHE *elt = mail_elt (stream,m);
-  return end - (elt->data1 + (elt->data2 >> 24));
-}
-
-
-/* Berkeley mail return RFC-822 size in bytes
- * Accepts: MAIL stream
- *	    message #
- * Returns: message size
- */
-
-unsigned long bezerk_822size (MAILSTREAM *stream,unsigned long msgno)
-{
-  size_t i;
-  unsigned long hdrpos,msgsize;
-  char c = '\0';
-  char *s,tmp[MAILTMPLEN];
-  MESSAGECACHE *elt = mail_elt (stream,msgno);
-  if (!elt->rfc822_size) {	/* have header size yet? */
-				/* no, get header position and size */
-    hdrpos = bezerk_header (stream,msgno,&msgsize);
-    elt->rfc822_size = msgsize = bezerk_size (stream,msgno);
-				/* get to header position */
-    lseek (LOCAL->fd,hdrpos,SEEK_SET);
-    while (msgsize) {		/* read message */
-      read (LOCAL->fd,s = tmp,i = (size_t) min (msgsize,(long) MAILTMPLEN));
-      msgsize -= i;		/* account for having read that much */
-      while (i--) {		/* now count the newlines */
-	if ((*s == '\012') && (c != '\015')) elt->rfc822_size++;
-	c = *s++;
-      }
-    }
-  }
-  return elt->rfc822_size;
-}
-
 /* Return bad file name error message
  * Accepts: temporary buffer
  *	    file name
@@ -1105,6 +665,7 @@ long bezerk_parse (MAILSTREAM *stream)
   long curpos = LOCAL->filesize;
   long nmsgs = stream->nmsgs;
   long recent = stream->recent;
+  short silent = stream->silent;
   fstat (LOCAL->fd,&sbuf);	/* get status */
   if (sbuf.st_size < curpos) {	/* sanity check */
     sprintf (tmp,"Mailbox shrank from %ld to %ld!",curpos,sbuf.st_size);
@@ -1112,6 +673,7 @@ long bezerk_parse (MAILSTREAM *stream)
     bezerk_close (stream,NIL);
     return NIL;
   }
+  stream->silent = T;		/* don't pass up mm_exists() events yet */
   db = datemsg + strlen (strcpy (datemsg,"Unparsable date: "));
   while (sbuf.st_size - curpos){/* while there is data to read */
 				/* get to that position in the file */
@@ -1125,11 +687,16 @@ long bezerk_parse (MAILSTREAM *stream)
       return NIL;
     }
 
-				/* count up another message, make elt */
-    (elt = mail_elt (stream,++nmsgs))->data1 = curpos;
-    elt->uid = ++stream->uid_last;
-    elt->valid = T;		/* mark as valid */
-    elt->data2 = ((s = ((*t == '\015') ? (t + 2) : (t + 1))) - tmp) << 24;
+				/* swell the cache */
+    mail_exists (stream,++nmsgs);
+				/* instantiate an elt for this message */
+    (elt = mail_elt (stream,nmsgs))->valid = T;
+    elt->private.uid = ++stream->uid_last;
+				/* note file offset of header */
+    elt->private.special.offset = curpos;
+				/* note offset of message */
+    elt->private.msg.full.offset =
+      (s = ((*t == '\015') ? (t + 2) : (t + 1))) - tmp;
 				/* generate plausable IMAPish date string */
     db[2] = db[6] = db[20] = '-'; db[11] = ' '; db[14] = db[17] = ':';
 				/* dd */
@@ -1188,7 +755,53 @@ long bezerk_parse (MAILSTREAM *stream)
   }
 				/* update parsed file size */
   LOCAL->filesize = sbuf.st_size;
+  stream->silent = silent;	/* can pass up events now */
   mail_exists (stream,nmsgs);	/* notify upper level of new mailbox size */
   mail_recent (stream,recent);	/* and of change in recent messages */
   return T;			/* return the winnage */
+}
+
+/* Berkeley locate header for a message
+ * Accepts: MAIL stream
+ *	    message number
+ *	    pointer to returned header size
+ * Returns: position of header in file
+ */
+
+unsigned long bezerk_hdrpos (MAILSTREAM *stream,unsigned long msgno,
+			     unsigned long *size)
+{
+  long siz;
+  size_t i = 0;
+  char c = '\0';
+  char *s;
+  char tmp[MAILTMPLEN];
+  MESSAGECACHE *elt = mail_elt (stream,msgno);
+  long pos = elt->private.special.offset + elt->private.msg.full.offset;
+				/* is size known? */
+  if (!(*size = elt->private.msg.header.text.size)) {
+				/* get to header position */
+    lseek (LOCAL->fd,pos,SEEK_SET);
+				/* search message for CRLF CRLF */
+    for (siz = 1; siz <= elt->rfc822_size; siz++) {
+      if (!i &&			/* buffer empty? */
+	  (read (LOCAL->fd,s = tmp,
+		 i = (size_t) min(elt->rfc822_size-siz,(long)MAILTMPLEN))<= 0))
+	return pos;
+      else i--;
+				/* two newline sequence? */
+      if ((c == '\012') && (*s == '\012')) {
+				/* yes, note for later */
+	elt->private.msg.header.text.size = (*size = siz);
+	return pos;		/* return to caller */
+      }
+      else if ((c == '\012') && (*s == '\015')) {
+				/* yes, note for later */
+	elt->private.msg.header.text.size = (*size = siz + 1);
+	return pos;		/* return to caller */
+      }
+      else c = *s++;		/* next character */
+    }
+  }
+  return pos;			/* have position */
 }

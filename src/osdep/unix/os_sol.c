@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- SVR4 version
+ * Program:	Operating-system dependent routines -- Solaris version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	20 May 1996
+ * Last Edited:	30 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -64,8 +64,8 @@ extern char *sys_errlist[];
 #include "ftl_unix.c"
 #include "nl_unix.c"
 #include "env_unix.c"
+#define fork vfork
 #include "tcp_unix.c"
-#include "log_sv4.c"
 #include "gr_waitp.c"
 #undef flock
 #include "flock.c"
@@ -74,3 +74,4 @@ extern char *sys_errlist[];
 #include "gethstid.c"
 #undef setpgrp
 #include "setpgrp.c"
+#include "utime.c"

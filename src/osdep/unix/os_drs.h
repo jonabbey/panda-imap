@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 April 1996
+ * Last Edited:	23 May 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -43,6 +43,8 @@
 #include <fcntl.h>
 #include <syslog.h>
 #include <sys/file.h>
+#include <ustat.h>
+
 
 #define random rand
 #define direct dirent
@@ -62,6 +64,7 @@
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"
 
 long gethostid (void);
 typedef int (*select_t) (struct direct *name);

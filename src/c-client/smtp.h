@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	5 June 1995
+ * Last Edited:	10 December 1996
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1995 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -54,12 +54,31 @@
 /* SMTP open options */
 
 #define SOP_DEBUG (long) 1	/* debug protocol negotiations */
-#define SOP_ESMTP (long) 2	/* ESMTP requested */
+#define SOP_DSN (long) 2	/* DSN requested */
+				/* DSN notification, none set mean NEVER */
+#define SOP_DSN_NOTIFY_FAILURE (long) 4
+#define SOP_DSN_NOTIFY_DELAY (long) 8
+#define SOP_DSN_NOTIFY_SUCCESS (long) 16
+				/* DSN return full msg vs. header */
+#define SOP_DSN_RETURN_FULL (long) 32
+#define SOP_8BITMIME 64		/* 8-bit MIME requested */
+
+
+/* Convenient access to protocol-specific data */
+
+#define ESMTP stream->protocol.esmtp
+
+
+/* Compatibility support names */
+
+#define smtp_open(hostlist,options) \
+  smtp_open_full (NIL,hostlist,"smtp",SMTPTCPPORT,options)
 
 
 /* Function prototypes */
 
-SENDSTREAM *smtp_open (char **hostlist,long options);
+SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
+			    unsigned long port,long options);
 SENDSTREAM *smtp_close (SENDSTREAM *stream);
 long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *msg,BODY *body);
 void smtp_debug (SENDSTREAM *stream);

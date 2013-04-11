@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	9 October 1995
+ * Last Edited:	11 May 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1995 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -54,11 +54,10 @@
 
 char *ucase (char *s)
 {
-  char c;
-  char *ret = s;
+  char *t;
 				/* if lowercase covert to upper */
-  for (; c = *s; s++) if (islower (c)) *s -= 'a'-'A';
-  return (ret);			/* return string */
+  for (t = s; *t; t++) if (!(*t & 0x80) && islower (*t)) *t = toupper (*t);
+  return s;			/* return string */
 }
 
 
@@ -69,14 +68,12 @@ char *ucase (char *s)
 
 char *lcase (char *s)
 {
-  char c;
-  char *ret = s;
+  char *t;
 				/* if uppercase covert to lower */
-  for (; c = *s; s++) if (isupper (c)) *s += 'a'-'A';
-  return (ret);			/* return string */
+  for (t = s; *t; t++) if (!(*t & 0x80) && isupper (*t)) *t = tolower (*t);
+  return s;			/* return string */
 }
-
-
+
 /* Copy string to free storage
  * Accepts: source string
  * Returns: free storage copy of string
@@ -84,12 +81,86 @@ char *lcase (char *s)
 
 char *cpystr (const char *string)
 {
-  if (string) {			/* make sure argument specified */
-    char *dst = (char *) fs_get (1+strlen (string));
-    strcpy (dst,string);
-    return (dst);
-  }
-  else return NIL;
+  return string ? strcpy ((char *) fs_get (1 + strlen (string)),string) : NIL;
+}
+
+
+/* Copy text/size to free storage as sized text
+ * Accepts: destination sized text
+ *	    pointer to source text
+ *	    size of source text
+ * Returns: text as a char *
+ */
+
+char *cpytxt (SIZEDTEXT *dst,char *text,unsigned long size)
+{
+				/* flush old space */
+  if (dst->data) fs_give ((void **) &dst->data);
+				/* copy data in sized text */
+  memcpy (dst->data = (unsigned char *)
+	  fs_get ((size_t) (dst->size = size) + 1),text,(size_t) size);
+  dst->data[size] = '\0';	/* tie off text */
+  return (char *) dst->data;	/* convenience return */
+}
+
+/* Copy sized text to free storage as sized text
+ * Accepts: destination sized text
+ *	    source sized text
+ * Returns: text as a char *
+ */
+
+char *textcpy (SIZEDTEXT *dst,SIZEDTEXT *src)
+{
+				/* flush old space */
+  if (dst->data) fs_give ((void **) &dst->data);
+				/* copy data in sized text */
+  memcpy (dst->data = (unsigned char *)
+	  fs_get ((size_t) (dst->size = src->size) + 1),
+	  src->data,(size_t) src->size);
+  dst->data[dst->size] = '\0';	/* tie off text */
+  return (char *) dst->data;	/* convenience return */
+}
+
+
+/* Copy stringstruct to free storage as sized text
+ * Accepts: destination sized text
+ *	    source stringstruct
+ * Returns: text as a char *
+ */
+
+char *textcpystring (SIZEDTEXT *text,STRING *bs)
+{
+  unsigned long i = 0;
+				/* clear old space */
+  if (text->data) fs_give ((void **) &text->data);
+				/* make free storage space in sized text */
+  text->data = (unsigned char *) fs_get ((size_t) (text->size = SIZE (bs)) +1);
+  while (i < text->size) text->data[i++] = SNX (bs);
+  text->data[i] = '\0';		/* tie off text */
+  return (char *) text->data;	/* convenience return */
+}
+
+
+/* Copy stringstruct from offset to free storage as sized text
+ * Accepts: destination sized text
+ *	    source stringstruct
+ *	    offset into stringstruct
+ *	    size of source text
+ * Returns: text as a char *
+ */
+
+char *textcpyoffstring (SIZEDTEXT *text,STRING *bs,unsigned long offset,
+			unsigned long size)
+{
+  unsigned long i = 0;
+				/* clear old space */
+  if (text->data) fs_give ((void **) &text->data);
+  SETPOS (bs,offset);		/* offset the string */
+				/* make free storage space in sized text */
+  text->data = (unsigned char *) fs_get ((size_t) (text->size = size) + 1);
+  while (i < size) text->data[i++] = SNX (bs);
+  text->data[i] = '\0';		/* tie off text */
+  return (char *) text->data;	/* convenience return */
 }
 
 /* Returns index of rightmost bit in word
@@ -101,34 +172,20 @@ char *cpystr (const char *string)
 
 unsigned long find_rightmost_bit (unsigned long *valptr)
 {
-  register long value= *valptr;
-  register long clearbit;	/* bit to clear */
-  register bitno;		/* bit number to return */
-				/* no bits are set */
-  if (!value) return (0xffffffff);
-  if (value & 0xFFFF) {		/* low order halfword has a bit? */
-    bitno = 0;			/* yes, start with bit 0 */
-    clearbit = 1;		/* which has value 1 */
-  } else {			/* high order halfword has the bit */
-    bitno = 16;			/* start with bit 16 */
-    clearbit = 0x10000;		/* which has value 10000h */
-    value >>= 16;		/* and slide the halfword down */
-  }
-  if (!(value & 0xFF)) {	/* low quarterword has a bit? */
-    bitno += 8;			/* no, start 8 bits higher */
-    clearbit <<= 8;		/* bit to clear is 2^8 higher */
-    value >>= 8;		/* and slide the quarterword down */
-  }
-  while (T) {			/* search for bit in quarterword */
-    if (value & 1) break;	/* found it? */
-    value >>= 1;		/* now, slide the bit down */
-    bitno += 1;			/* count one more bit */
-    clearbit <<= 1;		/* bit to clear is 1 bit higher */
-  }
-  *valptr ^= clearbit;		/* clear the bit in the argument */
-  return (bitno);		/* and return the bit number */
+  unsigned long value = *valptr;
+  unsigned long bit = 0;
+  if (!(value & 0xffffffff)) return 0xffffffff;
+				/* binary search for rightmost bit */
+  if (!(value & 0xffff)) value >>= 16, bit += 16;
+  if (!(value & 0xff)) value >>= 8, bit += 8;
+  if (!(value & 0xf)) value >>= 4, bit += 4;
+  if (!(value & 0x3)) value >>= 2, bit += 2;
+  if (!(value & 0x1)) value >>= 1, bit += 1;
+  *valptr ^= (1 << bit);	/* clear specified bit */
+  return bit;
 }
-
+
+
 /* Return minimum of two integers
  * Accepts: integer 1
  *	    integer 2
@@ -152,7 +209,7 @@ long max (long i,long j)
   return ((i > j) ? i : j);
 }
 
-/* Case independent search (fast on 32-bit machines)
+/* Search, case-insensitive for ASCII characters
  * Accepts: base string
  *	    length of base string
  *	    pattern string
@@ -160,68 +217,45 @@ long max (long i,long j)
  * Returns: T if pattern exists inside base, else NIL
  */
 
-#define Word unsigned long
-
-long search (char *s,long c,char *pat,long patc)
+long search (unsigned char *base,long basec,unsigned char *pat,long patc)
 {
-  register Word m;
-  long cc;
-  union {
-    unsigned long wd;
-    char ch[9];
-  } wdtest;
-  strcpy (wdtest.ch,"AAAA1234");/* constant for word testing */
-				/* validate arguments, c becomes # of tries */
-  if (!(s && c > 0 && pat && patc > 0 && (c -= (patc - 1)) > 0)) return NIL;
-				/* do slow search if long is not 4 chars */
-  if (wdtest.wd != 0x41414141) return ssrc (&s,&c,pat,(long) T);
-  /*
-   * Fast search algorithm XORs the mask with each word from the base string
-   * and complements the result. This will give bytes of all ones where there
-   * are matches.  We then mask out the high order and case bits in each byte
-   * and add 21 (case + overflow) to all the bytes.  If we have a resulting
-   * carry, then we have a match.
-   */
-  if (cc = ((int) s & 3)) {	/* any chars before word boundary? */
-    c -= (cc = 4 - cc);		/* yes, calculate how many, account for them */
-				/* search through those */
-    if (ssrc (&s,&cc,pat,(long) NIL)) return T;
-  }
-  m = *pat * 0x01010101;	/* search mask */
-  do {				/* interesting word? */
-    if (0x80808080&(0x21212121+(0x5F5F5F5F&~(m^*(Word *) s)))) {
-				/* yes, commence a slow search through it */
-      if (ssrc (&s,&c,pat,(long) NIL)) return T;
+  long i,j,k;
+  int c;
+  unsigned char mask[256];
+  static unsigned char alphatab[256] = {
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,223,223,223,223,223,223,223,223,223,223,223,223,223,223,223,
+    223,223,223,223,223,223,223,223,223,223,223,255,255,255,255,255,
+    255,223,223,223,223,223,223,223,223,223,223,223,223,223,223,223,
+    223,223,223,223,223,223,223,223,223,223,223,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
+    };
+				/* validate arguments */
+  if (base && (basec > 0) && pat && (patc > 0) && (basec >= patc)) {
+    memset (mask,0,256);	/* initialize search validity mask */
+    for (i = 0; i < patc; i++) if (!mask[c = pat[i]]) {
+				/* mark single character if non-alphabetic */
+      if (alphatab[c] & 0x20) mask[c] = T;
+				/* else mark both cases */
+      else mask[c & 0xdf] = mask[c | 0x20] = T;
     }
-    else s += 4,c -= 4;		/* try next word */
-  } while (c > 0);		/* continue until end of string */
-  return NIL;			/* string not found */
-}
-
-/* Case independent slow search within a word
- * Accepts: base string
- *	    number of tries left
- *	    pattern string
- *	    multi-word hunt flag
- * Returns: T if pattern exists inside base, else NIL
- */
-
-long ssrc (char **base,long *tries,char *pat,long multiword)
-{
-  register char *s = *base;
-  register long c = multiword ? *tries : min (*tries,(long) 4);
-  register char *p = pat;
-				/* search character at a time */
-  if (c > 0) do if (!((*p ^ *s++) & (char) 0xDF)) {
-    char *ss = s;		/* remember were we began */
-    do if (!*++p) return T;	/* match case-independent until end */
-    while (!((*p ^ *s++) & (char) 0xDF));
-    s = ss;			/* try next character */
-    p = pat;			/* start at beginning of pattern */
-  } while (--c);		/* continue if multiword or not at boundary */
-  *tries -= s - *base;		/* update try count */
-  *base = s;			/* update base */
-  return NIL;			/* string not found */
+				/* Boyer-Moore type search */
+    for (i = --patc; i < basec; i += (mask[c] ? 1 : (j + 1)))
+      for (j = patc,c = base[k = i]; !((c ^ pat[j]) & alphatab[c]);
+	   j--,c = base[--k])
+	if (!j) return T;	/* found a match! */
+  }
+  return NIL;			/* pattern not found */
 }
 
 /* Wildcard pattern match

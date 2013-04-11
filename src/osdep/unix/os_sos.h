@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 April 1996
+ * Last Edited:	10 October 1996
  *
  * Copyright 1996 by the University of Washington
  *
@@ -47,6 +47,7 @@
 /* OSF/1 gets this wrong */
 
 #define setpgrp setpgid
+#define flock safe_flock	/* use ours instead of theirs */
 
 #define direct dirent
 

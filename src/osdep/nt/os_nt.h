@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	16 April 1996
+ * Last Edited:	28 July 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,6 +36,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys\types.h>
+#include <time.h>
+#include <io.h>
 #include <process.h>
 #undef ERROR
 #include <windows.h>
@@ -43,30 +45,14 @@
 #undef ERROR
 #define ERROR (long) 2		/* must match mail.h */
 
-#define gethostid clock
-#define sleep(x) Sleep (1000 * x)
 #define	WSA_VERSION	((1 << 8) | 1)
-
-
-/* For flock() emulation */
-
-#define LOCK_SH 1
-#define LOCK_EX 2
-#define LOCK_NB 4
-#define LOCK_UN 8
-
 
 #include "env_nt.h"
 #include "fs.h"
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
-#include "syslog.h"
-
+#include "yunchan.h"
 
 #undef noErr
 #undef MAC
-
-
-void alarm (long seconds);
-int flock (int fd,int op);

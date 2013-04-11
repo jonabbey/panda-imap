@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 May 1996
+ * Last Edited:	30 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -45,7 +45,6 @@
 #include <netdb.h>
 #include <ctype.h>
 #include <errno.h>
-#include <utime.h>
 #include "misc.h"
 #define SecureWare		/* protected subsystem */
 #include <sys/security.h>
@@ -62,7 +61,6 @@ char *bigcrypt (char *key,char *salt);
 #include "nl_unix.c"
 #include "env_unix.c"
 #include "tcp_unix.c"
-#include "log_sco.c"
 #include "gr_waitp.c"
 #undef flock
 #include "flock.c"
@@ -73,3 +71,4 @@ char *bigcrypt (char *key,char *salt);
 #undef setpgrp
 #include "setpgrp.c"
 #include "rename.c"
+#include "utime.c"

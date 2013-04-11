@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	26 October 1995
+ * Last Edited:	31 December 1997
  *
- * Copyright 1995 by Mark Crispin
+ * Copyright 1997 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -148,10 +148,11 @@ char *myhomedir ()
 
 
 /* Determine default prototype stream to user
+ * Accepts: type (NIL for create, T for append)
  * Returns: default prototype stream
  */
 
-MAILSTREAM *default_proto ()
+MAILSTREAM *default_proto (long type)
 {
   extern MAILSTREAM dummyproto;
   return &dummyproto;		/* return default driver's prototype */

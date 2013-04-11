@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 December 1995
+ * Last Edited:	20 Februrary 1998
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -35,16 +35,27 @@
 
 
 static char *myLocalHost = NIL;	/* local host name */
+static char *myClientHost = NIL;/* client host name */
+static char *myServerHost = NIL;/* server host name */
 static char *myHomeDir = NIL;	/* home directory name */
 static char *myNewsrc = NIL;	/* newsrc file name */
 static long list_max_level = 5;	/* maximum level of list recursion */
+				/* home namespace */
+static NAMESPACE nshome = {"",'\\',NIL,NIL};
+				/* namespace list */
+static NAMESPACE *nslist[3] = {&nshome,NIL,NIL};
 
 #include "write.c"		/* include safe writing routines */
 
-/* Get all authenticators */
+
+/* Dummy definitions to prevent errors */
 
 #define server_login(user,pass,argc,argv) NIL
-#define myusername() ""		/* dummy definition to prevent build errors */
+#define myusername() ""
+
+
+/* Get all authenticators */
+
 #include "auths.c"
 
 /* Environment manipulate parameters
@@ -56,6 +67,11 @@ static long list_max_level = 5;	/* maximum level of list recursion */
 void *env_parameters (long function,void *value)
 {
   switch ((int) function) {
+  case SET_NAMESPACE:
+    fatal ("SET_NAMESPACE not permitted");
+  case GET_NAMESPACE:
+    value = (void *) nslist;
+    break;
   case SET_HOMEDIR:
     myHomeDir = cpystr ((char *) value);
     break;
@@ -193,10 +209,11 @@ char *mailboxfile (char *dst,char *name)
 
 
 /* Determine default prototype stream to user
+ * Accepts: type (NIL for create, T for append)
  * Returns: default prototype stream
  */
 
-MAILSTREAM *default_proto ()
+MAILSTREAM *default_proto (long type)
 {
   extern MAILSTREAM DEFAULTPROTO;
   return &DEFAULTPROTO;		/* return default driver's prototype */
@@ -214,4 +231,53 @@ long random ()
 {
   if (!rndm) srand (rndm = (unsigned) time (0L));
   return (long) rand ();
+}
+
+/* Default mailgets routine on DOS
+ * Accepts: readin function pointer
+ *	    stream to use
+ *	    number of bytes
+ *	    identifier data
+ * Returns: string read in, truncated if necessary
+ *
+ * This is a sample mailgets routine.  It simply truncates any data larger
+ * than 63K.  On most systems, you generally don't use a mailgets
+ * routine at all, but on DOS it's required to prevent the application from
+ * crashing.
+ */
+
+static char *dos_gets_buf = NIL;
+
+char *dos_default_gets (readfn_t f,void *stream,unsigned long size,
+			GETS_DATA *md)
+{
+  readprogress_t *rp = mail_parameters (NIL,GET_READPROGRESS,NIL);
+  char *ret,tmp[MAILTMPLEN+1];
+  unsigned long i,j,dsc,rdi = 0;
+  unsigned long dos_max = 63 * 1024;
+  if (!dos_gets_buf)		/* one-time initialization */
+    dos_gets_buf = (char *) fs_get ((size_t) dos_max + 1);
+  ret = (md->flags & MG_COPY) ?
+    ((char *) fs_get ((size_t) size + 1) : dos_gets_buf;
+  if (size > dos_max) {
+    sprintf (tmp,"Mailbox %s, %s %lu[%.80s], %lu octets truncated to %ld",
+	     md->stream->mailbox,(md->flags & MG_UID) ? "UID" : "#",
+	     md->msgno,md->what,size,(long) dos_max);
+    mm_log (tmp,WARN);		/* warn user */
+    dsc = size - dos_max;	/* number of bytes to discard */
+    size = dos_max;		/* maximum length string we can read */
+  }
+  else dsc = 0;			/* nothing to discard */
+  dos_gets_buf[size] = '\0';	/* tie off string */
+  if (rp) for (i = size; j = min ((long) MAILTMPLEN,(long) i); i -= j) {
+    (*f) (stream,j,ret + rdi);
+    (*rp) (md,rdi += j);
+  }
+  else (*f) (stream,size,dos_gets_buf);
+				/* toss out everything after that */
+  for (i = dsc; j = min ((long) MAILTMPLEN,(long) i); i -= j) {
+    (*f) (stream,j,tmp);
+    if (rp) (*rp) (md,rdi += j);
+  }
+  return ret;
 }

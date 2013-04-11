@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	24 May 1993
- * Last Edited:	13 February 1996
+ * Last Edited:	18 May 1998
  *
- * Copyright 1996 by Mark Crispin
+ * Copyright 1998 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -48,7 +48,7 @@ DRIVER dummydriver = {
   (DRIVER *) NIL,		/* next driver */
   dummy_valid,			/* mailbox is valid for us */
   dummy_parameters,		/* manipulate parameters */
-  NIL,				/* scan mailboxes */
+  dummy_scan,			/* scan mailboxes */
   dummy_list,			/* list mailboxes */
   dummy_lsub,			/* list subscribed mailboxes */
   NIL,				/* subscribe to mailbox */
@@ -59,15 +59,17 @@ DRIVER dummydriver = {
   NIL,				/* status of mailbox */
   dummy_open,			/* open mailbox */
   dummy_close,			/* close mailbox */
-  dummy_fetchfast,		/* fetch message "fast" attributes */
-  dummy_fetchflags,		/* fetch message flags */
-  dummy_fetchstructure,		/* fetch message structure */
-  dummy_fetchheader,		/* fetch message header only */
-  dummy_fetchtext,		/* fetch message body only */
-  dummy_fetchbody,		/* fetch message body section */
+  NIL,				/* fetch message "fast" attributes */
+  NIL,				/* fetch message flags */
+  NIL,				/* fetch overview */
+  NIL,				/* fetch message structure */
+  NIL,				/* fetch header */
+  NIL,				/* fetch text */
+  NIL,				/* fetch message data */
   NIL,				/* unique identifier */
-  dummy_setflag,		/* set message flag */
-  dummy_clearflag,		/* clear message flag */
+  NIL,				/* message number from UID */
+  NIL,				/* modify flags */
+  NIL,				/* per-message modify flags */
   NIL,				/* search for message based on criteria */
   NIL,				/* sort messages */
   NIL,				/* thread messages */
@@ -76,7 +78,7 @@ DRIVER dummydriver = {
   dummy_expunge,		/* expunge deleted messages */
   dummy_copy,			/* copy messages to another mailbox */
   dummy_append,			/* append string message to mailbox */
-  dummy_gc			/* garbage collect stream */
+  NIL				/* garbage collect stream */
 };
 
 
@@ -92,7 +94,7 @@ DRIVER *dummy_valid (char *name)
 {
   char tmp[MAILTMPLEN];
 				/* must be valid local mailbox */
-  return (name && *name && (*name != '#') && (*name != '{') &&
+  return (name && *name && (*name != '{') &&
 				/* INBOX is always accepted */
 	  ((!strcmp (ucase (strcpy (tmp,name)),"INBOX"))))
     ? &dummydriver : NIL;
@@ -110,6 +112,19 @@ void *dummy_parameters (long function,void *value)
   return NIL;
 }
 
+/* Dummy scan mailboxes
+ * Accepts: mail stream
+ *	    reference
+ *	    pattern to search
+ *	    string to scan
+ */
+
+void dummy_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
+{
+				/* return silently */
+}
+
+
 /* Dummy list mailboxes
  * Accepts: mail stream
  *	    reference
@@ -130,14 +145,7 @@ void dummy_list (MAILSTREAM *stream,char *ref,char *pat)
 
 void dummy_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
-  void *sdb = NIL;
-  char *s,test[MAILTMPLEN];
-				/* get canonical form of name */
-  if (dummy_canonicalize (test,ref,pat) && (s = sm_read (&sdb)) &&
-      (*s != '#') && (*s != '{')) {
-    do if (pmatch_full (s,test,':')) mm_lsub (stream,':',s,NIL);
-    while (s = sm_read (&sdb)); /* until no more subscriptions */
-  }
+				/* return silently */
 }
 
 /* Dummy create mailbox
@@ -195,6 +203,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
   if (!stream->silent) {	/* only if silence not requested */
     mail_exists (stream,0);	/* say there are 0 messages */
     mail_recent (stream,0);
+    stream->uid_validity = 1;
   }
   return stream;		/* return success */
 }
@@ -208,119 +217,6 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
 void dummy_close (MAILSTREAM *stream,long options)
 {
 				/* return silently */
-}
-
-/* Dummy fetch fast information
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void dummy_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
-{
-  fatal ("Impossible dummy_fetchfast");
-}
-
-
-/* Dummy fetch flags
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void dummy_fetchflags (MAILSTREAM *stream,char *sequence,long flags)
-{
-  fatal ("Impossible dummy_fetchflags");
-}
-
-
-/* Dummy fetch envelope
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to return body
- *	    option flags
- * Returns: envelope of this message, body returned in body value
- */
-
-ENVELOPE *dummy_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-				BODY **body,long flags)
-{
-  fatal ("Impossible dummy_fetchstructure");
-  return NIL;
-}
-
-
-/* Dummy fetch message header
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    list of headers
- *	    pointer to returned length
- *	    options
- * Returns: message header in RFC822 format
- */
-
-char *dummy_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			 STRINGLIST *lines,unsigned long *len,long flags)
-{
-  fatal ("Impossible dummy_fetchheader");
-  return NIL;
-}
-
-/* Dummy fetch message text (body only)
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to returned length
- *	    options
- * Returns: message text in RFC822 format
- */
-
-char *dummy_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		       unsigned long *len,long flags)
-{
-  fatal ("Impossible dummy_fetchtext");
-  return NIL;
-}
-
-
-/* Dummy fetch message body as a structure
- * Accepts: Mail stream
- *	    message # to fetch
- *	    section specifier
- *	    pointer to returned length
- *	    options
- * Returns: pointer to section of message body
- */
-
-char *dummy_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		       unsigned long *len,long flags)
-{
-  fatal ("Impossible dummy_fetchbody");
-  return NIL;
-}
-
-/* Dummy set flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    options
- */
-
-void dummy_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  fatal ("Impossible dummy_setflag");
-}
-
-
-/* Dummy clear flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    options
- */
-
-void dummy_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  fatal ("Impossible dummy_clearflag");
 }
 
 /* Dummy ping mailbox
@@ -365,7 +261,8 @@ void dummy_expunge (MAILSTREAM *stream)
 
 long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 {
-  fatal ("Impossible dummy_copy");
+  if ((options & CP_UID) ? mail_uid_sequence (stream,sequence) :
+      mail_sequence (stream,sequence)) fatal ("Impossible dummy_copy");
   return NIL;
 }
 
@@ -387,17 +284,6 @@ long dummy_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   mm_log (tmp,ERROR);		/* pass up error */
   return NIL;			/* always fails */
 }
-
-
-/* Dummy garbage collect stream
- * Accepts: mail stream
- *	    garbage collection flags
- */
-
-void dummy_gc (MAILSTREAM *stream,long gcflags)
-{
-				/* return silently */
-}
 
 /* Dummy canonicalize name
  * Accepts: buffer to write name
@@ -408,8 +294,7 @@ void dummy_gc (MAILSTREAM *stream,long gcflags)
 
 long dummy_canonicalize (char *tmp,char *ref,char *pat)
 {
-  if (*pat == '{' || *pat == '#' || (ref && (*ref == '{' || *ref == '#')))
-    return NIL;			/* error: local non-namespace names only */
+  if (*pat == '{' || (ref && (*ref == '{'))) return NIL;
 				/* write name with reference */
   if (ref && *ref) sprintf (tmp,"%s%s",ref,pat);
   else strcpy (tmp,pat);	/* ignore reference, only need mailbox name */

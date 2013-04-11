@@ -51,6 +51,7 @@ extern int errno;
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"
 
 char *strerror (int n);
 unsigned long strtoul (char *s,char **endp,int base);

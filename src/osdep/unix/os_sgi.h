@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 April 1996
+ * Last Edited:	3 July 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,20 +39,26 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <time.h>		/* for struct tm */
+#include <utime.h>
 #include <fcntl.h>
-#include <syslog.h>
+#include <sys/syslog.h>
 #include <sys/file.h>
 
 /* Many versions of SysV get this wrong */
 
 #define setpgrp(a,b) Setpgrp(a,b)
 
+
 #define direct dirent
 
 #define fatal cclient_fatal
+
+#define utime portable_utime
+int portable_utime (char *file,time_t timep[2]);
 
 #include "env_unix.h"
 #include "fs.h"
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"

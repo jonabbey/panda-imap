@@ -1,0 +1,69 @@
+Updated: 15 May 1998
+
+The following are known problems/deficiencies in the IMAP 4.1 toolkit:
+ . Bugs:
+   . Case-independent searching only works for the 26 Roman alphabetics and
+      not for any other characters
+   . The experimental mx driver has performance problems and shouldn't be used
+   . docs/internal.doc is out of date (again)
+ . POP client limitations:
+   . No SASL authentication/protection mechanisms
+   . No POP3 UID support
+ . IMAP server limitations:
+   . No Kerberos 4 server support (Kerberos 5 is fully supported on UNIX and
+      NT)
+ . POP3 server limitations:
+   . No SASL authentication/protection mechanisms
+ . UNIX limitations:
+   . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
+      unix
+   . Sticky UIDs are not supported in the mh, mtx, and tenex drivers
+   . Creation of keywords is not supported in the mh, mtx, and tenex drivers
+   . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
+      mailboxes to have inferior names
+ . Amiga limitations:
+   . No Kerberos support
+   . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
+      unix
+   . Sticky UIDs are not supported in the mh, mtx, and tenex drivers
+   . Creation of keywords is not supported in the mh, mtx, and tenex drivers
+   . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
+      mailboxes to have inferior names
+ . NT limitations:
+   . Supported local file formats: mbx, mtx, tenex, unix
+   . Sticky UIDs are not supported in the mtxnt and tenexnt drivers
+   . Creation of keywords is not supported in the mtxnt and tenexnt drivers
+   . No support for TCP open timeouts
+   . Flat file formats (mbx, mtx, tenex, unix) do not permit mailboxes to have
+      inferior names
+ . DOS limitations:
+   . No Kerberos support
+   . Supported TCPs: B&W, Novell, PC-NFs, PC/TCP, Waterloo, Winsock
+   . Supported local file formats: bezerk, mtx
+   . Sticky UIDs are not supported on local files
+   . Creation of keywords are not supported on local files
+   . Bezerk driver is read-only and does not handle LF-only newlines well
+   . No support for any TCP timeouts on Waterloo DOS
+   . No support for TCP open timeouts on Winsock and generic DOS
+   . Flat file formats (bezerk, mtx) do not permit mailboxes to have inferior
+      names
+ . Windows CE limitations:
+   . No Kerberos support
+   . No local file drivers
+   . No support for TCP open timeouts
+   . Not finished, only builds c-client library
+ . OS/2 limitations:
+   . Not finished, does not build
+ . Mac limitations:
+   . No Kerberos support
+   . No local file drivers
+ . TOPS-20 limitations:
+   . No Kerberos support
+   . No local file drivers
+   . No support for any TCP timeouts
+ . VMS limitations:
+   . No Kerberos support
+   . Supported TCPs: Multinet, Netlib
+   . No local file drivers
+   . No support for any TCP timeouts on VMS Netlib
+   . No support for TCP open timeouts on VMS Multinet

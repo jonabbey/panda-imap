@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	5 September 1995
+ * Last Edited:	21 January 1998
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -46,14 +46,10 @@ TCPSTREAM {
   char *host;			/* host name */
   unsigned long port;		/* port number */
   char *localhost;		/* local host name */
+  char *remotehost;		/* remote host name */
   int tcpsi;			/* input socket */
   int tcpso;			/* output socket */
   int ictr;			/* input counter */
   char *iptr;			/* input pointer */
   char ibuf[BUFLEN];		/* input buffer */
 };
-
-
-/* Local function prototypes */
-
-long tcp_abort (TCPSTREAM *stream);

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	21 February 1996
+ * Last Edited:	3 July 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -37,7 +37,7 @@
 #include "mail.h"
 #include "osdep.h"
 #include <stdio.h>
-#include <time.h>
+#include <bstring.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -50,18 +50,14 @@ extern int errno;		/* just in case */
 #include <pwd.h>
 #include "misc.h"
 
-char *crypt (char *key,char *salt);
-
-
-extern time_t _timezone;
 
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
 #include "env_unix.c"
 #include "tcp_unix.c"
-#include "log_std.c"
 #include "gr_waitp.c"
-#include "tz_sv4.c"
+#include "tz_nul.c"
 #undef setpgrp
 #include "setpgrp.c"
+#include "utime.c"

@@ -1,5 +1,5 @@
 /*
- * Program:	SVR4 server login
+ * Program:	SVR4 login
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	16 September 1996
+ * Last Edited:	19 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,36 +33,15 @@
  *
  */
 
-/* Server log in
- * Accepts: user name string
- *	    password string
+/* Log in
+ * Accepts: login passwd struct
  *	    argument count
  *	    argument vector
- * Returns: T if password validated, NIL otherwise
+ * Returns: T if success, NIL otherwise
  */
 
-long server_login (char *user,char *pass,int argc,char *argv[])
+long loginpw (struct passwd *pw,int argc,char *argv[])
 {
-  char tmp[MAILTMPLEN];
-  struct spwd *sp = NIL;
-  struct passwd *pw = getpwnam (user);
-  time_t now = time (0) / (60*60*24);
-				/* allow case-independent match */
-  if (!pw) pw = getpwnam (lcase (strcpy (tmp,user)));
-  if (!(pw && pw->pw_uid &&	/* validate user, password, and not expired */
-	(!strcmp (pw->pw_passwd,(char *) crypt (pass,pw->pw_passwd)) ||
-	 ((sp = getspnam (pw->pw_name)) &&
-	  !((sp->sp_lstchg > 0) && (sp->sp_max > 0) &&
-	    ((sp->sp_lstchg + sp->sp_max) < now)) &&
-#if 0
-				/* doesn't exist on many systems */
-	  ((sp->sp_expire < 0) || (sp->sp_expire > now)) &&
-#endif
-	  !strcmp (sp->sp_pwdp,(char *) crypt (pass,sp->sp_pwdp))))))
-    return NIL;			/* failed */
-  setgid (pw->pw_gid);		/* all OK, login in as that user */
-  initgroups (pw->pw_name);	/* initialize groups */
-  setuid (pw->pw_uid);		/* become the guy */
-  chdir (pw->pw_dir);		/* set home directory as default */
-  return env_init (pw->pw_name,pw->pw_dir);
+  return !(setgid (pw->pw_gid) || initgroups (pw->pw_name) ||
+	   setuid (pw->pw_uid));
 }

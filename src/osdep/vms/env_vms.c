@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	12 October 1995
+ * Last Edited:	31 December 1997
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -154,10 +154,11 @@ char *myhomedir ()
 
 
 /* Determine default prototype stream to user
+ * Accepts: type (NIL for create, T for append)
  * Returns: default prototype stream
  */
 
-MAILSTREAM *default_proto ()
+MAILSTREAM *default_proto (long type)
 {
   return NIL;			/* no default prototype */
 }

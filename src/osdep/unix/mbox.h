@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	4 January 1996
+ * Last Edited:	19 November 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -38,6 +38,7 @@
 
 DRIVER *mbox_valid (char *name);
 long mbox_rename (MAILSTREAM *stream,char *old,char *newname);
+long mbox_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *mbox_open (MAILSTREAM *stream);
 long mbox_ping (MAILSTREAM *stream);
 void mbox_check (MAILSTREAM *stream);

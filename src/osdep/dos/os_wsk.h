@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- Winsock version
+ * Program:	Operating-system dependent routines -- 16-bit Winsock version
  *
  * Author:	Mike Seibel from Novell version by Mark Crispin
  *		Networks and Distributed Computing
@@ -10,9 +10,9 @@
  *		Internet: MikeS@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	29 April 1994
+ * Last Edited:	16 April 1997
  *
- * Copyright 1994 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,9 +33,12 @@
  *
  */
 
+#define INADEQUATE_MEMORY
+
 #include <stdlib.h>
 #include <string.h>
 #include <sys\types.h>
+#include <io.h>
 
 #define gethostid clock
 #define	WSA_VERSION	((1 << 8) | 1)

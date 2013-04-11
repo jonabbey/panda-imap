@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	29 April 1996
+ * Last Edited:	19 June 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -57,6 +57,12 @@
 #undef max
 
 
+/* And some C libraries have these as int functions */
+
+#define min Min
+#define max Max
+
+
 /* Compatibility definitions */
 
 #define pmatch(s,pat) \
@@ -68,10 +74,14 @@
 char *ucase (char *string);
 char *lcase (char *string);
 char *cpystr (const char *string);
+char *cpytxt (SIZEDTEXT *dst,char *text,unsigned long size);
+char *textcpy (SIZEDTEXT *dst,SIZEDTEXT *src);
+char *textcpystring (SIZEDTEXT *text,STRING *bs);
+char *textcpyoffstring (SIZEDTEXT *text,STRING *bs,unsigned long offset,
+			unsigned long size);
 unsigned long find_rightmost_bit (unsigned long *valptr);
 long min (long i,long j);
 long max (long i,long j);
-long search (char *s,long c,char *pat,long patc);
-long ssrc (char **s,long *c,char *pat,long multiword);
+long search (unsigned char *base,long basec,unsigned char *pat,long patc);
 long pmatch_full (char *s,char *pat,char delim);
 long dmatch (char *s,char *pat,char delim);

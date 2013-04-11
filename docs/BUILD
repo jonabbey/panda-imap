@@ -1,0 +1,292 @@
+			       UNIX BUILD NOTES
+
+     A change has been made from previous versions of the IMAP toolkit.
+There are no longer separate ANSI and non-ANSI source trees.  Nor is it
+possible to build directly on the source tree.  Instead, you *must* build
+through the top-level imap-4.1/Makefile, which will run a "process" step the
+first time and create the imap-4.1/c-client, imap-4.1/ipopd, and
+imap-4.1/imapd directories in which building actually takes place.
+
+     Before doing a make on UNIX, you should read imap-4.1/Makefile and see if
+your system type is known.  The various system types are three-letter codes.
+If your system type is known, then use this as the make option.  After the
+first time you do a make, this option is remembered in a file called OSTYPE,
+so just typing "make" suffices.
+
+     For example, if you are using an IBM AIX 3.2 system on an RS/6000, your
+system type is a32, and the appropriate command is:
+	make a32
+
+     There are other make options, described in imap-4.1/src/osdep/Makefile.
+
+     It's probably best to see if an existing port will work on your system
+before inventing a new port.  Try:
+	sv4		generic SVR4
+	a32		modern SVR4, SVR4 with gcc
+	bsd		basic 4.3 BSD
+	nxt, mct, gul	modern BSD, BSD with gcc
+
+     If you must invent a new port, you need to create an entry in
+imap-4.1/Makefile and imap-4.1/src/osdep/Makefile for your new port, as well as
+osdep/os_???.h and osdep/os_???.c files with the appropriate OS-dependent
+support for that system.  You also need to determine which setup process to
+use.  You should use the ua process unless you are sure that your compiler
+supports *ALL* aspects of ANSI C prototyping.  Note that some compilers, such
+as Ultrix, support some aspects of ANSI C but not others; c-client really
+beats on the full prototyping capability of ANSI C so you have to use the
+non-ANSI source tree for such systems.
+
+     If you send a new port back to us, we will make it available for others
+who use your particular system type.
+
+     The mbox driver is now enabled by default.  If the file "mbox" exists on
+the user's home directory and is in UNIX mailbox format, then when INBOX is
+opened this file will be selected as INBOX instead of the mail spool file.
+Messages will be automatically transferred from the mail spool file into the
+mbox file.  To disable this behavior, delete "mbox" from the EXTRADRIVERS list
+in the top-level Makefile and rebuild.
+
+     WARNING: The SVR2 (sv2) port is *incomplete*.  SVR2 does not appear to
+have any way to do ftruncate(), which is needed by the mbox, mbx, mmdf, mtx,
+tenex, and unix drivers.
+
+			   UNIX INSTALLATION NOTES
+
+     Binaries from the build are:
+	imap-4.1/mtest/mtest		c-client testbed program
+	imap-4.1/ipopd/ipop2d		POP2 daemon
+	imap-4.1/ipopd/ipop3d		POP3 daemon
+	imap-4.1/imapd/imapd		IMAP4rev1 daemon
+
+     mtest is normally not used except by c-client developers.  The ipop2d,
+ipop3d, and imapd daemons should be installed in a system daemon directory,
+and invoked by your /etc/inetd.conf file with lines such as:
+
+pop	stream	tcp	nowait	root	/usr/local/etc/ipop2d	ipop2d
+pop3	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
+imap	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
+
+     Note that different variants of UNIX have different versions of inetd,
+so you should verify the precise form of these commands (for example, some
+versions of inetd do not require the "nowait").
+
+     You may also have to edit your /etc/services (or Yellow Pages,
+NetInfo, etc. equivalent) to register these services, such as:
+
+pop		109/tcp
+pop3		110/tcp
+imap		143/tcp
+
+     If you want to enable the rimap capability, which allows users with a
+suitable client and .rhosts file on the server to access IMAP services
+without transmitting her password in the clear over the network, you need
+to have /etc/rimapd as a link to the real copy of imapd.  Assuming you have
+imapd installed on /usr/local/etc as above:
+	% ln -s /usr/local/etc/imapd /etc/rimapd
+
+     Technical note: rimap works by having the client routine tcp_aopen()
+invoke `rsh _host_ exec /etc/rimapd' in an child process, and then returning
+pipes to that process' standard I/O instead of a TCP socket.  You can set up
+`e-mail only accounts' by making the shell be something which accepts only
+that string and not ordinary UNIX shell commands.
+
+     User "root" and any other UID 0 account can lot log in via IMAP
+or POP.  "That's not a bug, it's a feature!"
+
+     This software is designed to run without privileges.  The mail spool
+directory should be protected 1777; that is, with world write and the sticky
+bit.  Of course, mail *files* should be protected 600!
+
+
+     There is one "gotcha" on System V Release 4 based systems such as
+Solaris.  These systems do not use the standard UNIX mail format, but rather a
+variant of that format that depends upon a bogus "Content-Length:" message
+header.  This is widely recognized to have been a terrible mistake.  One
+symptom of the problem is that under certain circumstances, a message may get
+broken up into several messages.  I'm also aware of security bugs caused by
+programs that foolishly trust "Content-Length:" headers with evil values.
+
+    To fix your system, edit your sendmail.cf to change the Mlocal line to
+have the -E flag.  A typical entry will lool like:
+
+Mlocal, P=/usr/lib/mail.local, F=flsSDFMmnPE, S=10, R=20, A=mail.local -d $u
+
+		     NT/WIN32 BUILD AND INSTALLATION NOTES
+
+     I build using Visual C++ 5.0.  If you build with an earlier version of
+Visual C, you may need to install the Platform SDK (formerly called the Win32
+SDK) separately.  If you get errors while building os_nt.c that LogonUser() is
+undefined, it's a good bet that you don't have the Platform SDK installed
+and/or in your path properly.
+
+     There is also considerable debate about how new mail is to be snarfed.
+I am currently using something that seems to work with WinSMTP.  Look at
+the definition of MAILFILE in imap-4.1/src/osdep/nt/mailfile.h and at the
+sysinbox() function in imap-4.1/src/osdep/nt/env_nt.c to see what's there
+now, so you have a clue about how to hack it.
+
+     To build under NT, connect to the imap-4.1 directory and do:
+	nmake -f makefile.nt
+The resulting binaries will be:
+	imap-4.1\mtest\mtest.exe	(testbed client)
+	imap-4.1\ipopd\ipop2d.exe	POP2 server
+	imap-4.1\ipopd\ipop3d.exe	POP3 server
+	imap-4.1\imapd\imapd.exe	IMAP4rev1 server
+
+     These servers are stdio servers.  I wrote a simple network listener
+for NT called inetlisn; currently it is available as:
+	ftp://ftp.cac.washington.edu/mail/nt/inetlisn.tar
+To build this, use "nmake" after connecting to the inetlisn directory.
+inetlisn takes two arguments, the first being the port number and the second
+being the binary to run to serve a connection on that port, e.g.
+	c:\bin\inetlisn 143 c:\mail_daemons\imapd
+
+     Note that NT imapd must be started as SYSTEM in order to be recognized as
+being "not logged in"; otherwise it will preauth as whatever user it is
+running as which is probably not what you want.  One way to have it run as
+system is to have inetlisn run by an AT command, e.g. if the time now is
+2:05PM, try something like:
+	AT 14:06 "c:\bin\inetlisn 143 c:\mail_daemons\imapd"
+
+     Bottom line: this is not plug-and-play on NT.  If you're not a hacker
+and/or are unwilling to invest the time to do some programming, you probably
+want to buy a commercial server for NT.
+
+			     DOS/WIN16 BUILD NOTES
+
+     If you are building a DOS client, you will need a TCP/IP stack installed
+on your DOS system along with its development environment.  The currently
+supported stacks are Beame & Whiteside, PC-NFS, Novell, PC/IP, Waterloo, and
+Winsock.  mtest and a version of Pine called PC Pine run under DOS.
+
+      You do not use imap-4.1/Makefile under DOS, nor do you build any
+components other than c-client and mtest.  Merge the contents of
+imap-4.1/src/c-client, imap-4.1/src/charset, imap-4.1/src/mtest, and
+imap-4.1/src/osdep/dos onto a single directory on DOS and build from that.  The
+MAKE command on DOS takes an argument identifying the TCP/IP stack in use.  For
+example, do:
+	MAKE MAKEFILE OS=WSK   (or MAKE -F MAKEFILE OS=WSK)
+to build for Winsock.  
+
+     If you write a program for DOS/Win16, you will probably have to write a
+replacement cache manager (look at mm_cache()) and otherwise disable most of
+c-client's caching.  Even so, memory limitations will be an ongoing problem,
+particularly with DOS, and you will have some severe performance problems.
+It's a bit better on Win16, but in my opinion you are better off writing a
+32-bit program and telling your Win16 customers to upgrade to Windows 95 or at
+least install Win32s.
+
+			     MACINTOSH BUILD NOTES
+
+     If you are building a Macintosh client, you will need MacTCP installed on
+your system as well as the MacTCP C includes and libraries.
+
+     You do not use imap-4.1/Makefile on the Mac, nor do you build any
+components other than c-client and mtest.  Merge the contents of
+imap-4.1/src/c-client, imap-4.1/src/charset, imap-4.1/src/mtest, and
+imap-4.1/src/osdep/mac onto a single directory on the Mac and build from that.
+mtext.sit.hqx is a THINK C project file and cute icon for building mtest,
+encoded with Binhex and StuffIt.
+
+     THINK C is a truly wretched product which help make me understand why
+Macintosh has lost most of its market share.  Not only does it do cretinous
+things such as barf about a cast in front of an lvalue, it also limits the size
+of code *or* data in a single file to 32K!  So much for having large character
+set tables.  Symantec says that "MacOS requires it, break up your files into
+smaller pieces" yet somehow gcc under MachTen contrives to compile C programs
+without subjecting the programmer to this idiocy.
+
+     As a result of this, I found myself obliged to comment out the #includes
+of the East Asian character sets in utf8.c in order to get it to build.  Maybe
+you don't have to do this in CodeWarrior or whatever the new compiler is
+called, but I've pretty much given up on Macintosh.
+
+     If you use precompiled headers, you may get some compilation errors since
+some Apple symbols need to be redefined in order to get it to build under all
+versions of MacOS.  Try turning off the precompiled headers (so it will
+re-read the .h files) and see if it builds any better.
+
+     If you use a Mac C compiler with 2-byte ints (such as THINK C's normal
+mode) you will need to fix some bugs in the MacTCP C includes and libraries to
+prevent it from generating bad code, since those MacTCP files violate Apple's
+standards of always using explicit shorts or longs, never ints.  You could
+avoid this if you set 4-byte ints in THINK C; however, the ANSI and UNIX
+libraries in THINK C use 2-byte ints so you will also need to build 4-byte int
+versions of these.  c-client itself is 2-byte int or 4-byte int clean; it can
+be used in either mode.
+
+     The most important bug in the MacTCP files that you need to fix is in the
+file AddressXlation.h, you need to change the definition of the rtnCode member
+of the hostInfo structure to be long instead of int.  There are several other
+changes you need to make if you decide to compile dnr.c under THINK C instead
+of using the Apple-supplied object file; see me for details if you decide to
+undertake such an effort.  This is fixed in newer versions from Apple.
+
+			     TOPS-20 BUILD NOTES
+
+     I have provided a c-client port for TOPS-20 systems, but you're on your
+own in terms of a nice TOPS-20 like main program.  Maybe someday some nice
+person will try porting Pine to TOPS-20.  I recently built mtest on TOPS-20
+(thank you, XKL!!), so the sources are known to compile with the ANSI C
+version of KCC.
+
+     You do not use imap-4.1/Makefile under TOPS-20, nor do you build any
+components other than c-client and mtest.  Merge the contents of
+imap-4.1/src/c-client, imap-4.1/src/charset, imap-4.1/src/mtest, and
+imap-4.1/src/osdep/tops-20 onto a single directory on TOPS-20 and build from
+that.  The command:
+	DO BUILD.CTL
+will build the sources.  If you don't have MIC, then SUBMIT BUILD.CTL and let
+BATCON execute it.
+
+     KCC loves to give lots of diagnostics about unused parameters.  That's
+perfectly alright; just ignore them.
+
+				OTHER SYSTEMS
+
+			       VMS BUILD NOTES
+
+     This port is based upon files sent to me by Yehavi Bourvine,
+Yehavi@VMS.HUJI.AC.IL, for the IMAP2bis toolkit.  I included the stuff that
+I could get to work on a VMS system at UW.
+
+      You do not use imap-4.1/Makefile under VMS, nor do you build any
+components other than c-client and mtest.  Merge the contents of
+imap-4.1/src/c-client, imap-4.1/src/charset, imap-4.1/src/mtest, and
+imap-4.1/src/osdep/vms onto a single directory on VMS and build from that.  The
+command to build it is:
+	@BUILD MULTINET
+or	@BUILD NETLIB
+If you just do @BUILD it will build with dummy TCP code, and since only TCP
+based drivers are provided here this isn't too useful.
+
+     If you aren't on the Pacific coast of the US or Canada, you probably will
+need to change the wired-in timezone in the BUILD.COM file.  Apparently, the
+wonderful VMS system that DEC loves so much doesn't maintain any concept of
+time zone; the VMS C compiler returns a null pointer from gmtime()!
+
+     Otherwise you're pretty much on your own here.  Ask Yehavi for help, not
+me.  Yehavi has a VMS local mail driver so you can get local mail services.
+
+
+		      AMIGA BUILD AND INSTALLATION NOTES
+
+     See the UNIX build notes.  I can't tell you much more than that, since
+the Amiga code was contributed.
+
+
+			       WCE BUILD NOTES
+
+     I build using Visual C++ 5.0 with the WCE extensions.  The current code
+has SH3 wired in for the compiler building.
+
+     To build under NT, connect to the imap-4.1 directory and do:
+	nmake -f makefile.wce
+
+     The only binary produced is a cclient.lib file.  I haven't gotten as far
+as building mtest on WCE, mainly because I don't have a stdlib library.
+
+
+			       OS2 BUILD NOTES
+
+     The OS2 port is incomplete.  There are no plans to continue work on it.

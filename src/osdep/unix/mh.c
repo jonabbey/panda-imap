@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	22 August 1996
+ * Last Edited:	3 June 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -43,7 +43,6 @@ extern int errno;		/* just in case */
 #include <sys/stat.h>
 #include <sys/time.h>
 #include "mh.h"
-#include "rfc822.h"
 #include "misc.h"
 #include "dummy.h"
 
@@ -70,15 +69,17 @@ DRIVER mhdriver = {
   NIL,				/* status of mailbox */
   mh_open,			/* open mailbox */
   mh_close,			/* close mailbox */
-  mh_fetchfast,			/* fetch message "fast" attributes */
-  mh_fetchflags,		/* fetch message flags */
-  mh_fetchstructure,		/* fetch message envelopes */
-  mh_fetchheader,		/* fetch message header only */
-  mh_fetchtext,			/* fetch message body only */
-  mh_fetchbody,			/* fetch message body section */
+  mh_fast,			/* fetch message "fast" attributes */
+  NIL,				/* fetch message flags */
+  NIL,				/* fetch overview */
+  NIL,				/* fetch message envelopes */
+  mh_header,			/* fetch message header */
+  mh_text,			/* fetch message body */
+  NIL,				/* fetch partial message text */
   NIL,				/* unique identifier */
-  mh_setflag,			/* set message flag */
-  mh_clearflag,			/* clear message flag */
+  NIL,				/* message number */
+  NIL,				/* modify flags */
+  NIL,				/* per-message modify flags */
   NIL,				/* search for message based on criteria */
   NIL,				/* sort messages */
   NIL,				/* thread messages */
@@ -87,7 +88,7 @@ DRIVER mhdriver = {
   mh_expunge,			/* expunge deleted messages */
   mh_copy,			/* copy messages to another mailbox */
   mh_append,			/* append string message to mailbox */
-  mh_gc				/* garbage collect stream */
+  NIL				/* garbage collect stream */
 };
 
 				/* prototype stream */
@@ -112,6 +113,7 @@ DRIVER *mh_valid (char *name)
  * Returns: T if valid, NIL otherwise
  */
 
+static char *mh_profile = NIL;	/* holds MH profile */
 static char *mh_path = NIL;	/* holds MH path name */
 static long mh_once = 0;	/* already through this code */
 
@@ -122,7 +124,10 @@ int mh_isvalid (char *name,char *tmp,long synonly)
     char *s,*s1,*t,*v;
     int fd;
     if (mh_once++) return NIL;	/* only do this code once */
-    sprintf (tmp,"%s/%s",myhomedir (),MHPROFILE);
+    if (!mh_profile) {		/* have MH profile? */
+      sprintf (tmp,"%s/%s",myhomedir (),MHPROFILE);
+      mh_profile = cpystr (tmp);
+    }
     if ((fd = open (tmp,O_RDONLY,NIL)) < 0) return NIL;
     fstat (fd,&sbuf);		/* yes, get size and read file */
     read (fd,(s1 = t = (char *) fs_get (sbuf.st_size + 1)),sbuf.st_size);
@@ -174,10 +179,28 @@ int mh_isvalid (char *name,char *tmp,long synonly)
 
 void *mh_parameters (long function,void *value)
 {
+  switch ((int) function) {
+  case SET_MHPROFILE:
+    if (mh_profile) fs_give ((void **) &mh_profile);
+    mh_profile = cpystr ((char *) value);
+    break;
+  case GET_MHPROFILE:
+    value = (void *) mh_profile;
+    break;
+  case SET_MHPATH:
+    if (mh_path) fs_give ((void **) &mh_path);
+    mh_path = cpystr ((char *) value);
+    break;
+  case GET_MHPATH:
+    value = (void *) mh_path;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
   return NIL;
 }
-
-
+
 /* MH scan mailboxes
  * Accepts: mail stream
  *	    reference
@@ -221,7 +244,7 @@ void mh_list (MAILSTREAM *stream,char *ref,char *pat)
       mh_list_work (stream,s,test,0);
     }
 				/* always an INBOX */
-    if (pmatch ("#MHINBOX",test))
+    if (pmatch ("#MHINBOX",ucase (test)))
       mm_list (stream,NIL,"#MHINBOX",LATT_NOINFERIORS);
   }
 }
@@ -329,9 +352,9 @@ long mh_create (MAILSTREAM *stream,char *mailbox)
     return NIL;
   }
   if (!mh_path) return NIL;	/* sorry */
-  sprintf (tmp,"%s/%s",mh_path,mailbox + 4);
+  sprintf (tmp,"%s/%s/",mh_path,mailbox + 4);
 				/* try to make it */
-  if (mkdir (tmp,(int) mail_parameters (NIL,GET_DIRPROTECTION,NIL))) {
+  if (!dummy_create_path (stream,tmp)) {
     sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -440,20 +463,22 @@ MAILSTREAM *mh_open (MAILSTREAM *stream)
     mh_close (stream,NIL);	/* dump and save the changes */
     stream->dtb = &mhdriver;	/* reattach this driver */
     mail_free_cache (stream);	/* clean up cache */
+    stream->uid_last = 0;	/* default UID validity */
+    stream->uid_validity = time (0);
   }
   stream->local = fs_get (sizeof (MHLOCAL));
 				/* note if an INBOX or not */
   LOCAL->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"#MHINBOX");
   mh_file (tmp,stream->mailbox);/* get directory name */
   LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
-  LOCAL->hdr = NIL;		/* no current header */
 				/* make temporary buffer */
   LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
   LOCAL->scantime = 0;		/* not scanned yet */
   stream->sequence++;		/* bump sequence number */
 				/* parse mailbox */
   stream->nmsgs = stream->recent = 0;
-  if (mh_ping (stream) && !(stream->nmsgs || stream->silent))
+  if (!mh_ping (stream)) return NIL;
+  if (!(stream->nmsgs || stream->silent))
     mm_log ("Mailbox is empty",(long) NIL);
   return stream;		/* return stream to caller */
 }
@@ -470,10 +495,8 @@ void mh_close (MAILSTREAM *stream,long options)
     stream->silent = T;		/* note this stream is dying */
     if (options & CL_EXPUNGE) mh_expunge (stream);
     if (LOCAL->dir) fs_give ((void **) &LOCAL->dir);
-    mh_gc (stream,GC_TEXTS);	/* free local cache */
 				/* free local scratch buffer */
     if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
-    if (LOCAL->hdr) fs_give ((void **) &LOCAL->hdr);
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
     stream->dtb = NIL;		/* log out the DTB */
@@ -488,312 +511,103 @@ void mh_close (MAILSTREAM *stream,long options)
  *	    option flags
  */
 
-void mh_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
+void mh_fast (MAILSTREAM *stream,char *sequence,long flags)
 {
-  long i;
-  BODY *b;
+  unsigned long i,j;
 				/* ugly and slow */
   if (stream && LOCAL && ((flags & FT_UID) ?
 			  mail_uid_sequence (stream,sequence) :
 			  mail_sequence (stream,sequence)))
     for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_elt (stream,i)->sequence)
-	mh_fetchstructure (stream,i,&b,flags & ~FT_UID);
-}
-
-
-/* MH mail fetch flags
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void mh_fetchflags (MAILSTREAM *stream,char *sequence,long flags)
-{
-  return;			/* no-op for local mail */
-}
-
-/* MH mail fetch message structure
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to return body
- *	    option flags
- * Returns: envelope of this message, body returned in body value
- *
- * Fetches the "fast" information as well
- */
-
-ENVELOPE *mh_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-			     BODY **body,long flags)
-{
-  char *h;
-  LONGCACHE *lelt;
-  ENVELOPE **env;
-  STRING bs;
-  BODY **b;
-  unsigned long hdrsize;
-  MESSAGECACHE *elt;
-  unsigned long i;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return mh_fetchstructure (stream,i,body,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  elt = mail_elt (stream,msgno);
-  if (stream->scache) {		/* short cache */
-    if (msgno != stream->msgno){/* flush old poop if a different message */
-      mail_free_envelope (&stream->env);
-      mail_free_body (&stream->body);
-    }
-    stream->msgno = msgno;
-    env = &stream->env;		/* get pointers to envelope and body */
-    b = &stream->body;
-  }
-  else {			/* long cache */
-    lelt = mail_lelt (stream,msgno);
-    env = &lelt->env;		/* get pointers to envelope and body */
-    b = &lelt->body;
-  }
-  if ((body && !*b) || !*env) {	/* have the poop we need? */
-    mail_free_envelope (env);	/* flush old envelope and body */
-    mail_free_body (b);
-    h = mh_fetchheader (stream,msgno,NIL,&hdrsize,NIL);
-				/* only if want body */
-    if (body) INIT (&bs,mail_string,
-		    (void *) (stream->text ? stream->text : ""),elt->data2);
-				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,h,hdrsize,body ? &bs : NIL,
-		      mylocalhost (),LOCAL->buf);
-  }
-  if (body) *body = *b;		/* return the body */
-  return *env;			/* return the envelope */
+      if (mail_elt (stream,i)->sequence) mh_header (stream,i,&j,NIL);
 }
 
 /* MH mail fetch message header
  * Accepts: MAIL stream
  *	    message # to fetch
- *	    lines to fetch
  *	    pointer to returned header text length
  *	    option flags
  * Returns: message header in RFC822 format
  */
 
-char *mh_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-		      STRINGLIST *lines,unsigned long *len,long flags)
+char *mh_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
+		 long flags)
 {
   unsigned long i,hdrsize;
   int fd;
-  char *s,*b,*t;
-  long m = msgno - 1;
+  char *t;
   struct stat sbuf;
   struct tm *tm;
   MESSAGECACHE *elt;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return mh_fetchheader (stream,i,lines,len,flags & ~FT_UID);
-    return "";			/* didn't find the UID */
-  }
+  *length = 0;			/* default to empty */
+  if (flags & FT_UID) return "";/* UID call "impossible" */
   elt = mail_elt (stream,msgno);/* get elt */
+  if (!elt->private.msg.header.text.data) {
 				/* build message file name */
-  sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->uid);
-  if (stream->msgno != msgno) {
-    mh_gc (stream,GC_TEXTS);	/* invalidate current cache */
-    if ((fd = open (LOCAL->buf,O_RDONLY,NIL)) >= 0) {
-      fstat (fd,&sbuf);		/* get size of message */
+    sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
+    if ((fd = open (LOCAL->buf,O_RDONLY,NIL)) < 0) return "";
+    fstat (fd,&sbuf);		/* get size of message */
 				/* make plausible IMAPish date string */
-      tm = gmtime (&sbuf.st_mtime);
-      elt->day = tm->tm_mday; elt->month = tm->tm_mon + 1;
-      elt->year = tm->tm_year + 1900 - BASEYEAR;
-      elt->hours = tm->tm_hour; elt->minutes = tm->tm_min;
-      elt->seconds = tm->tm_sec;
-      elt->zhours = 0; elt->zminutes = 0;
-				/* slurp message */
-      read (fd,s = (char *) fs_get (sbuf.st_size +1),sbuf.st_size);
-      s[sbuf.st_size] = '\0';	/* tie off file */
-      close (fd);		/* flush message file */
-      stream->msgno = msgno;	/* note current message number */
-				/* find end of header */
-      for (i = 0,b = s; *b && !(i && (*b == '\n')); i = (*b++ == '\n'));
-      hdrsize = (*b ? ++b:b)-s; /* number of header bytes */
-      elt->rfc822_size =	/* size of entire message in CRLF form */
-	(elt->data1 = strcrlfcpy (&LOCAL->hdr,&i,s,hdrsize)) +
-	  (elt->data2 = strcrlfcpy(&stream->text,&i,b,sbuf.st_size - hdrsize));
-      fs_give ((void **) &s);	/* flush old data */
-    }
-  }
-  if (!(s = LOCAL->hdr)) {	/* if no header found */
-    s = "";			/* dummy string */
-    i = 0;			/* empty */
-  }
-  else if (lines) {		/* if want filtering, filter copy of text */
-    if (elt->data1 > LOCAL->buflen) {
+    tm = gmtime (&sbuf.st_mtime);
+    elt->day = tm->tm_mday; elt->month = tm->tm_mon + 1;
+    elt->year = tm->tm_year + 1900 - BASEYEAR;
+    elt->hours = tm->tm_hour; elt->minutes = tm->tm_min;
+    elt->seconds = tm->tm_sec;
+    elt->zhours = 0; elt->zminutes = 0;
+				/* is buffer big enough? */
+    if (sbuf.st_size > LOCAL->buflen) {
       fs_give ((void **) &LOCAL->buf);
-      LOCAL->buf = (char *) fs_get ((LOCAL->buflen = elt->data1) + 1);
+      LOCAL->buf = (char *) fs_get ((LOCAL->buflen = sbuf.st_size) + 1);
     }
-    i = mail_filter (strcpy (LOCAL->buf,LOCAL->hdr),elt->data1,lines,flags);
-    s = LOCAL->buf;
+				/* slurp message */
+    read (fd,LOCAL->buf,sbuf.st_size);
+				/* tie off file */
+    LOCAL->buf[sbuf.st_size] = '\0';
+    close (fd);			/* flush message file */
+				/* find end of header */
+    for (i = 0,t = LOCAL->buf; *t && !(i && (*t == '\n')); i = (*t++ == '\n'));
+				/* number of header bytes */
+    hdrsize = (*t ? ++t : t) - LOCAL->buf;
+    elt->rfc822_size =		/* size of entire message in CRLF form */
+      (elt->private.msg.header.text.size =
+       strcrlfcpy ((char **) &elt->private.msg.header.text.data,&i,LOCAL->buf,
+		   hdrsize)) +
+	 (elt->private.msg.text.text.size =
+	  strcrlfcpy ((char **) &elt->private.msg.text.text.data,&i,t,
+		      sbuf.st_size - hdrsize));
   }
-  else i = elt->data1;		/* header length */
-  if (len) *len = i;		/* return header length */
-  return s;			/* return header */
+  *length = elt->private.msg.header.text.size;
+  return (char *) elt->private.msg.header.text.data;
 }
 
 /* MH mail fetch message text (body only)
  * Accepts: MAIL stream
  *	    message # to fetch
- *	    pointer to returned message length
+ *	    pointer to returned stringstruct
  *	    option flags
- * Returns: message text in RFC822 format
+ * Returns: T on success, NIL on failure
  */
 
-char *mh_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		      unsigned long *len,long flags)
+long mh_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 {
-  MESSAGECACHE *elt;
   unsigned long i;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return mh_fetchtext (stream,i,len,flags & ~FT_UID);
-    return "";			/* didn't find the UID */
-  }
+  MESSAGECACHE *elt;
+				/* UID call "impossible" */
+  if (flags & FT_UID) return NIL;
   elt = mail_elt (stream,msgno);/* get elt */
 				/* snarf message if don't have it yet */
-  if (stream->msgno != msgno) mh_fetchheader (stream,msgno,NIL,NIL,flags);
-  if (!(flags & FT_PEEK)) elt->seen = T;
-  if (len) *len = elt->data2;
-  return stream->text ? stream->text : "";
-}
-
-/* MH fetch message body as a structure
- * Accepts: Mail stream
- *	    message # to fetch
- *	    section specifier
- *	    pointer to length
- * Returns: pointer to section of message body
- */
-
-char *mh_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *s,
-		      unsigned long *len,long flags)
-{
-  BODY *b;
-  PART *pt;
-  char *base;
-  unsigned long offset = 0;
-  unsigned long i,size = 0;
-  unsigned short enc = ENC7BIT;
-  MESSAGECACHE *elt;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return mh_fetchbody (stream,i,s,len,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
+  if (!elt->private.msg.text.text.data) {
+    mh_header (stream,msgno,&i,flags);
+    if (!elt->private.msg.text.text.data) return NIL;
   }
-  elt = mail_elt (stream,msgno);/* get elt */
-				/* make sure have a body */
-  if (!(mh_fetchstructure (stream,msgno,&b,flags & ~FT_UID) && b && s && *s &&
-	isdigit (*s) && (base = mh_fetchtext (stream,msgno,NIL,FT_PEEK))))
-    return NIL;
-  if (!(i = strtoul (s,&s,10)))	/* section 0 */
-    return *s ? NIL : mh_fetchheader (stream,msgno,NIL,len,flags);
-
-  do {				/* until find desired body part */
-				/* multipart content? */
-    if (b->type == TYPEMULTIPART) {
-      pt = b->contents.part;	/* yes, find desired part */
-      while (--i && (pt = pt->next));
-      if (!pt) return NIL;	/* bad specifier */
-				/* note new body, check valid nesting */
-      if (((b = &pt->body)->type == TYPEMULTIPART) && !*s) return NIL;
-      offset = pt->offset;	/* get new offset */
-    }
-    else if (i != 1) return NIL;/* otherwise must be section 1 */
-				/* need to go down further? */
-    if (i = *s) switch (b->type) {
-    case TYPEMESSAGE:		/* embedded message */
-      if (!((*s++ == '.') && isdigit (*s))) return NIL;
-				/* get message's body if non-zero */
-      if (i = strtoul (s,&s,10)) {
-	offset = b->contents.msg.offset;
-	b = b->contents.msg.body;
-      }
-      else {			/* want header */
-	size = b->contents.msg.offset - offset;
-	b = NIL;		/* make sure the code below knows */
-      }
-      break;
-    case TYPEMULTIPART:		/* multipart, get next section */
-      if ((*s++ == '.') && (i = strtoul (s,&s,10)) > 0) break;
-    default:			/* bogus subpart specification */
-      return NIL;
-    }
-  } while (i);
-  if (b) {			/* looking at a non-multipart body? */
-    if (b->type == TYPEMULTIPART) return NIL;
-    size = b->size.ibytes;	/* yes, get its size */
-    enc = b->encoding;
+  if (!(flags & FT_PEEK)) {	/* mark as seen */
+    mail_elt (stream,msgno)->seen = T;
+    mm_flags (stream,msgno);
   }
-  else if (!size) return NIL;	/* lose if not getting a header */
-				/* if message not seen */
-  if (!(flags & FT_PEEK)) elt->seen = T;
-  return rfc822_contents (&LOCAL->buf,&LOCAL->buflen,len,base+offset,size,enc);
-}
-
-/* MH mail set flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    option flags
- */
-
-void mh_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  MESSAGECACHE *elt;
-  unsigned long i,uf;
-  long f = mail_parse_flags (stream,flag,&uf);
-  if (!f) return;		/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if ((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
-      mail_sequence (stream,sequence))
-    for (i = 1; i <= stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i))->sequence) {
-				/* set all requested flags */
-	if (f&fSEEN) elt->seen = T;
-	if (f&fDELETED) elt->deleted = T;
-	if (f&fFLAGGED) elt->flagged = T;
-	if (f&fANSWERED) elt->answered = T;
-	if (f&fDRAFT) elt->draft = T;
-      }
-}
-
-
-/* MH mail clear flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    option flags
- */
-
-void mh_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  MESSAGECACHE *elt;
-  unsigned long i,uf;
-  long f = mail_parse_flags (stream,flag,&uf);
-  if (!f) return;		/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if ((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
-      mail_sequence (stream,sequence))
-    for (i = 1; i <= stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i))->sequence) {
-				/* clear all requested flags */
-	if (f&fSEEN) elt->seen = NIL;
-	if (f&fDELETED) elt->deleted = NIL;
-	if (f&fFLAGGED) elt->flagged = NIL;
-	if (f&fANSWERED) elt->answered = NIL;
-	if (f&fDRAFT) elt->draft = NIL;
-      }
+  if (!elt->private.msg.text.text.data) return NIL;
+  INIT (bs,mail_string,elt->private.msg.text.text.data,
+	elt->private.msg.text.text.size);
+  return T;
 }
 
 /* MH mail ping mailbox
@@ -811,10 +625,17 @@ long mh_ping (MAILSTREAM *stream)
   unsigned long i,j,r,old;
   long nmsgs = stream->nmsgs;
   long recent = stream->recent;
-  if (stat (LOCAL->dir,&sbuf)) return NIL;
+  int silent = stream->silent;
+  if (stat (LOCAL->dir,&sbuf)) { /* directory exists? */
+    if (LOCAL->inbox) return T;
+    mm_log ("No such mailbox",ERROR);
+    return NIL;
+  }
+  stream->silent = T;		/* don't pass up mm_exists() events yet */
   if (sbuf.st_ctime != LOCAL->scantime) {
     struct direct **names = NIL;
     long nfiles = scandir (LOCAL->dir,&names,mh_select,mh_numsort);
+    if (nfiles < 0) nfiles = 0;	/* in case error */
     old = stream->uid_last;
 				/* note scanned now */
     LOCAL->scantime = sbuf.st_ctime;
@@ -822,7 +643,8 @@ long mh_ping (MAILSTREAM *stream)
     for (i = 0; i < nfiles; ++i) {
 				/* if newly seen, add to list */
       if ((j = atoi (names[i]->d_name)) > old) {
-	stream->uid_last = (elt = mail_elt (stream,++nmsgs))->uid = j;
+	mail_exists (stream,++nmsgs);
+	stream->uid_last = (elt = mail_elt (stream,nmsgs))->private.uid = j;
 	elt->valid = T;		/* note valid flags */
 	if (old) {		/* other than the first pass? */
 	  elt->recent = T;	/* yup, mark as recent */
@@ -840,10 +662,9 @@ long mh_ping (MAILSTREAM *stream)
     if (names) fs_give ((void **) &names);
   }
 
-  if (LOCAL->inbox) {		/* if INBOX, snarf from system INBOX  */
+				/* if INBOX, snarf from system INBOX  */
+  if (LOCAL->inbox && strcmp (sysinbox (),stream->mailbox)) {
     old = stream->uid_last;
-				/* paranoia check */
-    if (!strcmp (sysinbox (),stream->mailbox)) return NIL;
     mm_critical (stream);	/* go critical */
     stat (sysinbox (),&sbuf);	/* see if anything there */
 				/* can get sysinbox mailbox? */
@@ -860,8 +681,10 @@ long mh_ping (MAILSTREAM *stream)
 	    (write (fd,s,j) == j) &&
 	    (s = mail_fetchtext_full (sysibx,i,&j,FT_INTERNAL|FT_PEEK)) &&
 	    (write (fd,s,j) == j) && !fsync (fd) && !close (fd)) {
-				/* create new elt, note its file number */
-	  stream->uid_last = (elt = mail_elt (stream,++nmsgs))->uid = old;
+				/* swell the cache */
+	  mail_exists (stream,++nmsgs);
+	  stream->uid_last =	/* create new elt, note its file number */
+	    (elt = mail_elt (stream,nmsgs))->private.uid = old;
 	  recent++;		/* bump recent count */
 				/* set up initial flags and date */
 	  elt->valid = elt->recent = T;
@@ -874,16 +697,24 @@ long mh_ping (MAILSTREAM *stream)
 	  elt->hours = selt->hours;elt->minutes = selt->minutes;
 	  elt->seconds = selt->seconds;
 	  elt->zhours = selt->zhours; elt->zminutes = selt->zminutes;
-	  /* should set the file date too */
+	  mh_setdate (LOCAL->buf,elt);
 	}
+
 	else {			/* failed to snarf */
 	  if (fd) {		/* did it ever get opened? */
+	    mm_log ("Message copy to MH mailbox failed",ERROR);
 	    close (fd);		/* close descriptor */
 	    unlink (LOCAL->buf);/* flush this file */
 	  }
+	  else {
+	    sprintf (tmp,"Can't add message: %s",strerror (errno));
+	    mm_log (tmp,ERROR);
+	  }
+	  stream->silent = silent;
 	  return NIL;		/* note that something is badly wrong */
 	}
-	selt->deleted = T;	/* delete it from the sysinbox */
+	sprintf (tmp,"%lu",i);	/* delete it from the sysinbox */
+	mail_flag (sysibx,tmp,"\\Deleted",ST_SET);
       }
       stat (LOCAL->dir,&sbuf);	/* update scan time */
       LOCAL->scantime = sbuf.st_ctime;      
@@ -892,6 +723,7 @@ long mh_ping (MAILSTREAM *stream)
     if (sysibx) mail_close (sysibx);
     mm_nocritical (stream);	/* release critical */
   }
+  stream->silent = silent;	/* can pass up events now */
   mail_exists (stream,nmsgs);	/* notify upper level of mailbox size */
   mail_recent (stream,recent);
   return T;			/* return that we are alive */
@@ -919,18 +751,18 @@ void mh_expunge (MAILSTREAM *stream)
   unsigned long i = 1;
   unsigned long n = 0;
   unsigned long recent = stream->recent;
-  mh_gc (stream,GC_TEXTS);	/* invalidate texts */
   mm_critical (stream);		/* go critical */
   while (i <= stream->nmsgs) {	/* for each message */
 				/* if deleted, need to trash it */
     if ((elt = mail_elt (stream,i))->deleted) {
-      sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->uid);
+      sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
       if (unlink (LOCAL->buf)) {/* try to delete the message */
 	sprintf (LOCAL->buf,"Expunge of message %ld failed, aborted: %s",i,
 		 strerror (errno));
 	mm_log (LOCAL->buf,(long) NIL);
 	break;
       }
+      mail_gc_msg (&elt->private.msg,GC_ENV | GC_TEXTS);
       if (elt->recent) --recent;/* if recent, note one less recent message */
       mail_expunged (stream,i);	/* notify upper levels */
       n++;			/* count up one more expunged message */
@@ -962,36 +794,45 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   MESSAGECACHE *elt;
   struct stat sbuf;
   int fd;
-  long i;
-  char *s,tmp[MAILTMPLEN];
+  unsigned long i,j;
+  char *t,flags[MAILTMPLEN],date[MAILTMPLEN];
 				/* copy the messages */
   if ((options & CP_UID) ? mail_uid_sequence (stream,sequence) :
       mail_sequence (stream,sequence))
     for (i = 1; i <= stream->nmsgs; i++) 
       if ((elt = mail_elt (stream,i))->sequence) {
-	sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->uid);
+	sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
 	if ((fd = open (LOCAL->buf,O_RDONLY,NIL)) < 0) return NIL;
 	fstat (fd,&sbuf);	/* get size of message */
-				/* slurp message */
-	read (fd,s = (char *) fs_get (sbuf.st_size +1),sbuf.st_size);
-	s[sbuf.st_size] = '\0';	/* tie off file */
-	close (fd);		/* flush message file */
-	INIT (&st,mail_string,(void *) s,sbuf.st_size);
-	sprintf (LOCAL->buf,"%s%s%s%s%s%s)",
-		 elt->seen ? " \\Seen" : "",
-		 elt->deleted ? " \\Deleted" : "",
-		 elt->flagged ? " \\Flagged" : "",
-		 elt->answered ? " \\Answered" : "",
-		 elt->draft ? " \\Draft" : "",
-		 (elt->seen || elt->deleted || elt->flagged || elt->answered ||
-		  elt->draft) ? "" : " ");
-	LOCAL->buf[0] = '(';	/* open list */
-	mail_date (tmp,elt);	/* generate internal date */
-	if (!mh_append (stream,mailbox,LOCAL->buf,tmp,&st)) {
-	  fs_give((void **) &s);/* give back temporary space */
-	  return NIL;
+	if (!elt->day) {	/* make plausible IMAPish date string */
+	  struct tm *tm = gmtime (&sbuf.st_mtime);
+	  elt->day = tm->tm_mday; elt->month = tm->tm_mon + 1;
+	  elt->year = tm->tm_year + 1900 - BASEYEAR;
+	  elt->hours = tm->tm_hour; elt->minutes = tm->tm_min;
+	  elt->seconds = tm->tm_sec;
+	  elt->zhours = 0; elt->zminutes = 0;
 	}
-	fs_give ((void **) &s);	/* give back temporary space */
+				/* is buffer big enough? */
+	if (sbuf.st_size > LOCAL->buflen) {
+	  fs_give ((void **) &LOCAL->buf);
+	  LOCAL->buf = (char *) fs_get ((LOCAL->buflen = sbuf.st_size) + 1);
+	}
+				/* slurp message */
+	read (fd,LOCAL->buf,sbuf.st_size);
+				/* tie off file */
+	LOCAL->buf[sbuf.st_size] = '\0';
+	close (fd);		/* flush message file */
+	INIT (&st,mail_string,(void *) LOCAL->buf,sbuf.st_size);
+	flags[0] = '\0';	/* init flag string */
+	if (elt->seen) strcat (flags," \\Seen");
+	if (elt->deleted) strcat (flags," \\Deleted");
+	if (elt->flagged) strcat (flags," \\Flagged");
+	if (elt->answered) strcat (flags," \\Answered");
+	if (elt->draft) strcat (flags," \\Draft");
+	flags[0] = '(';		/* open list */
+	strcat (flags,")");	/* close list */
+	mail_date (date,elt);	/* generate internal date */
+	if (!mail_append_full (stream,mailbox,flags,date,&st)) return NIL;
 	if (options & CP_MOVE) elt->deleted = T;
       }
   return T;			/* return success */
@@ -1020,7 +861,7 @@ long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
     if (!mail_parse_date (&elt,date)) {
-      sprintf (tmp,"Bad date in append: %s",date);
+      sprintf (tmp,"Bad date in append: %.80s",date);
       mm_log (tmp,ERROR);
       return NIL;
     }
@@ -1029,21 +870,32 @@ long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 				/* make sure valid mailbox */
   if (!mh_isvalid (mailbox,tmp,NIL)) switch (errno) {
   case ENOENT:			/* no such file? */
-    mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
-    return NIL;
+    if ((mailbox[0] == '#') && ((mailbox[1] == 'M') || (mailbox[1] == 'm')) &&
+	((mailbox[2] == 'H') || (mailbox[2] == 'h')) &&
+	((mailbox[3] == 'I') || (mailbox[3] == 'i')) &&
+	((mailbox[4] == 'N') || (mailbox[4] == 'n')) &&
+	((mailbox[5] == 'B') || (mailbox[5] == 'b')) &&
+	((mailbox[6] == 'O') || (mailbox[6] == 'o')) &&
+	((mailbox[7] == 'X') || (mailbox[7] == 'x')) && !mailbox[8])
+      mh_create (NIL,"INBOX");
+    else {
+      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+      return NIL;
+    }
+				/* falls through */
   case 0:			/* merely empty file? */
     break;
   case EINVAL:
-    sprintf (tmp,"Invalid MH-format mailbox name: %s",mailbox);
+    sprintf (tmp,"Invalid MH-format mailbox name: %.80s",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   default:
-    sprintf (tmp,"Not a MH-format mailbox: %s",mailbox);
+    sprintf (tmp,"Not a MH-format mailbox: %.80s",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
   mh_file (tmp,mailbox);	/* build file name we will use */
-  if (nfiles = scandir (tmp,&names,mh_select,mh_numsort)) {
+  if ((nfiles = scandir (tmp,&names,mh_select,mh_numsort)) > 0) {
 				/* largest number */
     last = atoi (names[nfiles-1]->d_name);    
     for (i = 0; i < nfiles; ++i) /* free directory */
@@ -1071,25 +923,12 @@ long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
     ret = NIL;
   }
   close (fd);			/* close the file */
+				/* set the date for this message */
+  if (date) mh_setdate (tmp,&elt);
+
   mm_nocritical (stream);	/* release critical */
   fs_give ((void **) &s);	/* flush the buffer */
   return ret;
-}
-
-/* MH garbage collect stream
- * Accepts: Mail stream
- *	    garbage collection flags
- */
-
-void mh_gc (MAILSTREAM *stream,long gcflags)
-{
-  unsigned long i;
-  if (gcflags & GC_TEXTS) {	/* garbage collect texts? */
-				/* flush texts from cache */
-    if (LOCAL->hdr) fs_give ((void **) &LOCAL->hdr);
-    if (stream->text) fs_give ((void **) &stream->text);
-    stream->msgno = 0;		/* invalidate stream text */
-  }
 }
 
 /* Internal routines */
@@ -1159,4 +998,17 @@ long mh_canonicalize (char *pattern,char *ref,char *pat)
   }
   else strcpy (pattern,pat);	/* just have basic name */
   return (mh_isvalid (pattern,tmp,T));
+}
+
+/* Set date for message
+ * Accepts: file name
+ *	    elt containing date
+ */
+
+void mh_setdate (char *file,MESSAGECACHE *elt)
+{
+  time_t tp[2];
+  tp[0] = time (0);		/* atime is now */
+  tp[1] = mail_longdate (elt);	/* modification time */
+  utime (file,tp);		/* set the times */
 }

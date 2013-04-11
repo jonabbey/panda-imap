@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 April 1996
+ * Last Edited:	30 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,9 +41,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
-#include <sys/utime.h>
+#include <utime.h>
 #include <syslog.h>
 #include <sys/file.h>
+#include <ustat.h>
 
 
 /* Many versions of SysV get this wrong */
@@ -71,17 +72,21 @@
 /* For flock() emulation */
 
 #define flock bsd_flock
-
+
 #define LOCK_SH 1
 #define LOCK_EX 2
 #define LOCK_NB 4
 #define LOCK_UN 8
+
+#define utime portable_utime
+int portable_utime (char *file,time_t timep[2]);
 
 #include "env_unix.h"
 #include "fs.h"
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"
 
 typedef int (*select_t) (struct direct *name);
 typedef int (*compar_t) (const void *d1,const void *d2);

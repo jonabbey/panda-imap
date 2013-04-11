@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	2 May 1996
+ * Last Edited:	29 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,7 +42,6 @@ extern int errno;		/* just in case */
 #include <sys/stat.h>
 #include <sys/time.h>
 #include "news.h"
-#include "rfc822.h"
 #include "misc.h"
 #include "newsrc.h"
 
@@ -69,15 +68,17 @@ DRIVER newsdriver = {
   NIL,				/* status of mailbox */
   news_open,			/* open mailbox */
   news_close,			/* close mailbox */
-  news_fetchfast,		/* fetch message "fast" attributes */
-  news_fetchflags,		/* fetch message flags */
-  news_fetchstructure,		/* fetch message envelopes */
-  news_fetchheader,		/* fetch message header only */
-  news_fetchtext,		/* fetch message body only */
-  news_fetchbody,		/* fetch message body section */
+  news_fast,			/* fetch message "fast" attributes */
+  NIL,				/* fetch message flags */
+  NIL,				/* fetch overview */
+  NIL,				/* fetch message envelopes */
+  news_header,			/* fetch message header */
+  news_text,			/* fetch message body */
+  NIL,				/* fetch partial message text */
   NIL,				/* unique identifier */
-  news_setflag,			/* set message flag */
-  news_clearflag,		/* clear message flag */
+  NIL,				/* message number */
+  NIL,				/* modify flags */
+  news_flagmsg,			/* per-message modify flags */
   NIL,				/* search for message based on criteria */
   NIL,				/* sort messages */
   NIL,				/* thread messages */
@@ -86,7 +87,7 @@ DRIVER newsdriver = {
   news_expunge,			/* expunge deleted messages */
   news_copy,			/* copy messages to another mailbox */
   news_append,			/* append string message to mailbox */
-  news_gc			/* garbage collect stream */
+  NIL				/* garbage collect stream */
 };
 
 				/* prototype stream */
@@ -159,6 +160,7 @@ void news_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
 void news_list (MAILSTREAM *stream,char *ref,char *pat)
 {
   int fd;
+  int i;
   char *s,*t,*u,*lcl,pattern[MAILTMPLEN],name[MAILTMPLEN];
   struct stat sbuf;
   if (news_canonicalize (ref,pat,pattern) &&
@@ -169,17 +171,18 @@ void news_list (MAILSTREAM *stream,char *ref,char *pat)
     read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
     close (fd);			/* close file */
     s[sbuf.st_size] = '\0';	/* tie off string */
-				/* namespace format name? */
-    lcl = (*pattern == '#') ? strcpy (name,"#news.") + 6 : name;
+				/* point after prefix */
+    lcl = strcpy (name,"#news.") + 6;
+    i = strlen (pattern);	/* length of pattern */
+    if (pattern[--i] != '%') i = 0;
     if (t = strtok (s,"\n")) do if (u = strchr (t,' ')) {
       *u = '\0';		/* tie off at end of name */
       strcpy (lcl,t);		/* make full form of name */
-      if (pmatch_full (name,pattern,'.')) {
-	if (*(u = name + strlen (name) - 1) == '.') {
-	  *u = '\0';
+      if (pmatch_full (name,pattern,'.')) mm_list (stream,'.',name,NIL);
+      else if (i && (u = strchr (name + i,'.'))) {
+	*u = '\0';		/* tie off at delimiter, see if matches */
+	if (pmatch_full (name,pattern,'.'))
 	  mm_list (stream,'.',name,LATT_NOSELECT);
-	}
-	else mm_list (stream,'.',name,NIL);
       }
     } while (t = strtok (NIL,"\n"));
     fs_give ((void **) &s);
@@ -232,7 +235,7 @@ long news_canonicalize (char *ref,char *pat,char *pattern)
 
 long news_subscribe (MAILSTREAM *stream,char *mailbox)
 {
-  return news_valid (mailbox) ? newsrc_update (mailbox+6,':') : NIL;
+  return news_valid (mailbox) ? newsrc_update (stream,mailbox+6,':') : NIL;
 }
 
 
@@ -244,7 +247,7 @@ long news_subscribe (MAILSTREAM *stream,char *mailbox)
 
 long news_unsubscribe (MAILSTREAM *stream,char *mailbox)
 {
-  return news_valid (mailbox) ? newsrc_update (mailbox+6,'!') : NIL;
+  return news_valid (mailbox) ? newsrc_update (stream,mailbox+6,'!') : NIL;
 }
 
 /* News create mailbox
@@ -298,6 +301,8 @@ MAILSTREAM *news_open (MAILSTREAM *stream)
     news_close (stream,NIL);	/* dump and save the changes */
     stream->dtb = &newsdriver;	/* reattach this driver */
     mail_free_cache (stream);	/* clean up cache */
+    stream->uid_last = 0;	/* default UID validity */
+    stream->uid_validity = time (0);
   }
 				/* build directory name */
   sprintf (s = tmp,"%s/%s",(char *) mail_parameters (NIL,GET_NEWSSPOOL,NIL),
@@ -305,12 +310,16 @@ MAILSTREAM *news_open (MAILSTREAM *stream)
   while (s = strchr (s,'.')) *s = '/';
 				/* scan directory */
   if ((nmsgs = scandir (tmp,&names,news_select,news_numsort)) >= 0) {
+    mail_exists (stream,nmsgs);	/* notify upper level that messages exist */
     stream->local = fs_get (sizeof (NEWSLOCAL));
     LOCAL->dirty = NIL;		/* no update to .newsrc needed yet */
     LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
+				/* make temporary buffer */
+    LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
     LOCAL->name = cpystr (stream->mailbox + 6);
     for (i = 0; i < nmsgs; ++i) {
-      stream->uid_last = mail_elt (stream,i+1)->uid = atoi (names[i]->d_name);
+      stream->uid_last = mail_elt (stream,i+1)->private.uid =
+	atoi (names[i]->d_name);
       fs_give ((void **) &names[i]);
     }
     fs_give ((void **) &names);	/* free directory */
@@ -318,7 +327,6 @@ MAILSTREAM *news_open (MAILSTREAM *stream)
     stream->rdonly = stream->perm_deleted = T;
 				/* UIDs are always valid */
     stream->uid_validity = 0xbeefface;
-    mail_exists (stream,nmsgs);	/* notify upper level that messages exist */
 				/* read .newsrc entries */
     mail_recent (stream,newsrc_read (LOCAL->name,stream));
 				/* notify if empty newsgroup */
@@ -327,6 +335,7 @@ MAILSTREAM *news_open (MAILSTREAM *stream)
       mm_log (tmp,WARN);
     }
   }
+  else mm_log ("Unable to scan newsgroup spool directory",ERROR);
   return LOCAL ? stream : NIL;	/* if stream is alive, return to caller */
 }
 
@@ -367,8 +376,9 @@ void news_close (MAILSTREAM *stream,long options)
   if (LOCAL) {			/* only if a file is open */
     news_check (stream);	/* dump final checkpoint */
     if (LOCAL->dir) fs_give ((void **) &LOCAL->dir);
+				/* free local scratch buffer */
+    if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
     if (LOCAL->name) fs_give ((void **) &LOCAL->name);
-    news_gc (stream,GC_TEXTS);	/* free local cache */
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
     stream->dtb = NIL;		/* log out the DTB */
@@ -381,330 +391,123 @@ void news_close (MAILSTREAM *stream,long options)
  *	    option flags
  */
 
-void news_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
+void news_fast (MAILSTREAM *stream,char *sequence,long flags)
 {
-  long i;
-  BODY *b;
+  unsigned long i,j;
 				/* ugly and slow */
   if (stream && LOCAL && ((flags & FT_UID) ?
 			  mail_uid_sequence (stream,sequence) :
 			  mail_sequence (stream,sequence)))
     for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_elt (stream,i)->sequence)
-	news_fetchstructure (stream,i,&b,flags & ~FT_UID);
-}
-
-
-/* News fetch flags
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void news_fetchflags (MAILSTREAM *stream,char *sequence,long flags)
-{
-  return;			/* no-op for local mail */
-}
-
-
-/* News fetch envelope
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to return body
- *	    option flags
- * Returns: envelope of this message, body returned in body value
- *
- * Fetches the "fast" information as well
- */
-
-#define MAXHDR (unsigned long) 4*MAILTMPLEN
-
-ENVELOPE *news_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-			       BODY **body,long flags)
-{
-  char *h,*t,tmp[MAXHDR];
-  LONGCACHE *lelt;
-  ENVELOPE **env;
-  STRING bs;
-  BODY **b;
-  unsigned long hdrsize;
-  unsigned long textsize = 0;
-  MESSAGECACHE *elt;
-  unsigned long i;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return news_fetchstructure (stream,i,body,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  elt = mail_elt (stream,msgno);
-  if (stream->scache) {		/* short cache */
-    if (msgno != stream->msgno){/* flush old poop if a different message */
-      mail_free_envelope (&stream->env);
-      mail_free_body (&stream->body);
-    }
-    stream->msgno = msgno;
-    env = &stream->env;		/* get pointers to envelope and body */
-    b = &stream->body;
-  }
-  else {			/* long cache */
-    lelt = mail_lelt (stream,msgno);
-    env = &lelt->env;		/* get pointers to envelope and body */
-    b = &lelt->body;
-  }
-  if ((body && !*b) || !*env) {	/* have the poop we need? */
-    mail_free_envelope (env);	/* flush old envelope and body */
-    mail_free_body (b);
-    h = news_fetchheader (stream,msgno,NIL,&hdrsize,NIL);
-    if (body) {			/* only if want to parse body */
-      t = news_fetchtext_work (stream,msgno,&textsize,NIL);
-				/* calculate message size */
-      elt->rfc822_size = hdrsize + textsize;
-      INIT (&bs,mail_string,(void *) t,textsize);
-    }
-				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,h,hdrsize,body ? &bs:NIL,BADHOST,tmp);
-  }
-  if (body) *body = *b;		/* return the body */
-  return *env;			/* return the envelope */
+      if (mail_elt (stream,i)->sequence) news_header (stream,i,&j,NIL);
 }
 
 /* News fetch message header
  * Accepts: MAIL stream
  *	    message # to fetch
- *	    lines to fetch
  *	    pointer to returned header text length
  *	    option flags
  * Returns: message header in RFC822 format
  */
 
-char *news_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			STRINGLIST *lines,unsigned long *len,long flags)
+char *news_header (MAILSTREAM *stream,unsigned long msgno,
+		   unsigned long *length,long flags)
 {
-  unsigned long i,hdrsize,txtsize;
+  unsigned long i,hdrsize;
   int fd;
-  char *s,*b,tmp[MAILTMPLEN];
+  char *t;
   struct stat sbuf;
   struct tm *tm;
   MESSAGECACHE *elt;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return news_fetchheader (stream,i,lines,len,flags & ~FT_UID);
-    return "";			/* didn't find the UID */
-  }
+  *length = 0;			/* default to empty */
+  if (flags & FT_UID) return "";/* UID call "impossible" */
   elt = mail_elt (stream,msgno);/* get elt */
+  if (!elt->private.msg.header.text.data) {
 				/* build message file name */
-  sprintf (tmp,"%s/%lu",LOCAL->dir,elt->uid);
-  if (!elt->data1 && ((fd = open (tmp,O_RDONLY,NIL)) >= 0)) {
+    sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
+    if ((fd = open (LOCAL->buf,O_RDONLY,NIL)) < 0) return "";
     fstat (fd,&sbuf);		/* get size of message */
 				/* make plausible IMAPish date string */
     tm = gmtime (&sbuf.st_mtime);
     elt->day = tm->tm_mday; elt->month = tm->tm_mon + 1;
     elt->year = tm->tm_year + 1900 - BASEYEAR;
     elt->hours = tm->tm_hour; elt->minutes = tm->tm_min;
-    elt->seconds = tm->tm_sec; elt->zhours = 0; elt->zminutes = 0;
+    elt->seconds = tm->tm_sec;
+    elt->zhours = 0; elt->zminutes = 0;
+				/* is buffer big enough? */
+    if (sbuf.st_size > LOCAL->buflen) {
+      fs_give ((void **) &LOCAL->buf);
+      LOCAL->buf = (char *) fs_get ((LOCAL->buflen = sbuf.st_size) + 1);
+    }
 				/* slurp message */
-    read (fd,s = (char *) fs_get (sbuf.st_size +1),sbuf.st_size);
-    s[sbuf.st_size] = '\0';	/* tie off file */
+    read (fd,LOCAL->buf,sbuf.st_size);
+				/* tie off file */
+    LOCAL->buf[sbuf.st_size] = '\0';
     close (fd);			/* flush message file */
 				/* find end of header */
-    for (i = 0,b = s; *b && !(i && (*b == '\n')); i = (*b++ == '\n'));
-    hdrsize = (*b ? ++b : b)-s;	/* number of header bytes */
-    txtsize = sbuf.st_size - hdrsize;
+    for (i = 0,t = LOCAL->buf; *t && !(i && (*t == '\n')); i = (*t++ == '\n'));
+				/* number of header bytes */
+    hdrsize = (*t ? ++t : t) - LOCAL->buf;
     elt->rfc822_size =		/* size of entire message in CRLF form */
-      (elt->data2 = strcrlfcpy ((char **) &elt->data1,&i,s,hdrsize)) +
-	(elt->data4 = strcrlfcpy ((char **) &elt->data3,&i,b,txtsize));
-    fs_give ((void **) &s);	/* flush old data */
+      (elt->private.msg.header.text.size =
+       strcrlfcpy ((char **) &elt->private.msg.header.text.data,&i,LOCAL->buf,
+		   hdrsize)) +
+	 (elt->private.msg.text.text.size =
+	  strcrlfcpy ((char **) &elt->private.msg.text.text.data,&i,t,
+		      sbuf.st_size - hdrsize));
   }
-  if (lines) {			/* if want filtering, filter copy of text */
-    if (stream->text) fs_give ((void **) &stream->text);
-    i = mail_filter (stream->text = cpystr ((char *) elt->data1),elt->data2,
-		     lines,flags);
-    if (len) *len = i;		/* return header length */
-    return stream->text;
-  }
-  if (len) *len = elt->data2;	/* return header length */
-  return (char *) elt->data1;	/* return header */
+  *length = elt->private.msg.header.text.size;
+  return (char *) elt->private.msg.header.text.data;
 }
 
 /* News fetch message text (body only)
  * Accepts: MAIL stream
  *	    message # to fetch
- *	    pointer to returned message length
+ *	    pointer to returned stringstruct
  *	    option flags
- * Returns: message text in RFC822 format
+ * Returns: T on success, NIL on failure
  */
 
-char *news_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		      unsigned long *len,long flags)
+long news_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 {
-  unsigned long i;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return news_fetchtext (stream,i,len,flags & ~FT_UID);
-    return "";			/* didn't find the UID */
-  }
-				/* mark as seen */
-  if (!(flags & FT_PEEK)) mail_elt (stream,msgno)->seen = T;
-  return news_fetchtext_work (stream,msgno,len,flags);
-}
-
-
-/* News fetch message text work
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to returned message length
- *	    option flags (never FT_UID)
- * Returns: message text in RFC822 format
- */
-
-char *news_fetchtext_work (MAILSTREAM *stream,unsigned long msgno,
-			   unsigned long *len,long flags)
-{
-  MESSAGECACHE *elt = mail_elt (stream,msgno);
-  if (!elt->data3) news_fetchheader (stream,msgno,NIL,NIL,NIL);
-  if (len) *len = elt->data4;	/* return text length */
-  return (char *) elt->data3;	/* return text */
-}
-
-/* News fetch message body as a structure
- * Accepts: Mail stream
- *	    message # to fetch
- *	    section specifier
- *	    pointer to length
- *	    option flags
- * Returns: pointer to section of message body
- */
-
-char *news_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *s,
-		      unsigned long *len,long flags)
-{
-  BODY *b;
-  PART *pt;
-  char *f;
-  unsigned long offset = 0;
   unsigned long i;
   MESSAGECACHE *elt;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return news_fetchbody (stream,i,s,len,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
+				/* UID call "impossible" */
+  if (flags & FT_UID) return NIL;
   elt = mail_elt (stream,msgno);/* get elt */
-  *len = 0;			/* no length */
-				/* make sure have a body */
-  if (!(news_fetchstructure (stream,msgno,&b,flags & ~FT_UID) && b && s &&
-	*s && isdigit (*s))) return NIL;
-  if (!(i = strtoul (s,&s,10)))	/* section 0 */
-    return *s ? NIL : news_fetchheader (stream,msgno,NIL,len,flags);
-
-  do {				/* until find desired body part */
-				/* multipart content? */
-    if (b->type == TYPEMULTIPART) {
-      pt = b->contents.part;	/* yes, find desired part */
-      while (--i && (pt = pt->next));
-      if (!pt) return NIL;	/* bad specifier */
-				/* note new body, check valid nesting */
-      if (((b = &pt->body)->type == TYPEMULTIPART) && !*s) return NIL;
-      offset = pt->offset;	/* get new offset */
-    }
-    else if (i != 1) return NIL;/* otherwise must be section 1 */
-				/* need to go down further? */
-    if (i = *s) switch (b->type) {
-    case TYPEMESSAGE:		/* embedded message */
-      if (!((*s++ == '.') && isdigit (*s))) return NIL;
-				/* get message's body if non-zero */
-      if (i = strtoul (s,&s,10)) {
-	offset = b->contents.msg.offset;
-	b = b->contents.msg.body;
-      }
-      else {			/* want header */
-	*len = b->contents.msg.offset - offset;
-	b = NIL;		/* make sure the code below knows */
-      }
-      break;
-    case TYPEMULTIPART:		/* multipart, get next section */
-      if ((*s++ == '.') && isdigit (*s) && (i = strtoul (s,&s,10)) > 0) break;
-    default:			/* bogus subpart specification */
-      return NIL;
-    }
-  } while (i);
-  if (b) {			/* looking at a non-multipart body? */
-    if (b->type == TYPEMULTIPART) return NIL;
-    *len = b->size.ibytes;	/* yes, get its size */
+				/* snarf message if don't have it yet */
+  if (!elt->private.msg.text.text.data) {
+    news_header (stream,msgno,NIL,flags);
+    if (!elt->private.msg.text.text.data) return NIL;
   }
-  else if (!*len) return NIL;	/* lose if not getting a header */
-				/* if message not seen */
-  if (!(flags & FT_PEEK)) elt->seen = T;
-				/* get text */
-  if (!(f = news_fetchtext_work (stream,msgno,&i,flags)) ||
-      (i < (*len + offset))) return NIL;
-  return f + offset;		/* normal caching */
+  if (!(flags & FT_PEEK)) {	/* mark as seen */
+    mail_elt (stream,msgno)->seen = T;
+    mm_flags (stream,msgno);
+  }
+  if (!elt->private.msg.text.text.data) return NIL;
+  INIT (bs,mail_string,elt->private.msg.text.text.data,
+	elt->private.msg.text.text.size);
+  return T;
 }
 
-/* News set flag
+/* News per-message modify flag
  * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    option flags
+ *	    message cache element
  */
 
-void news_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
+void news_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt)
 {
-  MESSAGECACHE *elt;
-  unsigned long i;
-  long f = mail_parse_flags (stream,flag,&i);
-  if (!f) return;		/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if ((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
-      mail_sequence (stream,sequence))
-    for (i = 0; i < stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i + 1))->sequence) {
-	if (f&fSEEN)elt->seen=T;/* set all requested flags */
-	if (f&fDELETED) {	/* deletion also purges the cache */
-	  elt->deleted = T;	/* mark deleted */
-	  LOCAL->dirty = T;	/* mark dirty */
-	}
-	if (f&fFLAGGED) elt->flagged = T;
-	if (f&fANSWERED) elt->answered = T;
-	if (f&fDRAFT) elt->draft = T;
-      }
+  if (!LOCAL->dirty) {		/* only bother checking if not dirty yet */
+    if (elt->valid) {		/* if done, see if deleted changed */
+      if (elt->sequence != elt->deleted) LOCAL->dirty = T;
+      elt->sequence = T;	/* leave the sequence set */
+    }
+				/* note current setting of deleted flag */
+    else elt->sequence = elt->deleted;
+  }
 }
 
 
-/* News clear flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    option flags
- */
-
-void news_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  MESSAGECACHE *elt;
-  unsigned long i;
-  long f = mail_parse_flags (stream,flag,&i);
-  if (!f) return;		/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if ((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
-      mail_sequence (stream,sequence))
-    for (i = 0; i < stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i + 1))->sequence) {
-				/* clear all requested flags */
-	if (f&fSEEN) elt->seen = NIL;
-	if (f&fDELETED) {
-	  elt->deleted = NIL;	/* undelete */
-	  LOCAL->dirty = T;	/* mark stream as dirty */
-	}
-	if (f&fFLAGGED) elt->flagged = NIL;
-	if (f&fANSWERED) elt->answered = NIL;
-	if (f&fDRAFT) elt->draft = NIL;
-      }
-}
-
 /* News ping mailbox
  * Accepts: MAIL stream
  * Returns: T if stream alive, else NIL
@@ -747,6 +550,9 @@ void news_expunge (MAILSTREAM *stream)
 
 long news_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 {
+  mailproxycopy_t pc =
+    (mailproxycopy_t) mail_parameters (stream,GET_MAILPROXYCOPY,NIL);
+  if (pc) return (*pc) (stream,sequence,mailbox,options);
   mm_log ("Copy not valid for News",ERROR);
   return NIL;
 }
@@ -764,24 +570,4 @@ long news_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 {
   mm_log ("Append not valid for News",ERROR);
   return NIL;
-}
-
-
-/* News garbage collect stream
- * Accepts: Mail stream
- *	    garbage collection flags
- */
-
-void news_gc (MAILSTREAM *stream,long gcflags)
-{
-  unsigned long i;
-  MESSAGECACHE *elt;
-  if (gcflags & GC_TEXTS) {	/* garbage collect texts? */
-    for (i = 1; i <= stream->nmsgs; ++i) {
-      if ((elt = mail_elt (stream,i))->data1) fs_give ((void **) &elt->data1);
-      if (elt->data3) fs_give ((void **) &elt->data3);
-    }
-				/* flush this too */
-    if (stream->text) fs_give ((void **) &stream->text);
-  }
 }

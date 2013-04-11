@@ -6,9 +6,9 @@
 !		Internet: MRC@Panda.COM
 !
 ! Date:		11 May 1989
-! Last Edited:	7 December 1995
+! Last Edited:	11 June 1997
 !
-! Copyright 1995 by Mark Crispin
+! Copyright 1997 by Mark Crispin
 !
 !  Permission to use, copy, modify, and distribute this software and its
 ! documentation for any purpose and without fee is hereby granted, provided
@@ -28,4 +28,4 @@
 
 @COPY OS_T20.* OSDEP.*
 
-@CC -o MTEST MTEST.C MAIL.C DUMMYT20.C IMAP4.C SMTP.C NNTP.C POP3.C RFC822.C MISC.C OSDEP.C SMANAGER.C NEWSRC.C NETMSG.C
+@CC -o MTEST MTEST.C MAIL.C DUMMYT20.C IMAP4R1.C SMTP.C NNTP.C POP3.C RFC822.C MISC.C OSDEP.C FLSTRING.C SMANAGER.C NEWSRC.C NETMSG.C UTF8.C

@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	7 February 1996
+ * Last Edited:	22 January 1998
  *
- * Copyright 1996 by Mark Crispin
+ * Copyright 1998 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -62,15 +62,6 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   int argblk[5],jfn;
   unsigned long i,j,k,l;
   char file[MAILTMPLEN];
-  if (s = strchr (host,':')) {	/* port number specified? */
-    *s++ = '\0';		/* yes, tie off port */
-    port = strtoul (s,&s,10);	/* parse port */
-    if (s && *s) {
-      sprintf (tmp,"Junk after port number: %.80s",s);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-  }
 				/* domain literal? */
   if (host[0] == '[' && host[strlen (host)-1] == ']') {
     if (((i = strtoul (s = host+1,&s,10)) <= 255) && *s++ == '.' &&
@@ -86,7 +77,6 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
       return NIL;
     }
   }
-
   else {			/* host name */
     argblk[1] = _GTHPN;		/* get IP address and primary name */
     argblk[2] = (int) (host-1);	/* pointer to host */
@@ -109,6 +99,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
       }
     }
   }
+
   sprintf (file,"TCP:.%o-%d;PERSIST:30;CONNECTION:ACTIVE",argblk[3],port);
   argblk[1] = GJ_SHT;		/* short form GTJFN% */
   argblk[2] = (int) (file-1);	/* pointer to file name */
@@ -124,8 +115,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   }
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
-				/* copy official host name */
-  stream->host = cpystr (tmp);
+  stream->host = cpystr (tmp);	/* copy official host name */
   argblk[1] = _GTHNS;		/* convert number to string */
   argblk[2] = (int) (tmp-1);
   argblk[3] = -1;		/* want local host */
@@ -265,6 +255,17 @@ void tcp_close (TCPSTREAM *stream)
  */
 
 char *tcp_host (TCPSTREAM *stream)
+{
+  return stream->host;		/* return host name */
+}
+
+
+/* TCP/IP return remote host for this stream
+ * Accepts: TCP/IP stream
+ * Returns: host name for this stream
+ */
+
+char *tcp_remotehost (TCPSTREAM *stream)
 {
   return stream->host;		/* return host name */
 }

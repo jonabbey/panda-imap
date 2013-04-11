@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 May 1996
+ * Last Edited:	2 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -56,8 +56,6 @@ char *crypt (char *key,char *salt);
 #include "ftl_unix.c"
 #include "nl_unix.c"
 #include "env_unix.c"
-#define vfork fork
 #include "tcp_unix.c"
-#include "log_std.c"
 #include "gr_waitp.c"
 #include "tz_nul.c"

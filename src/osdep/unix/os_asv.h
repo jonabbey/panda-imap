@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	5 June 1996
+ * Last Edited:	23 May 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,6 +42,7 @@
 #include <sys/time.h>
 #include <syslog.h>
 #include <sys/file.h>
+#include <ustat.h>
 
 
 /* Different names, equivalent things in BSD and SysV */
@@ -88,3 +89,4 @@ void *realloc (void *oldptr,size_t newsize);
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"

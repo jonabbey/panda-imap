@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	26 May 1995
- * Last Edited:	29 April 1996
+ * Last Edited:	13 August 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -56,18 +56,8 @@ long maxposint = (long)((((unsigned long) 1) << ((sizeof(int) * 8) - 1)) - 1);
 
 long safe_write (int fd,char *buf,long nbytes)
 {
-  long i;
-  if (nbytes < 0) return -1;	/* barf negative requests */
-  while ((nbytes > maxposint)) {/* split large request into multiple parts */
-    if (!write (fd,buf,maxposint)) return NIL;
-    buf += maxposint;		/* account for this many bytes */
-    nbytes -= maxposint;
-  }
-				/* do the output */
-  if ((i = (long) write (fd,buf,(int) nbytes)) >= 0) {
-				/* some data written, right size? */
-    if (i == nbytes) return nbytes;
-    errno = EFBIG;		/* gack!! fake an error code */
-  }
-  return -1;			/* error */
+  long i,j;
+  if (nbytes > 0) for (i = nbytes; i; i -= j,buf += i)
+    if ((j = write (fd,buf,(int) min (maxposint,i))) < 0) return j;
+  return nbytes;
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 September 1994
- * Last Edited:	8 April 1996
+ * Last Edited:	11 September 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,6 +40,10 @@
 #include "osdep.h"
 #include "misc.h"
 #include "newsrc.h"
+
+#ifndef OLDFILESUFFIX
+#define OLDFILESUFFIX ".old"
+#endif
 
 /* Error message
  * Accepts: message format
@@ -73,13 +77,14 @@ long newsrc_write_error (char *name,FILE *f1,FILE *f2)
 
 
 /* Create newsrc file in local form
- * Accepts: notification flag
+ * Accepts: MAIL stream
+ *	    notification flag
  * Returns: file designator of newsrc
  */
 
-FILE *newsrc_create (int notify)
+FILE *newsrc_create (MAILSTREAM *stream,int notify)
 {
-  char *newsrc = (char *) mail_parameters (NIL,GET_NEWSRC,NIL);
+  char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,NIL);
   FILE *f = fopen (newsrc,"wb");
   if (!f) newsrc_error ("Unable to create news state %s",newsrc,ERROR);
   else if (notify) newsrc_error ("Creating news state %s",newsrc,WARN);
@@ -119,11 +124,12 @@ long newsrc_newmessages (FILE *f,MAILSTREAM *stream,char *nl)
   for (i = 1,j = 1,k = 0; i <= stream->nmsgs; ++i) {
 				/* deleted message? */
     if ((elt = mail_elt (stream,i))->deleted) {
-      k = elt->uid;		/* this is the top of the current range */
+      k = elt->private.uid;	/* this is the top of the current range */
       if (!j) j = k;		/* if no range in progress, start one */
     }
     else if (j) {		/* unread message, ending a range */
-      if (k = elt->uid - 1) {	/* calculate end of range */
+				/* calculate end of range */
+      if (k = elt->private.uid - 1) {
 				/* dump range */
 	sprintf (tmp,(j == k) ? "%c%ld" : "%c%ld-%ld",c,j,k);
 	if (fputs (tmp,f) == EOF) return NIL;
@@ -151,7 +157,7 @@ void newsrc_lsub (MAILSTREAM *stream,char *pattern)
   char *s,*t,*lcl,name[MAILTMPLEN];
   int c = ' ';
   int showuppers = pattern[strlen (pattern) - 1] == '%';
-  FILE *f = fopen ((char *) mail_parameters (NIL,GET_NEWSRC,NIL),"rb");
+  FILE *f = fopen ((char *) mail_parameters (stream,GET_NEWSRC,NIL),"rb");
   if (f) {			/* got file? */
 				/* remote name? */
     if (*(lcl = strcpy (name,pattern)) == '{') lcl = strchr (lcl,'}') + 1;
@@ -177,15 +183,16 @@ void newsrc_lsub (MAILSTREAM *stream,char *pattern)
 }
 
 /* Update subscription status of newsrc
- * Accepts: group
+ * Accepts: MAIL stream
+ * 	    group
  *	    new subscription status character
  * Returns: T if successful, NIL otherwise
  */
 
-long newsrc_update (char *group,char state)
+long newsrc_update (MAILSTREAM *stream,char *group,char state)
 {
   char tmp[MAILTMPLEN];
-  char *newsrc = (char *) mail_parameters (NIL,GET_NEWSRC,NIL);
+  char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,NIL);
   long ret = NIL;
   FILE *f = fopen (newsrc,"r+b");
   if (f) {			/* update existing file */
@@ -230,12 +237,12 @@ long newsrc_update (char *group,char state)
 				/* can't win if read something */
 	if (pos) newsrc_error("Unknown newline convention in %s",newsrc,ERROR);
 				/* file must have been empty, rewrite it */
-	else ret = newsrc_newstate (newsrc_create (NIL),group,state,"\n");
+	else ret = newsrc_newstate(newsrc_create(stream,NIL),group,state,"\n");
       }
     }
   }
 				/* create new file */
-  else ret = newsrc_newstate (newsrc_create (T),group,state,"\n");
+  else ret = newsrc_newstate (newsrc_create (stream,T),group,state,"\n");
   return ret;			/* return with update status */
 }
 
@@ -252,7 +259,7 @@ long newsrc_read (char *group,MAILSTREAM *stream)
   unsigned long i,j;
   MESSAGECACHE *elt;
   unsigned long m = 1,recent = 0,unseen = 0;
-  FILE *f = fopen ((char *) mail_parameters (NIL,GET_NEWSRC,NIL),"rb");
+  FILE *f = fopen ((char *) mail_parameters (stream,GET_NEWSRC,NIL),"rb");
   if (f) do {			/* read newsrc */
     for (s = tmp; (s < (tmp + MAILTMPLEN - 1)) && ((c = getc (f)) != EOF) &&
 	 (c != ':') && (c != '!') && (c != '\015') && (c != '\012'); *s++ = c);
@@ -269,13 +276,15 @@ long newsrc_read (char *group,MAILSTREAM *stream)
 	    for (i = 0,j = 0; isdigit (c); c = getc (f)) i = i*10 + (c-'0');
 	    if (c == '-') for (c = getc (f); isdigit (c); c = getc (f))
 	      j = j*10 +(c-'0');/* collect second value if range */
-	    if (!unseen && (mail_elt (stream,m)->uid < i)) unseen = m;
+	    if (!unseen && (mail_elt (stream,m)->private.uid < i)) unseen = m;
 				/* skip messages before first value */
-	    while ((m <= stream->nmsgs) && (mail_elt (stream,m)->uid < i)) m++;
+	    while ((m <= stream->nmsgs) &&
+		   (mail_elt (stream,m)->private.uid < i)) m++;
 				/* do all messages in range */
 	    while ((m <= stream->nmsgs) && (elt = mail_elt (stream,m)) &&
-		   (j ? ((elt->uid >= i) && (elt->uid <= j)) : (elt->uid == i))
-		   && m++) elt->valid = elt->deleted = T;
+		   (j ? ((elt->private.uid >= i) && (elt->private.uid <= j)) :
+		    (elt->private.uid == i)) && m++)
+	      elt->valid = elt->deleted = T;
 	  }
 
 	  switch (c) {		/* what is the delimiter? */
@@ -304,10 +313,14 @@ long newsrc_read (char *group,MAILSTREAM *stream)
     mm_log (tmp,WARN);
     fclose (f);			/* close the file */
   }
-  while (m <= stream->nmsgs) {	/* mark all remaining messages as new */
-    elt = mail_elt (stream,m++);
-    elt->valid = elt->recent = T;
-    ++recent;			/* count another recent message */
+  if (m <= stream->nmsgs) {	/* any messages beyond newsrc range? */
+    if (!unseen) unseen = m;	/* then this must be the first unseen one */
+    do {
+      elt = mail_elt (stream,m++);
+      elt->valid = elt->recent = T;
+      ++recent;			/* count another recent message */
+    }
+    while (m <= stream->nmsgs);
   }
   if (unseen) {			/* report first unseen message */
     sprintf (tmp,"[UNSEEN] %ld is first unseen message in %s",unseen,group);
@@ -325,12 +338,12 @@ long newsrc_read (char *group,MAILSTREAM *stream)
 long newsrc_write (char *group,MAILSTREAM *stream)
 {
   int c,d = EOF;
-  char *newsrc = (char *) mail_parameters (NIL,GET_NEWSRC,NIL);
+  char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,NIL);
   char *s,tmp[MAILTMPLEN],backup[MAILTMPLEN],nl[3];
   FILE *f,*bf;
   nl[0] = nl[1] = nl[2] = '\0';	/* no newline known yet */
   if (f = fopen (newsrc,"rb")) {/* have existing newsrc file? */
-    if (!(bf = fopen ((strcat (strcpy (backup,newsrc),".old")),"wb"))) {
+    if (!(bf = fopen ((strcat (strcpy (backup,newsrc),OLDFILESUFFIX)),"wb"))) {
       fclose (f);		/* punt input file */
       return newsrc_error ("Can't create backup news state %s",backup,ERROR);
     }
@@ -352,7 +365,7 @@ long newsrc_write (char *group,MAILSTREAM *stream)
     if (fclose (bf) == EOF)	/* and backup file */
       return newsrc_error ("Error closing backup news state %s",newsrc,ERROR);
     if (d == EOF) {		/* open for write if empty file */
-      if (f = newsrc_create (NIL)) bf = NIL;
+      if (f = newsrc_create (stream,NIL)) bf = NIL;
       else return NIL;
     }
     else if (!nl[0])		/* make sure newlines valid */
@@ -367,7 +380,7 @@ long newsrc_write (char *group,MAILSTREAM *stream)
     }
   }
   else {			/* create new newsrc file */
-    if (f = newsrc_create (T)) bf = NIL;
+    if (f = newsrc_create (stream,T)) bf = NIL;
     else return NIL;		/* can't create newsrc */
   }
   
@@ -422,17 +435,18 @@ long newsrc_write (char *group,MAILSTREAM *stream)
 }
 
 /* Get newsgroup state as text stream
- * Accepts: newsgroup name
+ * Accepts: MAIL stream
+ *	    newsgroup name
  * Returns: string containing newsgroup state, or NIL if not found
  */
 
-char *newsrc_state (char *group)
+char *newsrc_state (MAILSTREAM *stream,char *group)
 {
   int c;
   char *s,tmp[MAILTMPLEN];
   long pos;
   size_t size;
-  FILE *f = fopen ((char *) mail_parameters (NIL,GET_NEWSRC,NIL),"rb");
+  FILE *f = fopen ((char *) mail_parameters (stream,GET_NEWSRC,NIL),"rb");
   if (f) do {			/* read newsrc */
     for (s = tmp; (s < (tmp + MAILTMPLEN - 1)) && ((c = getc (f)) != EOF) &&
 	 (c != ':') && (c != '!') && (c != '\015') && (c != '\012'); *s++ = c);
@@ -458,7 +472,7 @@ char *newsrc_state (char *group)
   } while (f && (c != EOF));	/* until file closed or EOF */
   sprintf (tmp,"No state for newsgroup %s found",group);
   mm_log (tmp,WARN);
-  fclose (f);			/* close the file */
+  if (f) fclose (f);		/* close the file */
   return NIL;			/* not found return */
 }
 
@@ -476,24 +490,16 @@ void newsrc_check_uid (char *state,unsigned long uid,unsigned long *recent,
   while (*state) {		/* until run out of state string */
 				/* collect a number */
     for (i = 0; isdigit (*state); i = i*10 + (*state++ - '0'));
-    switch (*state++) {
-    case '\0':			/* single message */
-    case ',':			/* single message, more following */
-      j = i;
-      break;
-    case '-':			/* range? */
-      for (j = 0; isdigit (*state); j = j*10 + (*state++ - '0'));
-      if (!*state || (*state++ == ',')) break;
-    default:			/* bogus character */
-      /* No error message here since there it could be generated for each
-       * message in the newsgroup!  The problem will be discovered (and
-       * reported once!) if the user opens the newsgroup.
-       */
-      return;			/* punt */
+    if (*state != '-') j = i;	/* coerce single mesage into range */
+    else {			/* have a range */
+      for (j = 0; isdigit (*++state); j = j*10 + (*state - '0'));
+      if (j < i) return;	/* bogon if end less than start */
     }
-    if (uid <= j) {		/* is UID covered by this range? */
-      if (uid < i) ++*unseen;	/* message unseen if not in this range */
-      return;			/* done */
+    if (*state == ',') state++;	/* skip past comma */
+    else if (*state) return;	/* otherwise it's a bogon */
+    if (uid <= j) {		/* covered by upper bound? */
+      if (uid < i) ++*unseen;	/* unseen if not covered by lower bound */
+      return;			/* don't need to look further */
     }
   }
   ++*unseen;			/* not found in any range, message is unseen */

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	4 July 1996
+ * Last Edited:	8 January 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,16 +40,22 @@
 #include <time.h>		/* for struct tm */
 #include <dirent.h>
 #include <fcntl.h>
+#include <utime.h>
 #include <syslog.h>
 #include <sys/file.h>
+#include <ustat.h>
 
 
 /* For flock() emulation */
 
 #define flock bsd_flock		/* use ours instead of theirs */
 
+#define utime portable_utime
+int portable_utime (char *file,time_t timep[2]);
+
 #include "env_unix.h"
 #include "fs.h"
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"

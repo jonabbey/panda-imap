@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	29 April 1996
+ * Last Edited:	28 May 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,6 +33,7 @@
  *
  */
 
+#include <memory.h>
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <string.h>
@@ -41,7 +42,11 @@
 #include <sys/file.h>
 
 
-#define LOG_MAIL 0
+/* syslog() emulation */
+
+#define LOG_MAIL        (2<<3)  /* mail system */
+#define LOG_AUTH        (4<<3)  /* security/authorization messages */
+
 
 #define isodigit(c)    (((unsigned)(c)>=060)&((unsigned)(c)<=067))
 #define toint(c)       ((c)-'0')

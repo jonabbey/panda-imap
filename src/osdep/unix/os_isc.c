@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	20 May 1996
+ * Last Edited:	3 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -46,6 +46,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <errno.h>
+#include <net/errno.h>
 #include <pwd.h>
 #include <shadow.h>
 #include <sys/socket.h>
@@ -66,7 +67,6 @@ extern char *sys_errlist[];
 #include "nl_unix.c"
 #include "env_unix.c"
 #include "tcp_unix.c"
-#include "log_sv4.c"
 #include "gr_waitp.c"
 #include "strerror.c"
 #undef flock

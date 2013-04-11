@@ -9,9 +9,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	5 September 1995
+ * Last Edited:	22 January 1997
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -46,6 +46,7 @@
 #define TCPSTREAM struct tcp_stream
 TCPSTREAM {
   char *host;			/* host name */
+  char *remotehost;		/* remote host name */
   unsigned long port;		/* port number */
   char *localhost;		/* local host name */
   SOCKET tcps;			/* tcp socket */

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 December 1995
- * Last Edited:	7 December 1995
+ * Last Edited:	2 April 1998
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -34,11 +34,13 @@
  */
 
 long auth_login_client (authchallenge_t challenger,authrespond_t responder,
-			NETMBX *mb,void *stream,unsigned long trial);
+			NETMBX *mb,void *stream,unsigned long *trial,
+			char *user);
 char *auth_login_server (authresponse_t responder,int argc,char *argv[]);
 
 AUTHENTICATOR auth_log = {
   "LOGIN",			/* authenticator name */
+  NIL,				/* always valid */
   auth_login_client,		/* client method */
   auth_login_server,		/* server method */
   NIL				/* next authenticator */
@@ -52,27 +54,42 @@ AUTHENTICATOR auth_log = {
  *	    responder function
  *	    parsed network mailbox structure
  *	    stream argument for functions
- *	    trial number
- * Returns: T if success, NIL otherwise
+ *	    pointer to current trial count
+ *	    returned user name
+ * Returns: T if success, NIL otherwise, number of trials incremented if retry
  */
 
 long auth_login_client (authchallenge_t challenger,authrespond_t responder,
-			NETMBX *mb,void *stream,unsigned long trial)
+			NETMBX *mb,void *stream,unsigned long *trial,
+			char *user)
 {
-  char user[MAILTMPLEN],pwd[MAILTMPLEN];
+  char pwd[MAILTMPLEN];
   void *challenge;
   unsigned long clen;
 				/* get user name prompt */
-  if (!(challenge = (*challenger) (stream,&clen))) return NIL;
-  fs_give ((void **) &challenge);
+  if (challenge = (*challenger) (stream,&clen)) {
+    fs_give ((void **) &challenge);
 				/* prompt user */
-  mm_login (mb,user,pwd,trial);
-				/* send user name, get password challenge */
-  if (!(pwd[0] && (*responder) (stream,user,strlen (user)) &&
-	(challenge = (*challenger) (stream,&clen)))) return NIL;
-  fs_give ((void **) &challenge);
+    mm_login (mb,user,pwd,*trial);
+    if (!pwd[0]) {		/* user requested abort */
+      (*responder) (stream,NIL,0);
+      *trial = 0;		/* don't retry */
+      return T;			/* will get a NO response back */
+    }
+				/* send user name */
+    else if ((*responder) (stream,user,strlen (user)) &&
+	     (challenge = (*challenger) (stream,&clen))) {
+      fs_give ((void **) &challenge);
 				/* send password */
-  return ((*responder) (stream,pwd,strlen (pwd))) ? T : NIL;
+      if ((*responder) (stream,pwd,strlen (pwd)) &&
+	  !(challenge = (*challenger) (stream,&clen))) {
+	++*trial;		/* can try again if necessary */
+	return T;		/* check the authentication */
+      }
+    }
+  }
+  *trial = 0;			/* don't retry */
+  return NIL;			/* failed */
 }
 
 

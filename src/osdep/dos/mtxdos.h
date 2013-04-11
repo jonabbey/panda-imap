@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	4 January 1996
+ * Last Edited:	15 April 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,11 +33,17 @@
  *
  */
 
+/* Build parameters */
+
+#define CHUNK 4096
+
+
 /* MTX I/O stream local data */
 	
 typedef struct mtx_local {
   int fd;			/* file descriptor for I/O */
   off_t filesize;		/* file size parsed */
+  char *buf;			/* temporary buffer */
 } MTXLOCAL;
 
 
@@ -48,8 +54,6 @@ typedef struct mtx_data {
   unsigned long pos;		/* initial position */
 } MTXDATA;
 
-
-STRINGDRIVER mtx_string;
 
 /* Convenient access to local data */
 
@@ -68,32 +72,20 @@ long mtx_delete (MAILSTREAM *stream,char *mailbox);
 long mtx_rename (MAILSTREAM *stream,char *old,char *newname);
 MAILSTREAM *mtx_open (MAILSTREAM *stream);
 void mtx_close (MAILSTREAM *stream,long options);
-void mtx_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
-void mtx_fetchflags (MAILSTREAM *stream,char *sequence,long flags);
-void mtx_string_init (STRING *s,void *data,unsigned long size);
-char mtx_string_next (STRING *s);
-void mtx_string_setpos (STRING *s,unsigned long i);
-ENVELOPE *mtx_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-			      BODY **body,long flags);
-char *mtx_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-		       STRINGLIST *lines,unsigned long *len,long flags);
-char *mtx_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		     unsigned long *len,long flags);
-char *mtx_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		     unsigned long *len,long flags);
-long mtx_read (MAILSTREAM *stream,unsigned long count,char *buffer);
-unsigned long mtx_header (MAILSTREAM *stream,unsigned long msgno,
-			  unsigned long *size);
-void mtx_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
-void mtx_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
+char *mtx_header (MAILSTREAM *stream,unsigned long msgno,
+		  unsigned long *length,long flags);
+long mtx_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
+void mtx_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
 long mtx_ping (MAILSTREAM *stream);
 void mtx_check (MAILSTREAM *stream);
 void mtx_expunge (MAILSTREAM *stream);
 long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		 STRING *message);
-void mtx_gc (MAILSTREAM *stream,long gcflags);
+
 char *mtx_file (char *dst,char *name);
 long mtx_badname (char *tmp,char *s);
 long mtx_parse (MAILSTREAM *stream);
 void mtx_update_status (MAILSTREAM *stream,unsigned long msgno);
+unsigned long mtx_hdrpos (MAILSTREAM *stream,unsigned long msgno,
+			  unsigned long *size);

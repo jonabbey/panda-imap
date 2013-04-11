@@ -1,0 +1,114 @@
+		       UNIX Configuration Notes
+
+     The IMAP and POP3 servers are plug-and-play on standard UNIX
+systems.  There is no special configuration needed.  Please ignore all
+rumors to the effect that you need to create an IMAP configuration
+file.
+
+     If your system is non-standard, virtually everything that you are
+likely to want to modify can be found in the source file
+	.../src/osdep/unix/env_unix.c
+In particular, special attention should be given to the routines:
+ env_init()		initialize c-client environment variables,
+			especially the user name and home directory
+ sysinbox()		return the UNIX path of the INBOX in which
+			mail delivery will place mail
+ mailboxdir()		translate a mailbox name into the associated
+			UNIX directory for listing
+ mailboxfile()		translate a mailbox name into the associated
+			UNIX file for opening
+
+     You should modify these routines as necessary for local policy.
+The most common modifications are to env_init(), to modify the
+software's idea of the home directory (which is used everywhere as the
+default directory), and to sysinbox(), to modify where the software
+looks for newly-delivered mail.
+
+     Ignore all references in env_unix.c to a configuration file; that
+code is for UW-internal use only.  It is extremely unlikely that that
+facility will work usefully for you; it is extremely likely that you
+will shoot yourself in the foot by using; and it frequently changes in
+an incompatible manner.
+
+     There are two other build-time configuration issues which you may
+need to consider: drivers and authenticators.  Both of these are set
+up in the top-level Makefile -- in particular, by the EXTRADRIVERS and
+EXTRAAUTHENTICATORS variables.
+
+     Drivers are code modules that support different mailbox storage
+technologies.  By default, all drivers are enabled.  There is little
+benefit to be gained by disabling a driver, with one exception.  The
+mbox driver implements the behavior of automatically moving new mail
+from the spool directory to the "mbox" file on the user's home
+directory, if and *only* if the "mbox" exists and is in mailbox
+format.  The mbox driver is listed under EXTRADRIVERS; if you wish to
+disable it just remove it from that list and rebuild.
+
+     Authenticators are code modules that support authentication
+technology for the server (password file lookup, Kerberos, S/Key,
+etc.).  EXTRAAUTHENTICATORS is used to add an authenticator.  This
+subject can be complex; find a wizard if you can't figure it out.
+
+     It is also possible to add your own drivers and authenticators.
+This is a topic for wizards, and is beyond the scope of this text.
+
+			NT Configuration Notes
+
+     This software is not plug-and-play on NT.  If you're not a hacker
+and/or are unwilling to invest the time to do some programming, you
+probably want to buy a commercial server for NT.
+
+     The primary issue that you need to deal with is the format of
+mail, where the INBOX is located, and where secondary folders are
+located.  As distributed, the software supports mail in the default
+format used on UNIX (unix format) as well as mbx, mtx, and tenex
+formats.  mbx format is encouraged if at all possible; mtx and tenex
+format are for compatibility with the past.  However, it all depends
+upon how and where your SMTP server delivers mail.
+
+     To change the default mailbox format, edit the symbol
+DEFAULTDRIVER in:
+	../src/osdep/nt/makefile.nt
+or
+	../src/osdep/nt/makefile.ntk
+To change the default location of INBOX, edit the file:
+	../src/osdep/nt/mailfile.h
+Virtually everything else having to do with environment that you are
+likely to want to modify can be found in the source file:
+	.../src/osdep/nt/env_nt.c
+In particular, special attention should be given to the routines:
+ env_init()		initialize c-client environment variables,
+			especially the user name and home directory
+ sysinbox()		return the NT path of the INBOX in which
+			mail delivery will place mail
+ mailboxdir()		translate a mailbox name into the associated
+			NT directory for listing
+ mailboxfile()		translate a mailbox name into the associated
+			NT file for opening
+
+     You should modify these routines as necessary.  The most common
+modifications are to env_init(), to modify the software's idea of the
+home directory (which is used everywhere as the default directory),
+and to sysinbox(), to modify where the software looks for
+newly-delivered mail.
+
+     There are two other build-time configuration issues which you may
+need to consider: drivers and authenticators.  Both of these are set
+up in the top-level Makefile -- in particular, by the EXTRADRIVERS and
+EXTRAAUTHENTICATORS variables.
+
+     Drivers are code modules that support different mailbox storage
+technologies.  By default, all drivers are enabled.  There is little
+benefit to be gained by disabling a driver, with one exception.  The
+mbox driver implements the behavior of automatically moving new mail
+from the spool directory to the "mbox" file on the user's home
+directory, if and *only* if the "mbox" exists and is in mailbox
+format.  The mbox driver is listed under EXTRADRIVERS; if you wish to
+disable it just remove it from that list and rebuild.
+
+     Authenticators are code modules that support authentication
+technology for the server (password file lookup, Kerberos, S/Key,
+etc.).  EXTRAAUTHENTICATORS is used to add an authenticator.  This
+subject can be complex; find a wizard if you can't figure it out.
+
+     It is also possible to add your own drivers and authenticators.

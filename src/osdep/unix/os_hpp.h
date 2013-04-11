@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	17 July 1996
+ * Last Edited:	23 May 1997
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,8 +41,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
+#include <utime.h>
 #include <syslog.h>
 #include <sys/file.h>
+#include <ustat.h>
 
 
 #define direct dirent
@@ -71,6 +73,7 @@ int portable_utime (char *file,time_t timep[2]);
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"
 
 long gethostid (void);
 int bsd_flock (int fd,int operation);

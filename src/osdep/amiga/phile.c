@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	16 February 1996
+ * Last Edited:	29 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -55,8 +55,7 @@ extern int errno;		/* just in case */
 
 DRIVER philedriver = {
   "phile",			/* driver name */
-				/* driver flags */
-  DR_LOCAL|DR_READONLY|DR_NAMESPACE,
+  DR_LOCAL|DR_READONLY,		/* driver flags */
   (DRIVER *) NIL,		/* next driver */
   phile_valid,			/* mailbox is valid for us */
   phile_parameters,		/* manipulate parameters */
@@ -71,15 +70,17 @@ DRIVER philedriver = {
   NIL,				/* status of mailbox */
   phile_open,			/* open mailbox */
   phile_close,			/* close mailbox */
-  phile_fetchfast,		/* fetch message "fast" attributes */
-  phile_fetchflags,		/* fetch message flags */
-  phile_fetchstructure,		/* fetch message envelopes */
-  phile_fetchheader,		/* fetch message header only */
-  phile_fetchtext,		/* fetch message body only */
-  phile_fetchbody,		/* fetch message body section */
+  NIL,				/* fetch message "fast" attributes */
+  NIL,				/* fetch message flags */
+  NIL,				/* fetch overview */
+  phile_structure,		/* fetch message envelopes */
+  phile_header,			/* fetch message header only */
+  phile_text,			/* fetch message body only */
+  NIL,				/* fetch partial message text */
   NIL,				/* unique identifier */
-  phile_setflag,		/* set message flag */
-  phile_clearflag,		/* clear message flag */
+  NIL,				/* message number */
+  NIL,				/* modify flags */
+  NIL,				/* per-message modify flags */
   NIL,				/* search for message based on criteria */
   NIL,				/* sort messages */
   NIL,				/* thread messages */
@@ -88,7 +89,7 @@ DRIVER philedriver = {
   phile_expunge,		/* expunge deleted messages */
   phile_copy,			/* copy messages to another mailbox */
   phile_append,			/* append string message to mailbox */
-  phile_gc			/* garbage collect stream */
+  NIL				/* garbage collect stream */
 };
 
 				/* prototype stream */
@@ -116,10 +117,14 @@ int phile_isvalid (char *name,char *tmp)
   struct stat sbuf;
   char *s;
 				/* INBOX never accepted, any other name is */
-  return ((*name != '{') && (s = mailboxfile (tmp,name)) && *s &&
-	  !stat (s,&sbuf) && !(sbuf.st_mode & S_IFDIR) &&
+  return ((s = mailboxfile (tmp,name)) && *s && !stat (s,&sbuf) &&
+	  !(sbuf.st_mode & S_IFDIR) &&
 				/* only allow empty files if #ftp */
-	  (sbuf.st_size || (*name == '#')));
+	  (sbuf.st_size || ((*name == '#') &&
+			    ((name[1] == 'f') || (name[1] == 'F')) &&
+			    ((name[2] == 't') || (name[2] == 'T')) &&
+			    ((name[3] == 'p') || (name[3] == 'P')) &&
+			    (name[4] == '/'))));
 }
 
 /* File manipulate driver parameters
@@ -154,8 +159,7 @@ void phile_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
 
 void phile_list (MAILSTREAM *stream,char *ref,char *pat)
 {
-  if (stream || ((*pat == '#') || (ref && *ref == '#')))
-    dummy_list (NIL,ref,pat);
+  if (stream) dummy_list (NIL,ref,pat);
 }
 
 
@@ -167,8 +171,7 @@ void phile_list (MAILSTREAM *stream,char *ref,char *pat)
 
 void phile_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
-  if (stream || ((*pat == '#') || (ref && *ref == '#')))
-    dummy_lsub (NIL,ref,pat);
+  if (stream) dummy_lsub (NIL,ref,pat);
 }
 
 /* File create mailbox
@@ -221,10 +224,11 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
   struct stat sbuf;
   struct tm *t;
   MESSAGECACHE *elt;
+  SIZEDTEXT *buf;
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &phileproto;
   if (LOCAL) {			/* close old file if stream being recycled */
-    phile_close (stream,NIL);	/* dump and save the changes */
+    phile_close (stream,NIL);	/* reset stream */
     stream->dtb = &philedriver;	/* reattach this driver */
     mail_free_cache (stream);	/* clean up cache */
   }	
@@ -239,8 +243,9 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
     return NIL;
   }
   stream->local = fs_get (sizeof (PHILELOCAL));
-				/* initialize file information */
-  (elt = mail_elt (stream,1))->rfc822_size = sbuf.st_size;
+  mail_exists (stream,1);	/* make sure upper level knows */
+  mail_recent (stream,1);
+  elt = mail_elt (stream,1);	/* instantiate cache element */
   elt->valid = elt->recent = T;	/* mark valid flags */
   stream->sequence++;		/* bump sequence number */
   stream->rdonly = T;		/* make sure upper level knows readonly */
@@ -252,7 +257,7 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
   i = t->tm_hour * 60 + t->tm_min;
   k = t->tm_yday;
   t = localtime(&sbuf.st_mtime);/* get local time */
-				/* calulate time delta */
+				/* calculate time delta */
   i = t->tm_hour * 60 + t->tm_min - i;
   if (k = t->tm_yday - k) i += ((k < 0) == (abs (k) == 1)) ? -24*60 : 24*60;
   k = abs (i);			/* time from UTC either way */
@@ -278,19 +283,18 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
 				/* set subject to be mailbox name */
   LOCAL->env->subject = cpystr (stream->mailbox);
 				/* slurp the data */
-  read (fd,LOCAL->buf = (char *) fs_get (elt->rfc822_size+1),elt->rfc822_size);
-  LOCAL->buf[elt->rfc822_size] = '\0';
+  (buf = &elt->private.special.text)->size = sbuf.st_size;
+  read (fd,buf->data = (unsigned char *) fs_get (buf->size + 1),buf->size);
+  buf->data[buf->size] = '\0';
   close (fd);			/* close the file */
 				/* analyze data type */
-  if (i = phile_type ((unsigned char *) LOCAL->buf,elt->rfc822_size,&j)) {
+  if (i = phile_type (buf->data,buf->size,&j)) {
     LOCAL->body->type = TYPETEXT;
     LOCAL->body->subtype = cpystr ("PLAIN");
     if (!(i & PTYPECRTEXT)) {	/* change Internet newline format as needed */
-      STRING bs;
-      INIT (&bs,mail_string,(void *) (s = LOCAL->buf),elt->rfc822_size);
-      LOCAL->buf = (char *) fs_get ((m = strcrlflen (&bs) + 1));
-      strcrlfcpy (&LOCAL->buf,&m,s,elt->rfc822_size);
-      elt->rfc822_size = m;	/* update size */
+      s = (char *) buf->data;	/* make copy of UNIX-format string */
+      buf->data = NIL;		/* zap the buffer */
+      buf->size = strcrlfcpy ((char **) &buf->data,&m,s,buf->size);
       fs_give ((void **) &s);	/* flush original UNIX-format string */
     }
     LOCAL->body->parameter = mail_newbody_parameter ();
@@ -298,6 +302,7 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
     LOCAL->body->parameter->value =
       cpystr ((i & PTYPEISO2022JP) ? "ISO-2022-JP" :
 	      (i & PTYPEISO2022KR) ? "ISO-2022-KR" :
+	      (i & PTYPEISO2022CN) ? "ISO-2022-CN" :
 	      (i & PTYPE8) ? "ISO-8859-1" : "US-ASCII");
     LOCAL->body->encoding = (i & PTYPE8) ? ENC8BIT : ENC7BIT;
     LOCAL->body->size.lines = j;
@@ -310,17 +315,15 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
     LOCAL->body->parameter->value =
       cpystr ((s = (strrchr (stream->mailbox,'/'))) ? s+1 : stream->mailbox);
     LOCAL->body->encoding = ENCBASE64;
-    LOCAL->buf = (char *) rfc822_binary (s = LOCAL->buf,elt->rfc822_size,
-					 &elt->rfc822_size);
+    buf->data = rfc822_binary (s = (char *) buf->data,buf->size,&buf->size);
     fs_give ((void **) &s);	/* flush originary binary contents */
   }
-  LOCAL->body->size.bytes = elt->rfc822_size;
-  phile_fetchheader (stream,1,NIL,&j,NIL);
-  elt->rfc822_size += j;
+  phile_header (stream,1,&j,NIL);
+  LOCAL->body->size.bytes = LOCAL->body->contents.text.size = buf->size;
+  elt->rfc822_size = j + buf->size;
 				/* only one message ever... */
-  stream->uid_last = elt->uid = 1;
-  mail_exists (stream,1);	/* make sure upper level knows */
-  mail_recent (stream,1);
+  stream->uid_validity = sbuf.st_mtime;
+  stream->uid_last = elt->private.uid = 1;
   return stream;		/* return stream alive to caller */
 }
 
@@ -350,8 +353,23 @@ int phile_type (unsigned char *s,unsigned long i,unsigned long *j)
     break;
   case 'e':			/* ESC */
     if (*s == '$') {		/* ISO-2022 sequence? */
-      if (s[1] == 'B' || s[1] == '@') ret |= PTYPEISO2022JP;
-      else if (s[1] == ')' && s[2] == 'C') ret |= PTYPEISO2022JP;
+      switch (s[1]) {
+      case 'B': case '@': ret |= PTYPEISO2022JP; break;
+      case ')':
+	switch (s[2]) {
+	case 'A': case 'E': case 'G': ret |= PTYPEISO2022CN; break;
+	case 'C': ret |= PTYPEISO2022KR; break;
+	}
+      case '*':
+	switch (s[2]) {
+	case 'H': ret |= PTYPEISO2022CN; break;
+	}
+      case '+':
+	switch (s[2]) {
+	case 'I': case 'J': case 'K': case 'L': case 'M':
+	  ret |= PTYPEISO2022CN; break;
+	}
+      }
     }
     break;
   case 'l':			/* newline */
@@ -369,36 +387,11 @@ int phile_type (unsigned char *s,unsigned long i,unsigned long *j)
 void phile_close (MAILSTREAM *stream,long options)
 {
   if (LOCAL) {			/* only if a file is open */
-				/* free local texts */
-    if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
+    fs_give ((void **) &mail_elt (stream,1)->private.special.text.data);
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
     stream->dtb = NIL;		/* log out the DTB */
   }
-}
-
-
-/* File fetch fast information
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void phile_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
-{
-  return;			/* no-op for local mail */
-}
-
-
-/* File fetch flags
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void phile_fetchflags (MAILSTREAM *stream,char *sequence,long flags)
-{
-  return;			/* no-op for local mail */
 }
 
 /* File fetch structure
@@ -411,8 +404,8 @@ void phile_fetchflags (MAILSTREAM *stream,char *sequence,long flags)
  * Fetches the "fast" information as well
  */
 
-ENVELOPE *phile_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-				BODY **body,long flags)
+ENVELOPE *phile_structure (MAILSTREAM *stream,unsigned long msgno,BODY **body,
+			   long flags)
 {
   if (body) *body = LOCAL->body;
   return LOCAL->env;		/* return the envelope */
@@ -422,22 +415,16 @@ ENVELOPE *phile_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
 /* File fetch message header
  * Accepts: MAIL stream
  *	    message # to fetch
- *	    list of headers to fetch
  *	    pointer to returned header text length
  *	    option flags
  * Returns: message header in RFC822 format
  */
 
-char *phile_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			 STRINGLIST *lines,unsigned long *len,long flags)
+char *phile_header (MAILSTREAM *stream,unsigned long msgno,
+		    unsigned long *length,long flags)
 {
-  unsigned long i;
-  BODY *body;
-  ENVELOPE *env = phile_fetchstructure (stream,msgno,&body,NIL);
-  rfc822_header (LOCAL->tmp,env,body);
-  i = strlen (LOCAL->tmp);	/* sigh */
-  if (lines) i = mail_filter (LOCAL->tmp,i,lines,flags);
-  if (len) *len = i;
+  rfc822_header (LOCAL->tmp,LOCAL->env,LOCAL->body);
+  *length = strlen (LOCAL->tmp);
   return LOCAL->tmp;
 }
 
@@ -445,83 +432,20 @@ char *phile_fetchheader (MAILSTREAM *stream,unsigned long msgno,
 /* File fetch message text (body only)
  * Accepts: MAIL stream
  *	    message # to fetch
- * Returns: message text in RFC822 format
+ *	    pointer to returned stringstruct
+ *	    option flags
+ * Returns: T, always
  */
 
-char *phile_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		       unsigned long *len,long flags)
+long phile_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 {
-				/* mark message as seen */
-  if (!(flags &FT_PEEK)) mail_elt (stream,msgno)->seen = T;
-  if (len) *len = LOCAL->body->size.bytes;
-  return LOCAL->buf;
-}
-
-
-/* File fetch message body as a structure
- * Accepts: Mail stream
- *	    message # to fetch
- *	    section specifier
- *	    pointer to length
- * Returns: pointer to section of message body
- */
-
-char *phile_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		       unsigned long *len,long flags)
-{
-				/* BODY[0] case? */
-  if (!strcmp (sec,"0")) return phile_fetchheader (stream,msgno,NIL,len,flags);
-  else if (!strcmp (sec,"1")) return phile_fetchtext (stream,msgno,len,flags);
-  return NIL;
-}
-
-/* File set flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- */
-
-void phile_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  MESSAGECACHE *elt;
-  unsigned long i;
-  long f = mail_parse_flags (stream,flag,&i);
-  if (!f) return;		/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if (mail_sequence (stream,sequence)) for (i = 1; i <= stream->nmsgs; i++)
-    if ((elt = mail_elt (stream,i))->sequence) {
-				/* set all requested flags */
-      if (f&fSEEN) elt->seen = T;
-      if (f&fDELETED) elt->deleted = T;
-      if (f&fFLAGGED) elt->flagged = T;
-      if (f&fANSWERED) elt->answered = T;
-      if (f&fDRAFT) elt->draft = T;
-    }
-}
-
-
-/* File clear flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- */
-
-void phile_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  MESSAGECACHE *elt;
-  unsigned long i;
-  long f = mail_parse_flags (stream,flag,&i);
-  if (!f) return;		/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if (mail_sequence (stream,sequence)) for (i = 1; i <= stream->nmsgs; i++)
-    if ((elt = mail_elt (stream,i))->sequence) {
-				/* clear all requested flags */
-      if (f&fSEEN) elt->seen = NIL;
-      if (f&fDELETED) elt->deleted = NIL;
-      if (f&fFLAGGED) elt->flagged = NIL;
-      if (f&fANSWERED) elt->answered = NIL;
-      if (f&fDRAFT) elt->draft = T;
-    }
+  SIZEDTEXT *buf = &mail_elt (stream,msgno)->private.special.text;
+  if (!(flags &FT_PEEK)) {	/* mark message as seen */
+    mail_elt (stream,msgno)->seen = T;
+    mm_flags (stream,msgno);
+  }
+  INIT (bs,mail_string,buf->data,buf->size);
+  return T;
 }
 
 /* File ping mailbox
@@ -565,6 +489,9 @@ void phile_expunge (MAILSTREAM *stream)
 long phile_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 {
   char tmp[MAILTMPLEN];
+  mailproxycopy_t pc =
+    (mailproxycopy_t) mail_parameters (stream,GET_MAILPROXYCOPY,NIL);
+  if (pc) return (*pc) (stream,sequence,mailbox,options);
   sprintf (tmp,"Can't copy - file \"%s\" is not in valid mailbox format",
 	   stream->mailbox);
   mm_log (tmp,ERROR);
@@ -587,15 +514,4 @@ long phile_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 	   mailboxfile (file,mailbox));
   mm_log (tmp,ERROR);
   return NIL;
-}
-
-
-/* File garbage collect stream
- * Accepts: Mail stream
- *	    garbage collection flags
- */
-
-void phile_gc (MAILSTREAM *stream,long gcflags)
-{
-  /* nothing here for now */
 }

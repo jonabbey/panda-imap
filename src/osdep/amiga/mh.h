@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	25 February 1996
+ * Last Edited:	13 January 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -45,7 +45,6 @@ typedef struct mh_local {
   unsigned int inbox : 1;	/* if it's an INBOX or not */
   char *dir;			/* spool directory name */
   char *buf;			/* temporary buffer */
-  char *hdr;			/* current header */
   unsigned long buflen;		/* current size of temporary buffer */
   time_t scantime;		/* last time directory scanned */
 } MHLOCAL;
@@ -71,18 +70,10 @@ long mh_delete (MAILSTREAM *stream,char *mailbox);
 long mh_rename (MAILSTREAM *stream,char *old,char *newname);
 MAILSTREAM *mh_open (MAILSTREAM *stream);
 void mh_close (MAILSTREAM *stream,long options);
-void mh_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
-void mh_fetchflags (MAILSTREAM *stream,char *sequence,long flags);
-ENVELOPE *mh_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-			     BODY **body,long flags);
-char *mh_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-		      STRINGLIST *lines,unsigned long *len,long flags);
-char *mh_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		    unsigned long *len,long flags);
-char *mh_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		    unsigned long *len,long flags);
-void mh_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
-void mh_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
+void mh_fast (MAILSTREAM *stream,char *sequence,long flags);
+char *mh_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
+		 long flags);
+long mh_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
 long mh_ping (MAILSTREAM *stream);
 void mh_check (MAILSTREAM *stream);
 void mh_expunge (MAILSTREAM *stream);
@@ -90,9 +81,9 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,
 	      long options);
 long mh_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		STRING *message);
-void mh_gc (MAILSTREAM *stream,long gcflags);
 
 int mh_select (struct direct *name);
 int mh_numsort (const void *d1,const void *d2);
 char *mh_file (char *dst,char *name);
 long mh_canonicalize (char *pattern,char *ref,char *pat);
+void mh_setdate (char *file,MESSAGECACHE *elt);

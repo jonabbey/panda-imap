@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	7 December 1995
+# Last Edited:	16 December 1997
 #
-# Copyright 1995 by the University of Washington
+# Copyright 1997 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -35,7 +35,7 @@ OS = wsk
 EXTRAAUTHENTICATORS=
 DEFAULTAUTHENTICATORS=log
 EXTRADRIVERS = 
-DRIVERS = imap nntp pop3 mtx tenex bezerk dummy
+DRIVERS = imap nntp pop3 mtx bezerk
 DEFAULTDRIVER = mtx
 CFLAGS= -AL -nologo $(EXTRACFLAGS)
 CC = cl
@@ -47,15 +47,21 @@ all:	mtest.exe
 
 osdep.h: os_$(OS).h
 	copy os_$(OS).h osdep.h
-	drivers $(EXTRADRIVERS) $(DRIVERS)
+	drivers $(EXTRADRIVERS) $(DRIVERS) dummy
 	mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)
 	ECHO #define DEFAULTPROTO $(DEFAULTDRIVER)proto >> LINKAGE.H
+	ECHO   if (!mail_parameters (NIL,GET_GETS)) >> LINKAGE.C
+	ECHO     mail_parameters (NIL,SET_GETS,(void *) dos_default_gets); >> LINKAGE.C
 
 mtest.obj: mail.h smtp.h misc.h osdep.h mtest.c
 
 mail.obj: mail.h misc.h osdep.h mail.c
 
 misc.obj: mail.h misc.h misc.c
+
+fdstring.obj: mail.h misc.h osdep.h fdstring.h fdstring.c
+
+flstring.obj: mail.h misc.h osdep.h flstring.h flstring.c
 
 netmsg.obj: mail.h misc.h netmsg.h osdep.h netmsg.c
 
@@ -65,7 +71,9 @@ rfc822.obj: mail.h rfc822.h misc.h rfc822.c
 
 smanager.obj: mail.h misc.h smanager.c
 
-imap4.obj: mail.h imap4.h misc.h osdep.h imap4.c
+utf8.obj: mail.h misc.h osdep.h utf8.h
+
+imap4r1.obj: mail.h imap4r1.h misc.h osdep.h imap4r1.c
 
 nntp.obj: mail.h nntp.h smtp.h rfc822.h misc.h osdep.h nntp.c
 
@@ -78,17 +86,16 @@ os_$(OS).obj: mail.h osdep.h env_dos.h fs.h ftl.h nl.h tcp.h \
 
 mtxdos.obj: mail.h mtxdos.h misc.h osdep.h mtxdos.c
 
-tenexdos.obj: mail.h tenexdos.h misc.h osdep.h tenexdos.c
-
 bezrkdos.obj: mail.h bezrkdos.h misc.h osdep.h bezrkdos.c
 
 dummydos.obj: mail.h dummy.h misc.h osdep.h dummydos.c
 
-cclient.lib: mail.obj misc.obj netmsg.obj newsrc.obj rfc822.obj smanager.obj \
-	imap4.obj nntp.obj pop3.obj smtp.obj os_$(OS).obj \
-	mtxdos.obj tenexdos.obj bezrkdos.obj dummydos.obj
+cclient.lib: mail.obj misc.obj fdstring.obj flstring.obj netmsg.obj \
+	newsrc.obj rfc822.obj smanager.obj utf8.obj \
+	imap4r1.obj nntp.obj pop3.obj smtp.obj os_$(OS).obj \
+	mtxdos.obj bezrkdos.obj dummydos.obj
 	erase cclient.lib
-	lib cclient +mail+misc+netmsg+newsrc+rfc822+smanager+imap4+nntp+pop3+smtp+os_$(OS)+mtxdos+tenexdos+bezrkdos+dummydos;
+	lib cclient +mail+misc+fdstring+flstring+netmsg+newsrc+rfc822+smanager+imap4r1+nntp+pop3+smtp+os_$(OS)+mtxdos+bezrkdos+dummydos;
 
 mtest.exe: cclient.lib mtest.obj
 	mtest$(OS)

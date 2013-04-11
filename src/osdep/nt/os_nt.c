@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	22 May 1996
+ * Last Edited:	20 February 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,7 +42,6 @@
 #include <errno.h>
 #include <sys\timeb.h>
 #include <fcntl.h>
-#include <io.h>
 #include <sys\stat.h>
 #include "misc.h"
 #include "mailfile.h"
@@ -52,7 +51,5 @@
 #include "nl_nt.c"
 #include "env_nt.c"
 #include "tcp_nt.c"
-#include "log_nt.c"
 #include "auths.c"
-#include "syslog.c"
-#include "flock.c"
+#include "yunchan.c"

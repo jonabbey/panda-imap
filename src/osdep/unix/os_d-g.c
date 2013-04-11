@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	23 July 1995
+ * Last Edited:	30 December 1997
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -35,8 +35,6 @@
  
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
 #include "mail.h"
-#define _USEC_UTIME_FLAVOR	/* break it for compatibility with */
-#include <utime.h>		/*  the incompatible past */
 #include "osdep.h"
 #include <stdio.h>
 #include <sys/time.h>
@@ -51,37 +49,15 @@ extern int errno;		/* just in case */
 #include <pwd.h>
 #include "misc.h"
 
-#define setpgrp setpgrp2
-
 
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
 #include "env_unix.c"
 #include "tcp_unix.c"
-#include "log_std.c"
 #include "gr_waitp.c"
 #include "tz_sv4.c"
-
-#undef utime
-
-/* D-G has its own wierd utime() with an incompatible struct utimbuf that does
- * not match with the traditional time_t [2].  The cretin responsible for this
- * should be drawn and quartered.
- */
-
-/* Portable utime() that takes it args like real Unix systems
- * Accepts: file path
- *	    traditional utime() argument
- * Returns: utime() results
- */
-
-int portable_utime (char *file,time_t timep[2])
-{
-  struct utimbuf times;
-  times.actime = timep[0];	/* copy the portable values */
-  times.modtime = timep[1];
-				/* zap the D-G incompatible values */
-  times.acusec = times.modusec = 0;
-  return utime (file,&times);	/* now call D-G's routine */
-}
+#undef flock
+#define flock dg_flock
+#include "flcksafe.c"
+#include "utime.c"

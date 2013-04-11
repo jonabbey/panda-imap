@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- ANSI SCO Unix version
+ * Program:	Operating-system dependent routines -- SCO Unix version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 May 1996
+ * Last Edited:	11 May 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,9 +40,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
+#include <utime.h>
 #include <dirent.h>
 #include <syslog.h>
 #include <sys/file.h>
+#include <ustat.h>
 
 
 /* SCO gets this wrong */
@@ -72,16 +74,15 @@
 #define LOCK_NB 4
 #define LOCK_UN 8
 
-
-/* For geteuid emulation */
-
-#define geteuid Geteuid
+#define utime portable_utime
+int portable_utime (char *file,time_t timep[2]);
 
 #include "env_unix.h"
 #include "fs.h"
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"
 
 long gethostid (void);
 typedef int (*select_t) (struct direct *name);
@@ -90,4 +91,3 @@ int scandir (char *dirname,struct direct ***namelist,select_t select,
 	     compar_t compar);
 int bsd_flock (int fd,int operation);
 int fsync (int fd);
-int Geteuid (void);

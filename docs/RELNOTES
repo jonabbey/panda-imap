@@ -1,0 +1,60 @@
+Updated: 2 June 1998
+
+This is a snapshot of development sources of of the IMAP 4.1 toolkit.  It
+is updated frequently.
+
+This version supports IMAP4rev1 (RFC 2060).  There are major internal and
+external changes from the IMAP2bis version (e.g. imap-3.6, distributed with
+Pine 3.9x).  It is extremely unlikely that a program written for the IMAP2bis
+verion will build with this version without modifications.  Drivers written
+for the IMAP2bis version will definitely need to be rewritten.
+
+Most notable operational changes:
+ . Kerberos V5 is supported through the GSSAPI on UNIX.  To enable Kerberos V5,
+    add "gss" to the EXTRAAUTHENTICATORS list in the top-level Makefile and
+     rebuild.  You may also need to edit the GSSAPI directory paths in the
+     ../src/osdep/unix/Makefile
+ . The mbox driver is now enabled by default.  If the file "mbox" exists on
+    the user's home directory and is in UNIX mailbox format, then when INBOX
+    is opened this file will be selected as INBOX instead of the mail spool
+    file.  Messages will be automatically transferred from the mail spool file
+    into the mbox file
+   To disable this behavior, delete "mbox" from the EXTRADRIVERS list in the
+    top-level Makefile and rebuild
+ . IMAP4rev1 protocol is now supported.  The UNIX format support now maintains
+    unique identifiers (UIDs) and keyword flags for each message, and keeps an
+    invisible message at the start of the file which contains the UID base
+    information and a list of assigned keywords.  There is no way to disable
+    this behavior, since it would disable IMAP4rev1 support.  This message may
+    show up if you access the mailbox as a file using older mail software (e.g.
+    Pine 3.9x).  It is invisible with IMAP or POP access, or with access as a
+    file using Pine 4.00
+ . Support for additional mailbox formats
+ . No longer keeps entire mailbox in memory for UNIX format files
+ . Multilingual searching of the following charsets are supported:
+	US-ASCII, UTF-8, ISO-8859-1, ISO-8859-2, ISO-8859-3, ISO-8859-4,
+	ISO-8859-5, ISO-8859-6, ISO-8859-7, ISO-8859-8, ISO-8859-9,
+	ISO-8859-10, ISO-2022-JP, ISO-2022-KR, ISO-2022-CN, ISO-2022-JP-1,
+	ISO-2022-JP-2, GB2312 (alias CN-GB), CN-GB-12345, BIG5 (alias CN-BIG5),
+	EUC-JP,	EUC-KR, Shift_JIS, KOI8-R, KOI8-U (alias KOI8-RU), TIS-620,
+	VISCII.
+   All ISO-2022-?? charsets are treated identically, and support ASCII,
+    JIS Roman, hankaku katakana, ISO-8859-[1 - 10], TIS, GB 2312, JIS X 0208,
+    JIS X 0212, KSC 5601, and planes 1 and 2 of CNS 11643.
+   EUC-JP includes support for JIS X 0212 and hankaku katakana
+ . Fast sorting including IMAP server-based sort
+ . Fast ordered-subject threading including IMAP server-based threading
+
+
+Most notable programmer/external changes:
+ . Additional ports
+ . New directory orientation, no separate non-ANSI sources
+ . New local file formats mbx and mx
+ . The bezerk driver has been retired, and replaced with the new unix driver
+    which does not keep a snapshot in memory
+ . Many new added ports including NT (Win32 client, NT server)
+ . Many new data access functions
+ . Numerous interface changes; look at the .h files for details
+ . There are no known security problems in this version
+ . If you ignored the warnings and used the evil configuration file, its name
+    and contents have changed incompatibly

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	7 February 1996
+ * Last Edited:	22 January 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -163,6 +163,17 @@ char *tcp_host (TCPSTREAM *stream)
 }
 
 
+/* TCP/IP get remote host name
+ * Accepts: TCP/IP stream
+ * Returns: host name for this stream
+ */
+
+char *tcp_remotehost (TCPSTREAM *stream)
+{
+  return NIL;
+}
+
+
 /* TCP/IP get local host name
  * Accepts: TCP/IP stream
  * Returns: local host name
@@ -182,17 +193,6 @@ char *tcp_localhost (TCPSTREAM *stream)
 unsigned long tcp_port (TCPSTREAM *stream)
 {
   return 0xffffffff;		/* return port number */
-}
-
-
-/* TCP/IP get server host name
- * Accepts: pointer to destination
- * Returns: string pointer if got results, else NIL
- */
-
-char *tcp_clienthost (char *dst)
-{
-  return "UNKNOWN";
 }
 
 

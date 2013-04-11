@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 August 1996
+ * Last Edited:	4 June 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,13 +36,20 @@
 
 static char *myUserName = NIL;	/* user name */
 static char *myLocalHost = NIL;	/* local host name */
+static char *myClientHost = NIL;/* client host name */
+static char *myServerHost = NIL;/* server host name */
 static char *myHomeDir = NIL;	/* home directory name */
 static char *myNewsrc = NIL;	/* newsrc file name */
 static char *sysInbox = NIL;	/* system inbox name */
 static long list_max_level = 5;	/* maximum level of list recursion */
+				/* home namespace */
+static NAMESPACE nshome = {"",'\\',NIL,NIL};
+				/* namespace list */
+static NAMESPACE *nslist[3] = {&nshome,NIL,NIL};
 static long alarm_countdown = 0;/* alarm count down */
 static void (*alarm_rang) ();	/* alarm interrupt function */
 static unsigned int rndm = 0;	/* initial `random' number */
+static int logtry = 3;		/* number of login tries */
 
 #include "write.c"		/* include safe writing routines */
 
@@ -55,6 +62,11 @@ static unsigned int rndm = 0;	/* initial `random' number */
 void *env_parameters (long function,void *value)
 {
   switch ((int) function) {
+  case SET_NAMESPACE:
+    fatal ("SET_NAMESPACE not permitted");
+  case GET_NAMESPACE:
+    value = (void *) nslist;
+    break;
   case SET_HOMEDIR:
     myHomeDir = cpystr ((char *) value);
     break;
@@ -73,7 +85,6 @@ void *env_parameters (long function,void *value)
     break;
   case GET_NEWSRC:
     if (!myNewsrc) {		/* set news file name if not defined */
-
       char tmp[MAILTMPLEN];
       sprintf (tmp,"%s\\NEWSRC",myhomedir ());
       myNewsrc = cpystr (tmp);
@@ -193,47 +204,160 @@ void CALLBACK clock_ticked (UINT IDEvent,UINT uReserved,DWORD dwUser,
 /* Set server traps
  * Accepts: clock interrupt handler
  *	    kiss-of-death interrupt handler
+ *	    hangup interrupt handler
+ *	    termination interrupt handler
  */
 
-void server_traps (void *clkint,void *kodint)
+void server_traps (void *clkint,void *kodint,void *hupint,void *trmint)
 {
   alarm_rang = clkint;		/* note the clock interrupt */
   timeBeginPeriod (1000);	/* set the timer interval */
   timeSetEvent (1000,1000,clock_ticked,NIL,TIME_PERIODIC);
 }
-
-/* Log in as anonymous daemon
- * Returns: T if successful, NIL if error
+
+
+/* Wait for stdin input
+ * Accepts: timeout in seconds
+ * Returns: T if have input on stdin, else NIL
  */
 
-long anonymous_login ()
+long server_input_wait (long seconds)
 {
-  return server_login ("Guest",NIL,NIL,NIL);
+  fd_set rfd;
+  struct timeval tmo;
+  FD_ZERO (&rfd);
+  FD_SET (0,&rfd);
+  tmo.tv_sec = seconds; tmo.tv_usec = 0;
+  return select (1,&rfd,0,0,&tmo) ? LONGT : NIL;
+}
+
+/* Server log in
+ * Accepts: user name string
+ *	    password string
+ *	    argument count
+ *	    argument vector
+ * Returns: T if password validated, NIL otherwise
+ */
+
+static int gotprivs = NIL;	/* once-only flag to grab privileges */
+
+long server_login (char *user,char *pass,int argc,char *argv[])
+{
+  HANDLE hdl;
+  LUID tcbpriv;
+  TOKEN_PRIVILEGES tkp;
+  char *s;
+  if (!gotprivs++) {		/* need to get privileges? */
+				/* yes, note client host if specified */
+    if (argc == 2) myClientHost = argv[1];
+				/* get process token and TCB priv value */
+    if (!(OpenProcessToken (GetCurrentProcess (),
+			    TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,&hdl) &&
+	  LookupPrivilegeValue ((LPSTR) NIL,SE_TCB_NAME,&tcbpriv)))
+      return NIL;
+    tkp.PrivilegeCount = 1;	/* want to enable this privilege */
+    tkp.Privileges[0].Luid = tcbpriv;
+    tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+				/* enable it */
+    AdjustTokenPrivileges (hdl,NIL,&tkp,sizeof (TOKEN_PRIVILEGES),
+			   (PTOKEN_PRIVILEGES) NIL,(PDWORD) NIL);
+				/* make sure it won */
+    if (GetLastError() != ERROR_SUCCESS) return NIL;
+  }
+				/* cretins still haven't given up */
+  if (strlen (user) >= MAILTMPLEN)
+    syslog (LOG_ALERT,"System break-in attempt, host=%.80s",tcp_clienthost ());
+  else if ((logtry > 0) &&	/* try to login and impersonate the guy */
+	   ((LogonUser (user,".",pass,LOGON32_LOGON_INTERACTIVE,
+			LOGON32_PROVIDER_DEFAULT,&hdl) ||
+	     LogonUser (user,".",pass,LOGON32_LOGON_BATCH,
+			LOGON32_PROVIDER_DEFAULT,&hdl) ||
+	     LogonUser (user,".",pass,LOGON32_LOGON_SERVICE,
+			LOGON32_PROVIDER_DEFAULT,&hdl)) &&
+	    ImpersonateLoggedOnUser (hdl))) return env_init (user,NIL);
+  s = (logtry-- > 0) ? "Login failure" : "Excessive login attempts";
+				/* note the failure in the syslog */
+  syslog (LOG_INFO,"%s user=%.80s host=%.80s",s,user,tcp_clienthost ());
+  sleep (3);			/* slow down possible cracker */
+  return NIL;
+}
+
+/* Authenticated server log in
+ * Accepts: user name string
+ *	    argument count
+ *	    argument vector
+ * Returns: T if password validated, NIL otherwise
+ */
+
+long authserver_login (char *user,int argc,char *argv[])
+{
+  return server_login (user,NIL,argc,argv);
 }
 
 
+/* Log in as anonymous daemon
+ * Accepts: argument count
+ *	    argument vector
+ * Returns: T if successful, NIL if error
+ */
+
+long anonymous_login (int argc,char *argv[])
+{
+  return server_login ("Guest",NIL,argc,argv);
+}
+
 /* Initialize environment
  * Accepts: user name
- *	    home directory or NIL to use value from user profile
+ *          home directory or NIL to use value from user profile
  * Returns: T, always
  */
+
+typedef NET_API_STATUS (CALLBACK *NUGI)
+     (LPCWSTR servername,LPCWSTR username,DWORD level,LPBYTE *bufptr);
+
 
 long env_init (char *user,char *home)
 {
   char tmp[MAILTMPLEN];
   PUSER_INFO_1 ui;
+  HINSTANCE nahdl;
+  NUGI nugi;
+  if (!check_nt ()) fatal ("env_init called on non-NT system");
   if (myUserName) fatal ("env_init called twice!");
-  myUserName = cpystr (user);	/* remember user name and home directory */
-  myHomeDir = cpystr ((home && *home) ? home :
-		      ((MultiByteToWideChar (CP_ACP,0,user,strlen (user)+1,
-					    (WCHAR *) tmp,MAILTMPLEN) &&
-			!NetUserGetInfo (NIL,(LPWSTR) &tmp,1,(LPBYTE *) &ui) &&
-			WideCharToMultiByte (CP_ACP,0,ui->usri1_home_dir,-1,
-					     tmp,MAILTMPLEN,NIL,NIL) &&
-			tmp[0]) ? tmp : defaultPath (tmp)));
+  myUserName = cpystr (user);	/* remember user name */
+  if (!(home && *home)) {	/* home directory not set up? */
+    if (!((nahdl = LoadLibrary ("netapi32.dll")) &&
+	  (nugi = (NUGI) GetProcAddress (nahdl,"NetUserGetInfo")) &&
+	  MultiByteToWideChar (CP_ACP,0,user,strlen (user) + 1,
+			       (WCHAR *) tmp,MAILTMPLEN) &&
+	  !(*nugi) (NIL,(LPWSTR) &tmp,1,(LPBYTE *) &ui) &&
+	  WideCharToMultiByte (CP_ACP,0,ui->usri1_home_dir,-1,
+			       tmp,MAILTMPLEN,NIL,NIL) && tmp[0]))
+      sprintf (tmp,"%s%s",defaultDrive (),"\\users\\default");
+    home = tmp;			/* got a home directory */
+  }
+  myHomeDir = cpystr (home);	/* remember home directory */
   return T;
 }
 
+/* Check if NT
+ * Returns: T if NT, NIL if Win95
+ */
+
+static long is_nt = -1;
+
+long check_nt (void)
+{
+  if (is_nt < 0) {
+    OSVERSIONINFO ver;
+    ver.dwOSVersionInfoSize = sizeof (OSVERSIONINFO);
+    GetVersionEx (&ver);
+    is_nt = (ver.dwPlatformId == VER_PLATFORM_WIN32_NT) ? T : NIL;
+  }
+  return is_nt;
+}
+
+
 /* Return default drive
  * Returns: default drive
  */
@@ -242,18 +366,6 @@ static char *defaultDrive (void)
 {
   char *s;
   return ((s = getenv ("SystemDrive")) && *s) ? s : "C:";
-}
-
-
-/* Return default path
- * Accepts: path to write into
- * Returns: default path
- */
-
-static char *defaultPath (char *path)
-{
-  sprintf (path,"%s%s",defaultDrive (),"\\users\\default");
-  return path;
 }
 
 
@@ -291,6 +403,7 @@ static char *homePath (char *path)
 char *myusername_full (unsigned long *flags)
 {
   char *ret = "SYSTEM";
+  if (!check_nt ()) fatal ("myusername() called on non-NT system");
   if (!myUserName) {		/* get user name if don't have it yet */
     HANDLE tok;
     UCHAR tmp[MAILTMPLEN],user[MAILTMPLEN],domain[MAILTMPLEN];
@@ -321,7 +434,11 @@ char *myusername_full (unsigned long *flags)
 
 char *myhomedir ()
 {
-  if (!myHomeDir) myusername ();/* initialize if first time */
+  char tmp[MAILTMPLEN];
+  if (!myHomeDir) {		/* initialize if first time */
+    if (check_nt ()) myusername ();
+    else myHomeDir = homePath (tmp);
+  }
   return myHomeDir ? myHomeDir : homeDrive ();
 }
 
@@ -333,7 +450,8 @@ char *sysinbox ()
 {
   char tmp[MAILTMPLEN];
   if (!sysInbox) {		/* initialize if first time */
-    sprintf (tmp,MAILFILE,myUserName);
+    if (check_nt ()) sprintf (tmp,MAILFILE,myUserName);
+    else sprintf (tmp,"%s\\INBOX",myhomedir ());
     sysInbox = cpystr (tmp);	/* system inbox is from mail spool */
   }
   return sysInbox;
@@ -376,11 +494,11 @@ int lockname (char *lock,char *fname,int op)
 {
   int ld;
   char c,*s;
-  if (((s = getenv ("TEMP")) && *s) || ((s = getenv ("TEMPDIR")) && *s)) {
+  if (((s = getenv ("TEMP")) && *s) || ((s = getenv ("TMPDIR")) && *s)) {
     strcpy (lock,s);
-    if ((s = lock + strlen (lock))[-1] != '\\') *s++ ='\\';
   }
   else sprintf (lock,"%s\\TEMP\\",defaultDrive ());
+  if ((s = lock + strlen (lock))[-1] != '\\') *s++ ='\\';
   while (c = *fname++) switch (c) {
   case '/':
   case '\\':
@@ -413,78 +531,12 @@ void unlockfd (int fd,char *lock)
 
 
 /* Determine default prototype stream to user
+ * Accepts: type (NIL for create, T for append)
  * Returns: default prototype stream
  */
 
-MAILSTREAM *default_proto ()
+MAILSTREAM *default_proto (long type)
 {
   extern MAILSTREAM DEFAULTPROTO;
   return &DEFAULTPROTO;		/* return default driver's prototype */
-}
-
-/* Copy Unix string with CRLF newlines
- * Accepts: destination string
- *	    pointer to size of destination string buffer
- *	    source string
- *	    length of source string
- * Returns: length of copied string
- */
-
-unsigned long unix_crlfcpy (char **dst,unsigned long *dstl,char *src,
-			    unsigned long srcl)
-{
-  unsigned long i,j;
-  char *d = src;
-				/* count number of LF's in source string(s) */
-  for (i = srcl,j = 0; j < srcl; j++) if (*d++ == '\012') i++;
-				/* flush destination buffer if too small */
-  if (*dst && (i > *dstl)) fs_give ((void **) dst);
-  if (!*dst) {			/* make a new buffer if needed */
-    *dst = (char *) fs_get ((*dstl = i) + 1);
-    if (dstl) *dstl = i;	/* return new buffer length to main program */
-  }
-  d = *dst;			/* destination string */
-				/* copy strings, inserting CR's before LF's */
-  while (srcl--) switch (*src) {
-  case '\015':			/* unlikely carriage return */
-    *d++ = *src++;		/* copy it and any succeeding linefeed */
-    if (srcl && *src == '\012') {
-      *d++ = *src++;
-      srcl--;
-    }
-    break;
-  case '\012':			/* line feed? */
-    *d++ ='\015';		/* yes, prepend a CR, drop into default case */
-  default:			/* ordinary chararacter */
-    *d++ = *src++;		/* just copy character */
-    break;
-  }
-  *d = '\0';			/* tie off destination */
-  return d - *dst;		/* return length */
-}
-
-/* Length of Unix string after unix_crlfcpy applied
- * Accepts: source string
- * Returns: length of string
- */
-
-unsigned long unix_crlflen (STRING *s)
-{
-  unsigned long pos = GETPOS (s);
-  unsigned long i = SIZE (s);
-  unsigned long j = i;
-  while (j--) switch (SNX (s)) {/* search for newlines */
-  case '\015':			/* unlikely carriage return */
-    if (j && (CHR (s) == '\012')) {
-      SNX (s);			/* eat the line feed */
-      j--;
-    }
-    break;
-  case '\012':			/* line feed? */
-    i++;
-  default:			/* ordinary chararacter */
-    break;
-  }
-  SETPOS (s,pos);		/* restore old position */
-  return i;
 }

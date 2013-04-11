@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	29 July 1996
+ * Last Edited:	13 November 1996
  *
  * Copyright 1996 by the University of Washington
  *
@@ -50,24 +50,11 @@ long dummy_delete (MAILSTREAM *stream,char *mailbox);
 long dummy_rename (MAILSTREAM *stream,char *old,char *newname);
 MAILSTREAM *dummy_open (MAILSTREAM *stream);
 void dummy_close (MAILSTREAM *stream,long options);
-void dummy_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
-void dummy_fetchflags (MAILSTREAM *stream,char *sequence,long flags);
-ENVELOPE *dummy_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-				BODY **body,long flags);
-char *dummy_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			 STRINGLIST *lines,unsigned long *len,long flags);
-char *dummy_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		       unsigned long *len,long flags);
-char *dummy_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		       unsigned long *len,long flags);
-void dummy_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
-void dummy_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
 long dummy_ping (MAILSTREAM *stream);
 void dummy_check (MAILSTREAM *stream);
 void dummy_expunge (MAILSTREAM *stream);
 long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long dummy_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		   STRING *message);
-void dummy_gc (MAILSTREAM *stream,long gcflags);
 char *dummy_file (char *dst,char *name);
 long dummy_canonicalize (char *tmp,char *ref,char *pat);

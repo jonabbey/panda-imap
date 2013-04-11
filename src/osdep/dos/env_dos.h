@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	28 June 1995
+ * Last Edited:	28 October 1995
  *
  * Copyright 1994 by the University of Washington
  *
@@ -43,6 +43,8 @@
 
 #include "env.h"
 
+char *dos_default_gets (readfn_t f,void *stream,unsigned long size,
+			GETS_DATA *md);
 long safe_write (int fd,char *buf,long nbytes);
 long random ();
 #if _MSC_VER < 700

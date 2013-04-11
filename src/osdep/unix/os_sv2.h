@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	29 April 1996
+ * Last Edited:	3 June 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -35,12 +35,15 @@
 
 #include <unistd.h>
 #include <string.h>
+#define char void
 #include <memory.h>
+#undef char
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <fcntl.h>
 #include <syslog.h>
 #include <sys/file.h>
+#include <ustat.h>
 
 
 /* Many versions of SysV get this wrong */
@@ -54,11 +57,19 @@
 #define L_INCR SEEK_CUR
 #define L_XTND SEEK_END
 
+#define lstat stat
 #define random lrand48
 
 #define SIGSTOP SIGQUIT
 
-#define LOG_MAIL 0
+#define S_IFLNK 0120000
+
+
+/* syslog() emulation */
+
+#define LOG_MAIL        (2<<3)  /* mail system */
+#define LOG_AUTH        (4<<3)  /* security/authorization messages */
+
 
 /* For flock() emulation */
 
@@ -89,6 +100,7 @@ typedef struct _dirdesc {
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"
 
 struct passwd *getpwent (void);
 struct passwd *getpwuid (int uid);

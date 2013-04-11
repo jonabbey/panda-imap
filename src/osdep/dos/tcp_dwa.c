@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	7 February 1996
+ * Last Edited:	22 January 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -65,15 +65,6 @@ TCPSTREAM *TCP_open (char *host,char *service,unsigned long port)
   unsigned long adr,i,j,k,l;
 				/* initialize if first time here */
   if (!sock_initted++) sock_init();
-  if (s = strchr (host,':')) {	/* port number specified? */
-    *s++ = '\0';		/* yes, tie off port */
-    port = strtoul (s,&s,10);	/* parse port */
-    if (s && *s) {
-      sprintf (tmp,"Junk after port number: %.80s",s);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-  }
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */
@@ -275,6 +266,17 @@ void tcp_close (TCPSTREAM *stream)
  */
 
 char *tcp_host (TCPSTREAM *stream)
+{
+  return stream->host;		/* return host name */
+}
+
+
+/* TCP/IP get remote host name
+ * Accepts: TCP/IP stream
+ * Returns: host name for this stream
+ */
+
+char *tcp_remotehost (TCPSTREAM *stream)
 {
   return stream->host;		/* return host name */
 }

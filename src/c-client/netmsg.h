@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 June 1995
- * Last Edited:	5 February 1996
+ * Last Edited:	15 April 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -34,10 +34,6 @@
  */
 
 
-extern STRINGDRIVER netmsg_string;
-void netmsg_string_init (STRING *s,void *data,unsigned long size);
-char netmsg_string_next (STRING *s);
-void netmsg_string_setpos (STRING *s,unsigned long i);
 				/* stream must be void* for use as readfn_t */
 long netmsg_read (void *stream,unsigned long count,char *buffer);
 char *netmsg_slurp_text (NETSTREAM *stream,unsigned long *size);

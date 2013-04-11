@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	25 February 1996
+# Last Edited:	28 April 1998
 #
-# Copyright 1996 by the University of Washington
+# Copyright 1998 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -35,7 +35,7 @@ COPY=copy
 CD=cd
 MAKE=nmake /nologo -f makefile.nt
 MKDIR=mkdir
-RM=rmdir /s /q
+RD=rmdir /s /q
 
 
 # Make the IMAP Toolkit
@@ -54,6 +54,7 @@ build:	c-client mtest imapd ipopd
 c-client:
 	$(MKDIR) c-client
 	$(COPY) src\c-client\*.* c-client
+	$(COPY) src\charset\*.* c-client
 	$(COPY) src\osdep\nt\*.* c-client
 
 mtest:
@@ -69,7 +70,7 @@ imapd:
 	$(COPY) src\imapd\*.* imapd
 
 clean:
-	$(RM) c-client mtest ipopd imapd
+	$(RD) c-client mtest ipopd imapd
 
 # A monument to a hack of long ago and far away...
 love:

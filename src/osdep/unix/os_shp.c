@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	20 May 1996
+ * Last Edited:	3 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -66,13 +66,13 @@ extern int sys_nerr;
 #include "env_unix.c"
 #define fork vfork
 #include "tcp_unix.c"
-#include "log_sec.c"
 #include "gr_waitp.c"
 #undef flock
 #include "flock.c"
 #include "tz_sv4.c"
 #undef setpgrp
 #include "setpgrp.c"
+#include "utime.c"
 
 /* Emulator for BSD gethostid() call
  * Returns: a unique identifier for the system.  

@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		5 November 1990
-# Last Edited:	12 December 1995
+# Last Edited:	16 December 1997
 #
-# Copyright 1995 by the University of Washington
+# Copyright 1997 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -33,9 +33,23 @@
 
 ALERT=\\imapd.alert
 ANO=\\anonymous.newsgroups
+
+#  The "Manage Mail" menu item of Netscape Messager puts up an error message
+# that implies that there is something wrong with the IMAP server ("Contact
+# your mail server administrator.").  This is in spite of the fact that they
+# have a capability to control this proprietary feature, and thus could grey
+# out the offending button.
+#
+#  If your users complain about the error message, you can rebuild imapd with
+# NETSCAPE_BRAIN_DAMAGE defined as a string containing a URL to open, e.g. to
+# a homebrew mail account management page.
+#
+#  I personally find this definition quite amusing:
+#EXTRACFLAGS= -DNETSCAPE_BRAIN_DAMAGE=\"http://www.microsoft.com/ie/ie40/oe\"
+
 C = ..\c-client
 CCLIENTLIB = $C\cclient.lib
-LIBS = $(CCLIENTLIB) wsock32.lib winmm.lib advapi32.lib netapi32.lib libc.lib
+LIBS = $(CCLIENTLIB) wsock32.lib winmm.lib advapi32.lib
 CFLAGS= -I$C /MT /W3 /DWIN32 -nologo $(EXTRACFLAGS) -DALERTFILE=\"$(ALERT)\" -DANOFILE=\"$(ANO)\"
 
 imapd: $(CCLIENTLIB) imapd.obj

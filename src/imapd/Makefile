@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		5 November 1990
-# Last Edited:	13 March 1996
+# Last Edited:	14 April 1998
 #
-# Copyright 1996 by the University of Washington
+# Copyright 1998 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -33,15 +33,31 @@
 
 ALERT=/etc/imapd.alert
 ANO=/etc/anonymous.newsgroups
-C = ../c-client
-CCLIENTLIB = $C/c-client.a
 SHELL= /bin/sh
+
+#  The "Manage Mail" menu item of Netscape Messager puts up an error message
+# that implies that there is something wrong with the IMAP server ("Contact
+# your mail server administrator.").  This is in spite of the fact that they
+# have a capability to control this proprietary feature, and thus could grey
+# out the offending button.
+#
+#  If your users complain about the error message, you can rebuild imapd with
+# NETSCAPE_BRAIN_DAMAGE defined as a string containing a URL to open, e.g. to
+# a homebrew mail account management page.
+#
+#  I personally find this definition quite amusing:
+#EXTRACFLAGS= -DNETSCAPE_BRAIN_DAMAGE=\"http://www.microsoft.com/ie/ie40/oe\"
 
 # Get local definitions from c-client directory
 
+C = ../c-client
+CCLIENTLIB = $C/c-client.a
 CC = `cat $C/CCTYPE`
-CFLAGS = -I$C `cat $C/CFLAGS` -DALERTFILE=\"$(ALERT)\" -DANOFILE=\"$(ANO)\"
+CFLAGS = -I$C `cat $C/CFLAGS` -DALERTFILE=\"$(ALERT)\" -DANOFILE=\"$(ANO)\" \
+	$(EXTRACFLAGS)
 LDFLAGS = $(CCLIENTLIB) `cat $C/LDFLAGS`
+
+all:	imapd
 
 imapd: $(CCLIENTLIB) imapd.o
 	$(CC) $(CFLAGS) -o imapd imapd.o $(LDFLAGS)
@@ -52,7 +68,7 @@ $(CCLIENTLIB):
 	cd $C;make
 
 clean:
-	rm -f *.o imapd
+	rm -f *.o imapd || true
 
 # A monument to a hack of long ago and far away...
 love:

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 June 1995
- * Last Edited:	18 June 1995
+ * Last Edited:	8 June 1996
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -105,7 +105,7 @@ void poot (s)
 char *skipfx (s)
      char *s;
 {
-  char c,*t = s;
+  char c,*t = s,*tt;
 				/* skip leading whitespace too */
   while ((*s == ' ') || (*s == '\t')) *s++;
   if (s != t) {
@@ -114,16 +114,31 @@ char *skipfx (s)
     poot (t);			/* output prefix */
     *s = c;			/* restore character */
   }
-				/* one of the known prefixes? */
-  if ((((s[0] == 't') && (s[1] == 'y') && (s[2] == 'p') && (s[3] == 'e') &&
-	(s[4] == 'd') && (s[5] == 'e') && (s[6] == 'f')) ||
-       ((s[0] == 'u') && (s[1] == 'n') && (s[2] == 's') && (s[3] == 'i') &&
-	(s[4] == 'g') && (s[5] == 'n') && (s[6] == 'e') && (s[7] == 'd')) ||
-       ((s[0] == 's') && (s[1] == 't') && (s[2] == 'r') && (s[3] == 'u') &&
-	(s[4] == 'c') && (s[5] == 't')) ||
-       ((s[0] == 's') && (s[1] == 't') && (s[2] == 'a') && (s[3] == 't') &&
-	(s[4] == 'i') && (s[5] == 'c'))) &&
+				/* a typedef? */
+  if (((s[0] == 't') && (s[1] == 'y') && (s[2] == 'p') && (s[3] == 'e') &&
+       (s[4] == 'd') && (s[5] == 'e') && (s[6] == 'f')) &&
       (t = fndws (s)) && (t = fndnws (t))) {
+    if ((t[0] == 'u') && (t[1] == 'n') && (t[2] == 's') && (t[3] == 'i') &&
+	(t[4] == 'g') && (t[5] == 'n') && (t[6] == 'e') && (t[7] == 'd') &&
+	(tt = fndws (t+7)) && (tt = fndnws (tt))) t = tt;
+    c = *t;			/* save character */
+    *t = '\0';			/* tie off prefix */
+    poot (s);			/* output prefix */
+    *t = c;			/* restore character */
+    s = t;			/* new string pointer */
+  }
+				/* one of the known prefixes? */
+  else if ((((s[0] == 'u') && (s[1] == 'n') && (s[2] == 's') &&
+	     (s[3] == 'i') && (s[4] == 'g') && (s[5] == 'n') &&
+	     (s[6] == 'e') && (s[7] == 'd')) ||
+	    ((s[0] == 's') && (s[1] == 't') && (s[2] == 'r') &&
+	     (s[3] == 'u') && (s[4] == 'c') && (s[5] == 't')) ||
+	    ((s[0] == 's') && (s[1] == 't') && (s[2] == 'a') &&
+	     (s[3] == 't') && (s[4] == 'i') && (s[5] == 'c')) ||
+	    ((s[0] == 'd') && (s[1] == 'o')) ||
+	    ((s[0] == 'e') && (s[1] == 'l') && (s[2] == 's') &&
+	     (s[3] == 'e'))) &&
+	   (t = fndws (s)) && (t = fndnws (t))) {
     c = *t;			/* save character */
     *t = '\0';			/* tie off prefix */
     poot (s);			/* output prefix */

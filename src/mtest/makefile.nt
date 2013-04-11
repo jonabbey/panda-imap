@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		25 February 1996
-# Last Edited:	25 February 1996
+# Last Edited:	1 August 1997
 #
-# Copyright 1996 by the University of Washington
+# Copyright 1997 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -33,7 +33,7 @@
 
 C = ..\c-client
 CCLIENTLIB = $C\cclient.lib
-LIBS = $(CCLIENTLIB) wsock32.lib winmm.lib advapi32.lib netapi32.lib libc.lib
+LIBS = $(CCLIENTLIB) wsock32.lib winmm.lib advapi32.lib
 CFLAGS= -I$C /MT /W3 /DWIN32 -nologo $(EXTRACFLAGS)
 
 mtest: $(CCLIENTLIB) mtest.obj

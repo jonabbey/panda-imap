@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	17 September 1996
+ * Last Edited:	22 May 1998
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,9 +39,12 @@ void *env_parameters (long function,void *value);
 void rfc822_date (char *date);
 void rfc822_timezone (char *s,void *t);
 void internal_date (char *date);
+long server_input_wait (long seconds);
 void server_traps (void *clkint,void *kodint,void *hupint,void *trmint);
 long server_login (char *user,char *pass,int argc,char *argv[]);
+long authserver_login (char *user,int argc,char *argv[]);
+long anonymous_login (int argc,char *argv[]);
 char *mylocalhost (void);
 char *myhomedir (void);
 char *mailboxfile (char *dst,char *name);
-MAILSTREAM *default_proto (void);
+MAILSTREAM *default_proto (long type);

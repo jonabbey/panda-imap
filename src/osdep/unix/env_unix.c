@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 October 1996
+ * Last Edited:	28 June 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -32,6 +32,14 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
+
+#include <signal.h>
+#include <sys/wait.h>
+#include "write.c"		/* include safe writing routines */
+
+/* Get all authenticators */
+
+#include "auths.c"
 
 /* c-client environment parameters */
 
@@ -47,6 +55,9 @@ static char *newsActive = NIL;	/* news active file */
 static char *newsSpool = NIL;	/* news spool */
 				/* anonymous home directory */
 static char *anonymousHome = NIL;
+static char *ftpHome = NIL;	/* ftp export home directory */
+static char *publicHome = NIL;	/* public home directory */
+static char *sharedHome = NIL;	/* shared home directory */
 static char *blackBoxDir = NIL;	/* black box directory name */
 				/* black box default home directory */
 static char *blackBoxDefaultHome = NIL;
@@ -73,16 +84,33 @@ static long lockEaccesError =	/* warning on EACCES errors on .lock files */
   T
 #endif
   ;
-static MAILSTREAM *defaultProto = NIL;
+				/* default prototypes */
+static MAILSTREAM *createProto = NIL;
+static MAILSTREAM *appendProto = NIL;
+				/* default user flags */
 static char *userFlags[NUSERFLAGS] = {NIL};
+static NAMESPACE *nslist[3];	/* namespace list */
+static int logtry = 3;		/* number of login tries */
+
+/* UNIX namespaces */
 
-#include <signal.h>
-#include <sys/wait.h>
-#include "write.c"		/* include safe writing routines */
-
-/* Get all authenticators */
-
-#include "auths.c"
+				/* personal mh namespace */
+static NAMESPACE nsmhf = {"#mh/",'/',NIL,NIL};
+static NAMESPACE nsmh = {"#mhinbox",NIL,NIL,&nsmhf};
+				/* home namespace */
+static NAMESPACE nshome = {"",'/',NIL,&nsmh};
+				/* UNIX other user namespace */
+static NAMESPACE nsunixother = {"~",'/',NIL,NIL};
+				/* black box other user namespace */
+static NAMESPACE nsblackother = {"/",'/',NIL,NIL};
+				/* public (anonymous OK) namespace */
+static NAMESPACE nspublic = {"#public/",'/',NIL,NIL};
+				/* netnews namespace */
+static NAMESPACE nsnews = {"#news.",'.',NIL,&nspublic};
+				/* FTP export namespace */
+static NAMESPACE nsftp = {"#ftp/",'/',NIL,&nsnews};
+				/* shared (no anonymous) namespace */
+static NAMESPACE nsshared = {"#shared/",'/',NIL,&nsftp};
 
 /* Environment manipulate parameters
  * Accepts: function code
@@ -93,6 +121,11 @@ static char *userFlags[NUSERFLAGS] = {NIL};
 void *env_parameters (long function,void *value)
 {
   switch ((int) function) {
+  case SET_NAMESPACE:
+    fatal ("SET_NAMESPACE not permitted");
+  case GET_NAMESPACE:
+    value = (void *) nslist;
+    break;
   case SET_USERNAME:
     if (myUserName) fs_give ((void **) &myUserName);
     myUserName = cpystr ((char *) value);
@@ -128,6 +161,7 @@ void *env_parameters (long function,void *value)
   case GET_NEWSACTIVE:
     value = (void *) newsActive;
     break;
+
   case SET_NEWSSPOOL:
     if (newsSpool) fs_give ((void **) &newsSpool);
     newsSpool = cpystr ((char *) value);
@@ -135,13 +169,33 @@ void *env_parameters (long function,void *value)
   case GET_NEWSSPOOL:
     value = (void *) newsSpool;
     break;
-
   case SET_ANONYMOUSHOME:
     if (anonymousHome) fs_give ((void **) &anonymousHome);
     anonymousHome = cpystr ((char *) value);
     break;
   case GET_ANONYMOUSHOME:
     value = (void *) anonymousHome;
+    break;
+  case SET_FTPHOME:
+    if (ftpHome) fs_give ((void **) &ftpHome);
+    ftpHome = cpystr ((char *) value);
+    break;
+  case GET_FTPHOME:
+    value = (void *) ftpHome;
+    break;
+  case SET_PUBLICHOME:
+    if (publicHome) fs_give ((void **) &publicHome);
+    publicHome = cpystr ((char *) value);
+    break;
+  case GET_PUBLICHOME:
+    value = (void *) publicHome;
+    break;
+  case SET_SHAREDHOME:
+    if (sharedHome) fs_give ((void **) &sharedHome);
+    sharedHome = cpystr ((char *) value);
+    break;
+  case GET_SHAREDHOME:
+    value = (void *) sharedHome;
     break;
   case SET_SYSINBOX:
     if (sysInbox) fs_give ((void **) &sysInbox);
@@ -156,6 +210,7 @@ void *env_parameters (long function,void *value)
   case GET_LISTMAXLEVEL:
     value = (void *) list_max_level;
     break;
+
   case SET_MBXPROTECTION:
     mbx_protection = (long) value;
     break;
@@ -258,25 +313,103 @@ void internal_date (char *date)
 
 void server_traps (void *clkint,void *kodint,void *hupint,void *trmint)
 {
-  signal (SIGALRM,clkint);	/* prepare for clock interrupt */
-  signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
-  signal (SIGHUP,hupint);	/* prepare for hangup */
-  signal (SIGTERM,trmint);	/* prepare for termination */
+  arm_signal (SIGALRM,clkint);	/* prepare for clock interrupt */
+  arm_signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
+  arm_signal (SIGHUP,hupint);	/* prepare for hangup */
+  arm_signal (SIGTERM,trmint);	/* prepare for termination */
+}
+
+
+/* Wait for stdin input
+ * Accepts: timeout in seconds
+ * Returns: T if have input on stdin, else NIL
+ */
+
+long server_input_wait (long seconds)
+{
+  fd_set rfd;
+  struct timeval tmo;
+  FD_ZERO (&rfd);
+  FD_SET (0,&rfd);
+  tmo.tv_sec = seconds; tmo.tv_usec = 0;
+  return select (1,&rfd,0,0,&tmo) ? LONGT : NIL;
+}
+
+/* Server log in
+ * Accepts: user name string
+ *	    password string
+ *	    argument count
+ *	    argument vector
+ * Returns: T if password validated, NIL otherwise
+ */
+
+long server_login (char *user,char *pwd,int argc,char *argv[])
+{
+  char *s,usr[MAILTMPLEN];
+  struct passwd *pw;
+				/* cretins still haven't given up */
+  if (strlen (user) >= MAILTMPLEN)
+    syslog (LOG_ALERT|LOG_AUTH,"System break-in attempt, host=%.80s",
+	    tcp_clienthost ());
+				/* validate with case-independence */
+  else if ((logtry > 0) && ((pw = getpwnam (strcpy (usr,user))) ||
+			    (pw = getpwnam (lcase (usr)))) &&
+	   ((pw = checkpw (pw,pwd,argc,argv)) ||
+	    ((*pwd == ' ') && (pw = getpwnam (usr)) &&
+	     (pw = checkpw (pw,pwd + 1,argc,argv)))))
+    return pw_login (pw,pw->pw_name,pw->pw_dir,argc,argv);
+  s = (logtry-- > 0) ? "Login failure" : "Excessive login attempts";
+				/* note the failure in the syslog */
+  syslog (LOG_INFO,"%s user=%.80s host=%.80s",s,user,tcp_clienthost ());
+  sleep (3);			/* slow down possible cracker */
+  return NIL;
+}
+
+/* Authenticated server log in
+ * Accepts: user name string
+ *	    argument count
+ *	    argument vector
+ * Returns: T if password validated, NIL otherwise
+ */
+
+long authserver_login (char *user,int argc,char *argv[])
+{
+  struct passwd *pw = getpwnam (user);
+  return pw ? pw_login (pw,pw->pw_name,pw->pw_dir,argc,argv) : NIL;
 }
 
 
 /* Log in as anonymous daemon
+ * Accepts: argument count
+ *	    argument vector
  * Returns: T if successful, NIL if error
  */
 
-long anonymous_login ()
+long anonymous_login (int argc,char *argv[])
 {
-  struct passwd *pwd = getpwnam (anonymous_user);
-  if (!pwd) return NIL;		/* can we become someone harmless? */
-  setgid (pwd->pw_gid);		/* set group ID */
-  setuid (pwd->pw_uid);		/* become the guy */
-  chdir (pwd->pw_dir);		/* set home directory as default */
-  return env_init (NIL,NIL);	/* initialize environment */
+  struct passwd *pw = getpwnam (anonymous_user);
+				/* log in Mr. A. N. Onymous */
+  return pw ? pw_login (pw,NIL,NIL,argc,argv) : NIL;
+}
+
+
+/* Finish log in and environment initialization
+ * Accepts: passwd struct for loginpw()
+ *	    user name (NIL for anonymous)
+ *	    home directory (NIL for anonymous)
+ *	    argument count
+ *	    argument vector
+ * Returns: T if successful, NIL if error
+ */
+
+long pw_login (struct passwd *pw,char *user,char *home,int argc,char *argv[])
+{
+  if (pw->pw_uid && ((pw->pw_uid == geteuid ()) || loginpw (pw,argc,argv)) &&
+      env_init (user,home)) {
+    chdir (myhomedir ());	/* placate those who would be upset */
+    return LONGT;
+  }
+  return NIL;
 }
 
 /* Initialize environment
@@ -288,12 +421,14 @@ long anonymous_login ()
 long env_init (char *user,char *home)
 {
   extern MAILSTREAM STDPROTO;
+  struct passwd *pw;
   struct stat sbuf;
   char *s,tmp[MAILTMPLEN];
   if (myUserName) fatal ("env_init called twice!");
-				/* myUserNmae must be set before dorc() call */
+				/* myUserName must be set before dorc() call */
   myUserName = cpystr (user ? user : anonymous_user);
-  dorc ("/etc/imapd.conf",NIL);	/* do systemwide configuration */
+				/* do systemwide configuration */
+  dorc ("/etc/c-client.cf",NIL);
   if (!anonymousHome) anonymousHome = cpystr (ANONYMOUSHOME);
   if (user) {			/* remember user name and home directory */
     if (blackBoxDir) {		/* build black box directory name */
@@ -306,32 +441,40 @@ long env_init (char *user,char *home)
 	blackBox = T;
       }
     }
-    if (!blackBox) {		/* not a black box? */
+    if (blackBox)		/* black box? */
+      nslist[0] = &nshome,nslist[1] = &nsblackother,nslist[2] = &nsshared;
+    else {			/* not a black box */
+      nslist[0] = &nshome,nslist[1] = &nsunixother,nslist[2] = &nsshared;
       myHomeDir = cpystr (home);/* use real home directory */
 				/* make sure user rc files don't try this */
       blackBoxDir = blackBoxDefaultHome = "";
     }
   }
   else {			/* anonymous user */
+    nslist[0] = nslist[1] = NIL,nslist[2] = &nsftp;
     sprintf (tmp,"%s/INBOX",myHomeDir = cpystr (anonymousHome));
     sysInbox = cpystr (tmp);	/* make system INBOX */
     anonymous = T;		/* flag as anonymous */
 				/* make sure an error message happens */
     if (!blackBoxDir) blackBoxDir = blackBoxDefaultHome = anonymousHome;
   }
-  dorc (strcat (strcpy (tmp,myhomedir ()),"/.mminit"),T);
-  dorc (strcat (strcpy (tmp,myhomedir ()),"/.imaprc"),NIL);
+  dorc (strcat (strcpy (tmp,myHomeDir),"/.mminit"),T);
+  dorc (strcat (strcpy (tmp,myHomeDir),"/.imaprc"),NIL);
   if (!myLocalHost) mylocalhost ();
-  if (!myNewsrc) {		/* set news file name if not defined */
-    sprintf (tmp,"%s/.newsrc",myhomedir ());
-    myNewsrc = cpystr (tmp);
-  }
+  if (!myNewsrc) myNewsrc = cpystr(strcat (strcpy (tmp,myHomeDir),"/.newsrc"));
   if (!newsActive) newsActive = cpystr (ACTIVEFILE);
   if (!newsSpool) newsSpool = cpystr (NEWSSPOOL);
+  if (!ftpHome && (pw = getpwnam ("ftp"))) ftpHome = cpystr (pw->pw_dir);
+  if (!publicHome && (pw = getpwnam ("imappublic")))
+    publicHome = cpystr (pw->pw_dir);
+  if (!anonymous && !sharedHome && (pw = getpwnam ("imapshared")))
+    sharedHome = cpystr (pw->pw_dir);
 				/* force default prototype to be set */
-  if (!defaultProto) defaultProto = &STDPROTO;
+  if (!createProto) createProto = &STDPROTO;
+  if (!appendProto) appendProto = &STDPROTO;
 				/* re-do open action to get flags */
-  (*defaultProto->dtb->open) (NIL);
+  (*createProto->dtb->open) (NIL);
+  endpwent ();			/* close pw database */
   return T;
 }
  
@@ -398,7 +541,7 @@ char *sysinbox ()
 {
   char tmp[MAILTMPLEN];
   if (!sysInbox) {		/* initialize if first time */
-    sprintf (tmp,"%s/%s",MAILSPOOL,myUserName);
+    sprintf (tmp,"%s/%s",MAILSPOOL,myusername ());
     sysInbox = cpystr (tmp);	/* system inbox is from mail spool */
   }
   return sysInbox;
@@ -437,33 +580,52 @@ char *mailboxfile (char *dst,char *name)
   struct passwd *pw;
   char *dir = myhomedir ();
   *dst = '\0';			/* default to empty string */
+				/* check invalid name */
+  if (!name || !*name || (*name == '{')) return NIL;
+				/* check for INBOX */
   if (((name[0] == 'I') || (name[0] == 'i')) &&
       ((name[1] == 'N') || (name[1] == 'n')) &&
       ((name[2] == 'B') || (name[2] == 'b')) &&
       ((name[3] == 'O') || (name[3] == 'o')) &&
-      ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) name = NIL;
-  if (name && (*name == '#')) {	/* namespace name? */
-    if ((name[1] == 'f') && (name[2] == 't') && (name[3] == 'p') &&
-	(name[4] == '/') && !strstr (name,"..") && !strstr (name,"//") &&
-	!strstr (name,"/~") && (pw = getpwnam ("ftp")) && (dir = pw->pw_dir))
-      name += 5;		/* advance to local namename */
-    else return NIL;		/* unknown namespace name */
+      ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) {
+				/* if restricted, canonicalize name of INBOX */
+    if (anonymous || blackBox) name = "INBOX";
+    else return dst;		/* else driver selects the INBOX name */
   }
-  else if (anonymous) {		/* anonymous user? */
-    if (!name) name = "INBOX";	/* one true name for INBOX */
-    else if ((*name == '/') || strstr (name,"..") || strstr (name,"//") ||
-	     strstr (name,"/~")) return NIL;
-  }
-  else if (blackBox) {		/* black box? */
-    if (!name) name = "INBOX";	/* one true name for INBOX */
-    else if (strstr (name,"..") || strstr (name,"//") || strstr (name,"/~"))
-      return NIL;		/* illegal name */
-    else if (*name == '/') {	/* rooted name may be other user */
+				/* restricted name? */
+  else if ((*name == '#') || anonymous || blackBox) {
+    if (strstr (name,"..") || strstr (name,"//") || strstr (name,"/~"))
+      return NIL;		/* none of these allowed when restricted */
+    switch (*name) {		/* what kind of restricted name? */
+    case '#':			/* namespace name */
+      if (((name[1] == 'f') || (name[1] == 'F')) &&
+	  ((name[2] == 't') || (name[2] == 'T')) &&
+	  ((name[3] == 'p') || (name[3] == 'P')) &&
+	  (name[4] == '/') && (dir = ftpHome)) name += 5;
+      else if (((name[1] == 'p') || (name[1] == 'P')) &&
+	       ((name[2] == 'u') || (name[2] == 'U')) &&
+	       ((name[3] == 'b') || (name[3] == 'B')) &&
+	       ((name[4] == 'l') || (name[4] == 'L')) &&
+	       ((name[5] == 'i') || (name[5] == 'I')) &&
+	       ((name[6] == 'c') || (name[6] == 'C')) &&
+	       (name[7] == '/') && (dir = publicHome)) name += 8;
+      else if (!anonymous && ((name[1] == 's') || (name[1] == 'S')) &&
+	       ((name[2] == 'h') || (name[2] == 'H')) &&
+	       ((name[3] == 'a') || (name[3] == 'A')) &&
+	       ((name[4] == 'r') || (name[4] == 'R')) &&
+	       ((name[5] == 'e') || (name[5] == 'E')) &&
+	       ((name[6] == 'd') || (name[6] == 'D')) &&
+	       (name[7] == '/') && (dir = sharedHome)) name += 8;
+      else return NIL;		/* unknown namespace name */
+      break;
+    case '/':			/* rooted restricted name */
+      if (anonymous) return NIL;/* anonymous can't do this */
       dir = blackBoxDir;	/* base is black box directory */
       name++;			/* skip past delimiter */
+      break;
     }
   }
-  else if (!name) return dst;	/* driver selects the INBOX name */
+
 				/* absolute path name? */
   else if (*name == '/') return strcpy (dst,name);
 				/* some home directory? */
@@ -476,7 +638,8 @@ char *mailboxfile (char *dst,char *name)
       if (*name) *name++;	/* skip past the slash */
     }
   }
-  sprintf(dst,"%s/%s",dir,name);/* build resulting name */
+				/* build resulting name */
+  sprintf (dst,"%s/%s",dir,name);
   return dst;			/* return it */
 }
 
@@ -512,7 +675,10 @@ int lockfd (int fd,char *lock,int op)
   if (fstat (fd,&sbuf)) return -1;
   locksbuf (lock,(void *) &sbuf);
 				/* get the lock */
-  if ((ld = lock_work (lock)) >= 0) flock (ld,op);
+  while (((ld = lock_work (lock)) < 0) && (errno == EEXIST));
+  if (ld >= 0) flock (ld,op);	/* did we get it? */
+  else syslog (LOG_INFO,"Mailbox lock file %s open failure: %s",lock,
+	       strerror (errno));
   return ld;			/* return locking file descriptor */
 }
 
@@ -537,11 +703,11 @@ void locksbuf (char *lock,void *sb)
 int lock_work (char *lock)
 {
   long nlinks = chk_notsymlink (lock);
-  if (!nlinks) return NIL;	/* fail if symbolic link */
+  if (!nlinks) return -1;	/* fail if symbolic link */
   if (nlinks > 1) {		/* extra hard link to the file? */
     mm_log ("SECURITY ALERT: hard link to lock name!",ERROR);
     syslog (LOG_CRIT,"SECURITY PROBLEM: lock file %s has a hard link",lock);
-    return NIL;
+    return -1;
   }
   return open (lock,O_RDWR | O_CREAT | ((nlinks < 0) ? O_EXCL : NIL),
 	       (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL));
@@ -582,13 +748,15 @@ void unlockfd (int fd,char *lock)
 }
 
 /* Determine default prototype stream to user
+ * Accepts: type (NIL for create, T for append)
  * Returns: default prototype stream
  */
 
-MAILSTREAM *default_proto ()
+MAILSTREAM *default_proto (long type)
 {
   myusername ();		/* make sure initialized */
-  return defaultProto;		/* return default driver's prototype */
+				/* return default driver's prototype */
+  return type ? appendProto : createProto;
 }
 
 
@@ -634,7 +802,7 @@ void dorc (char *file,long flag)
 				/* no file or ill-advised usage */
   if (!(f && (s = fgets (tmp,MAILTMPLEN,f)) && (t = strchr (s,'\n')) &&
 	(flag ||
-	 (!strcmp (s,"I accept the risk for IMAP toolkit 4.0.\n") &&
+	 (!strcmp (s,"I accept the risk for IMAP toolkit 4.1.\n") &&
 	  (s = fgets (tmp,MAILTMPLEN,f)) && (t = strchr (s,'\n')))))) return;
   do {
     *t++ = '\0';		/* tie off line, find second space */
@@ -651,16 +819,33 @@ void dorc (char *file,long flag)
 	}
       }
       else if (!flag) {		/* none of these valid in .mminit */
-	if (!(defaultProto || strcmp (s,"set empty-folder-format"))) {
+
+	if (!(createProto || strcmp (s,"set new-folder-format"))) {
 	  if (!strcmp (lcase (k),"same-as-inbox"))
-	    defaultProto = ((d = mail_valid (NIL,"INBOX",NIL)) &&
+	    createProto = ((d = mail_valid (NIL,"INBOX",NIL)) &&
 			    strcmp (d->name,"dummy")) ?
 			      ((*d->open) (NIL)) : &STDPROTO;
-	  else if (!strcmp (k,"system-standard")) defaultProto = &STDPROTO;
+	  else if (!strcmp (k,"system-standard")) createProto = &STDPROTO;
 	  else {		/* see if a driver name */
 	    for (d = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL);
 		 d && strcmp (d->name,k); d = d->next);
-	    if (d) defaultProto = (*d->open) (NIL);
+	    if (d) createProto = (*d->open) (NIL);
+	    else {		/* duh... */
+	      sprintf (tmpx,"Unknown new folder format in %s: %s",file,k);
+	      mm_log (tmpx,WARN);
+	    }
+	  }
+	}
+	if (!(appendProto || strcmp (s,"set empty-folder-format"))) {
+	  if (!strcmp (lcase (k),"same-as-inbox"))
+	    appendProto = ((d = mail_valid (NIL,"INBOX",NIL)) &&
+			    strcmp (d->name,"dummy")) ?
+			      ((*d->open) (NIL)) : &STDPROTO;
+	  else if (!strcmp (k,"system-standard")) appendProto = &STDPROTO;
+	  else {		/* see if a driver name */
+	    for (d = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL);
+		 d && strcmp (d->name,k); d = d->next);
+	    if (d) appendProto = (*d->open) (NIL);
 	    else {		/* duh... */
 	      sprintf (tmpx,"Unknown empty folder format in %s: %s",file,k);
 	      mm_log (tmpx,WARN);
@@ -683,6 +868,7 @@ void dorc (char *file,long flag)
 		    ERROR);
 	  else blackBoxDefaultHome = cpystr (k);
 	}
+
 	else if (!strcmp (s,"set local-host")) {
 	  fs_give ((void **) &myLocalHost);
 	  myLocalHost = cpystr (k);
@@ -703,10 +889,27 @@ void dorc (char *file,long flag)
 	  fs_give ((void **) &anonymousHome);
 	  anonymousHome = cpystr (k);
 	}
+	else if (!strcmp (s,"set ftp-export-directory")) {
+	  fs_give ((void **) &ftpHome);
+	  ftpHome = cpystr (k);
+	}
+	else if (!strcmp (s,"set public-home-directory")) {
+	  fs_give ((void **) &publicHome);
+	  publicHome = cpystr (k);
+	}
+	else if (!strcmp (s,"set shared-home-directory")) {
+	  fs_give ((void **) &sharedHome);
+	  sharedHome = cpystr (k);
+	}
 	else if (!strcmp (s,"set system-inbox")) {
 	  fs_give ((void **) &sysInbox);
 	  sysInbox = cpystr (k);
 	}
+	else if (!strcmp (s,"set rsh-command"))
+	  mail_parameters (NIL,SET_RSHCOMMAND,(void *) k);
+	else if (!strcmp (s,"set rsh-path"))
+	  mail_parameters (NIL,SET_RSHPATH,(void *) k);
+
 	else if (!strcmp (s,"set tcp-open-timeout"))
 	  mail_parameters (NIL,SET_OPENTIMEOUT,(void *) atol (k));
 	else if (!strcmp (s,"set tcp-read-timeout"))
@@ -741,9 +944,32 @@ void dorc (char *file,long flag)
 	  mail_parameters (NIL,SET_LOCKEACCESERROR,(void *) atol (k));
 	else if (!strcmp (s,"set list-maximum-level"))
 	  mail_parameters (NIL,SET_LISTMAXLEVEL,(void *) atol (k));
+	else if (!strcmp (s,"set allowed-login-attempts")) logtry = atoi (k);
       }
     }
   }
   while ((s = fgets (tmp,MAILTMPLEN,f)) && (t = strchr (s,'\n')));
   fclose (f);			/* flush the file */
+}
+
+/* INBOX create function for tmail/dmail use only
+ * Accepts: mail stream
+ *	    path name buffer, preloaded with driver-dependent path
+ * Returns: T on success, NIL on failure
+ *
+ * This routine is evil and a truly incredible kludge.  It is private for
+ * tmail/dmail and is not supported for any other application.
+ */
+
+long path_create (MAILSTREAM *stream,char *path)
+{
+  long ret;
+				/* do the easy thing if not a black box */
+  if (!blackBox) return mail_create (stream,path);
+				/* toss out driver dependent names */
+  printf (path,"%s/INBOX",myhomedir ());
+  blackBox = NIL;		/* well that's evil - evil is going on */
+  ret = mail_create (stream,path);
+  blackBox = T;			/* restore the box */
+  return ret;
 }

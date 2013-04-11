@@ -1,5 +1,5 @@
 /*
- * Program:	SecureWare system login
+ * Program:	SecureWare login
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	16 September 1996
+ * Last Edited:	19 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,32 +33,15 @@
  *
  */
 
-/* Server log in
- * Accepts: user name string
- *	    password string
+/* Log in
+ * Accepts: login passwd struct
  *	    argument count
  *	    argument vector
- * Returns: T if password validated, NIL otherwise
+ * Returns: T if success, NIL otherwise
  */
 
-long server_login (char *user,char *pass,int argc,char *argv[])
+long loginpw (struct passwd *pw,int argc,char *argv[])
 {
-  char tmp[MAILTMPLEN];
-  struct passwd *pw;
-  struct pr_passwd *pp;
-  set_auth_parameters (argc,argv);
-				/* allow case-independent match */
-  if (!(pw = getpwnam (user))) pw = getpwnam (lcase (strcpy (tmp,user)));
-  if (!(pw && pw->pw_uid &&	/* validate user, password, and not locked */
-	(!strcmp (pw->pw_passwd,(char *) crypt (pass,pw->pw_passwd)) ||
-	 ((pp = getprpwnam (pw->pw_name)) &&
-	  pp->ufld.fd_uid && !pp->ufld.fd_lock &&
-	  !strcmp (pp->ufld.fd_encrypt,bigcrypt (pass,pp->ufld.fd_encrypt))))))
-    return NIL;
-  setgid (pw->pw_gid);		/* all OK, login in as that user */
-				/* initialize groups */
-  initgroups (pw->pw_name,pw->pw_gid);
-  setuid (pw->pw_uid);		/* become the guy */
-  chdir (pw->pw_dir);		/* set home directory as default */
-  return env_init (pw->pw_name,pw->pw_dir);
+  return !(setgid (pw->pw_gid) || initgroups (pw->pw_name,pw->pw_gid) ||
+	   setluid (pw->pw_uid) || setuid (pw->pw_uid));
 }

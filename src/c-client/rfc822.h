@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	5 February 1996
+ * Last Edited:	16 April 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,26 +41,32 @@
  *
  */
 
+#define rfc822_write_address(dest,adr) \
+  rfc822_write_address_full (dest,adr,NIL)
+
+
 /* Function prototypes */
 
 void rfc822_header (char *header,ENVELOPE *env,BODY *body);
 void rfc822_address_line (char **header,char *type,ENVELOPE *env,ADDRESS *adr);
 void rfc822_header_line (char **header,char *type,ENVELOPE *env,char *text);
-void rfc822_write_address (char *dest,ADDRESS *adr);
+char *rfc822_write_address_full (char *dest,ADDRESS *adr,char *base);
 void rfc822_address (char *dest,ADDRESS *adr);
 void rfc822_cat (char *dest,char *src,const char *specials);
 void rfc822_write_body_header (char **header,BODY *body);
 char *rfc822_default_subtype (unsigned short type);
 void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
-		       STRING *bs,char *host,char *tmp);
-void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t);
+		       STRING *bs,char *host,unsigned long flags);
+void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long flags);
 void rfc822_parse_content_header (BODY *body,char *name,char *s);
+void rfc822_parse_parameter (PARAMETER **par,char *text);
 void rfc822_parse_adrlist (ADDRESS **lst,char *string,char *host);
 ADDRESS *rfc822_parse_address (ADDRESS **lst,ADDRESS *last,char **string,
 			       char *defaulthost);
 ADDRESS *rfc822_parse_group (ADDRESS **lst,ADDRESS *last,char **string,
 			     char *defaulthost);
 ADDRESS *rfc822_parse_mailbox (char **string,char *defaulthost);
+long rfc822_phraseonly (char *end);
 ADDRESS *rfc822_parse_routeaddr (char *string,char **ret,char *defaulthost);
 ADDRESS *rfc822_parse_addrspec (char *string,char **ret,char *defaulthost);
 char *rfc822_parse_phrase (char *string);
@@ -70,8 +76,6 @@ char *rfc822_quote (char *src);
 ADDRESS *rfc822_cpy_adr (ADDRESS *adr);
 void rfc822_skipws (char **s);
 char *rfc822_skip_comment (char **s,long trim);
-char *rfc822_contents (char **dst,unsigned long *dstl,unsigned long *len,
-		       char *src,unsigned long srcl,unsigned short encoding);
 
 typedef long (*soutr_t) (void *stream,char *string);
 typedef long (*rfc822out_t) (char *t,ENVELOPE *env,BODY *body,soutr_t f,

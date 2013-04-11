@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	27 February 1996
+ * Last Edited:	2 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -65,7 +65,6 @@ extern char *sys_errlist[];
 #include "env_unix.c"
 #define fork vfork
 #include "tcp_unix.c"
-#include "log_std.c"
 #include "gr_waitp.c"
 #include "memmove.c"
 #include "strerror.c"

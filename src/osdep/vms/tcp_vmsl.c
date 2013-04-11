@@ -1,13 +1,18 @@
 /*
  * Program:	VMS TCP/IP routines for Netlib.
  *
- * Author:	Yehavi Bourvine, The Hebrew University of Jerusalem
- *		Internet: Yehavi@VMS.huji.ac.il
+ * Author:	Mark Crispin
+ *		Networks and Distributed Computing
+ *		Computing & Communications
+ *		University of Washington
+ *		Administration Building, AG-44
+ *		Seattle, WA  98195
+ *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	7 February 1996
+ * Last Edited:	22 January 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -28,6 +33,8 @@
  *
  */
 
+/* Thanks to Yehavi Bourvine at The Hebrew University of Jerusalem who
+   contributed the original VMS code */
 
 #include <descrip.h>
 
@@ -55,8 +62,6 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   TCPSTREAM *stream = NIL;
   unsigned long sock;
   int status;
-  char *s;
-  char hostname[MAILTMPLEN];
   char tmp[MAILTMPLEN];
 				/* hostname to connect to */
   struct dsc$descriptor HostDesc = { 0, DSC$K_DTYPE_T, DSC$K_CLASS_S, NULL };
@@ -81,8 +86,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   }
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
-				/* copy official host name */
-  stream->host = cpystr (hostname);
+  stream->host = cpystr (host);	/* copy official host name */
 				/* copy local host name */
   stream->localhost = cpystr (mylocalhost ());
   stream->port = port;		/* copy port number */
@@ -277,6 +281,17 @@ char *tcp_host (TCPSTREAM *stream)
 }
 
 
+/* TCP/IP get remote host name
+ * Accepts: TCP/IP stream
+ * Returns: host name for this stream
+ */
+
+char *tcp_remotehost (TCPSTREAM *stream)
+{
+  return stream->host;		/* return host name */
+}
+
+
 /* TCP/IP return port for this stream
  * Accepts: TCP/IP stream
  * Returns: port number for this stream
@@ -298,17 +313,6 @@ char *tcp_localhost (TCPSTREAM *stream)
   return stream->localhost;	/* return local host name */
 }
 
-/* TCP/IP get server host name
- * Accepts: pointer to destination
- * Returns: string pointer if got results, else NIL
- */
-
-char *tcp_clienthost (char *dst)
-{
-  return "UNKNOWN";		/* needs to be written */
-}
-
-
 /* Return my local host name
  * Returns: my local host name
  */

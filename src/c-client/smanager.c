@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 December 1992
- * Last Edited:	23 July 1995
+ * Last Edited:	14 April 1997
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -78,15 +78,15 @@ long sm_subscribe (char *mailbox)
 long sm_unsubscribe (char *mailbox)
 {
   FILE *f,*tf;
-  char *s,tmp[MAILTMPLEN],old[MAILTMPLEN],new[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN],old[MAILTMPLEN],newname[MAILTMPLEN];
   long ret = NIL;
   SUBSCRIPTIONFILE (old);	/* open subscription database */
   if (!(f = fopen (old,"r"))) {	/* can we? */
     mm_log ("No subscriptions",ERROR);
     return NIL;
   }
-  SUBSCRIPTIONTEMP (new);	/* make tmp file name */
-  if (!(tf = fopen (new,"w"))) {
+  SUBSCRIPTIONTEMP (newname);	/* make tmp file name */
+  if (!(tf = fopen (newname,"w"))) {
     mm_log ("Can't create subscription temporary file",ERROR);
     fclose (f);
     return NIL;
@@ -105,7 +105,7 @@ long sm_unsubscribe (char *mailbox)
     sprintf (tmp,"Not subscribed to mailbox %s",mailbox);
     mm_log (tmp,ERROR);		/* error if at end */
   }
-  else rename (new,old);
+  else rename (newname,old);
   return ret;
 }
 

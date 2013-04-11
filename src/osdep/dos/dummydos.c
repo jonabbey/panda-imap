@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	30 July 1996
+ * Last Edited:	4 June 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,7 +42,6 @@
 #include "osdep.h"
 #include <sys\stat.h>
 #include <dos.h>
-#include <io.h>
 #include "dummy.h"
 #include "misc.h"
 
@@ -70,15 +69,17 @@ DRIVER dummydriver = {
   NIL,				/* status of mailbox */
   dummy_open,			/* open mailbox */
   dummy_close,			/* close mailbox */
-  dummy_fetchfast,		/* fetch message "fast" attributes */
-  dummy_fetchflags,		/* fetch message flags */
-  dummy_fetchstructure,		/* fetch message structure */
-  dummy_fetchheader,		/* fetch message header only */
-  dummy_fetchtext,		/* fetch message body only */
-  dummy_fetchbody,		/* fetch message body section */
+  NIL,				/* fetch message "fast" attributes */
+  NIL,				/* fetch message flags */
+  NIL,				/* fetch overview */
+  NIL,				/* fetch message structure */
+  NIL,				/* fetch header */
+  NIL,				/* fetch text */
+  NIL,				/* fetch message data */
   NIL,				/* unique identifier */
-  dummy_setflag,		/* set message flag */
-  dummy_clearflag,		/* clear message flag */
+  NIL,				/* message number from UID */
+  NIL,				/* modify flags */
+  NIL,				/* per-message modify flags */
   NIL,				/* search for message based on criteria */
   NIL,				/* sort messages */
   NIL,				/* thread messages */
@@ -87,7 +88,7 @@ DRIVER dummydriver = {
   dummy_expunge,		/* expunge deleted messages */
   dummy_copy,			/* copy messages to another mailbox */
   dummy_append,			/* append string message to mailbox */
-  dummy_gc			/* garbage collect stream */
+  NIL				/* garbage collect stream */
 };
 
 
@@ -107,7 +108,7 @@ DRIVER *dummy_valid (char *name)
   char *s,tmp[MAILTMPLEN];
   struct stat sbuf;
 				/* must be valid local mailbox */
-  return (name && *name && (*name != '{') && (*name != '#') &&
+  return (name && *name && (*name != '{') &&
 	  (s = mailboxfile (tmp,name)) && (!*s || !stat (s,&sbuf))) ?
 	    &dummydriver : NIL;
 }
@@ -136,7 +137,7 @@ void *dummy_parameters (long function,void *value)
   return value;
 }
 
-/* Dummy list mailboxes
+/* Dummy scan mailboxes
  * Accepts: mail stream
  *	    reference
  *	    pattern to search
@@ -149,8 +150,16 @@ void dummy_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
 {
   char *s,test[LISTTMPLEN],file[LISTTMPLEN];
   long i = 0;
+  if (!pat || !*pat) {		/* empty pattern? */
+    if (dummy_canonicalize (test,ref,"*")) {
+				/* tie off name at root */
+      if (s = strchr (test,'\\')) *++s = '\0';
+      else test[0] = '\0';
+      dummy_listed (stream,'\\',test,LATT_NOINFERIORS,NIL);
+    }
+  }
 				/* get canonical form of name */
-  if (dummy_canonicalize (test,ref,pat)) {
+  else if (dummy_canonicalize (test,ref,pat)) {
 				/* found any wildcards? */
     if (s = strpbrk (test,"%*")) {
 				/* yes, copy name up to that point */
@@ -167,6 +176,8 @@ void dummy_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
     else if (file[0] == '#') s = file;
 				/* do the work */
     dummy_list_work (stream,s,test,contents,0);
+    if (pmatch ("INBOX",test)	/* always an INBOX */
+      dummy_listed (stream,NIL,"INBOX",LATT_NOINFERIORS,contents);
   }
 }
 
@@ -190,12 +201,22 @@ void dummy_list (MAILSTREAM *stream,char *ref,char *pat)
 void dummy_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
   void *sdb = NIL;
-  char *s,test[LISTTMPLEN];
+  char *s,*t,test[MAILTMPLEN],tmp[MAILTMPLEN];
+  int showuppers = pat[strlen (pat) - 1] == '%';
 				/* get canonical form of name */
-  if (dummy_canonicalize (test,ref,pat) && (s = sm_read (&sdb)))
-    do if ((*s != '#') && (*s != '{') && pmatch_full (s,test,'\\'))
-      mm_lsub (stream,'\\',s,NIL);
-  while (s = sm_read (&sdb)); /* until no more subscriptions */
+  if (dummy_canonicalize (test,ref,pat) && (s = sm_read (&sdb))) do
+    if (*s != '{') {
+      if (pmatch_full (ucase (strcpy (tmp,s)),test,'\\')) {
+	if (pmatch (tmp,"INBOX")) mm_lsub (stream,NIL,s,LATT_NOINFERIORS);
+	else mm_lsub (stream,'\\',s,NIL);
+      }
+      else while (showuppers && (t = strrchr (s,'\\'))) {
+	*t = '\0';		/* tie off the name */
+	if (pmatch_full (ucase (strcpy (tmp,s)),test,'\\'))
+	  mm_lsub (stream,'\\',s,LATT_NOSELECT);
+      }
+    }
+  while (s = sm_read (&sdb));	/* until no more subscriptions */
 }
 
 /* Dummy list mailboxes worker routine
@@ -211,7 +232,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 {
   struct find_t f;
   struct stat sbuf;
-  char *s,tmp[LISTTMPLEN],tmpx[LISTTMPLEN];
+  char *s,tmp[LISTTMPLEN],tmpx[LISTTMPLEN],tmpy[LSTTMPLEN];
   char *base = (dir && (dir[0] == '\\')) ? NIL : myhomedir ();
 				/* build name */
   if (base) sprintf (tmpx,"%s\\",base);
@@ -225,7 +246,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 				/* do nothing if can't open directory */
   if (!_dos_findfirst (tmp,_A_NORMAL|_A_SUBDIR,&f)) {
 				/* list it if not at top-level */
-    if (!level && dir && pmatch_full (dir,pat,'\\'))
+    if (!level && dir && pmatch_full (ucase (strcpy (tmpy,dir)),pat,'\\'))
       dummy_listed (stream,'\\',dir,LATT_NOSELECT,contents);
 				/* scan directory */
     if (tmpx[strlen (tmpx) - 1] == '\\') do if (*f.name != '.') {
@@ -242,7 +263,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 				/* only interested in file type */
 	switch (sbuf.st_mode &= S_IFMT) {
 	case S_IFDIR:		/* directory? */
-	  if (pmatch_full (tmp,pat,'\\')) {
+	  if (pmatch_full (ucase (tmp),pat,'\\')) {
 	    dummy_listed (stream,'\\',tmp,LATT_NOSELECT,contents);
 	    strcat (tmp,"\\");	/* set up for dmatch call */
 	  }
@@ -254,7 +275,7 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 	    dummy_list_work (stream,tmp,pat,contents,level+1);
 	  break;
 	case S_IFREG:		/* ordinary name */
-	  if (pmatch_full (tmp,pat,'\\'))
+	  if (pmatch_full (ucase (tmp),pat,'\\') && !pmatch ("INBOX",tmp))
 	    dummy_listed (stream,'\\',tmp,LATT_NOINFERIORS,contents);
 	  break;
 	}
@@ -291,7 +312,8 @@ long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,
     memset (buf,'\0',ssiz);	/* no slop area the first time */
     while (sbuf.st_size) {	/* until end of file */
       read (fd,buf+ssiz,bsiz = min (sbuf.st_size,BUFSIZE));
-      if (search (buf,bsiz+ssiz,contents,csiz)) break;
+      if (search ((unsigned char *) buf,bsiz+ssiz,
+		  (unsigned char *) contents,csiz)) break;
       memcpy (buf,buf+BUFSIZE,ssiz);
       sbuf.st_size -= bsiz;	/* note that we read that much */
     }
@@ -424,11 +446,12 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
 				/* say there are 0 messages */
 	mail_exists (stream,(long) 0);
 	mail_recent (stream,(long) 0);
+	stream->uid_validity = 1;
       }
       return stream;		/* return success */
     }
   }
-  if (!stream->silent) mm_log (tmp,ERROR);
+  mm_log (tmp,stream->silent ? WARN: ERROR);
   return NIL;			/* always fails */
 }
 
@@ -441,119 +464,6 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
 void dummy_close (MAILSTREAM *stream,long options)
 {
 				/* return silently */
-}
-
-/* Dummy fetch fast information
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void dummy_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
-{
-  fatal ("Impossible dummy_fetchfast");
-}
-
-
-/* Dummy fetch flags
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void dummy_fetchflags (MAILSTREAM *stream,char *sequence,long flags)
-{
-  fatal ("Impossible dummy_fetchflags");
-}
-
-
-/* Dummy fetch envelope
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to return body
- *	    option flags
- * Returns: envelope of this message, body returned in body value
- */
-
-ENVELOPE *dummy_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-				BODY **body,long flags)
-{
-  fatal ("Impossible dummy_fetchstructure");
-  return NIL;
-}
-
-
-/* Dummy fetch message header
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    list of headers
- *	    pointer to returned length
- *	    options
- * Returns: message header in RFC822 format
- */
-
-char *dummy_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			 STRINGLIST *lines,unsigned long *len,long flags)
-{
-  fatal ("Impossible dummy_fetchheader");
-  return NIL;
-}
-
-/* Dummy fetch message text (body only)
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to returned length
- *	    options
- * Returns: message text in RFC822 format
- */
-
-char *dummy_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		       unsigned long *len,long flags)
-{
-  fatal ("Impossible dummy_fetchtext");
-  return NIL;
-}
-
-
-/* Dummy fetch message body as a structure
- * Accepts: Mail stream
- *	    message # to fetch
- *	    section specifier
- *	    pointer to returned length
- *	    options
- * Returns: pointer to section of message body
- */
-
-char *dummy_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		       unsigned long *len,long flags)
-{
-  fatal ("Impossible dummy_fetchbody");
-  return NIL;
-}
-
-/* Dummy set flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    options
- */
-
-void dummy_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  fatal ("Impossible dummy_setflag");
-}
-
-
-/* Dummy clear flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    options
- */
-
-void dummy_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  fatal ("Impossible dummy_clearflag");
 }
 
 /* Dummy ping mailbox
@@ -603,7 +513,8 @@ void dummy_expunge (MAILSTREAM *stream)
 
 long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 {
-  fatal ("Impossible dummy_copy");
+  if ((options & CP_UID) ? mail_uid_sequence (stream,sequence) :
+      mail_sequence (stream,sequence)) fatal ("Impossible dummy_copy");
   return NIL;
 }
 
@@ -622,40 +533,27 @@ long dummy_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   int fd = -1;
   int e;
   char tmp[MAILTMPLEN];
+  MAILSTREAM *ts = default_proto (T);
   if ((strcmp (ucase (strcpy (tmp,mailbox)),"INBOX")) &&
 	   ((fd = open (mailboxfile (tmp,mailbox),O_RDONLY,NIL)) < 0)) {
-    if ((e = errno) == ENOENT) {/* failed, was it no such file? */
+    if ((e = errno) == ENOENT)	/* failed, was it no such file? */
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
 		 (long) NIL);
-      return NIL;
-    }
     sprintf (tmp,"%s: %s",strerror (e),mailbox);
     mm_log (tmp,ERROR);		/* pass up error */
     return NIL;			/* always fails */
   }
-  else if (fd >= 0) {		/* found file? */
+  if (fd >= 0) {		/* found file? */
     fstat (fd,&sbuf);		/* get its size */
     close (fd);			/* toss out the fd */
-    if (sbuf.st_size) {		/* non-empty file? */
-      sprintf (tmp,"Indeterminate mailbox format: %s",mailbox);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
+    if (sbuf.st_size) ts = NIL;	/* non-empty file? */
   }
-  return (*default_proto ()->dtb->append) (stream,mailbox,flags,date,message);
+  if (ts) return (*ts->dtb->append) (stream,mailbox,flags,date,message);
+  sprintf (tmp,"Indeterminate mailbox format: %s",mailbox);
+  mm_log (tmp,ERROR);
+  return NIL;
 }
 
-/* Dummy garbage collect stream
- * Accepts: mail stream
- *	    garbage collection flags
- */
-
-void dummy_gc (MAILSTREAM *stream,long gcflags)
-{
-				/* return silently */
-}
-
-
 /* Return bad file name error message
  * Accepts: temporary buffer
  *	    file name
@@ -668,7 +566,8 @@ long dummy_badname (char *tmp,char *s)
   mm_log (tmp,ERROR);
   return (long) NIL;
 }
-
+
+
 /* Dummy canonicalize name
  * Accepts: buffer to write name
  *	    reference
@@ -678,24 +577,39 @@ long dummy_badname (char *tmp,char *s)
 
 long dummy_canonicalize (char *tmp,char *ref,char *pat)
 {
-  if (ref) {			/* preliminary reference check */
-    if ((*ref == '{') || (*ref == '#')) return NIL;
-    else if (!*ref) ref = NIL;	/* treat empty reference as no reference */
+  char dev[4];
+				/* initially no device */
+  dev[0] = dev[1] = dev[2] = dev[3] = '\0';
+  if (ref) switch (*ref) {	/* preliminary reference check */
+  case '{':			/* remote names not allowed */
+    return NIL;			/* disallowed */
+  case '\0':			/* empty reference string */
+    break;
+  default:			/* all other names */
+    if (ref[1] == ':') {	/* start with device name? */
+      dev[0] = *ref++; dev[1] = *ref++;
+    }
+    break;
+  }
+  if (pat[1] == ':') {		/* device name in pattern? */
+    dev[0] = *pat++; dev[1] = *pat++;
+    ref = NIL;			/* ignore reference */
   }
   switch (*pat) {
-  case '#':			/* namespace name */
+  case '#':			/* namespace names */
+    if (mailboxfile (tmp,pat)) strcpy (tmp,pat);
+    else return NIL;		/* unknown namespace */
+    break;
   case '{':			/* remote names not allowed */
     return NIL;
   case '\\':			/* rooted name */
-  case '~':			/* home directory name */
-    ref = NIL;			/* nuke the reference */
-				/* fall through */
-  default:			/* apply reference for all other names */
-    if (!ref) strcpy (tmp,pat);	/* just copy if no reference */
-				/* wants root? */
-    else if (*pat == '\\') strcpy (strchr (strcpy (tmp,ref),'\\'),pat);
-				/* otherwise just append */
-    else sprintf (tmp,"%s%s",ref,pat);
+    ref = NIL;			/* ignore reference */
+    break;
   }
+				/* make sure device names are rooted */
+  if (dev[0] && (*(ref ? ref : pat) != '\\')) dev[2] = '\\';
+				/* build name */
+  sprintf (tmp,"%s%s%s",dev,ref ? ref : "",pat);
+  ucase (tmp);			/* force upper case */
   return T;
 }

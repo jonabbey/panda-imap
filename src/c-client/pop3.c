@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	18 September 1996
+ * Last Edited:	19 May 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -38,10 +38,12 @@
 #include "osdep.h"
 #include <ctype.h>
 #include <stdio.h>
+#include <time.h>
 #include "pop3.h"
 #include "rfc822.h"
 #include "misc.h"
 #include "netmsg.h"
+#include "flstring.h"
 
 /* POP3 mail routines */
 
@@ -50,7 +52,10 @@
 
 DRIVER pop3driver = {
   "pop3",			/* driver name */
-  DR_MAIL|DR_NOFAST,		/* driver flags */
+#ifdef INADEQUATE_MEMORY
+  DR_LOWMEM |
+#endif
+  DR_MAIL|DR_NOFAST|DR_CRLF,	/* driver flags */
   (DRIVER *) NIL,		/* next driver */
   pop3_valid,			/* mailbox is valid for us */
   pop3_parameters,		/* manipulate parameters */
@@ -66,14 +71,16 @@ DRIVER pop3driver = {
   pop3_open,			/* open mailbox */
   pop3_close,			/* close mailbox */
   pop3_fetchfast,		/* fetch message "fast" attributes */
-  pop3_fetchflags,		/* fetch message flags */
-  pop3_fetchstructure,		/* fetch message envelopes */
-  pop3_fetchheader,		/* fetch message header only */
-  pop3_fetchtext,		/* fetch message body only */
-  pop3_fetchbody,		/* fetch message body section */
+  NIL,				/* fetch message flags */
+  NIL,				/* fetch overview */
+  NIL,				/* fetch message structure */
+  pop3_header,			/* fetch message header */
+  pop3_text,			/* fetch message text */
+  NIL,				/* fetch message */
   NIL,				/* unique identifier */
-  pop3_setflag,			/* set message flag */
-  pop3_clearflag,		/* clear message flag */
+  NIL,				/* message number from UID */
+  NIL,				/* modify flags */
+  NIL,				/* per-message modify flags */
   NIL,				/* search for message based on criteria */
   NIL,				/* sort messages */
   NIL,				/* thread messages */
@@ -82,7 +89,7 @@ DRIVER pop3driver = {
   pop3_expunge,			/* expunge deleted messages */
   pop3_copy,			/* copy messages to another mailbox */
   pop3_append,			/* append string message to mailbox */
-  pop3_gc			/* garbage collect stream */
+  NIL				/* garbage collect stream */
 };
 
 				/* prototype stream */
@@ -171,8 +178,7 @@ void pop3_list (MAILSTREAM *stream,char *ref,char *pat)
     mm_list (stream,NIL,tmp,LATT_NOINFERIORS);
   }
 }
-
-
+
 /* POP3 mail find list of subscribed mailboxes
  * Accepts: mail stream
  *	    reference
@@ -182,13 +188,23 @@ void pop3_list (MAILSTREAM *stream,char *ref,char *pat)
 void pop3_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
   void *sdb = NIL;
-  char *s;
-				/* only if null stream and * requested */
-  if (!stream && !ref && !strcmp (pat,"*") && (s = sm_read (&sdb)))
-    do if (pop3_valid (s)) mm_lsub (stream,NIL,s,NIL);
+  char *s,mbx[MAILTMPLEN];
+  if (*pat == '{') {		/* if remote pattern, must be POP3 */
+    if (!pop3_valid (pat)) return;
+    ref = NIL;			/* good POP3 pattern, punt reference */
+  }
+				/* if remote reference, must be valid POP3 */
+  if (ref && (*ref == '{') && !pop3_valid (ref)) return;
+				/* kludgy application of reference */
+  if (ref && *ref) sprintf (mbx,"%s%s",ref,pat);
+  else strcpy (mbx,pat);
+
+  if (s = sm_read (&sdb)) do if (pop3_valid (s) && pmatch (s,mbx))
+    mm_lsub (stream,NIL,s,NIL);
   while (s = sm_read (&sdb));	/* until no more subscriptions */
 }
-
+
+
 /* POP3 mail subscribe to mailbox
  * Accepts: mail stream
  *	    mailbox to add to subscription list
@@ -260,24 +276,27 @@ long pop3_status (MAILSTREAM *stream,char *mbx,long flags)
   unsigned long i;
   char tmp[MAILTMPLEN];
   MAILSTREAM *tstream;
-  NETMBX mb;
-  mail_valid_net_parse (mbx,&mb);
-  if (!(tstream = (stream &&
-		   !strcmp (ucase (strcpy (tmp,net_host (LOCAL->netstream))),
-			    ucase (mb.host))) ?
-	stream : mail_open (NIL,mbx,OP_HALFOPEN|OP_SILENT))) return NIL;
-  status.flags = flags;		/* return status values */
-  status.messages = tstream->nmsgs;
-  status.recent = tstream->recent;
-  if (flags & SA_UNSEEN)	/* must search to get unseen messages */
-    for (i = 1,status.unseen = 0; i < tstream->nmsgs; i++)
-      if (!mail_elt (tstream,i)->seen) status.unseen++;
-  status.uidnext = tstream->uid_last + 1;
-  status.uidvalidity = tstream->uid_validity;
+  NETMBX mb,mb2;
+  long ret = NIL;
+  if (LOCAL->netstream && !mail_valid_net_parse (mbx,&mb) &&
+      mail_valid_net_parse (strcpy (tmp,stream->mailbox),&mb2) &&
+      (tstream = (stream && !strcmp (ucase (mb.host),ucase (mb2.host)) &&
+		  !strcmp (ucase (mb.user),ucase (mb2.user))) ?
+       stream : mail_open (NIL,mbx,OP_HALFOPEN|OP_SILENT))) {
+    status.flags = flags;	/* return status values */
+    status.messages = tstream->nmsgs;
+    status.recent = tstream->recent;
+    if (flags & SA_UNSEEN)	/* must search to get unseen messages */
+      for (i = 1,status.unseen = 0; i < tstream->nmsgs; i++)
+	if (!mail_elt (tstream,i)->seen) status.unseen++;
+    status.uidnext = tstream->uid_last + 1;
+    status.uidvalidity = tstream->uid_validity;
 				/* pass status to main program */
-  mm_status (tstream,mbx,&status);
-  if (stream != tstream) mail_close (tstream);
-  return T;			/* success */
+    mm_status (tstream,mbx,&status);
+    if (stream != tstream) mail_close (tstream);
+    ret = LONGT;
+  }
+  return ret;			/* success */
 }
 
 /* POP3 mail open
@@ -287,7 +306,7 @@ long pop3_status (MAILSTREAM *stream,char *mbx,long flags)
 
 MAILSTREAM *pop3_open (MAILSTREAM *stream)
 {
-  unsigned long i,nmsgs;
+  unsigned long i;
   char *s,tmp[MAILTMPLEN],usrnam[MAILTMPLEN],pwd[MAILTMPLEN];
   NETMBX mb;
   MESSAGECACHE *elt;
@@ -295,11 +314,17 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
   if (!stream) return &pop3proto;
   mail_valid_net_parse (stream->mailbox,&mb);
   if (LOCAL) {			/* if recycle stream */
+    stream->uid_last = 0;	/* default UID validity */
+    stream->uid_validity = time (0);
     sprintf (tmp,"Closing connection to %s",LOCAL->host);
     if (!stream->silent) mm_log (tmp,(long) NIL);
     pop3_close (stream,NIL);	/* do close action */
     stream->dtb = &pop3driver;	/* reattach this driver */
     mail_free_cache (stream);	/* clean up cache */
+  }
+  if (mb.secflag) {		/* in case /secure switch given */
+    mm_log ("Secure POP3 login not available",ERROR);
+    return NIL;
   }
 				/* in case /debug switch given */
   if (mb.dbgflag) stream->debug = T;
@@ -311,12 +336,13 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
   LOCAL->host = cpystr (mb.host);
   stream->sequence++;		/* bump sequence number */
   stream->perm_deleted = T;	/* deleted is only valid flag */
-  LOCAL->response = LOCAL->reply = LOCAL->hdr = NIL;
-  LOCAL->txt = NIL;		/* no file */
-  LOCAL->msn = 0;		/* no message number */
+  LOCAL->response = LOCAL->reply = NIL;
+				/* currently no message */
+  LOCAL->msgno = LOCAL->hdrsize = 0;
+  LOCAL->txt = NIL;		/* no file initially */
 
 				/* try to open connection */
-  if (!((LOCAL->netstream = net_open (s,"pop3",POP3TCPPORT)) &&
+  if (!((LOCAL->netstream = net_open (NIL,s,"pop3",POP3TCPPORT)) &&
 	pop3_reply (stream))) {
     if (LOCAL->reply) mm_log (LOCAL->reply,ERROR);
     pop3_close (stream,NIL);	/* failed, clean up */
@@ -326,7 +352,7 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
 				/* only so many tries to login */
     for (i = 0; i < pop3_maxlogintrials; ++i) {
       *pwd = 0;			/* get password */
-      mm_login (&mb,usrnam,pwd,i);
+      if (LOCAL->netstream) mm_login (&mb,usrnam,pwd,i);
 				/* abort if he refuses to give a password */
       if (*pwd == '\0') i = pop3_maxlogintrials;
       else {			/* send login sequence */
@@ -342,21 +368,25 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
       pop3_close (stream,NIL);
     }
     else if (pop3_send (stream,"STAT",NIL)) {
-      nmsgs = strtoul (LOCAL->reply,NIL,10);
-      for (i = 0; i < nmsgs;) {	/* instantiate elt */
-	elt = mail_elt (stream,++i);
-	elt->valid = elt->recent = T;
-	elt->uid = i;
-      }
-      stream->uid_last = nmsgs;	/* last assigned UID */
+      int silent = stream->silent;
+      stream->silent = T;
       sprintf (tmp,"{%s:%lu/pop3/user=%s}INBOX",net_host (LOCAL->netstream),
 	       net_port (LOCAL->netstream),usrnam);
       fs_give ((void **) &stream->mailbox);
       stream->mailbox = cpystr (tmp);
-      mail_exists(stream,nmsgs);/* notify upper level that messages exist */
-      mail_recent (stream,nmsgs);
+				/* notify upper level */
+      mail_exists (stream,stream->uid_last = strtoul (LOCAL->reply,NIL,10));
+      mail_recent (stream,stream->nmsgs);
+				/* instantiate elt */
+      for (i = 0; i < stream->nmsgs;) {
+	elt = mail_elt (stream,++i);
+	elt->valid = elt->recent = T;
+	elt->private.uid = i;
+      }
+      stream->silent = silent;	/* notify main program */
+      mail_exists (stream,stream->nmsgs);
 				/* notify if empty */
-      if (!(nmsgs || stream->silent)) mm_log ("Mailbox is empty",WARN);
+      if (!(stream->nmsgs || stream->silent)) mm_log ("Mailbox is empty",WARN);
     }
     else {			/* error in STAT */
       mm_log (LOCAL->reply,ERROR);
@@ -384,10 +414,10 @@ void pop3_close (MAILSTREAM *stream,long options)
     }
 				/* close POP3 connection */
     if (LOCAL->netstream) net_close (LOCAL->netstream);
+    if (LOCAL->txt) fclose (LOCAL->txt);
+    LOCAL->txt = NIL;
     if (LOCAL->host) fs_give ((void **) &LOCAL->host);
     if (LOCAL->response) fs_give ((void **) &LOCAL->response);
-    pop3_gc (stream,GC_TEXTS);	/* free local cache */
-    if (LOCAL->txt) fclose (LOCAL->txt);
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
     stream->dtb = NIL;		/* log out the DTB */
@@ -398,346 +428,122 @@ void pop3_close (MAILSTREAM *stream,long options)
  * Accepts: MAIL stream
  *	    sequence
  *	    option flags
+ * This is ugly and slow
  */
 
 void pop3_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
 {
   unsigned long i;
-				/* ugly and slow */
+  MESSAGECACHE *elt;
+				/* get sequence */
   if (stream && LOCAL && ((flags & FT_UID) ?
 			  mail_uid_sequence (stream,sequence) :
 			  mail_sequence (stream,sequence)))
     for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_elt (stream,i)->sequence)
-	pop3_fetchheader (stream,i,NIL,NIL,NIL);
-}
-
-
-/* POP3 mail fetch flags
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void pop3_fetchflags (MAILSTREAM *stream,char *sequence,long flags)
-{
-  return;			/* no-op for POP3 */
+      if ((elt = mail_elt (stream,i))->sequence &&
+	  !(elt->day && !elt->rfc822_size)) {
+	ENVELOPE **env = NIL;
+	ENVELOPE *e = NIL;
+	if (!stream->scache) env = &elt->private.msg.env;
+	else if (stream->msgno == i) env = &stream->env;
+	else env = &e;
+	if (!*env || !elt->rfc822_size) {
+	  STRING bs;
+	  unsigned long hs;
+	  char *ht = (*stream->dtb->header) (stream,i,&hs,NIL);
+				/* need to make an envelope? */
+	  if (!*env) rfc822_parse_msg (env,NIL,ht,hs,NIL,BADHOST,
+				       stream->dtb->flags);
+				/* need message size too, ugh */
+	  if (!elt->rfc822_size) {
+	    (*stream->dtb->text) (stream,i,&bs,FT_PEEK);
+	    elt->rfc822_size = hs + SIZE (&bs) - GETPOS (&bs);
+	  }
+	}
+				/* if need date, have date in envelope? */
+	if (!elt->day && *env && (*env)->date)
+	  mail_parse_date (elt,(*env)->date);
+				/* sigh, fill in bogus default */
+	if (!elt->day) mail_parse_date (elt,"01-JAN-1969 00:00:00 +0000");
+	mail_free_envelope (&e);
+      }
 }
 
-/* POP3 fetch envelope
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to return body
- *	    option flags
- * Returns: envelope of this message, body returned in body value
- *
- * Fetches the "fast" information as well
+/* POP3 fetch header as text
+ * Accepts: mail stream
+ *	    message number
+ *	    pointer to return size
+ *	    flags
+ * Returns: header text
  */
 
-#define MAXHDR (unsigned long) 4*MAILTMPLEN
-
-ENVELOPE *pop3_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-			       BODY **body,long flags)
+char *pop3_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
+		   long flags)
 {
-  char *h,*t,tmp[MAXHDR];
-  LONGCACHE *lelt;
-  ENVELOPE **env;
-  STRING bs;
-  BODY **b;
-  unsigned long hdrsize;
-  unsigned long textsize = 0;
   MESSAGECACHE *elt;
-  unsigned long i;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return pop3_fetchstructure (stream,i,body,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
+  if ((flags & FT_UID) && !(msgno = mail_msgno (stream,msgno))) return NIL;
+				/* have header text? */
+  if (!(elt = mail_elt (stream,msgno))->private.msg.header.text.data) {
+    elt->private.msg.header.text.size = pop3_cache (stream,elt);
+				/* read the header */
+    fread (elt->private.msg.header.text.data = (unsigned char *)
+	   fs_get ((size_t) elt->private.msg.header.text.size + 1),
+	   (size_t) 1,(size_t) elt->private.msg.header.text.size,LOCAL->txt);
+    elt->private.msg.header.text.data[elt->private.msg.header.text.size] ='\0';
   }
+				/* return size of text */
+  if (size) *size = elt->private.msg.header.text.size;
+  return (char *) elt->private.msg.header.text.data;
+}
+
+/* POP3 fetch body
+ * Accepts: mail stream
+ *	    message number
+ *	    pointer to stringstruct to initialize
+ *	    flags
+ * Returns: T if successful, else NIL
+ */
+
+long pop3_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
+{
+  MESSAGECACHE *elt;
+  INIT (bs,mail_string,(void *) "",0);
+  if ((flags & FT_UID) && !(msgno = mail_msgno (stream,msgno))) return NIL;
   elt = mail_elt (stream,msgno);
-  if (stream->scache) {		/* short cache */
-    if (msgno != stream->msgno){/* flush old poop if a different message */
-      mail_free_envelope (&stream->env);
-      mail_free_body (&stream->body);
-    }
-    stream->msgno = msgno;
-    env = &stream->env;		/* get pointers to envelope and body */
-    b = &stream->body;
+  pop3_cache (stream,elt);	/* make sure cache loaded */
+  if (!LOCAL->txt) return NIL;	/* error if don't have a file */
+  if (!(flags & FT_PEEK)) {	/* mark seen if needed */
+    elt->seen = T;
+    mm_flags (stream,elt->msgno);
   }
-  else {			/* long cache */
-    lelt = mail_lelt (stream,msgno);
-    env = &lelt->env;		/* get pointers to envelope and body */
-    b = &lelt->body;
-  }
-
-  if ((body && !*b) || !*env) {	/* have the poop we need? */
-    mail_free_envelope (env);	/* flush old envelope and body */
-    mail_free_body (b);
-    h = pop3_fetchheader (stream,msgno,NIL,&hdrsize,NIL);
-    if (body) {			/* only if want to parse body */
-      mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
-      t = pop3_fetchtext_work (stream,msgno,&textsize,NIL);
-      if (mg) INIT (&bs,netmsg_string,(void *)LOCAL->txt,textsize);
-      else INIT (&bs,mail_string,(void *) t,textsize);
-    }
-				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,h,hdrsize,body ? &bs:NIL,BADHOST,tmp);
-				/* parse date */
-    if (*env && (*env)->date) mail_parse_date (elt,(*env)->date);
-    if (!elt->month) mail_parse_date (elt,"01-JAN-1969 00:00:00 GMT");
-  }
-  if (body) *body = *b;		/* return the body */
-  return *env;			/* return the envelope */
+  INIT (bs,file_string,(void *) LOCAL->txt,elt->rfc822_size);
+  SETPOS (bs,LOCAL->hdrsize);	/* skip past header */
+  return T;
 }
 
-/* POP3 fetch message header
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    list of header to fetch
- *	    pointer to returned header text length
- *	    option flags
- * Returns: message header in RFC822 format
+/* POP3 cache message
+ * Accepts: mail stream
+ *	    message number
+ * Returns: header size
  */
 
-char *pop3_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			STRINGLIST *lines,unsigned long *len,long flags)
+unsigned long pop3_cache (MAILSTREAM *stream,MESSAGECACHE *elt)
 {
-  char *s,*hdr;
-  FILE *f;
-  MESSAGECACHE *elt;
-  unsigned long i;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return pop3_fetchheader (stream,i,lines,len,flags & ~FT_UID);
-    return "";			/* didn't find the UID */
-  }
-  elt = mail_elt (stream,msgno);/* get elt */
-  if (len) *len = 0;		/* no data returned yet */
-  hdr = stream->scache ? ((LOCAL->msn == msgno) ? LOCAL->hdr : NIL) : 
-    (char *) elt->data1;	/* get cached data if any */
-
-  if (!hdr) {			/* if don't have header already, must snarf */
-    if (!pop3_send_num (stream,"RETR",msgno)) {
-				/* failed, mark as deleted */
-      mail_elt (stream,msgno)->deleted = T;
-      return "";		/* return empty string */
+				/* already cached? */
+  if (LOCAL->msgno != elt->msgno) {
+				/* no, close current file */
+    if (LOCAL->txt) fclose (LOCAL->txt);
+    LOCAL->txt = NIL;
+    LOCAL->msgno = LOCAL->hdrsize = 0;
+    if (pop3_send_num (stream,"RETR",elt->msgno)) {
+      LOCAL->msgno = elt->msgno;/* set as current message number */
+				/* load the cache */
+      LOCAL->txt = netmsg_slurp (LOCAL->netstream,&elt->rfc822_size,
+				 &LOCAL->hdrsize);
     }
-				/* get message */
-    f = netmsg_slurp (LOCAL->netstream,&elt->rfc822_size,&elt->data2);
-    elt->data4 = elt->rfc822_size - elt->data2;
-    hdr = (char *) fs_get ((size_t) elt->data2 + 1);
-    fseek (f,0,L_SET);		/* rewind file */
-				/* read from temp file */
-    fread (hdr,(size_t) 1,(size_t) elt->data2,f);
-    hdr[elt->data2] = '\0';	/* tie off string */
-    if (stream->scache) {	/* set new current header if short caching */
-      if (LOCAL->hdr) fs_give ((void **) &LOCAL->hdr);
-      LOCAL->hdr = hdr;		/* note header */
-      LOCAL->txt = f;		/* note file */
-      LOCAL->msn = msgno;	/* note message number */
-    }
-    else {			/* cache in elt if ordinary caching */
-      elt->data1 = (unsigned long) hdr;
-      elt->data3 = (unsigned long)
-	(s = (char *) fs_get ((size_t) elt->data4 + 1));
-				/* read text from temp file */
-      fread (s,(size_t) 1,(size_t) elt->data4,f);
-      s[elt->data4] = '\0';	/* tie off string */
-      fclose (f);		/* flush temp file */
-      elt->data3 = (unsigned long) s;
-    }
+    else elt->deleted = T;
   }
-  if (lines) {			/* if want filtering, filter copy of text */
-    if (stream->text) fs_give ((void **) &stream->text);
-    i = mail_filter (hdr = stream->text = cpystr (hdr),elt->data2,lines,flags);
-  }
-  else i = elt->data2;		/* full header size */
-  if (len) *len = i;		/* return header length */
-  return hdr;			/* return header */
-}
-
-/* POP3 fetch message text (body only)
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to returned message length
- *	    option flags
- * Returns: message text in RFC822 format
- */
-
-char *pop3_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		      unsigned long *len,long flags)
-{
-  unsigned long i;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return pop3_fetchtext (stream,i,len,flags & ~FT_UID);
-    return "";			/* didn't find the UID */
-  }
-				/* mark as seen */
-  if (!(flags & FT_PEEK)) mail_elt (stream,msgno)->seen = T;
-  return pop3_fetchtext_work (stream,msgno,len,flags);
-}
-
-
-/* POP3 fetch message text work
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to returned message length
- *	    option flags (never FT_UID)
- * Returns: message text in RFC822 format
- */
-
-char *pop3_fetchtext_work (MAILSTREAM *stream,unsigned long msgno,
-			   unsigned long *len,long flags)
-{
-  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
-  MESSAGECACHE *elt = mail_elt (stream,msgno);
-				/* make sure cache is set up */
-  pop3_fetchheader (stream,msgno,NIL,NIL,flags);
-  if (len) *len = elt->data4;	/* return size if requested */
-  if (stream->scache || mg) {	/* get new current text if short caching */
-    fseek ((FILE *) LOCAL->txt,elt->data2,L_SET);
-    if (!mg) mg = mm_gets;	/* nothing sucks like VAX/VMS!!!!!!!! */
-    return (*mg) (netmsg_read,LOCAL->txt,*len);
-  }
-  return (char *) elt->data3;
-}
-
-/* POP3 fetch message body as a structure
- * Accepts: Mail stream
- *	    message # to fetch
- *	    section specifier
- *	    pointer to length
- *	    option flags
- * Returns: pointer to section of message body
- */
-
-char *pop3_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *s,
-		      unsigned long *len,long flags)
-{
-  char *f;
-  BODY *b;
-  PART *pt;
-  unsigned long i;
-  unsigned long offset = 0;
-  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
-  MESSAGECACHE *elt;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return pop3_fetchbody (stream,i,s,len,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  elt = mail_elt (stream,msgno);
-  *len = 0;			/* no length */
-				/* make sure have a body */
-  if (!(pop3_fetchstructure (stream,msgno,&b,flags & ~FT_UID) && b && s &&
-	*s && isdigit (*s))) return NIL;
-  if (!(i = strtoul (s,&s,10)))	/* section 0 */
-    return *s ? NIL : pop3_fetchheader (stream,msgno,NIL,len,flags);
-
-  do {				/* until find desired body part */
-				/* multipart content? */
-    if (b->type == TYPEMULTIPART) {
-      pt = b->contents.part;	/* yes, find desired part */
-      while (--i && (pt = pt->next));
-      if (!pt) return NIL;	/* bad specifier */
-				/* note new body, check valid nesting */
-      if (((b = &pt->body)->type == TYPEMULTIPART) && !*s) return NIL;
-      offset = pt->offset;	/* get new offset */
-    }
-    else if (i != 1) return NIL;/* otherwise must be section 1 */
-				/* need to go down further? */
-    if (i = *s) switch (b->type) {
-    case TYPEMESSAGE:		/* embedded message, calculate new base */
-      if (!((*s++ == '.') && isdigit (*s))) return NIL;
-				/* get message's body if non-zero */
-      if (i = strtoul (s,&s,10)) {
-	offset = b->contents.msg.offset;
-	b = b->contents.msg.body;
-      }
-      else {			/* want header */
-	*len = b->size.ibytes - b->contents.msg.offset;
-	b = NIL;		/* make sure the code below knows */
-      }
-      break;
-    case TYPEMULTIPART:		/* multipart, get next section */
-      if ((*s++ == '.') && (i = strtoul (s,&s,10)) > 0) break;
-    default:			/* bogus subpart specification */
-      return NIL;
-    }
-  } while (i);
-  if (b) {			/* looking at a non-multipart body? */
-    if (b->type == TYPEMULTIPART) return NIL;
-    *len = b->size.ibytes;	/* yes, get its size */
-  }
-  else if (!*len) return NIL;	/* lose if not getting a header */
-  elt->seen = T;		/* mark as seen */
-				/* get text */
-  if (!(f = pop3_fetchtext_work (stream,msgno,&i,flags)) ||
-      (i < (*len + offset))) return NIL;
-  if (stream->scache) {		/* short caching? */
-    fseek ((FILE *) f,offset,L_SET);
-    if (!mg) mg = mm_gets;	/* nothing sucks like VAX/VMS!!!!!!!! */
-    return (*mg) (netmsg_read,f,*len);
-  }
-  return f + offset;		/* normal caching */
-}
-
-/* POP3 mail set flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    option flags
- */
-
-void pop3_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  MESSAGECACHE *elt;
-  unsigned long i;
-  long f = mail_parse_flags (stream,flag,&i);
-  if (!f) return;		/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if ((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
-      mail_sequence (stream,sequence))
-    for (i = 0; i < stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i + 1))->sequence) {
-	if (f&fSEEN)elt->seen=T;/* set all requested flags */
-	if (f&fDELETED) elt->deleted = T;
-	if (f&fFLAGGED) elt->flagged = T;
-	if (f&fANSWERED) elt->answered = T;
-	if (f&fDRAFT) elt->draft = T;
-      }
-}
-
-
-/* POP3 mail clear flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    option flags
- */
-
-void pop3_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  MESSAGECACHE *elt;
-  unsigned long i;
-  long f = mail_parse_flags (stream,flag,&i);
-  if (!f) return;		/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if ((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
-      mail_sequence (stream,sequence))
-    for (i = 0; i < stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i + 1))->sequence) {
-				/* clear all requested flags */
-	if (f&fSEEN) elt->seen = NIL;
-	if (f&fDELETED) elt->deleted = NIL;
-	if (f&fFLAGGED) elt->flagged = NIL;
-	if (f&fANSWERED) elt->answered = NIL;
-	if (f&fDRAFT) elt->draft = NIL;
-      }
+  return LOCAL->hdrsize;
 }
 
 /* POP3 mail ping mailbox
@@ -759,7 +565,8 @@ void pop3_check (MAILSTREAM *stream)
 {
   if (pop3_ping (stream)) mm_log ("Check completed",NIL);
 }
-
+
+
 /* POP3 mail expunge mailbox
  * Accepts: MAIL stream
  */
@@ -783,8 +590,7 @@ void pop3_expunge (MAILSTREAM *stream)
     else mm_log ("No messages deleted, so no update needed",(long) NIL);
   }
 }
-
-
+
 /* POP3 mail copy message(s)
  * Accepts: MAIL stream
  *	    sequence
@@ -795,6 +601,9 @@ void pop3_expunge (MAILSTREAM *stream)
 
 long pop3_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 {
+  mailproxycopy_t pc =
+    (mailproxycopy_t) mail_parameters (stream,GET_MAILPROXYCOPY,NIL);
+  if (pc) return (*pc) (stream,sequence,mailbox,options);
   mm_log ("Copy not valid for POP3",ERROR);
   return NIL;
 }
@@ -812,27 +621,6 @@ long pop3_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 {
   mm_log ("Append not valid for POP3",ERROR);
   return NIL;
-}
-
-/* POP3 garbage collect stream
- * Accepts: Mail stream
- *	    garbage collection flags
- */
-
-void pop3_gc (MAILSTREAM *stream,long gcflags)
-{
-  unsigned long i;
-  MESSAGECACHE *elt;
-  if (gcflags & GC_TEXTS) {	/* garbage collect texts? */
-    for (i = 1; i <= stream->nmsgs; ++i) {
-      if ((elt = mail_elt (stream,i))->data1) fs_give ((void **) &elt->data1);
-      if (elt->data3) fs_give ((void **) &elt->data3);
-    }
-    if (LOCAL->hdr) fs_give ((void **) &LOCAL->hdr);
-    LOCAL->msn = 0;
-				/* flush this too */
-    if (stream->text) fs_give ((void **) &stream->text);
-  }
 }
 
 /* Internal routines */
@@ -863,15 +651,20 @@ long pop3_send_num (MAILSTREAM *stream,char *command,unsigned long n)
 long pop3_send (MAILSTREAM *stream,char *command,char *args)
 {
   char tmp[MAILTMPLEN];
-  if (!LOCAL->netstream) return pop3_fake (stream,"No-op dead stream");
-				/* build the complete command */
-  if (args) sprintf (tmp,"%s %s",command,args);
-  else strcpy (tmp,command);
-  if (stream->debug) mm_dlog (tmp);
-  strcat (tmp,"\015\012");
+  long ret;
+  mail_lock (stream);		/* lock up the stream */
+  if (!LOCAL->netstream) ret = pop3_fake (stream,"No-op dead stream");
+  else {			/* build the complete command */
+    if (args) sprintf (tmp,"%s %s",command,args);
+    else strcpy (tmp,command);
+    if (stream->debug) mm_dlog (tmp);
+    strcat (tmp,"\015\012");
 				/* send the command */
-  return net_soutr (LOCAL->netstream,tmp) ? pop3_reply (stream) :
-    pop3_fake (stream,"POP3 connection broken in command");
+    ret = net_soutr (LOCAL->netstream,tmp) ? pop3_reply (stream) :
+      pop3_fake (stream,"POP3 connection broken in command");
+  }
+  mail_unlock (stream);		/* unlock stream */
+  return ret;
 }
 
 /* Post Office Protocol 3 get reply

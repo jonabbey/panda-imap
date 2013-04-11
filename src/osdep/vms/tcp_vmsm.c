@@ -1,13 +1,18 @@
 /*
  * Program:	VMS TCP/IP routines for Multinet
  *
- * Author:	Yehavi Bourvine, The Hebrew University of Jerusalem
- *		Internet: Yehavi@VMS.huji.ac.il
+ * Author:	Mark Crispin
+ *		Networks and Distributed Computing
+ *		Computing & Communications
+ *		University of Washington
+ *		Administration Building, AG-44
+ *		Seattle, WA  98195
+ *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	7 February 1996
+ * Last Edited:	5 May 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -28,11 +33,10 @@
  *
  */
 
-				/* TCP timeout handler routine */
-static tcptimeout_t tcptimeout = NIL;
-				/* TCP timeouts, in seconds */
-static long tcptimeout_read = 0;
-static long tcptimeout_write = 0;
+			
+static tcptimeout_t tmoh = NIL;	/* TCP timeout handler routine */
+static long ttmo_read = 0;	/* TCP timeouts, in seconds */
+static long ttmo_write = 0;
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -44,22 +48,22 @@ void *tcp_parameters (long function,void *value)
 {
   switch ((int) function) {
   case SET_TIMEOUT:
-    tcptimeout = (tcptimeout_t) value;
+    tmoh = (tcptimeout_t) value;
     break;
   case GET_TIMEOUT:
-    value = (void *) tcptimeout;
+    value = (void *) tmoh;
     break;
   case SET_READTIMEOUT:
-    tcptimeout_read = (long) value;
+    ttmo_read = (long) value;
     break;
   case GET_READTIMEOUT:
-    value = (void *) tcptimeout_read;
+    value = (void *) ttmo_read;
     break;
   case SET_WRITETIMEOUT:
-    tcptimeout_write = (long) value;
+    ttmo_write = (long) value;
     break;
   case GET_WRITETIMEOUT:
-    value = (void *) tcptimeout_write;
+    value = (void *) ttmo_write;
     break;
   default:
     value = NIL;		/* error case */
@@ -86,18 +90,8 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   char tmp[MAILTMPLEN];
   struct protoent *pt = getprotobyname ("ip");
   struct servent *sv = service ? getservbyname (service,"tcp") : NIL;
-  if (s = strchr (host,':')) {	/* port number specified? */
-    *s++ = '\0';		/* yes, tie off port */
-    port = strtoul (s,&s,10);	/* parse port */
-    if (s && *s) {
-      sprintf (tmp,"Junk after port number: %.80s",s);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-    sin.sin_port = htons (port);
-  }
 				/* copy port number in network format */
-  else sin.sin_port = sv ? sv->s_port : htons (port);
+  sin.sin_port = sv ? sv->s_port : htons (port);
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */
@@ -257,22 +251,24 @@ long tcp_getdata (TCPSTREAM *stream)
   fd_set fds,efds;
   struct timeval tmo;
   time_t t = time (0);
-  tmo.tv_sec = tcptimeout_read;
-  tmo.tv_usec = 0;
-  FD_ZERO (&fds);		/* initialize selection vector */
-  FD_ZERO (&efds);		/* handle errors too */
   if (stream->tcpsi < 0) return NIL;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
+    time_t tl = time (0);	/* start of request */
+    tmo.tv_sec = ttmo_read;	/* read timeout */
+    tmo.tv_usec = 0;
+    FD_ZERO (&fds);		/* initialize selection vector */
+    FD_ZERO (&efds);		/* handle errors too */
     FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
     FD_SET(stream->tcpsi,&efds);/* set bit in error selection vector */
     errno = NIL;		/* block and read */
-    while (((i = select (getdtablesize (),&fds,0,&efds,tmo.tv_sec ? &tmo:0))<0)
+    while (((i = select (getdtablesize (),&fds,0,&efds,ttmo_read ? &tmo:0))<0)
 	   && (errno == EINTR));
     if (!i) {			/* timeout? */
-      if (tcptimeout && ((*tcptimeout) (time (0) - t))) continue;
+      time_t tc = time (0);
+      if (tmoh && ((*tmoh) (tc - t,tc - tl))) continue;
       else return tcp_abort (stream);
     }
-    if (i < 0) return tcp_abort (stream);
+    else if (i < 0) return tcp_abort (stream);
     while (((i = socket_read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
 	   (errno == EINTR));
     if (i < 1) return tcp_abort (stream);
@@ -307,20 +303,22 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   fd_set fds;
   struct timeval tmo;
   time_t t = time (0);
-  tmo.tv_sec = tcptimeout_write;
-  tmo.tv_usec = 0;
-  FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcpso < 0) return NIL;
   while (size > 0) {		/* until request satisfied */
+    time_t tl = time (0);	/* start of request */
+    tmo.tv_sec = ttmo_write;	/* write timeout */
+    tmo.tv_usec = 0;
+    FD_ZERO (&fds);		/* initialize selection vector */
     FD_SET (stream->tcpso,&fds);/* set bit in selection vector */
     errno = NIL;		/* block and write */
-    while (((i = select (getdtablesize (),0,&fds,0,tmo.tv_sec ? &tmo : 0)) < 0)
+    while (((i = select (getdtablesize (),0,&fds,0,ttmo_write ? &tmo : 0)) < 0)
 	   && (errno == EINTR));
     if (!i) {			/* timeout? */
-      if (tcptimeout && ((*tcptimeout) (time (0) - t))) continue;
+      time_t tc = time (0);
+      if (tmoh && ((*tmoh) (tc - t,tc - tl))) continue;
       else return tcp_abort (stream);
     }
-    if (i < 0) return tcp_abort (stream);
+    else if (i < 0) return tcp_abort (stream);
     while (((i = socket_write (stream->tcpso,string,size)) < 0) &&
 	   (errno == EINTR));
     if (i < 0) return tcp_abort (stream);
@@ -372,6 +370,17 @@ char *tcp_host (TCPSTREAM *stream)
 }
 
 
+/* TCP/IP get remote host name
+ * Accepts: TCP/IP stream
+ * Returns: host name for this stream
+ */
+
+char *tcp_remotehost (TCPSTREAM *stream)
+{
+  return stream->host;		/* return host name */
+}
+
+
 /* TCP/IP return port for this stream
  * Accepts: TCP/IP stream
  * Returns: port number for this stream
@@ -393,24 +402,6 @@ char *tcp_localhost (TCPSTREAM *stream)
   return stream->localhost;	/* return local host name */
 }
 
-/* TCP/IP get server host name
- * Accepts: pointer to destination
- * Returns: string pointer if got results, else NIL
- */
-
-char *tcp_clienthost (char *dst)
-{
-  struct hostent *hn;
-  struct sockaddr_in from;
-  int fromlen = sizeof (from);
-  if (getpeername (0,(struct sockaddr *) &from,&fromlen)) return "UNKNOWN";
-  strcpy (dst,(hn = gethostbyaddr ((char *) &from.sin_addr,
-				   sizeof (struct in_addr),from.sin_family)) ?
-	  hn->h_name : inet_ntoa (from.sin_addr));
-  return dst;
-}
-
-
 /* Return my local host name
  * Returns: my local host name
  */

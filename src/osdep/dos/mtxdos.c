@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	13 February 1996
+ * Last Edited:	5 May 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -43,11 +43,11 @@
 #include <time.h>
 #include <sys\stat.h>
 #include <dos.h>
-#include <io.h>
 #include "mtxdos.h"
 #include "rfc822.h"
 #include "dummy.h"
 #include "misc.h"
+#include "fdstring.h"
 
 /* MTX mail routines */
 
@@ -56,7 +56,8 @@
 
 DRIVER mtxdriver = {
   "mtx",			/* driver name */
-  DR_LOCAL|DR_MAIL|DR_LOWMEM,	/* driver flags */
+				/* driver flags */
+  DR_LOCAL|DR_MAIL|DR_LOWMEM|DR_CRLF,
   (DRIVER *) NIL,		/* next driver */
   mtx_valid,			/* mailbox is valid for us */
   mtx_parameters,		/* manipulate parameters */
@@ -71,15 +72,17 @@ DRIVER mtxdriver = {
   NIL,				/* status of mailbox */
   mtx_open,			/* open mailbox */
   mtx_close,			/* close mailbox */
-  mtx_fetchfast,		/* fetch message "fast" attributes */
-  mtx_fetchflags,		/* fetch message flags */
-  mtx_fetchstructure,		/* fetch message envelopes */
-  mtx_fetchheader,		/* fetch message header only */
-  mtx_fetchtext,		/* fetch message body only */
-  mtx_fetchbody,		/* fetch message body section */
+  NIL,				/* fetch message "fast" attributes */
+  NIL,				/* fetch message flags */
+  NIL,				/* fetch overview */
+  NIL,				/* fetch message envelopes */
+  mtx_header,			/* fetch message header */
+  mtx_text,			/* fetch message body */
+  NIL,				/* fetch partial message text */
   NIL,				/* unique identifier */
-  mtx_setflag,			/* set message flag */
-  mtx_clearflag,		/* clear message flag */
+  NIL,				/* message number */
+  NIL,				/* modify flags */
+  mtx_flagmsg,			/* per-message modify flags */
   NIL,				/* search for message based on criteria */
   NIL,				/* sort messages */
   NIL,				/* thread messages */
@@ -88,7 +91,7 @@ DRIVER mtxdriver = {
   mtx_expunge,			/* expunge deleted messages */
   mtx_copy,			/* copy messages to another mailbox */
   mtx_append,			/* append string message to mailbox */
-  mtx_gc			/* garbage collect stream */
+  NIL				/* garbage collect stream */
 };
 
 				/* prototype stream */
@@ -239,6 +242,11 @@ MAILSTREAM *mtx_open (MAILSTREAM *stream)
     mtx_close (stream,NIL);	/* dump and save the changes */
     stream->dtb = &mtxdriver;	/* reattach this driver */
     mail_free_cache (stream);	/* clean up cache */
+    stream->uid_last = 0;	/* default UID validity */
+    stream->uid_validity = time (0);
+				/* flush user flags */
+    for (i = 0; i < NUSERFLAGS; i++)
+      if (stream->user_flags[i]) fs_give ((void **) &stream->user_flags[i]);
   }
   if (!mailboxfile (tmp,stream->mailbox))
     return (MAILSTREAM *) mtx_badname (tmp,stream->mailbox);
@@ -257,6 +265,7 @@ MAILSTREAM *mtx_open (MAILSTREAM *stream)
   stream->mailbox = cpystr (tmp);
   LOCAL->fd = fd;		/* note the file */
   LOCAL->filesize = 0;		/* initialize parsed file size */
+  LOCAL->buf = NIL;		/* initially no local buffer */
   stream->sequence++;		/* bump sequence number */
   stream->uid_validity = time (0);
 				/* parse mailbox */
@@ -282,164 +291,11 @@ void mtx_close (MAILSTREAM *stream,long options)
     stream->silent = T;
     if (options & CL_EXPUNGE) mtx_expunge (stream);
     close (LOCAL->fd);		/* close the local file */
+    if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
     stream->dtb = NIL;		/* log out the DTB */
   }
-}
-
-
-/* MTX mail fetch fast information
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void mtx_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
-{
-  return;			/* no-op for local mail */
-}
-
-
-/* MTX mail fetch flags
- * Accepts: MAIL stream
- *	    sequence
- *	    option flags
- */
-
-void mtx_fetchflags (MAILSTREAM *stream,char *sequence,long flags)
-{
-  return;			/* no-op for local mail */
-}
-
-/* MTX string driver for file stringstructs */
-
-STRINGDRIVER mtx_string = {
-  mtx_string_init,		/* initialize string structure */
-  mtx_string_next,		/* get next byte in string structure */
-  mtx_string_setpos		/* set position in string structure */
-};
-
-
-/* Cache buffer for file stringstructs */
-
-#define DOSCHUNKLEN 4096
-char dos_chunk[DOSCHUNKLEN];
-
-
-/* Initialize MTX string structure for file stringstruct
- * Accepts: string structure
- *	    pointer to string
- *	    size of string
- */
-
-void mtx_string_init (STRING *s,void *data,unsigned long size)
-{
-  MTXDATA *d = (MTXDATA *) data;
-  s->data = (void *) d->fd;	/* note fd */
-  s->data1 = d->pos;		/* note file offset */
-  s->size = size;		/* note size */
-  s->curpos = s->chunk = dos_chunk;
-  s->chunksize = (unsigned long) DOSCHUNKLEN;
-  s->offset = 0;		/* initial position */
-				/* and size of data */
-  s->cursize = min (s->chunksize,size);
-				/* move to that position in the file */
-  lseek (d->fd,d->pos,SEEK_SET);
-  read (d->fd,s->chunk,(size_t) s->cursize);
-}
-
-/* Get next character from file stringstruct
- * Accepts: string structure
- * Returns: character, string structure chunk refreshed
- */
-
-char mtx_string_next (STRING *s)
-{
-  char c = *s->curpos++;	/* get next byte */
-				/* move to next chunk */
-  SETPOS (s,s->offset + s->chunksize);
-  return c;			/* return the byte */
-}
-
-
-/* Set string pointer position for file stringstruct
- * Accepts: string structure
- *	    new position
- */
-
-void mtx_string_setpos (STRING *s,unsigned long i)
-{
-  s->offset = i;		/* set new offset */
-  s->curpos = s->chunk;		/* reset position */
-				/* set size of data */
-  if (s->cursize = s->size > s->offset ? min (s->chunksize,SIZE (s)) : 0) {
-				/* move to that position in the file */
-    lseek ((int) s->data,s->data1 + s->offset,SEEK_SET);
-    read ((int) s->data,s->curpos,(size_t) s->cursize);
-  }
-}
-
-/* MTX mail fetch structure
- * Accepts: MAIL stream
- *	    message # to fetch
- *	    pointer to return body
- *	    option flags
- * Returns: envelope of this message, body returned in body value
- *
- * Fetches the "fast" information as well
- */
-
-#define MAXHDR (unsigned long) 4*MAILTMPLEN
-
-ENVELOPE *mtx_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-			      BODY **body,long flags)
-{
-  LONGCACHE *lelt;
-  ENVELOPE **env;
-  BODY **b;
-  STRING bs;
-  MTXDATA d;
-  unsigned long i,hdrsize,hdrpos,textsize;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return mtx_fetchstructure (stream,i,body,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  hdrpos = mtx_header (stream,msgno,&hdrsize);
-  textsize = mail_elt (stream,msgno)->rfc822_size - hdrsize;
-  if (stream->scache) {		/* short cache */
-    if (msgno != stream->msgno){/* flush old poop if a different message */
-      mail_free_envelope (&stream->env);
-      mail_free_body (&stream->body);
-    }
-    stream->msgno = msgno;
-    env = &stream->env;		/* get pointers to envelope and body */
-    b = &stream->body;
-  }
-  else {			/* long cache */
-    lelt = mail_lelt (stream,msgno);
-    env = &lelt->env;		/* get pointers to envelope and body */
-    b = &lelt->body;
-  }
-
-  if ((body && !*b) || !*env) {	/* have the poop we need? */
-    char *hdr = mtx_fetchheader (stream,msgno,NIL,NIL,NIL);
-    char *tmp = (char *) fs_get ((size_t) MAXHDR);
-				/* make sure last line ends */
-    if (hdr[hdrsize-1] != '\012') hdr[hdrsize-1] = '\012';
-    mail_free_envelope (env);	/* flush old envelope and body */
-    mail_free_body (b);
-    d.fd = LOCAL->fd;		/* set initial stringstruct */
-    d.pos = hdrpos + hdrsize;
-    INIT (&bs,mtx_string,(void *) &d,textsize);
-				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,hdr,hdrsize,&bs,mylocalhost (),tmp);
-    fs_give ((void **) &tmp);
-  }
-  if (body) *body = *b;		/* return the body */
-  return *env;			/* return the envelope */
 }
 
 /* MTX mail fetch message header
@@ -450,267 +306,68 @@ ENVELOPE *mtx_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
  * Returns: message header in RFC822 format
  */
 
-char *mtx_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-		       STRINGLIST *lines,unsigned long *len,long flags)
+char *mtx_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
+		  long flags)
 {
-  unsigned long hdrsize,hdrpos,i;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return mtx_fetchheader (stream,i,lines,len,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  hdrpos = mtx_header (stream,msgno,&hdrsize);
-				/* limit header size */
-  if (hdrsize > MAXHDR) hdrsize = MAXHDR;
-  if (stream->text) fs_give ((void **) &stream->text);
-  stream->text = (char *) fs_get ((size_t) hdrsize + 1);
+  *length = 0;			/* default to empty */
+  if (flags & FT_UID) return "";/* UID call "impossible" */
 				/* get to header position */
-  lseek (LOCAL->fd,hdrpos,SEEK_SET);
-  read (LOCAL->fd,stream->text,(size_t) hdrsize);
-  stream->text[hdrsize] = '\0';	/* tie off string */
-				/* filter if necessary */
-  if (lines) hdrsize = mail_filter (stream->text,hdrsize,lines,flags);
-  if (len) *len = hdrsize;
-  return stream->text;
+  lseek (LOCAL->fd,mtx_hdrpos (stream,msgno,length),L_SET);
+				/* is buffer big enough? */
+  if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
+  LOCAL->buf = (char *) fs_get ((size_t) *length + 1);
+  LOCAL->buf[*length] = '\0';	/* tie off string */
+				/* slurp the data */
+  read (LOCAL->fd,LOCAL->buf,(size_t) *length);
+  return LOCAL->buf;
 }
 
 
 /* MTX mail fetch message text (body only)
  * Accepts: MAIL stream
  *	    message # to fetch
- * Returns: message text in RFC822 format
+ *	    pointer to returned header text length
+ *	    option flags
+ * Returns: T, always
  */
 
-char *mtx_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		       unsigned long *len,long flags)
+long mtx_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 {
-  unsigned long i,hdrsize,hdrpos,textsize;
-  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
   MESSAGECACHE *elt;
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return mtx_fetchtext (stream,i,len,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  elt = mail_elt (stream,msgno);/* get message status */
-  hdrpos = mtx_header (stream,msgno,&hdrsize);
-  textsize = elt->rfc822_size - hdrsize;
-  if (stream->text) fs_give ((void **) &stream->text);
-				/* if message not seen */
-  if (!(flags & FT_PEEK) && !elt->seen) {
+  FDDATA d;
+  unsigned long hdrsize,hdrpos;
+				/* UID call "impossible" */
+  if (flags & FT_UID) return NIL;
+  elt = mail_elt (stream,msgno);/* if message not seen */
+  if (elt->seen && !(flags & FT_PEEK)) {
     elt->seen = T;		/* mark message as seen */
 				/* recalculate status */
     mtx_update_status (stream,msgno);
+    mm_flags (stream,msgno);
   }
-				/* get to text position */
-  lseek (LOCAL->fd,hdrpos + hdrsize,SEEK_SET);
-  if (len) *len = textsize;	/* return size */
-  return stream->text = (mg ? *mg : mm_gets) (mtx_read,stream,textsize);
+				/* get location of text data */
+  hdrpos = mtx_hdrpos (stream,msgno,&hdrsize);
+  d.fd = LOCAL->fd;		/* set initial stringstruct */
+  d.pos = hdrpos + hdrsize;
+				/* flush old buffer */
+  if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
+  d.chunk = LOCAL->buf = (char *) fs_get ((size_t) d.chunksize = CHUNK);
+  INIT (bs,fd_string,(void *) &d,elt->rfc822_size - hdrsize);
+  return T;			/* success */
 }
 
-/* MTX fetch message body as a structure
- * Accepts: Mail stream
- *	    message # to fetch
- *	    section specifier
- *	    pointer to length
- *	    option flags
- * Returns: pointer to section of message body
+/* MTX mail per-message modify flags
+ * Accepts: MAIL stream
+ *	    message cache element
  */
 
-char *mtx_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *s,
-		       unsigned long *len,long flags)
+void mtx_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt)
 {
-  BODY *b;
-  PART *pt;
-  unsigned long offset = 0;
-  unsigned long i,base,hdrpos,size = 0;
-  MESSAGECACHE *elt;
-  mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
-  if (flags & FT_UID) {		/* UID form of call */
-    for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_uid (stream,i) == msgno)
-	return mtx_fetchbody (stream,i,s,len,flags & ~FT_UID);
-    return NIL;			/* didn't find the UID */
-  }
-  hdrpos = mtx_header (stream,msgno,&base);
-  elt = mail_elt (stream,msgno);
-  if (stream->text) fs_give ((void **) &stream->text);
-				/* make sure have a body */
-  if (!(mtx_fetchstructure (stream,msgno,&b,flags & ~FT_UID) && b && s &&
-	*s && isdigit (*s))) return NIL;
-  if (!(i = strtoul (s,&s,10)))	/* section 0 */
-    return *s ? NIL : mtx_fetchheader (stream,msgno,NIL,len,flags);
-  do {				/* until find desired body part */
-				/* multipart content? */
-    if (b->type == TYPEMULTIPART) {
-      pt = b->contents.part;	/* yes, find desired part */
-      while (--i && (pt = pt->next));
-      if (!pt) return NIL;	/* bad specifier */
-				/* note new body, check valid nesting */
-      if (((b = &pt->body)->type == TYPEMULTIPART) && !*s) return NIL;
-      offset = pt->offset;	/* get new offset */
-    }
-    else if (i != 1) return NIL;/* otherwise must be section 1 */
-
-				/* need to go down further? */
-    if (i = *s) switch (b->type) {
-    case TYPEMESSAGE:		/* embedded message, calculate new base */
-      if (!((*s++ == '.') && isdigit (*s))) return NIL;
-				/* get message's body if non-zero */
-      if (i = strtoul (s,&s,10)) {
-	offset = b->contents.msg.offset;
-	b = b->contents.msg.body;
-      }
-      else {			/* want header */
-	size = b->contents.msg.offset - offset;
-	b = NIL;		/* make sure the code below knows */
-      }
-      break;
-    case TYPEMULTIPART:		/* multipart, get next section */
-      if ((*s++ == '.') && isdigit (*s) && (i = strtoul (s,&s,10)) > 0) break;
-    default:			/* bogus subpart specification */
-      return NIL;
-    }
-  } while (i);
-  if (b) {			/* looking at a non-multipart body? */
-    if (b->type == TYPEMULTIPART) return NIL;
-    size = b->size.ibytes;	/* yes, get its size */
-  }
-  else if (!size) return NIL;	/* lose if not getting a header */
-				/* if message not seen */
-  if (!(flags & FT_PEEK) && !elt->seen) {
-    elt->seen = T;		/* mark message as seen */
 				/* recalculate status */
-    mtx_update_status (stream,msgno);
-  }
-  lseek (LOCAL->fd,hdrpos + base + offset,SEEK_SET);
-  return stream->text =
-    (mg ? *mg : mm_gets) (mtx_read,stream,*len = b->size.bytes);
+  mtx_update_status (stream,elt->msgno,NIL);
 }
 
 
-/* MTX mail read
- * Accepts: MAIL stream
- *	    number of bytes to read
- *	    buffer address
- * Returns: T if success, NIL otherwise
- */
-
-long mtx_read (MAILSTREAM *stream,unsigned long count,char *buffer)
-{
-  return read (LOCAL->fd,buffer,(size_t) count) ? T : NIL;
-}
-
-/* MTX locate header for a message
- * Accepts: MAIL stream
- *	    message number
- *	    pointer to returned header size
- * Returns: position of header in file
- */
-
-unsigned long mtx_header (MAILSTREAM *stream,unsigned long msgno,
-			  unsigned long *size)
-{
-  unsigned long siz;
-  size_t i = 0;
-  int q = 0;
-  char *s,tmp[MAILTMPLEN];
-  MESSAGECACHE *elt = mail_elt (stream,msgno);
-  long pos = elt->data1 + elt->data2;
-  if (!(*size = elt->data3)) {	/* is header size known? */
-				/* get to header position */
-    lseek (LOCAL->fd,pos,SEEK_SET);
-				/* search message for CRLF CRLF */
-    for (siz = 1; siz <= elt->rfc822_size; siz++) {
-      if (!i &&			/* buffer empty? */
-	  (read (LOCAL->fd,s = tmp,
-		 i = (size_t) min(elt->rfc822_size-siz,(long)MAILTMPLEN))<= 0))
-	return pos;
-      else i--;
-      switch (q) {		/* sniff at buffer */
-      case 0:			/* first character */
-	q = (*s++ == '\015') ? 1 : 0;
-	break;
-      case 1:			/* second character */
-	q = (*s++ == '\012') ? 2 : 0;
-	break;
-      case 2:			/* third character */
-	q = (*s++ == '\015') ? 3 : 0;
-	break;
-      case 3:			/* fourth character */
-	if (*s++ == '\012') {	/* have the sequence? */
-				/* yes, note for later */
-	  elt->data3 = (*size = siz);
-	  return pos;		/* return to caller */
-	}
-	q = 0;			/* lost... */
-	break;
-      }
-    }
-  }
-  return pos;			/* have position */
-}
-
-/* MTX mail set flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    option flags
- */
-
-void mtx_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  MESSAGECACHE *elt;
-  unsigned long i,uf;
-  short f = (short) mail_parse_flags (stream,flag,&uf);
-  if (!(f || uf)) return;	/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if ((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
-      mail_sequence (stream,sequence))
-    for (i = 1; i <= stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i))->sequence) {
-				/* set all requested flags */
-	if (f&fSEEN) elt->seen = T;
-	if (f&fDELETED) elt->deleted = T;
-	if (f&fFLAGGED) elt->flagged = T;
-	if (f&fANSWERED) elt->answered = T;
-	if (f&fDRAFT) elt->draft = T;
-				/* recalculate status */
-	mtx_update_status (stream,i);
-    }
-}
-
-/* MTX mail clear flag
- * Accepts: MAIL stream
- *	    sequence
- *	    flag(s)
- *	    option flags
- */
-
-void mtx_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
-{
-  MESSAGECACHE *elt;
-  unsigned long i,uf;
-  short f = (short) mail_parse_flags (stream,flag,&uf);
-  if (!(f || uf)) return;	/* no-op if no flags to modify */
-				/* get sequence and loop on it */
-  if ((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
-      mail_sequence (stream,sequence))
-    for (i = 1; i <= stream->nmsgs; i++)
-      if ((elt = mail_elt (stream,i))->sequence) {
-				/* clear all requested flags */
-	if (f&fSEEN) elt->seen = NIL;
-	if (f&fDELETED) elt->deleted = NIL;
-	if (f&fFLAGGED) elt->flagged = NIL;
-	if (f&fANSWERED) elt->answered = NIL;
-	if (f&fDRAFT) elt->draft = NIL;
-				/* recalculate status */
-	mtx_update_status (stream,i);
-      }
-}
-
 /* MTX mail ping mailbox
  * Accepts: MAIL stream
  * Returns: T if stream still alive, NIL if not
@@ -760,17 +417,18 @@ void mtx_expunge (MAILSTREAM *stream)
   mm_critical (stream);		/* go critical */
   recent = stream->recent;	/* get recent now that pinged */ 
   while (i <= stream->nmsgs) {	/* for each message */
-				/* if deleted */
-    if ((elt = mail_elt (stream,i))->deleted) {
+    elt = mail_elt (stream,i);	/* get cache element */
+				/* number of bytes to smash or preserve */
+    k = elt->private.special.text.size + elt->rfc822_size;
+    if (elt->deleted) {		/* if deleted */
       if (elt->recent) --recent;/* if recent, note one less recent message */
-				/* number of bytes to delete */
-      delta += elt->data2 + elt->rfc822_size;
+      delta += k;		/* number of bytes to delete */
       mail_expunged (stream,i);	/* notify upper levels */
       n++;			/* count up one more deleted message */
     }
     else if (i++ && delta) {	/* preserved message */
-      j = elt->data1;		/* j is byte to copy, k is number of bytes */
-      k = elt->data2 + elt->rfc822_size;
+				/* first byte to preserve */
+      j = elt->private.special.offset;
       do {			/* read from source position */
 	m = min (k,(unsigned long) MAILTMPLEN);
 	lseek (LOCAL->fd,j,SEEK_SET);
@@ -780,7 +438,7 @@ void mtx_expunge (MAILSTREAM *stream)
 	write (LOCAL->fd,tmp,(size_t) m);
 	j += m;			/* next chunk, perhaps */
       } while (k -= m);		/* until done */
-      elt->data1 -= delta;	/* note the new address of this text */
+      elt->private.special.offset -= delta;
     }
   }
   if (n) {			/* truncate file after last message */
@@ -811,6 +469,8 @@ long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   unsigned long i,j,k;
   long ret = LONGT;
   int fd;
+  mailproxycopy_t pc =
+    (mailproxycopy_t) mail_parameters (stream,GET_MAILPROXYCOPY,NIL);
   if (!((options & CP_UID) ? mail_uid_sequence (stream,sequence) :
 	mail_sequence (stream,sequence))) return NIL;
   if (!mtx_isvalid (mailbox,tmp)) switch (errno) {
@@ -821,9 +481,11 @@ long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   case 0:			/* merely empty file? */
     break;
   case EINVAL:			/* name is bogus */
+    if (pc) return (*pc) (stream,sequence,mailbox,options);
     return mtx_badname (tmp,mailbox);
   default:			/* file exists, but not valid format */
-    sprintf (tmp,"Not a Mtx-format mailbox: %s",mailbox);
+    if (pc) return (*pc) (stream,sequence,mailbox,options);
+    sprintf (tmp,"Not a MTX-format mailbox: %s",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
@@ -840,9 +502,9 @@ long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* for each requested message */
   for (i = 1; ret && (i <= stream->nmsgs); i++)
     if ((elt = mail_elt (stream,i))->sequence) {
-      lseek (LOCAL->fd,elt->data1,SEEK_SET);
+      lseek (LOCAL->fd,elt->private.special.offset,SEEK_SET);
 				/* number of bytes to copy */
-      k = elt->data2 + elt->rfc822_size;
+      k = elt->private.special.text.size + elt->rfc822_size;
       do {			/* read from source position */
 	j = min (k,(long) MAILTMPLEN);
 	read (LOCAL->fd,tmp,(size_t) j);
@@ -889,22 +551,30 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
     if (!mail_parse_date (&elt,date)) {
-      sprintf (tmp,"Bad date in append: %s",date);
+      sprintf (tmp,"Bad date in append: %.80s",date);
       mm_log (tmp,ERROR);
       return NIL;
     }
   }
   if (!mtx_isvalid (mailbox,tmp)) switch (errno) {
   case ENOENT:			/* no such file? */
-    mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
-	       (long) NIL);
-    return NIL;
+    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
+	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
+	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
+	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
+	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5])
+      mtx_create (NIL,"INBOX");
+    else {
+      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+      return NIL;
+    }
+				/* falls through */
   case 0:			/* merely empty file? */
     break;
   case EINVAL:			/* name is bogus */
     return mtx_badname (tmp,mailbox);
   default:			/* file exists, but not valid format */
-    sprintf (tmp,"Not a Mtx-format mailbox: %s",mailbox);
+    sprintf (tmp,"Not a Mtx-format mailbox: %.80s",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
@@ -944,17 +614,6 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   close (fd);			/* close the file */
   mm_nocritical (stream);	/* release critical */
   return T;			/* return success */
-}
-
-
-/* MTX mail garbage collect stream
- * Accepts: Mail stream
- *	    garbage collection flags
- */
-
-void mtx_gc (MAILSTREAM *stream,long gcflags)
-{
-  /* nothing here for now */
 }
 
 
@@ -1025,10 +684,13 @@ long mtx_parse (MAILSTREAM *stream)
     *s++ = '\0'; *t++ = '\0';	/* tie off fields */
 				/* intantiate an elt for this message */
     (elt = mail_elt (stream,++nmsgs))->valid = T;
-    elt->uid = ++stream->uid_last;
-    elt->data1 = curpos;	/* note file offset of header */
-    elt->data2 = i;		/* as well as offset from header of message */
-    elt->data3 = 0;		/* header size not known yet */
+    elt->private.uid = ++stream->uid_last;
+				/* note file offset of header */
+    elt->private.special.offset = curpos;
+				/* as well as offset from header of message */
+    elt->private.special.text.size = i;
+				/* header size not known yet */
+    elt->private.msg.header.text.size = 0;
 				/* parse the header components */
     if (!(mail_parse_date (elt,lbuf) &&
 	  (elt->rfc822_size = strtol (x = s,&s,10)) && (!(s && *s)) &&
@@ -1050,7 +712,9 @@ long mtx_parse (MAILSTREAM *stream)
     if (i & fANSWERED) elt->answered = T;
     if (i & fDRAFT) elt->draft = T;
     if (curpos > sbuf.st_size) {
-      mm_log ("Last message runs past end of file",ERROR);
+      sprintf (tmp,"Last message (at %lu) runs past end of file (%lu > %lu)",
+	       elt->private.special.offset,curpos,sbuf.st_size);
+      mm_log (tmp,ERROR);
       mtx_close (stream,NIL);
       return NIL;
     }
@@ -1072,7 +736,8 @@ void mtx_update_status (MAILSTREAM *stream,unsigned long msgno)
   char tmp[MAILTMPLEN];
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   unsigned long j,k = 0;
-  if (stream->rdonly) return;	/* not if readonly you don't */
+				/* not if readonly you don't */
+  if (stream->rdonly || !elt->valid) return;
   j = elt->user_flags;		/* get user flags */
 				/* reverse bits (dontcha wish we had CIRC?) */
   while (j) k |= 1 << 29 - find_rightmost_bit (&j);
@@ -1081,6 +746,58 @@ void mtx_update_status (MAILSTREAM *stream,unsigned long msgno)
 	   (fFLAGGED * elt->flagged) + (fANSWERED * elt->answered) +
 	   (fDRAFT * elt->draft));
 				/* get to that place in the file */
-  lseek (LOCAL->fd,(off_t) elt->data1 + elt->data2 - 14,SEEK_SET);
+  lseek (LOCAL->fd,(off_t) elt->private.special.offset +
+	 elt->private.special.text.size - 14,SEEK_SET);
   write (LOCAL->fd,tmp,12);	/* write new flags */
+}
+
+/* MTX locate header for a message
+ * Accepts: MAIL stream
+ *	    message number
+ *	    pointer to returned header size
+ * Returns: position of header in file
+ */
+
+unsigned long mtx_hdrpos (MAILSTREAM *stream,unsigned long msgno,
+			  unsigned long *size)
+{
+  unsigned long siz;
+  size_t i = 0;
+  int q = 0;
+  char *s,tmp[MAILTMPLEN];
+  MESSAGECACHE *elt = mail_elt (stream,msgno);
+  long pos = elt->private.special.offset + elt->private.special.text.size;
+				/* is header size known? */
+  if (!(*size = elt->private.msg.header.text.size)) {
+				/* get to header position */
+    lseek (LOCAL->fd,pos,SEEK_SET);
+				/* search message for CRLF CRLF */
+    for (siz = 1; siz <= elt->rfc822_size; siz++) {
+      if (!i &&			/* buffer empty? */
+	  (read (LOCAL->fd,s = tmp,
+		 i = (size_t) min(elt->rfc822_size-siz,(long)MAILTMPLEN))<= 0))
+	return pos;
+      else i--;
+      switch (q) {		/* sniff at buffer */
+      case 0:			/* first character */
+	q = (*s++ == '\015') ? 1 : 0;
+	break;
+      case 1:			/* second character */
+	q = (*s++ == '\012') ? 2 : 0;
+	break;
+      case 2:			/* third character */
+	q = (*s++ == '\015') ? 3 : 0;
+	break;
+      case 3:			/* fourth character */
+	if (*s++ == '\012') {	/* have the sequence? */
+				/* yes, note for later */
+	  elt->private.msg.header.text.size = (*size = siz);
+	  return pos;		/* return to caller */
+	}
+	q = 0;			/* lost... */
+	break;
+      }
+    }
+  }
+  return pos;			/* have position */
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	17 July 1996
+ * Last Edited:	2 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -64,13 +64,13 @@ extern int sys_nerr;
 #include "env_unix.c"
 #define fork vfork
 #include "tcp_unix.c"
-#include "log_std.c"
 #include "gr_waitp.c"
 #undef flock
 #include "flock.c"
 #include "tz_sv4.c"
 #undef setpgrp
 #include "setpgrp.c"
+#include "utime.c"
 
 /* Emulator for BSD gethostid() call
  * Returns: a unique identifier for the system.  
@@ -82,21 +82,4 @@ long gethostid (void)
 {
   struct utsname udata;
   return (uname (&udata)) ? 0xfeedface : atol (udata.__idnumber);
-}
-
-
-#undef utime
-
-/* Portable utime() that takes it args like real Unix systems
- * Accepts: file path
- *	    traditional utime() argument
- * Returns: utime() results
- */
-
-int portable_utime (char *file,time_t timep[2])
-{
-  struct utimbuf times;
-  times.actime = timep[0];	/* copy the portable values */
-  times.modtime = timep[1];
-  return utime (file,&times);	/* now call HPP's routine */
 }

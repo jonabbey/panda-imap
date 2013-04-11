@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	7 February 1996
+ * Last Edited:	5 May 1998
  *
- * Copyright 1996 by Mark Crispin
+ * Copyright 1998 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,13 +36,11 @@
  * also takes advantage of the Map panel in System 7 for the timezone.
  */
 
-				/* TCP timeout handler routine */
-static tcptimeout_t tcptimeout = NIL;
-				/* TCP timeouts, in seconds */
-static long tcptimeout_open = 75;
-static long tcptimeout_read = 0;
-static long tcptimeout_write = 0;
-static long tcptimeout_close = 0;
+static tcptimeout_t tmoh = NIL;	/* TCP timeout handler routine */
+static long ttmo_open = 75;	/* TCP timeouts, in seconds */
+static long ttmo_read = 0;
+static long ttmo_write = 0;
+static long ttmo_close = 0;
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -54,34 +52,34 @@ void *tcp_parameters (long function,void *value)
 {
   switch ((int) function) {
   case SET_TIMEOUT:
-    tcptimeout = (tcptimeout_t) value;
+    tmoh = (tcptimeout_t) value;
     break;
   case GET_TIMEOUT:
-    value = (void *) tcptimeout;
+    value = (void *) tmoh;
     break;
   case SET_OPENTIMEOUT:
-    tcptimeout_open = (long) value;
+    ttmo_open = (long) value;
     break;
   case GET_OPENTIMEOUT:
-    value = (void *) tcptimeout_open;
+    value = (void *) ttmo_open;
     break;
   case SET_READTIMEOUT:
-    tcptimeout_read = (long) value;
+    ttmo_read = (long) value;
     break;
   case GET_READTIMEOUT:
-    value = (void *) tcptimeout_read;
+    value = (void *) ttmo_read;
     break;
   case SET_WRITETIMEOUT:
-    tcptimeout_write = (long) value;
+    ttmo_write = (long) value;
     break;
   case GET_WRITETIMEOUT:
-    value = (void *) tcptimeout_write;
+    value = (void *) ttmo_write;
     break;
   case SET_CLOSETIMEOUT:
-    tcptimeout_close = (long) value;
+    ttmo_close = (long) value;
     break;
   case GET_CLOSETIMEOUT:
-    value = (void *) tcptimeout_close;
+    value = (void *) ttmo_close;
     break;
   default:
     value = NIL;		/* error case */
@@ -116,15 +114,6 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     return NIL;
   }
   resolveropen = T;		/* note resolver open now */
-  if (s = strchr (host,':')) {	/* port number specified? */
-    *s++ = '\0';		/* yes, tie off port */
-    port = strtoul (s,&s,10);	/* parse port */
-    if (s && *s) {
-      sprintf (tmp,"Junk after port number: %.80s",s);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-  }
 				/* domain literal? */
   if (host[0] == '[' && host[strlen (host)-1] == ']') {
     if (((i = strtoul (s = host+1,&s,10)) <= 255) && *s++ == '.' &&
@@ -209,7 +198,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     fatal ("Can't create TCP stream");
   				/* open TCP connection */
   stream->pb.csCode = TCPActiveOpen;
-  openpb->ulpTimeoutValue = (int) tcptimeout_open;
+  openpb->ulpTimeoutValue = (int) ttmo_open;
   openpb->ulpTimeoutAction = T;
   openpb->validityFlags = timeoutValue|timeoutAction;
 				/* remote host (should try all) */
@@ -365,17 +354,19 @@ long tcp_getdata (TCPSTREAM *stream)
   struct TCPReceivePB *receivepb = &stream->pb.csParam.receive;
   struct TCPAbortPB *abortpb = &stream->pb.csParam.abort;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
+    time_t tl = time (0);
     stream->pb.csCode = TCPRcv;	/* receive TCP data */
-    receivepb->commandTimeoutValue = (int) tcptimeout_read;
+    receivepb->commandTimeoutValue = (int) ttmo_read;
     receivepb->rcvBuff = stream->ibuf;
     receivepb->rcvBuffLen = BUFLEN;
     receivepb->secondTimeStamp = 0;
     receivepb->userDataPtr = NIL;
     PBControlAsync ((ParmBlkPtr) &stream->pb);
     while (stream->pb.ioResult == inProgress && wait ());
-    if ((stream->pb.ioResult == commandTimeout) && tcptimeout &&
-	((*tcptimeout) (time (0) - t))) continue;
     if (stream->pb.ioResult) {	/* punt if got an error */
+      time_t tc = time (0);
+      if ((stream->pb.ioResult == commandTimeout) && tmoh &&
+	  ((*tmoh) (tc - t,tc - tl))) continue;
     				/* nuke connection */
       stream->pb.csCode = TCPAbort;
       abortpb->userDataPtr = NIL;
@@ -422,7 +413,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
     size -= wds.length;		/* this many words will be output */
     string += wds.length;
     stream->pb.csCode = TCPSend;/* send TCP data */
-    sendpb->ulpTimeoutValue = (int) tcptimeout_write;
+    sendpb->ulpTimeoutValue = (int) ttmo_write;
     sendpb->ulpTimeoutAction = 0;
     sendpb->validityFlags = timeoutValue|timeoutAction;
     sendpb->pushFlag = T;	/* send the data now */
@@ -451,7 +442,7 @@ void tcp_close (TCPSTREAM *stream)
   struct TCPClosePB *closepb = &stream->pb.csParam.close;
   struct TCPCreatePB *createpb = &stream->pb.csParam.create;
   stream->pb.csCode = TCPClose;	/* close TCP stream */
-  closepb->ulpTimeoutValue = (int) tcptimeout_close;
+  closepb->ulpTimeoutValue = (int) ttmo_close;
   closepb->ulpTimeoutAction = 0;
   closepb->validityFlags = timeoutValue|timeoutAction;
   closepb->userDataPtr = NIL;
@@ -474,6 +465,17 @@ void tcp_close (TCPSTREAM *stream)
  */
 
 char *tcp_host (TCPSTREAM *stream)
+{
+  return stream->host;		/* return host name */
+}
+
+
+/* TCP/IP return remote host for this stream
+ * Accepts: TCP/IP stream
+ * Returns: host name for this stream
+ */
+
+char *tcp_remotehost (TCPSTREAM *stream)
 {
   return stream->host;		/* return host name */
 }

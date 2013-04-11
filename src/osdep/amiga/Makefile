@@ -8,10 +8,10 @@
 #		Seattle, WA  98195
 #		Internet: MRC@CAC.Washington.EDU
 #
-# Date: 	11 May 1989
-# Last Edited:	29 April 1996
+# Date:		11 May 1989
+# Last Edited:	14 April 1998
 #
-# Copyright 1996 by the University of Washington
+# Copyright 1998 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -31,130 +31,186 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
-ARCHIVE=c-client.a
-ARRC=ar rc
+# Command line build parameters
+
 EXTRAAUTHENTICATORS=
-DEFAULTAUTHENTICATORS=log
-BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o dummy.o \
-	netmsg.o rfc822.o nntp.o smtp.o imap4.o pop3.o \
-	bezerk.o mbox.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o
-AMICFLAGS=-O -DNO_INLINE_STDARG -Dunix $(EXTRACFLAGS)
+EXTRADRIVERS=mbox
+PASSWDTYPE=std
+
+
+# Build parameters normally set by the individual port
+
+AMICFLAGS=-O -DNO_INLINE_STDARG -Dunix
 AMILDFLAGS=/pine/libc.a -lamiga -lauto
-EXTRACFLAGS=
-CC=gcc
-CFLAGS=$(AMICFLAGS)
-EXTRADRIVERS=mbox mbx
-DEFAULTDRIVERS=imap nntp pop3 mh tenex mtx mmdf bezerk news phile dummy
+CHECKPW=std
+LOGINPW=std
+ACTIVEFILE=/UULib/News/Active
+SPOOLDIR=/usr/spool
+MAILSPOOL=/AmiTCP/Mail
+NEWSSPOOL=/UUNews
+STDPROTO=unixproto
+
+
+# Commands possibly overriden by the individual port
+
+ARRC=ar rc
+CC=cc
 LN=cp
-MAKE=make
-MV=mv
 RANLIB=ranlib
 RM=rm -f
+
+
+# Standard distribution build parameters
+
+DEFAULTAUTHENTICATORS=log
+DEFAULTDRIVERS=imap nntp pop3 mh mx mbx tenex mtx mmdf unix news phile
+
+
+# Normally no need to change any of these
+
+ARCHIVE=c-client.a
+BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o utf8.o \
+ dummy.o pseudo.o netmsg.o flstring.o fdstring.o \
+ rfc822.o nntp.o smtp.o imap4r1.o pop3.o \
+ unix.o mbox.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
+CFLAGS=$(BASECFLAGS) $(EXTRACFLAGS)
+MAKE=make
+MV=mv
 SHELL=/bin/sh
 
-missing:
-	@echo "You must specify what type of system"
+
+# Primary build command
+
+BUILDOPTIONS= EXTRACFLAGS=$(EXTRACFLAGS) EXTRALDFLAGS=$(EXTRALDFLAGS)\
+ EXTRADRIVERS=$(EXTRADRIVERS) EXTRAAUTHENTICATORS=$(EXTRAAUTHENTICATORS)\
+ PASSWDTYPE=$(PASSWDTYPE)
+BUILD=$(MAKE) build $(BUILDOPTIONS) $(EXTRASPECIALS)
+
+
+# Here if no make argument established
+
+missing: osdep.h
+	$(MAKE) $(ARCHIVE) CC=`cat CCTYPE` CFLAGS="`cat CFLAGS`"
+
+osdep.h:
+	@echo You must specify what type of system
 	@false
+
 
 # Current ports
 
 ami:	# AmigaDOS
-	$(MAKE) mtest CC=gcc OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILFILE=/AmiTCP/Mail \
-		CFLAGS="-DOLD $(AMIFLAGS)" \
-		ACTIVEFILE=/UULib/News/Active NEWSSPOOL=/UUNews \
-		LDFLAGS="$(AMILDFLAGS) -lamitcp000"
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-DOLD $(AMICFLAGS)" \
+	 BASELDFLAGS="$(AMILDFLAGS) -lamitcp000" \
+	 CC=gcc
 
 am2:	# AmigaDOS with a 68020+
-	$(MAKE) mtest CC=gcc OS=ami EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILFILE=/AmiTCP/Mail \
-		CFLAGS="-DOLD -m68020 $(AMICFLAGS)" \
-		ACTIVEFILE=/UULib/News/Active NEWSSPOOL=/UUNews \
-		LDFLAGS="$(AMILDFLAGS) -lamitcp"
+	$(BUILD) OS=ami \
+	 BASECFLAGS="-DOLD -m68020 $(AMICFLAGS)" \
+	 BASELDFLAGS="$(AMILDFLAGS) -lamitcp" \
+	 CC=gcc
 
 amn:	# AmigaDOS with a 680x0 using "new" socket library
-	$(MAKE) mtest OS=ami CC=gcc EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILFILE=/AmiTCP/Mail \
-		ACTIVEFILE=/UULib/News/Active NEWSSPOOL=/UUNews \
-		LDFLAGS="$(AMILDFLAGS) -lnewamitcp000"
+	$(BUILD) OS=ami \
+	 BASELDFLAGS="$(AMILDFLAGS) -lnewamitcp000" \
+	 CC=gcc
 
 ama:	# AmigaDOS using AS225R2
-	$(MAKE) mtest OS=ami CC=gcc EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/INet/Mail \
-		ACTIVEFILE=/UULib/News/Active NEWSSPOOL=/UUNews \
-		CFLAGS="-m68020 $(AMICFLAGS)" \
-		LDFLAGS="$(AMILDFLAGS) -las225r2"
+	$(BUILD) OS=ami \
+	 MAILSPOOL=/INet/Mail \
+	 BASECFLAGS="-m68020 $(AMICFLAGS)" \
+	 BASELDFLAGS="$(AMILDFLAGS) -las225r2" \
+	 CC=gcc
 
-# From here on down is OS-independent
+# Build it!
 
-clean:
-	$(RM) *.o linkage.[ch] auths.c mtest $(ARCHIVE) osdep.* \
-		OSTYPE CFLAGS LDFLAGS
-
-mtest: $(ARCHIVE) mtest.o
-	$(CC) $(CFLAGS) -o mtest mtest.o $(ARCHIVE) $(LDFLAGS)
+build:	clean once ckp$(PASSWDTYPE) $(EXTRAAUTHENTICATORS) $(ARCHIVE)
 
 $(ARCHIVE): $(BINARIES)
-	$(RM) $(ARCHIVE)
+	$(RM) $(ARCHIVE) || true
 	$(ARRC) $(ARCHIVE) $(BINARIES)
 	$(RANLIB) $(ARCHIVE)
 
+# Cleanup
+
+clean:
+	$(RM) *.o linkage.[ch] auths.c $(ARCHIVE) osdep.* *TYPE *FLAGS || true
+
+
 # Dependencies
 
-bezerk.o: mail.h misc.h osdep.h bezerk.h rfc822.h
 dummy.o: mail.h misc.h osdep.h dummy.h
-imap4.o: mail.h misc.h osdep.h imap4.h
-mail.o: mail.h misc.h osdep.h
-mbox.o: mail.h misc.h osdep.h mbox.h bezerk.h
-mbx.o: mail.h misc.h osdep.h mbx.h rfc822.h dummy.h
-mh.o: mail.h misc.h osdep.h mh.h rfc822.h dummy.h
+fdstring.o: mail.h misc.h osdep.h fdstring.h
+flstring.o: mail.h misc.h osdep.h flstring.h
+imap4r1.o: mail.h misc.h osdep.h imap4r1.h rfc822.h
+mail.o: mail.h misc.h osdep.h rfc822.h linkage.h
+mbox.o: mail.h misc.h osdep.h mbox.h unix.h
+mbx.o: mail.h misc.h osdep.h mbx.h dummy.h
+mh.o: mail.h misc.h osdep.h mh.h dummy.h
+mx.o: mail.h misc.h osdep.h mx.h dummy.h
 misc.o: mail.h misc.h osdep.h
-mmdf.o: mail.h misc.h osdep.h mmdf.h bezerk.h rfc822.h dummy.h
-mtest.o: mail.h misc.h osdep.h rfc822.h smtp.h nntp.h linkage
-mtx.o: mail.h misc.h osdep.h mtx.h rfc822.h dummy.h
+mmdf.o: mail.h misc.h osdep.h mmdf.h pseudo.h dummy.h
+mtx.o: mail.h misc.h osdep.h mtx.h dummy.h
 netmsg.o: mail.h misc.h osdep.h netmsg.h
-news.o: mail.h misc.h osdep.h news.h rfc822.h
+news.o: mail.h misc.h osdep.h news.h
 newsrc.o: mail.h misc.h osdep.h newsrc.h
 nntp.o: mail.h misc.h osdep.h netmsg.h smtp.h nntp.h rfc822.h
 phile.o: mail.h misc.h osdep.h phile.h rfc822.h dummy.h
-pop3.o: mail.h misc.h osdep.h pop3.h rfc822.h
+pseudo.o: pseudo.h
+pop3.o: mail.h misc.h osdep.h pop3.h
 smanager.o: mail.h misc.h osdep.h
 smtp.o: mail.h misc.h osdep.h smtp.h rfc822.h
 rfc822.o: mail.h misc.h osdep.h rfc822.h
-tenex.o: mail.h misc.h osdep.h tenex.h rfc822.h dummy.h
+tenex.o: mail.h misc.h osdep.h tenex.h dummy.h
+unix.o: mail.h misc.h osdep.h unix.h pseudo.h dummy.h
+utf8.o: mail.h misc.h osdep.h utf8.h
 
-# OS-dependent module
 
-osdep.o: mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
+# OS-dependent
+
+osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	osdep.h env_ami.h tcp_ami.h \
-	os_ami.c env_ami.c fs_ami.c ftl_ami.c nl_ami.c tcp_ami.c \
-	gethstid.c \
+	osdep.c env_ami.c fs_ami.c ftl_ami.c nl_ami.c tcp_ami.c \
+	auths.c gethstid.c \
 	gr_waitp.c \
-	log_std.c \
+	auth_log.c \
 	scandir.c \
 	tz_bsd.c \
-	write.c
+	write.c \
+	strerror.c strpbrk.c strstr.c strtok.c strtoul.c \
+	OSCFLAGS
+	$(CC) $(CFLAGS) `cat OSCFLAGS` -c osdep.c
 
-	$(CC) $(CFLAGS) -DSTDPROTO=$(STDPROTO) \
-	$(EXTRAOSDEFS) -c os_$(OS).c
-	$(MV) os_$(OS).o osdep.o
+osdep.c: osdepbas.c osdepckp.c osdeplog.c
+	$(RM) osdep.c || true
+	cat osdepbas.c osdepckp.c osdeplog.c > osdep.c
 
-osdep.h: os_$(OS).h linkage
-	$(RM) OSTYPE CFLAGS LDFLAGS osdep.h
-	echo $(OS) > OSTYPE
-	echo $(CFLAGS) > CFLAGS
-	echo $(LDFLAGS) $(EXTRALDFLAGS) > LDFLAGS
-	$(LN) os_$(OS).h osdep.h
 
-# Driver linkage
+# Once-only environment setup
 
-linkage:
-	chmod +x drivers
-	./drivers $(EXTRADRIVERS) $(DEFAULTDRIVERS)
+once:
+	@echo Once-only environment setup...
+	./drivers $(EXTRADRIVERS) $(DEFAULTDRIVERS) dummy
 	./mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)
+	echo $(CC) > CCTYPE
+	echo $(CFLAGS) > CFLAGS
+	echo -DSTDPROTO=$(STDPROTO) -DMAILSPOOL=\"$(MAILSPOOL)\" \
+	 -DACTIVEFILE=\"$(ACTIVEFILE)\" -DNEWSSPOOL=\"$(NEWSSPOOL)\" \
+	 -DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" > OSCFLAGS
+	echo $(BASELDFLAGS) $(EXTRALDFLAGS) > LDFLAGS
+	$(LN) os_$(OS).h osdep.h
+	$(LN) os_$(OS).c osdepbas.c
+	$(LN) log_$(LOGINPW).c osdeplog.c
+
+
+# Password checkers
+
+ckpstd:	# Port standard
+	$(LN) ckp_$(CHECKPW).c osdepckp.c
 
 
 # A monument to a hack of long ago and far away...
 
 love:
-	@echo "not war?"
+	@echo not war?

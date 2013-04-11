@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 June 1995
- * Last Edited:	29 July 1996
+ * Last Edited:	9 May 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,56 +39,7 @@
 #include "osdep.h"
 #include "misc.h"
 #include "netmsg.h"
-
-/* String driver for stdio file strings */
-
-STRINGDRIVER netmsg_string = {
-  netmsg_string_init,		/* initialize string structure */
-  netmsg_string_next,		/* get next byte in string structure */
-  netmsg_string_setpos		/* set position in string structure */
-};
-
-
-/* Initialize mail string structure for in-memory string
- * Accepts: string structure
- *	    pointer to string
- *	    size of string
- */
-
-void netmsg_string_init (STRING *s,void *data,unsigned long size)
-{
-  s->data = data;		/* note file descriptor */
-				/* big enough for one byte */
-  s->chunk = s->curpos = (char *) &s->data1;
-  s->offset = 0;		/* initial offset is zero */
-  s->size = size;		/* data size */
-  s->cursize = s->chunksize = 1;/* always call stdio */
-}
-
-
-/* Get next character from string
- * Accepts: string structure
- * Returns: character, string structure chunk refreshed
- */
-
-char netmsg_string_next (STRING *s)
-{
-  s->offset++;			/* advance position */
-  s->cursize = 1;		/* reset size */
-  return (*s->curpos = (char) getc ((FILE *) s->data));
-}
-
-
-/* Set string pointer position
- * Accepts: string structure
- *	    new position
- */
-
-void netmsg_string_setpos (STRING *s,unsigned long i)
-{
-  s->offset = i;		/* note new offset */
-  fseek ((FILE *) s->data,i,L_SET);
-}
+#include "flstring.h"
 
 /* Network message read
  * Accepts: file
@@ -113,17 +64,21 @@ long netmsg_read (void *stream,unsigned long count,char *buffer)
 char *netmsg_slurp_text (NETSTREAM *stream,unsigned long *size)
 {
   FILE *f = netmsg_slurp (stream,size,NIL);
-  char *s = (char *) fs_get ((size_t) *size + 1);
-				/* read from temp file */
-  fread (s,(size_t) 1,(size_t) *size,f);
-  s[*size] = '\0';		/* tie off string */
-  fclose (f);			/* flush temp file */
-  return s;
+  if (f) {			/* read from temp file */
+    char *s = (char *) fs_get ((size_t) *size + 1);
+    fread (s,(size_t) 1,(size_t) *size,f);
+    fclose (f);			/* flush temp file */
+    s[*size] = '\0';		/* tie off string */
+    return s;
+  }
+  *size = 0;			/* failure */
+  return "";
 }
 
 /* Slurp dot-terminated text from NET
  * Accepts: NET stream
  *	    place to return size
+ *	    place to return header size
  * Returns: file descriptor
  */
 
@@ -132,6 +87,7 @@ FILE *netmsg_slurp (NETSTREAM *stream,unsigned long *size,unsigned long *hsiz)
   unsigned long i;
   char *s,*t,tmp[MAILTMPLEN];
   FILE *f = tmpfile ();
+  if (!f) mm_log ("Unable to create scratch file to write message data",ERROR);
   *size = 0;			/* initially emtpy */
   if (hsiz) *hsiz = 0;
   while (s = net_getline (stream)) {

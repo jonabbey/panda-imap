@@ -1,5 +1,5 @@
 /*
- * Program:	UNIX environment routines
+ * Program:	Amiga environment routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	22 July 1996
+ * Last Edited:	28 April 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,7 +41,6 @@
 
 #include "env.h"
 
-long anonymous_login ();
 long env_init (char *user,char *home);
 char *myusername_full (unsigned long *flags);
 #define MU_LOGGEDIN 0
@@ -59,8 +58,10 @@ long chk_notsymlink (char *name);
 void unlockfd (int fd,char *lock);
 MAILSTREAM *user_flags (MAILSTREAM *stream);
 char *default_user_flag (unsigned long i);
-void dorc (char *file,long flag);
 void grim_pid_reap_status (int pid,int killreq,void *status);
 #define grim_pid_reap(pid,killreq) \
   grim_pid_reap_status (pid,killreq,NIL)
 long safe_write (int fd,char *buf,long nbytes);
+struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[]);
+long loginpw (struct passwd *pw,int argc,char *argv[]);
+long pw_login (struct passwd *pw,char *user,char *home,int argc,char *argv[]);

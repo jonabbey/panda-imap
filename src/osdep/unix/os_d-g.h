@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 April 1996
+ * Last Edited:	19 April 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,11 +41,17 @@
 #include <sys/dir.h>
 #include <time.h>		/* for struct tm */
 #include <fcntl.h>
+#define _USEC_UTIME_FLAVOR	/* break it for compatibility with */
+#include <utime.h>		/*  the incompatible past */
 #include <syslog.h>
 #include <sys/file.h>
 
 
-#define flock dg_flock
+/* D-G gets this wrong */
+
+#define setpgrp setpgrp2
+
+#define flock safe_flock
 
 #define utime portable_utime
 int portable_utime (char *file,time_t timep[2]);
@@ -55,3 +61,4 @@ int portable_utime (char *file,time_t timep[2]);
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	29 April 1996
+ * Last Edited:	2 July 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -53,4 +53,6 @@
 char *Strstr (char *cs,char *ct);
 char *strerror (int n);
 unsigned long strtoul (char *s,char **endp,int base);
+#define memcpy memmove
 void *memmove (void *s,void *ct,size_t n);
+void *memset (void *s,int c,size_t n);

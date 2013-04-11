@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 September 1995
+ * Last Edited:	21 January 1998
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -53,6 +53,8 @@ long tcp_soutr (TCPSTREAM *stream,char *string);
 long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
 void tcp_close (TCPSTREAM *stream);
 char *tcp_host (TCPSTREAM *stream);
+char *tcp_remotehost (TCPSTREAM *stream);
 unsigned long tcp_port (TCPSTREAM *stream);
 char *tcp_localhost (TCPSTREAM *stream);
-char *tcp_clienthost (char *dst);
+char *tcp_clienthost (void);
+char *tcp_serverhost (void);

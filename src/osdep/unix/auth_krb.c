@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 May 1996
- * Last Edited:	17 May 1996
+ * Last Edited:	2 April 1998
  *
- * Copyright 1996 by the University of Washington.
+ * Copyright 1998 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -38,13 +38,14 @@
 #include "acte_krb.c"
 
 long auth_krb_client (authchallenge_t challenger,authrespond_t responder,
-		      NETMBX *mb,void *stream,unsigned long trial);
+		      NETMBX *mb,void *stream,unsigned long *trial,char *user);
 char *auth_krb_server (authresponse_t responder,int argc,char *argv[]);
 
 AUTHENTICATOR auth_krb = {
   "KERBEROS_V4",		/* authenticator name */
+  NIL,				/* always valid */
   auth_krb_client,		/* client method */
-  auth_krb_server,		/* server method */
+  NIL,				/* server method */
   NIL				/* next authenticator */
 };
 
@@ -53,11 +54,13 @@ AUTHENTICATOR auth_krb = {
  *	    responder function
  *	    parsed network mailbox structure
  *	    stream argument for functions
- *	    trial number
+ *	    pointer to trial number
+ *	    returned user name
  * Returns: T if success, NIL otherwise
  */
+
 long auth_krb_client (authchallenge_t challenger,authrespond_t responder,
-		      NETMBX *mb,void *stream,unsigned long trial)
+		      NETMBX *mb,void *stream,unsigned long *trial,char *user)
 {
   struct acte_client *mech;
   void *challenge;
@@ -66,6 +69,8 @@ long auth_krb_client (authchallenge_t challenger,authrespond_t responder,
   struct krb_state *state;
   int rc;
   mech = &krb_acte_client;
+  *trial = 0;			/* don't retry if failure */
+  user[0] = '\0';		/* can't help much on this */
 				/* fetch proper service tickets */
   if (mech->start ("imap",mb->host,0,ACTE_PROT_NONE,0,0,0,&state))
     return NIL;
@@ -79,17 +84,4 @@ long auth_krb_client (authchallenge_t challenger,authrespond_t responder,
   } while (rc != ACTE_DONE);
   mech->free_state (state);	/* clean up */
   return T;
-}
-
-
-/* Server authenticator
- * Accepts: responder function
- *	    argument count
- *	    argument vector
- * Returns: authenticated user name or NIL
- */
-
-char *auth_krb_server (authresponse_t responder,int argc,char *argv[])
-{
-  return NIL;
 }

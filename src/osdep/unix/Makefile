@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	19 June 1996
+# Last Edited:	29 June 1998
 #
-# Copyright 1996 by the University of Washington
+# Copyright 1998 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -31,311 +31,438 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
-ARCHIVE=c-client.a
-ARRC=ar rc
+# Command line build parameters
+
 EXTRAAUTHENTICATORS=
-DEFAULTAUTHENTICATORS=log
-BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o dummy.o \
-	netmsg.o rfc822.o nntp.o smtp.o imap4.o pop3.o \
-	bezerk.o mbox.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
-EXTRACFLAGS=
-CC=cc
-CFLAGS=$(EXTRACFLAGS)
 EXTRADRIVERS=mbox
-DEFAULTDRIVERS=imap nntp pop3 mh mx mbx tenex mtx mmdf bezerk news phile dummy
+PASSWDTYPE=std
+
+
+# Extended flags needed for non-standard passwd types.  You may need to modify.
+
+AFSDIR=/usr/afsws
+AFSCFLAGS=-Dexit=afs_exit -D_exit=_afs_exit -I$(AFSDIR)/include
+AFSLIB=$(AFSDIR)/lib
+AFSLDFLAGS=-L$(AFSLIB)/afs -L$(AFSLIB)\
+ -lkauth -lprot -lubik -lauth -lrxkad -lsys -lrx -llwp -ldes -lcom_err\
+ $(AFSLIB)/afs/util.a -laudit
+DCECFLAGS= -DDCE_MINIMAL -DPASSWD_OVERRIDE=\"/opt/pop3/passwd/passwd\"
+DCELDFLAGS= -ldce
+
+
+# Extended flags needed for additional authenticators.  You may need to modify.
+
+KRBCFLAGS= -I/usr/include/kerberosIV
+KRBLDFLAGS= -lkrb -ldes
+GSSDIR=/usr/local
+GSSCFLAGS= -I$(GSSDIR)/include
+GSSLDFLAGS= -L$(GSSDIR)/lib -lgssapi_krb5 -lkrb5 -lcrypto -lcom_err
+
+
+# Build parameters normally set by the individual port
+
+CHECKPW=std
+LOGINPW=std
+SIGTYPE=bsd
+ACTIVEFILE=/usr/lib/news/active
+SPOOLDIR=/usr/spool
+MAILSPOOL=$(SPOOLDIR)/mail
+NEWSSPOOL=$(SPOOLDIR)/news
+STDPROTO=unixproto
+RSHPATH=/usr/ucb/rsh
+
+
+# Commands possibly overriden by the individual port
+
+ARRC=ar rc
+CC=cc
 LN=ln -s
+RANLIB=ranlib
+
+
+# Standard distribution build parameters
+
+DEFAULTAUTHENTICATORS=log
+DEFAULTDRIVERS=imap nntp pop3 mh mx mbx tenex mtx mmdf unix news phile
+
+
+# Normally no need to change any of these
+
+ARCHIVE=c-client.a
+BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o utf8.o siglocal.o \
+ dummy.o pseudo.o netmsg.o flstring.o fdstring.o \
+ rfc822.o nntp.o smtp.o imap4r1.o pop3.o \
+ unix.o mbox.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
+CFLAGS=$(BASECFLAGS) $(EXTRACFLAGS)
 MAKE=make
 MV=mv
-RANLIB=ranlib
-RM=rm -f
-RSH=rsh
-RSHPATH=/usr/ucb/rsh
-SHELL=/bin/sh
+RM=rm -rf
+SH=sh
 
-missing:
-	@echo "You must specify what type of system"
+
+# Primary build command
+
+BUILDOPTIONS= EXTRACFLAGS="$(EXTRACFLAGS)"\
+ EXTRALDFLAGS="$(EXTRALDFLAGS)"\
+ EXTRADRIVERS="$(EXTRADRIVERS)" EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS)"\
+ PASSWDTYPE=$(PASSWDTYPE) AFSDIR=$(AFSDIR) GSSDIR=$(GSSDIR)
+BUILD=$(MAKE) build $(BUILDOPTIONS) $(EXTRASPECIALS)
+
+# Here if no make argument established
+
+missing: osdep.h
+	$(MAKE) all CC=`cat CCTYPE` CFLAGS="`cat CFLAGS`"
+
+osdep.h:
+	@echo You must specify what type of system
 	@false
+
 
 # Current ports
 
-a41:	# AIX 4.1 for RS/6000
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/var/spool/news \
-		RSHPATH=/usr/bin/rsh \
-		CFLAGS="-g -Dunix=1 -D_BSD -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-lbsd -ls"
-
 a32:	# AIX 3.2 for RS/6000
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/var/spool/news \
-		RSHPATH=/usr/bin/rsh \
-		CFLAGS="-g -Dunix=1 -D_BSD -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-lbsd"
+	$(BUILD) OS=$@ SIGTYPE=psx \
+	 SPOOLDIR=/var/spool \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -Dunix=1 -D_BSD -DNFSKLUDGE" \
+	 BASELDFLAGS="-lbsd"
+
+a41:	# AIX 4.1 for RS/6000
+	$(BUILD) OS=$@ SIGTYPE=psx CHECKPW=a41 \
+	 SPOOLDIR=/var/spool \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -Dunix=1 -D_BSD -DNFSKLUDGE" \
+	 BASELDFLAGS="-lbsd -ls"
 
 aix:	# AIX/370
 	@echo You are building for AIX on an S/370 class machine
-	@echo If you want AIX on an RS/6000 you need to use a32 instead!
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -DNFSKLUDGE $(EXTRACFLAGS)" LDFLAGS="-lbsd"
+	@echo If you want AIX on an RS/6000 you need to use a32 or a41 instead!
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-g -DNFSKLUDGE" \
+	 BASELDFLAGS="-lbsd"
 
 aos:	# AOS for RT
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -Dconst= -DNFSKLUDGE $(EXTRACFLAGS)"
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE"
 
 art:	# AIX 2.2.1 for RT
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/mail \
-		ACTIVEFILE=/usr/local/news/control/active NEWSSPOOL=/var/news \
-		RSHPATH=/bin/rsh \
-		CFLAGS="-g -Dconst= -Dvoid=char $(EXTRACFLAGS)" \
-		RANLIB=true 
+	$(BUILD) OS=$@ SIGTYPE=sv4 \
+	 SPOOLDIR=/var \
+	 ACTIVEFILE=/usr/local/news/control/active \
+	 RSHPATH=/bin/rsh \
+	 BASECFLAGS="-g -Dconst= -Dvoid=char" \
+	 RANLIB=true 
 
 asv:	# Altos SVR4
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/spool/news/active NEWSSPOOL=/usr/spool/news \
-		RSH=rcmd RSHPATH=/usr/bin/rcmd \
-		CFLAGS="-Dconst= -DSIGSTOP=SIGKILL $(EXTRACFLAGS)" \
-		RANLIB=true LDFLAGS="-lsocket -lrpc -lgen -lcrypt -lxenix"
+	$(BUILD) OS=$@ SIGTYPE=sv4 LOGINPW=old \
+	 ACTIVEFILE=/usr/spool/news/active \
+	 RSHPATH=/usr/bin/rcmd \
+	 BASECFLAGS="-Dconst= -DSIGSTOP=SIGKILL" \
+	 BASELDFLAGS="-lsocket -lrpc -lgen -lcrypt -lxenix" \
+	 RANLIB=true
 
 aux:	# A/UX
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -B/usr/lib/big/ -Dvoid=char -Dconst= -DNFSKLUDGE $(EXTRACFLAGS)" \
-		ARRC="ar -rc" RANLIB=true
+	$(BUILD) OS=$@ \
+	 MAILSPOOL=/usr/mail \
+	 BASECFLAGS="-g -B/usr/lib/big/ -Dvoid=char -Dconst= -DNFSKLUDGE" \
+	 RANLIB=true ARRC="ar -rc"
+
+bs3:	# BSD/i386 3.0 or higher
+	$(BUILD) OS=bsi CHECKPW=bsi LOGINPW=bsi \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/news/spool \
+	 ACTIVEFILE=/var/news/etc/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -O2 -pipe -DNFSKLUDGE"
 
 bsd:	# BSD UNIX
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -Dconst= -DNFSKLUDGE $(EXTRACFLAGS)"
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE"
+
+bsf:	# FreeBSD
+	$(BUILD) OS=bsi SIGTYPE=psx \
+	 SPOOLDIR=/var \
+	 ACTIVEFILE=/usr/local/news/lib/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE" \
+	 BASELDFLAGS="-lcrypt"
 
 bsi:	# BSD/i386
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/mail \
-		ACTIVEFILE=/var/news/etc/active NEWSSPOOL=/var/news/spool \
-		RSHPATH=/usr/bin/rsh \
-		CFLAGS="-g -O -pipe -DNFSKLUDGE $(EXTRACFLAGS)"
+	$(BUILD) OS=$@ \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/news/spool \
+	 ACTIVEFILE=/var/news/etc/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -O2 -pipe -DNFSKLUDGE"
 
 cvx:	# Convex
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-O -ext -Dconst= -DNFDKLUDGE $(EXTRACFLAGS)"
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-O -ext -Dconst= -DNFDKLUDGE"
 
 d-g:	# Data General DG/UX
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/mail \
-		ACTIVEFILE=/local/news/active NEWSSPOOL=/var/spool/news \
-		RSH=remsh RSHPATH=/usr/bin/remsh \
-		CFLAGS="-g -DNFSKLUDGE $(EXTRACFLAGS)" RANLIB=true
+	$(BUILD) OS=$@ SIGTYPE=sv4 \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/spool/news \
+	 ACTIVEFILE=/local/news/active \
+	 RSHPATH=/usr/bin/remsh \
+	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE" \
+	 BASELDFLAGS="-lnsl -lsocket" \
+	 RANLIB=true
 
-d41:	# Data General DG/UX 4.11
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/mail \
-		ACTIVEFILE=/local/news/active NEWSSPOOL=/var/spool/news \
-		RSH=remsh RSHPATH=/usr/bin/remsh \
-		CFLAGS="-g -DNFSKLUDGE $(EXTRACFLAGS)" RANLIB=true
+d54:	# Data General DG/UX 5.4
+	$(BUILD) OS=d-g SIGTYPE=sv4 \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/spool/news \
+	 ACTIVEFILE=/local/news/active \
+	 RSHPATH=/usr/bin/remsh \
+	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE" \
+	 RANLIB=true
 
 dpx:	# Bull DPX/2
-	$(MAKE) mtest OS=sv4 EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		RSH=remsh RSHPATH=/usr/bin/remsh \
-		CFLAGS="-Dconst= -DSYSTEM5 -DSHORT_IDENT $(EXTRACFLAGS)" \
-		LN="ln" RANLIB=true LDFLAGS="-linet"
+	$(BUILD) OS=sv4 SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
+	 RSHPATH=/usr/bin/remsh \
+	 BASECFLAGS="-Dconst= -DSYSTEM5 -DSHORT_IDENT" \
+	 BASELDFLAGS="-linet" \
+	 RANLIB=true LN=ln
 
 drs:	# ICL DRS/NX
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/mail \
-		ACTIVEFILE=/var/lib/news/active NEWSSPOOL=/var/spool/news \
-		RSHPATH=/usr/bin/rsh \
-		CFLAGS="-O -DNFSKLUDGE $(EXTRACFLAGS)" RANLIB=true \
-		LDFLAGS="-lsocket -lgen"
+	$(BUILD) OS=$@ SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/spool/news \
+	 ACTIVEFILE=/var/lib/news/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-O -DNFSKLUDGE" \
+	 BASELDFLAGS="-lsocket -lgen" \
+	 RANLIB=true
 
 dyn:	# Dynix
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -Dconst= -DNFSKLUDGE $(EXTRACFLAGS)"
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE"
 
-epx:    # EP/IX
-	$(MAKE) $(ARCHIVE) OS=sv4 EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/mail \
-		ACTIVEFILE=/usr/share/news/active NEWSSPOOL=/var/spool/news \
-		RSHPATH=/usr/net/rsh \
-		CFLAGS="-g $(EXTRACFLAGS) -systype svr4" RANLIB=true \
-		LDFLAGS="-lsocket -lnsl -lgen"
+epx:	# EP/IX
+	$(BUILD) OS=sv4 SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/spool/news \
+	 ACTIVEFILE=/usr/share/news/active \
+	 RSHPATH=/usr/net/rsh \
+	 BASECFLAGS="-g -systype svr4" \
+	 BASELDFLAGS="-lsocket -lnsl -lgen" \
+	 RANLIB=true
 
-gas:	# Altos SVR4
-	$(MAKE) $(ARCHIVE) OS=asv EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/spool/news/active NEWSSPOOL=/usr/spool/news \
-		RSH=rcmd RSHPATH=/usr/bin/rcmd \
-		CC=gcc CFLAGS="-g -O -DALTOS_SYSTEM_V -DSIGSTOP=SIGKILL $(EXTRACFLAGS)" \
-		RANLIB=true LDFLAGS="-lsocket -lrpc -lgen -lcrypt -lxenix"
+gas:	# GCC Altos SVR4
+	$(BUILD) OS=asv SIGTYPE=sv4 LOGINPW=old \
+	 ACTIVEFILE=/usr/spool/news/active \
+	 RSHPATH=/usr/bin/rcmd \
+	 BASECFLAGS="-g -O -DALTOS_SYSTEM_V -DSIGSTOP=SIGKILL" \
+	 BASELDFLAGS="-lsocket -lrpc -lgen -lcrypt -lxenix" \
+	 RANLIB=true CC=gcc
+
+gh9:	# GCC HP-UX9.x
+	$(BUILD) OS=hpp SIGTYPE=psx \
+	 MAILSPOOL=/usr/mail \
+	 RSHPATH=/usr/bin/remsh \
+	 BASECFLAGS="-O2 -DNFSKLUDGE" \
+	 RANLIB=true CC=gcc
+
+ghp:	# GCC HP-UX
+	$(BUILD) OS=hpp SIGTYPE=psx \
+	 SPOOLDIR=/var \
+	 ACTIVEFILE=/var/news/active \
+	 RSHPATH=/usr/bin/remsh \
+	 BASECFLAGS="-O2 -DNFSKLUDGE" \
+	 RANLIB=true CC=gcc
 
 gso:	# GCC Solaris
-	$(MAKE) $(ARCHIVE) OS=sol EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/mail \
-		ACTIVEFILE=/usr/share/news/active NEWSSPOOL=/var/spool/news \
-		RSHPATH=/usr/bin/rsh \
-		CC=gcc CFLAGS="-g -O2 -DNFSKLUDGE $(EXTRACFLAGS)" \
-		RANLIB=true LDFLAGS="-lsocket -lnsl -lgen"
+	$(BUILD) OS=sol SIGTYPE=psx CHECKPW=psx \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/spool/news \
+	 ACTIVEFILE=/usr/share/news/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -O2 -DNFSKLUDGE" \
+	 BASELDFLAGS="-lsocket -lnsl -lgen" \
+	 RANLIB=true CC=gcc
 
 gsu:	# GCC SUN-OS
-	$(MAKE) $(ARCHIVE) OS=sun EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CC=gcc CFLAGS="-O2 -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-ldl"
+	$(BUILD) OS=sun \
+	 BASECFLAGS="-O2 -DNFSKLUDGE" \
+	 BASELDFLAGS="-ldl" \
+	 CC=gcc
 
 gul:	# GCC Ultrix
-	$(MAKE) $(ARCHIVE) OS=ult EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CC=gcc CFLAGS="-g -O -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-lauth"
+	$(BUILD) OS=ult SIGTYPE=psx CHECKPW=ult \
+	 BASECFLAGS="-g -O -DNFSKLUDGE" \
+	 BASELDFLAGS="-lauth" \
+	 CC=gcc
 
-hpp:	# HP-UX
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		RSH=remsh RSHPATH=/usr/bin/remsh \
-		CFLAGS="-g -Aa -D_HPUX_SOURCE -DNFSKLUDGE $(EXTRACFLAGS)" \
-		RANLIB=true LDFLAGS="-lnet"
+hpp:	# HP-UX 9.x
+	$(BUILD) OS=$@ SIGTYPE=psx \
+	 MAILSPOOL=/usr/mail \
+	 RSHPATH=/usr/bin/remsh \
+	 BASECFLAGS="-g -Aa -D_HPUX_SOURCE -DNFSKLUDGE" \
+	 BASELDFLAGS="-lnet -lV3" \
+	 RANLIB=true
+
+hpx:	# HP-UX 10.x
+	$(BUILD) OS=hpp SIGTYPE=psx \
+	 SPOOLDIR=/var \
+	 ACTIVEFILE=/var/news/active \
+	 RSHPATH=/usr/bin/remsh \
+	 BASECFLAGS="-g -Ae -DNFSKLUDGE" \
+	 BASELDFLAGS="-lnet -lV3" \
+	 RANLIB=true
 
 isc:	# Interactive
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/mail \
-		ACTIVEFILE=/usr/spool/news/active NEWSSPOOL=/var/spool/news \
-		CFLAGS="-Dconst= -Xp $(EXTRACFLAGS)" RANLIB=true \
-		LDFLAGS="-linet -lnsl_s -lgen -lx -lsec"
+	$(BUILD) OS=$@ SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/spool/news \
+	 ACTIVEFILE=/var/spool/news/active \
+	 BASECFLAGS="-Xp -D_SYSV3" \
+	 BASELDFLAGS="-linet -lnsl_s -lgen -lx -lsec -liberty" \
+	 RANLIB=true
 
-lnx:	# Linux
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/var/spool/news \
-		RSHPATH=/usr/bin/rsh CFLAGS="-g -O -DNFSKLUDGE $(EXTRACFLAGS)"
+lnx:	# Linux non-shadow passwords
+	@echo You are building for Linux *without* shadow passwords.
+	@echo If your system has shadow passwords you must use slx
+	@echo or sl5 instead!
+	$(BUILD) OS=$@ SIGTYPE=psx \
+	 SPOOLDIR=/var/spool \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -O -DNFSKLUDGE"
 
 lyn:	# LynxOS
-	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" CC=gcc \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -O -pipe -DNFSKLUDGE $(EXTRACFLAGS)"
-		RSHPATH=/bin/rsh LDFLAGS=-lbsd
+	$(BUILD) OS=$@ \
+	 RSHPATH=/bin/rsh \
+	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE"
+	 BASELDFLAGS=-lbsd \
+	 CC=gcc
 
-mct:	# MachTen - don't set NFSKLUDGE, it doesn't work (at least not on 2.2)
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/var/spool/news \
-		CFLAGS="-g -O -pipe $(EXTRACFLAGS)"
+mct:	# MachTen - NFSKLUDGE doesn't work (at least not on 2.2)
+	$(BUILD) OS=$@ \
+	 SPOOLDIR=/var/spool \
+	 BASECFLAGS="-g -O -pipe"
 
 mnt:	# Mint
-	@echo "You are being optimistic!"
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CC=gcc CFLAGS="-O -I. -I/mac/h -I/mac/h-tcp $(EXTRACFLAGS)" \
-		ARRC="gcc-ar rc" RANLIB=true \
-		LDFLAGS="-L/mac/lib /mac/lib-tcp/dnr.o -llibmac -llibmac"
-	fixstk 131072 $(ARCHIVE)
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-g -O -Dunix=1 -D__atarist__ -D_POSIX_SOURCE -pipe" \
+	 RSHPATH=/usr/bin/rsh \
+	 RANLIB=true CC=gcc ARRC="gcc-ar rc"
 
 neb:	# NetBSD
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/mail \
-		ACTIVEFILE=/var/db/news/active NEWSSPOOL=/var/news \
-		RSHPATH=/usr/bin/rsh \
-		CFLAGS="-g -O -pipe -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-lcrypt"
+	$(BUILD) OS=bsi \
+	 SPOOLDIR=/var \
+	 ACTIVEFILE=/var/db/news/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE" \
+	 BASELDFLAGS="-lcrypt"
 
 nxt:	# NEXTSTEP
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -O -pipe -DNFSKLUDGE $(EXTRACFLAGS)"
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-g -O -pipe -DNFSKLUDGE"
 
 osf:	# OSF/1
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g3 -O2 -Olimit 1500 -DNFSKLUDGE $(EXTRACFLAGS)"
+	$(BUILD) OS=$@ SIGTYPE=psx \
+	 BASECFLAGS="-g3 -O2 -Olimit 1500 -DNFSKLUDGE"
+
+# Note: sia_become_user() used by LOGINPW=os4 doesn't seem to work right.  The
+# user doesn't get proper file access, and the process can't be killed.
+
+os4:	# OSF/1 (Digital UNIX) 4
+	$(BUILD) OS=$@ SIGTYPE=psx CHECKPW=os4 LOGINPW=sec \
+	 BASECFLAGS="-g3 -O2 -Olimit 1500 -DNFSKLUDGE" \
+	 BASELDFLAGS="-lsecurity -ldb -laud -lm"
 
 ptx:	# PTX
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		RSH=resh RSHPATH=/usr/bin/resh \
-		CFLAGS="-Wc,-O3 -Wc,-seq -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-lseq -lsec -lsocket -linet -lnsl -lgen" RANLIB=true
+	$(BUILD) OS=$@ SIGTYPE=psx CHECKPW=svo LOGINPW=sv4 \
+	 MAILSPOOL=/usr/mail \
+	 RSHPATH=/usr/bin/resh \
+	 BASECFLAGS="-Wc,-O3 -Wc,-seq -Dprivate=PRIVATE -DNFSKLUDGE" \
+	 BASELDFLAGS="-lseq -lsec -lsocket -linet -lnsl -lgen" \
+	 RANLIB=true
 
 pyr:	# Pyramid
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -Dconst= -DNFSKLUDGE $(EXTRACFLAGS)"
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE"
+
+qnx:	# QNX
+	$(BUILD) OS=$@ CHECKPW=psx LOGINPW=old \
+	 RSHPATH=/usr/ucb/rsh \
+	 BASECFLAGS="-Otax -g -Dunix=1 -D_POSIX_SOURCE" \
+	 BASELDFLAGS="-g -N128k -llogin -lsocket -lunix"
 
 s40:	# SUN-OS 4.0
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -Dconst= -DNFSKLUDGE $(EXTRACFLAGS)"
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE"
 
 sc5:	# SCO Open Server 5.0
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/spool/mail \
-		ACTIVEFILE=/var/lib/news/active NEWSSPOOL=/var/spool/news \
-		RSH=rcmd RSHPATH=/usr/bin/rcmd \
-		CFLAGS="-O3 -s $(EXTRACFLAGS)" RANLIB=true \
-		LDFLAGS="-lsocket -lcrypt -L/lib -lprot -lx -ltinfo -lm"
+	$(BUILD) OS=$@ SIGTYPE=psx CHECKPW=sec LOGINPW=sec \
+	 STDPROTO=mmdfproto \
+	 SPOOLDIR=/var/spool \
+	 ACTIVEFILE=/var/lib/news/active \
+	 RSHPATH=/usr/bin/rcmd \
+	 BASECFLAGS="-O3 -dy -s" \
+	 BASELDFLAGS="-lsocket -lcrypt -lprot -lx -ltinfo -lm" \
+	 RANLIB=true
 
 sco:	# Santa Cruz Operation
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=mmdfproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		RSH=rcmd RSHPATH=/usr/bin/rcmd \
-		CFLAGS=$(EXTRACFLAGS) LN="ln" RANLIB=true \
-		LDFLAGS="-lsocket -lprot -lcrypt -lx"
+	$(BUILD) OS=$@ SIGTYPE=sv4 CHECKPW=sec LOGINPW=sec \
+	 STDPROTO=mmdfproto \
+	 RSHPATH=/usr/bin/rcmd \
+	 BASECFLAGS="-O3" \
+	 BASELDFLAGS="-lsocket -lprot -lcrypt_i -lx -los" \
+	 RANLIB=true LN=ln
+
+# Note: setting _POSIX_SOURCE doesn't seem to build it as of SGI IRIX 5.3
 
 sgi:	# Silicon Graphics
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		RSHPATH=/usr/bsd/rsh \
-		CFLAGS="-g -cckr -DNFSKLUDGE $(EXTRACFLAGS)" \
-		RANLIB=true
+	$(BUILD) OS=$@ SIGTYPE=sv4 \
+	 MAILSPOOL=/usr/mail \
+	 RSHPATH=/usr/bsd/rsh \
+	 BASECFLAGS="-g -ansi -DNFSKLUDGE" \
+	 RANLIB=true
+
+# Note: Mark Kaesling says that setluid() isn't in HP-UX with SecureWare.
 
 shp:	# HP-UX with Trusted Computer Base
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		RSH=remsh RSHPATH=/usr/bin/remsh \
-		CFLAGS="-g -DNFSKLUDGE $(EXTRACFLAGS)" \
-		RANLIB=true LDFLAGS="-lnet -lsec"
+	$(BUILD) OS=$@ SIGTYPE=psx CHECKPW=sec LOGINPW=std \
+	 SPOOLDIR=/var \
+	 ACTIVEFILE=/var/news/active \
+	 RSHPATH=/usr/bin/remsh \
+	 BASECFLAGS="-g -Ae -DNFSKLUDGE" \
+	 BASELDFLAGS="-lnet -lV3 -lsec" \
+	 RANLIB=true
+
+# Note: KC Smith at Microsoft says that -lcrypt is for glibc
 
 slx:	# Secure Linux
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/var/spool/news \
-		RSHPATH=/usr/bin/rsh \
-		CFLAGS="-g -O -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-lshadow"
+	@echo You are building for glibc versions of Secure Linux
+	@echo If you want libc5 versions you must use sl5 instead!
+	$(BUILD) OS=$@ SIGTYPE=psx CHECKPW=psx \
+	 SPOOLDIR=/var/spool \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE" \
+	 BASELDFLAGS="-s -lcrypt"
 
-# It is a long and disgusting story about why cc is set to ucbcc.  You need
-# to invoke the C compiler so that it links with the SVR4 libraries and not
-# the BSD libraries, otherwise readdir() will return the wrong information.
+# Note: KC Smith at Microsoft says that -lshadow is for libc5
+
+sl5:	# Secure Linux using libc5
+	$(BUILD) OS=slx SIGTYPE=psx CHECKPW=psx \
+	 SPOOLDIR=/var/spool \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -fno-omit-frame-pointer -O6 -DNFSKLUDGE" \
+	 BASELDFLAGS="-s -lshadow"
+
+snx:	# Siemens Nixdorf SINIX and Reliant UNIX
+	$(BUILD) OS=sv4 SIGTYPE=psx CHECKPW=sv4 \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/spool/news \
+	 ACTIVEFILE=/usr/share/news/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -D_SYS_CLOCK_H -Dconst=" \
+	 BASELDFLAGS="-lsocket -lnsl -lgen" \
+	 RANLIB=true
+
+# Note: It is a long and disgusting story about why cc is set to ucbcc.  You
+# need to invoke the C compiler so that it links with the SVR4 libraries and
+# not the BSD libraries, otherwise readdir() will return the wrong information.
 # Of all the names in the most common path, ucbcc is the only name to be found
 # (on /usr/ccs/bin) that points to a suitable compiler.  cc is likely to be
 # /usr/ucb/cc which is absolutely not the compiler that you want.  The real
 # SVR4 cc is probably something like /opt/SUNWspro/bin/cc which is rarely in
 # anyone's path.
+#
+# ucbcc is probably a link to acc, e.g. /opt/SUNWspro/SC4.0/bin/acc, and is
+# the UCB C compiler using the SVR4 libraries.
 #
 # If ucbcc isn't on your system, then punt on the SUN C compiler and use gcc
 # instead (the gso port instead of the sol port).
@@ -344,152 +471,212 @@ slx:	# Secure Linux
 # you will probably find that the -O2 needs to be changed to -O.  If you don't
 # get any error messages with -O2, that's a pretty good indicator that you
 # goofed and are running the compiler that will link with the BSD libraries.
+#
+# To recap:
+# 1) The sol port is designed to be built using the UCB compiler using the
+#    SVR4 libraries.  This compiler is "ucbcc", which is lunk to acc.  You
+#    use -O2 as one of the CFLAGS.
+# 2) If you build the sol port with the UCB compiler using the BSD libraries,
+#    you will get no error messages but you will get bad binaries (the most
+#    obvious symptom is dropping the first two characters return filenames
+#    from the imapd LIST command.  This compiler also uses -O2, and is very
+#    often what the user gets from "cc".  BEWARE!!!
+# 3) If you build the sol port with the real SVR4 compiler, which is often
+#    hidden away or unavailable on many systems, then you will get errors
+#    from -O2 and you need to change that to -O.  But you will get a good
+#    binary.  However, you should try it with -O2 first, to make sure that
+#    you got this compiler and not the UCB compiler using BSD libraries.
 
 sol:	# Solaris
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/mail \
-		ACTIVEFILE=/usr/share/news/active NEWSSPOOL=/var/spool/news \
-		RSHPATH=/usr/bin/rsh \
-		CC=ucbcc CFLAGS="-g -O2 -DNFSKLUDGE $(EXTRACFLAGS)" \
-		RANLIB=true LDFLAGS="-lsocket -lnsl -lgen"
+	$(BUILD) OS=$@ SIGTYPE=psx CHECKPW=psx \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/spool/news \
+	 ACTIVEFILE=/usr/share/news/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -O2 -DNFSKLUDGE" \
+	 BASELDFLAGS="-lsocket -lnsl -lgen" \
+	 RANLIB=true CC=ucbcc
 
 sos:	# Secure OSF/1
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g3 -O2 -Olimit 1500 -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-lsecurity -laud"
-
+	$(BUILD) OS=$@ SIGTYPE=psx CHECKPW=sec LOGINPW=sec \
+	 BASECFLAGS="-g3 -O2 -Olimit 1500 -DNFSKLUDGE" \
+	 BASELDFLAGS="-lsecurity -laud"
 
 ssn:	# Secure SUN-OS
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -Dconst= -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-ldl"
+	$(BUILD) OS=sun CHECKPW=ssn \
+	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE" \
+	 BASELDFLAGS="-ldl"
 
 sun:	# SUN-OS
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g -Dconst= -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-ldl"
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-g -Dconst= -DNFSKLUDGE" \
+	 BASELDFLAGS="-ldl"
 
 sv2:	# SVR2
-	@echo "You are being *very* optimistic!"
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		RSH=remsh RSHPATH=/usr/bin/remsh \
-		CFLAGS="-Dconst= -DSYSTEM5 -DSHORT_IDENT -I/usr/ethernet/include $(EXTRACFLAGS)" \
-		LN="ln" RANLIB=true LDFLAGS="-lnet"
+	@echo You are being *very* optimistic!
+	$(BUILD) OS=$@ SIGTYPE=sv4 LOGINPW=old \
+	 MAILSPOOL=/usr/mail \
+	 RSHPATH=/usr/bin/remsh \
+	 BASECFLAGS="-Dconst= -DSYSTEM5 -DSHORT_IDENT -I/usr/ethernet/include" \
+	 BASELDFLAGS="-lnet" \
+	 RANLIB=true LN=ln
 
 sv4:	# SVR4
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/mail \
-		ACTIVEFILE=/usr/share/news/active NEWSSPOOL=/var/spool/news \
-		RSH=resh RSHPATH=/usr/bin/resh \
-		CFLAGS="-g -Dconst= $(EXTRACFLAGS)" RANLIB=true \
-		LDFLAGS="-lsocket -lnsl -lgen"
+	$(BUILD) OS=$@ SIGTYPE=sv4 CHECKPW=sv4 LOGINPW=sv4 \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/spool/news \
+	 ACTIVEFILE=/usr/share/news/active \
+	 RSHPATH=/usr/bin/resh \
+	 BASECFLAGS="-g -Dconst=" \
+	 BASELDFLAGS="-lsocket -lnsl -lgen" \
+	 RANLIB=true
 
 ult:	# Ultrix
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-g3 -O2 -Olimit 1500 -Dconst= -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-lauth"
+	$(BUILD) OS=$@ SIGTYPE=psx CHECKPW=ult \
+	 BASECFLAGS="-g3 -O2 -Olimit 1500 -Dconst= -DNFSKLUDGE" \
+	 BASELDFLAGS="-lauth"
 
 uw2:	# UnixWare SVR4.2
-	$(MAKE) $(ARCHIVE) OS=sv4 EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/var/mail \
-		ACTIVEFILE=/usr/share/news/active NEWSSPOOL=/var/spool/news \
-		RSHPATH=/usr/bin/rsh \
-		CFLAGS="-g $(EXTRACFLAGS)" RANLIB=true \
-		LDFLAGS="-lsocket -lnsl -lgen"
+	$(BUILD) OS=sv4 SIGTYPE=sv4 CHECKPW=sv4 \
+	 MAILSPOOL=/var/mail NEWSSPOOL=/var/spool/news \
+	 ACTIVEFILE=/var/news/lib/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g" \
+	 BASELDFLAGS="-lsocket -lnsl -lgen" \
+	 RANLIB=true
 
 vul:	# VAX Ultrix
-	$(MAKE) $(ARCHIVE) OS=ult EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-O2 -Dconst= -DNFSKLUDGE $(EXTRACFLAGS)" \
-		LDFLAGS="-lauth"
+	$(BUILD) OS=ult SIGTYPE=psx CHECKPW=ult \
+	 BASECFLAGS="-O2 -Dconst= -DNFSKLUDGE" \
+	 BASELDFLAGS="-lauth"
 
 vu2:	# VAX Ultrix 2.3, etc.
-	$(MAKE) $(ARCHIVE) OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
-		STDPROTO=bezerkproto MAILSPOOL=/usr/spool/mail \
-		ACTIVEFILE=/usr/lib/news/active NEWSSPOOL=/usr/spool/news \
-		CFLAGS="-O2 -Dconst= -Dvoid=char -DNFSKLUDGE $(EXTRACFLAGS)"
+	$(BUILD) OS=$@ \
+	 BASECFLAGS="-O2 -Dconst= -Dvoid=char -DNFSKLUDGE"
 
-# From here on down is OS-independent
 
-clean:
-	$(RM) *.o linkage.[ch] auths.c $(ARCHIVE) osdep.* CCTYPE CFLAGS LDFLAGS
+# Build it!
+
+build:	clean once $(ARCHIVE)
+
+all:	$(ARCHIVE)
 
 $(ARCHIVE): $(BINARIES)
-	$(RM) $(ARCHIVE)
-	$(ARRC) $(ARCHIVE) $(BINARIES)
-	$(RANLIB) $(ARCHIVE)
+	$(RM) $(ARCHIVE) || true
+	@cat ARCHIVE
+	@$(SH) ARCHIVE
+
+# Cleanup
+
+clean:
+	$(RM) auths.c flockbsd.c linkage.[ch] siglocal.c osdep*.[ch] *.o ARCHIVE *FLAGS *TYPE $(ARCHIVE) || true
+
 
 # Dependencies
 
-bezerk.o: mail.h misc.h osdep.h bezerk.h rfc822.h
 dummy.o: mail.h misc.h osdep.h dummy.h
-imap4.o: mail.h misc.h osdep.h imap4.h
-mail.o: mail.h misc.h osdep.h
-mbox.o: mail.h misc.h osdep.h mbox.h bezerk.h
-mbx.o: mail.h misc.h osdep.h mbx.h rfc822.h dummy.h
-mh.o: mail.h misc.h osdep.h mh.h rfc822.h dummy.h
-mx.o: mail.h misc.h osdep.h mx.h rfc822.h dummy.h
+fdstring.o: mail.h misc.h osdep.h fdstring.h
+flstring.o: mail.h misc.h osdep.h flstring.h
+imap4r1.o: mail.h misc.h osdep.h imap4r1.h rfc822.h
+mail.o: mail.h misc.h osdep.h rfc822.h linkage.h
+mbox.o: mail.h misc.h osdep.h mbox.h unix.h
+mbx.o: mail.h misc.h osdep.h mbx.h dummy.h
+mh.o: mail.h misc.h osdep.h mh.h dummy.h
+mx.o: mail.h misc.h osdep.h mx.h dummy.h
 misc.o: mail.h misc.h osdep.h
-mmdf.o: mail.h misc.h osdep.h mmdf.h bezerk.h rfc822.h dummy.h
-mtx.o: mail.h misc.h osdep.h mtx.h rfc822.h dummy.h
+mmdf.o: mail.h misc.h osdep.h mmdf.h pseudo.h dummy.h
+mtx.o: mail.h misc.h osdep.h mtx.h dummy.h
 netmsg.o: mail.h misc.h osdep.h netmsg.h
-news.o: mail.h misc.h osdep.h news.h rfc822.h
+news.o: mail.h misc.h osdep.h news.h
 newsrc.o: mail.h misc.h osdep.h newsrc.h
 nntp.o: mail.h misc.h osdep.h netmsg.h smtp.h nntp.h rfc822.h
 phile.o: mail.h misc.h osdep.h phile.h rfc822.h dummy.h
-pop3.o: mail.h misc.h osdep.h pop3.h rfc822.h
+pseudo.o: pseudo.h
+pop3.o: mail.h misc.h osdep.h pop3.h
 smanager.o: mail.h misc.h osdep.h
 smtp.o: mail.h misc.h osdep.h smtp.h rfc822.h
 rfc822.o: mail.h misc.h osdep.h rfc822.h
-tenex.o: mail.h misc.h osdep.h tenex.h rfc822.h dummy.h
+tenex.o: mail.h misc.h osdep.h tenex.h dummy.h
+unix.o: mail.h misc.h osdep.h unix.h pseudo.h dummy.h
+utf8.o: mail.h misc.h osdep.h utf8.h
 
-# OS-dependent module
 
-osdep.o: mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
+# OS-dependent
+
+osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	osdep.h env_unix.h tcp_unix.h \
-	os_$(OS).c env_unix.c fs_unix.c ftl_unix.c nl_unix.c tcp_unix.c \
-	flock.c fsync.c gethstid.c \
+	osdep.c env_unix.c fs_unix.c ftl_unix.c nl_unix.c tcp_unix.c \
+	auths.c flock.c flockbsd.c flcksafe.c fsync.c gethstid.c \
 	gr_wait.c gr_wait4.c gr_waitp.c \
-	log_std.c log_sv4.c \
-	log_a41.c log_lnx.c log_sco.c log_sec.c log_ssn.c log_ult.c \
+	auth_gss.c auth_krb.c auth_log.c \
 	scandir.c setpgrp.c strerror.c truncate.c write.c \
 	memmove.c memmove2.c memset.c \
 	tz_bsd.c tz_nul.c tz_sv4.c \
 	write.c \
-	strerror.c strpbrk.c strstr.c strtok.c strtoul.c
-	$(CC) $(CFLAGS) -DSTDPROTO=$(STDPROTO) -DMAILSPOOL=\"$(MAILSPOOL)\" \
-	-DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" \
-	-DACTIVEFILE=\"$(ACTIVEFILE)\" -DNEWSSPOOL=\"$(NEWSSPOOL)\" \
-	-DRSH=\"$(RSH)\" -DRSHPATH=\"$(RSHPATH)\" \
-	$(EXTRAOSDEFS) -c os_$(OS).c
-	$(MV) os_$(OS).o osdep.o
+	strerror.c strpbrk.c strstr.c strtok.c strtoul.c \
+	OSCFLAGS
+	$(CC) $(CFLAGS) `cat OSCFLAGS` -c osdep.c
 
-osdep.h: os_$(OS).h linkage
-	$(RM) CCTYPE CFLAGS LDFLAGS osdep.h
+osdep.c: osdepbas.c osdepckp.c osdeplog.c
+	$(RM) osdep.c || true
+	cat osdepbas.c osdepckp.c osdeplog.c > osdep.c
+
+flockbsd.c:	# cretin Linux
+
+siglocal.c:	# cretin Linux
+
+
+# Once-only environment setup
+
+once:	onceenv ckp$(PASSWDTYPE) flockbsd.c osdep.c $(EXTRAAUTHENTICATORS) 
+
+onceenv:
+	@echo Once-only environment setup...
+	./drivers $(EXTRADRIVERS) $(DEFAULTDRIVERS) dummy
+	./mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)
 	echo $(CC) > CCTYPE
 	echo $(CFLAGS) > CFLAGS
-	echo $(LDFLAGS) $(EXTRALDFLAGS) > LDFLAGS
+	echo -DSTDPROTO=$(STDPROTO) -DMAILSPOOL=\"$(MAILSPOOL)\" \
+	 -DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" \
+	 -DACTIVEFILE=\"$(ACTIVEFILE)\" -DNEWSSPOOL=\"$(NEWSSPOOL)\" \
+	 -DRSHPATH=\"$(RSHPATH)\" > OSCFLAGS
+	echo $(BASELDFLAGS) $(EXTRALDFLAGS) > LDFLAGS
+	echo "$(ARRC) $(ARCHIVE) $(BINARIES);$(RANLIB) $(ARCHIVE)" >> ARCHIVE
 	$(LN) os_$(OS).h osdep.h
+	$(LN) os_$(OS).c osdepbas.c
+	$(LN) log_$(LOGINPW).c osdeplog.c
+	$(LN) sig_$(SIGTYPE).c siglocal.c
+	sh -c '(test -f /usr/include/sys/statvfs.h && $(LN) flocksun.c flockbsd.c) || $(LN) flocksv4.c flockbsd.c'
 
-# Driver linkage
+# Password checkers
 
-linkage:
-	./drivers $(EXTRADRIVERS) $(DEFAULTDRIVERS)
-	./mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)
+ckpafs:	# AFS
+	echo $(AFSCFLAGS) >> OSCFLAGS
+	echo $(AFSLDFLAGS) >> LDFLAGS
+	$(LN) ckp_afs.c osdepckp.c
+
+ckpdce:	# DCE
+	echo $(DCECFLAGS) >> OSCFLAGS
+	echo $(DCELDFLAGS) >> LDFLAGS
+	$(LN) ckp_dce.c osdepckp.c
+
+ckpkrb:	# Kerberos IV (must have krb EXTRAAUTHENTICATOR as well)
+	$(LN) ckp_krb.c osdepckp.c
+
+ckpstd:	# Port standard
+	$(LN) ckp_$(CHECKPW).c osdepckp.c
+
+
+# Authenticators
+
+krb:	# Kerberos IV flags
+	echo $(KRBCFLAGS) >> OSCFLAGS
+	echo $(KRBLDFLAGS) >> LDFLAGS
+
+gss:	# GSSAPI Kerberos V flags
+	echo $(GSSCFLAGS) >> OSCFLAGS
+	echo $(GSSLDFLAGS) >> LDFLAGS
 
 
 # A monument to a hack of long ago and far away...
 
 love:
-	@echo "not war?"
+	@echo not war?

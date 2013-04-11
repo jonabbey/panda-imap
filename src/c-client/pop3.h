@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	20 November 1995
+ * Last Edited:	13 November 1996
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1996 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -48,8 +48,8 @@ typedef struct pop3_local {
   char *host;			/* server host name */
   char *response;		/* last server reply */
   char *reply;			/* text of last server reply */
-  unsigned long msn;		/* current message number */
-  char *hdr;			/* current header */
+  unsigned long msgno;		/* current text message number */
+  unsigned long hdrsize;	/* current text header size */
   FILE *txt;			/* current text */
 } POP3LOCAL;
 
@@ -74,26 +74,16 @@ long pop3_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *pop3_open (MAILSTREAM *stream);
 void pop3_close (MAILSTREAM *stream,long options);
 void pop3_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
-void pop3_fetchflags (MAILSTREAM *stream,char *sequence,long flags);
-ENVELOPE *pop3_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-			       BODY **body,long flags);
-char *pop3_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			STRINGLIST *lines,unsigned long *len,long flags);
-char *pop3_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		      unsigned long *len,long flags);
-char *pop3_fetchtext_work (MAILSTREAM *stream,unsigned long msgno,
-			   unsigned long *len,long flags);
-char *pop3_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		      unsigned long *len,long flags);
-void pop3_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
-void pop3_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
+char *pop3_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
+		   long flags);
+long pop3_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
+unsigned long pop3_cache (MAILSTREAM *stream,MESSAGECACHE *elt);
 long pop3_ping (MAILSTREAM *stream);
 void pop3_check (MAILSTREAM *stream);
 void pop3_expunge (MAILSTREAM *stream);
 long pop3_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long pop3_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		  STRING *message);
-void pop3_gc (MAILSTREAM *stream,long gcflags);
 
 long pop3_send_num (MAILSTREAM *stream,char *command,unsigned long n);
 long pop3_send (MAILSTREAM *stream,char *command,char *args);

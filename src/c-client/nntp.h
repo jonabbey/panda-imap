@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	20 November 1995
+ * Last Edited:	23 March 1998
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -35,6 +35,7 @@
 
 /* Constants */
 
+#define MAXLOGINTRIALS 3	/* maximum number of login trials */
 #define NNTPTCPPORT (long) 119	/* assigned TCP contact port */
 #define NNTPGREET (long) 200	/* NNTP successful greeting */
 #define NNTPGREETNOPOST (long) 201
@@ -42,6 +43,7 @@
 #define NNTPGLIST (long) 215	/* NNTP group list being returned */
 #define NNTPHEAD (long) 221	/* NNTP header text */
 #define NNTPBODY (long) 222	/* NNTP body text */
+#define NNTPOVER (long) 224	/* NNTP overview text */
 #define NNTPOK (long) 240	/* NNTP OK code */
 #define NNTPAUTHED (long) 281	/* NNTP successful authentication */
 #define NNTPREADY (long) 340	/* NNTP ready for data */
@@ -58,26 +60,29 @@ typedef struct nntp_local {
   unsigned int dirty : 1;	/* disk copy of .newsrc needs updating */
   char *host;			/* local host name */
   char *name;			/* local newsgroup name */
-  unsigned long hdn;		/* current header message number */
-  char *hdr;			/* current header */
-  unsigned long txn;		/* current text message number */
+  char *user;			/* mailbox user */
+  unsigned long msgno;		/* current text message number */
   FILE *txt;			/* current text */
+  unsigned long txtsize;	/* current text size */
 } NNTPLOCAL;
 
 
 /* Convenient access to local data */
 
 #define LOCAL ((NNTPLOCAL *) stream->local)
-
-/* Function prototypes */
 
-SENDSTREAM *nntp_open (char **hostlist,long debug);
-SENDSTREAM *nntp_close (SENDSTREAM *stream);
-long nntp_mail (SENDSTREAM *stream,ENVELOPE *msg,BODY *body);
-long nntp_send (SENDSTREAM *stream,char *command,char *args);
-long nntp_reply (SENDSTREAM *stream);
-long nntp_fake (SENDSTREAM *stream,long code,char *text);
-long nntp_soutr (void *stream,char *s);
+
+/* Convenient access to protocol-specific data */
+
+#define NNTP stream->protocol.nntp
+
+/* Compatibility support names */
+
+#define nntp_open(hostlist,options) \
+  nntp_open_full (NIL,hostlist,"nntp",NNTPTCPPORT,options)
+
+
+/* Function prototypes */
 
 DRIVER *nntp_valid (char *name);
 DRIVER *nntp_isvalid (char *name,char *mbx);
@@ -95,23 +100,32 @@ long nntp_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *nntp_mopen (MAILSTREAM *stream);
 void nntp_mclose (MAILSTREAM *stream,long options);
 void nntp_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
-void nntp_fetchflags (MAILSTREAM *stream,char *sequence,long flags);
-ENVELOPE *nntp_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-			       BODY **body,long flags);
-char *nntp_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			STRINGLIST *lines,unsigned long *len,long flags);
-char *nntp_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		      unsigned long *len,long flags);
-char *nntp_fetchtext_work (MAILSTREAM *stream,unsigned long msgno,
-			   unsigned long *len,long flags);
-char *nntp_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		      unsigned long *len,long flags);
-void nntp_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
-void nntp_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
+long nntp_overview (MAILSTREAM *stream,char *sequence,overview_t ofn);
+char *nntp_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
+		   long flags);
+long nntp_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
+void nntp_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
+unsigned long *nntp_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
+			  SORTPGM *pgm,long flags);
+SORTCACHE **nntp_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm,long flags);
+THREADNODE *nntp_thread (MAILSTREAM *stream,char *type,char *charset,
+			 SEARCHPGM *spg,long flags);
 long nntp_ping (MAILSTREAM *stream);
 void nntp_check (MAILSTREAM *stream);
 void nntp_expunge (MAILSTREAM *stream);
 long nntp_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long nntp_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		  STRING *message);
-void nntp_gc (MAILSTREAM *stream,long gcflags);
+
+
+SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
+			    unsigned long port,long options);
+SENDSTREAM *nntp_close (SENDSTREAM *stream);
+long nntp_mail (SENDSTREAM *stream,ENVELOPE *msg,BODY *body);
+long nntp_send (SENDSTREAM *stream,char *command,char *args);
+long nntp_send_work (SENDSTREAM *stream,char *command,char *args);
+long nntp_send_auth (SENDSTREAM *stream,long code);
+long nntp_send_auth_work (SENDSTREAM *stream,NETMBX *mb,char *tmp);
+long nntp_reply (SENDSTREAM *stream);
+long nntp_fake (SENDSTREAM *stream,long code,char *text);
+long nntp_soutr (void *stream,char *s);

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	23 November 1995
+ * Last Edited:	28 May 1998
  *
- * Copyright 1995 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -32,24 +32,25 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
- 
-#include <ustat.h>
-
-/* Emulator for BSD flock() call
+ 
+#define flock fcntl_flock
+#include "flcksafe.c"		/* get safe locking routines */
+#undef flock
+#include "flockbsd.c"		/* get flock() NFS jacket */
+
+/* Emulator for flock() call using fcntl() locking
  * Accepts: file descriptor
  *	    operation bitmask
  * Returns: 0 if successful, -1 if failure
  */
 
-int bsd_flock (int fd,int operation)
+int fcntl_flock (int fd,int op)
 {
-  struct stat sbuf;
-  struct ustat usbuf;
   struct flock fl;
 				/* lock applies to entire file */
   fl.l_whence = fl.l_start = fl.l_len = 0;
   fl.l_pid = getpid ();		/* shouldn't be necessary */
-  switch (operation & ~LOCK_NB){/* translate to fcntl() operation */
+  switch (op & ~LOCK_NB) {	/* translate to fcntl() operation */
   case LOCK_EX:			/* exclusive */
     fl.l_type = F_WRLCK;
     break;
@@ -63,9 +64,5 @@ int bsd_flock (int fd,int operation)
     errno = EINVAL;
     return -1;
   }
-				/* ftinode should be -1 if NFS */
-  return ((!fstat (fd,&sbuf) && !ustat (sbuf.st_dev,&usbuf) &&
-	   !++usbuf.f_tinode) ||
-	  ((int) mail_parameters (NIL,GET_DISABLEFCNTLLOCK,NIL))) ? NIL :
-	    fcntl (fd,(operation & LOCK_NB) ? F_SETLK : F_SETLKW,&fl);
+  return (fcntl (fd,(op & LOCK_NB) ? F_SETLK : F_SETLKW,&fl) == -1) ? -1 : 0;
 }

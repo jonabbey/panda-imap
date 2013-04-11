@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		2 June 1995
-# Last Edited:	2 June 1995
+# Last Edited:	14 April 1998
 #
-# Copyright 1995 by the University of Washington
+# Copyright 1998 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -31,11 +31,15 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
+CC=cc
+RM=rm -f
+
+
 uahelper:
-	cc -o uahelper uahelper.c
+	$(CC) -o uahelper uahelper.c $(LDFLAGS)
 
 clean:
-	rm -f *.o uahelper
+	$(RM) *.o uahelper || true
 
 # A monument to a hack of long ago and far away...
 love:

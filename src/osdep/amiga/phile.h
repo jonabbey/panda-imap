@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	4 January 1996
+ * Last Edited:	13 November 1996
  *
  * Copyright 1996 by the University of Washington
  *
@@ -44,6 +44,7 @@
 #define PTYPE8 4		/* textual 8bit data */
 #define PTYPEISO2022JP 8	/* textual Japanese */
 #define PTYPEISO2022KR 16	/* textual Korean */
+#define PTYPEISO2022CN 32	/* textual Chinese */
 
 
 /* PHILE I/O stream local data */
@@ -51,8 +52,6 @@
 typedef struct phile_local {
   ENVELOPE *env;		/* file envelope */
   BODY *body;			/* file body */
-  char *buf;			/* buffer for message text */
-  unsigned long size;		/* size of buffer */
   char tmp[MAILTMPLEN];		/* temporary buffer */
 } PHILELOCAL;
 
@@ -75,22 +74,14 @@ long phile_rename (MAILSTREAM *stream,char *old,char *newname);
 MAILSTREAM *phile_open (MAILSTREAM *stream);
 int phile_type (unsigned char *s,unsigned long i,unsigned long *j);
 void phile_close (MAILSTREAM *stream,long options);
-void phile_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
-void phile_fetchflags (MAILSTREAM *stream,char *sequence,long flags);
-ENVELOPE *phile_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-				BODY **body,long flags);
-char *phile_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			 STRINGLIST *lines,unsigned long *len,long flags);
-char *phile_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		       unsigned long *len,long flags);
-char *phile_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		       unsigned long *len,long flags);
-void phile_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
-void phile_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
+ENVELOPE *phile_structure (MAILSTREAM *stream,unsigned long msgno,BODY **body,
+			   long flags);
+char *phile_header (MAILSTREAM *stream,unsigned long msgno,
+		    unsigned long *length,long flags);
+long phile_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
 long phile_ping (MAILSTREAM *stream);
 void phile_check (MAILSTREAM *stream);
 void phile_expunge (MAILSTREAM *stream);
 long phile_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long phile_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		   STRING *message);
-void phile_gc (MAILSTREAM *stream,long gcflags);

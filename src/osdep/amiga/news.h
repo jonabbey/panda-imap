@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	4 January 1996
+ * Last Edited:	13 November 1996
  *
  * Copyright 1996 by the University of Washington
  *
@@ -39,6 +39,8 @@ typedef struct news_local {
   unsigned int dirty : 1;	/* disk copy of .newsrc needs updating */
   char *dir;			/* spool directory name */
   char *name;			/* local mailbox name */
+  char *buf;			/* scratch buffer */
+  unsigned long buflen;		/* current size of scratch buffer */
 } NEWSLOCAL;
 
 
@@ -64,24 +66,14 @@ MAILSTREAM *news_open (MAILSTREAM *stream);
 int news_select (struct direct *name);
 int news_numsort (const void *d1,const void *d2);
 void news_close (MAILSTREAM *stream,long options);
-void news_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
-void news_fetchflags (MAILSTREAM *stream,char *sequence,long flags);
-ENVELOPE *news_fetchstructure (MAILSTREAM *stream,unsigned long msgno,
-			       BODY **body,long flags);
-char *news_fetchheader (MAILSTREAM *stream,unsigned long msgno,
-			STRINGLIST *lines,unsigned long *len,long flags);
-char *news_fetchtext (MAILSTREAM *stream,unsigned long msgno,
-		      unsigned long *len,long flags);
-char *news_fetchtext_work (MAILSTREAM *stream,unsigned long msgno,
-			   unsigned long *len,long flags);
-char *news_fetchbody (MAILSTREAM *stream,unsigned long msgno,char *sec,
-		      unsigned long *len,long flags);
-void news_setflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
-void news_clearflag (MAILSTREAM *stream,char *sequence,char *flag,long flags);
+void news_fast (MAILSTREAM *stream,char *sequence,long flags);
+char *news_header (MAILSTREAM *stream,unsigned long msgno,
+		   unsigned long *length,long flags);
+long news_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
+void news_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
 long news_ping (MAILSTREAM *stream);
 void news_check (MAILSTREAM *stream);
 void news_expunge (MAILSTREAM *stream);
 long news_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long news_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		  STRING *message);
-void news_gc (MAILSTREAM *stream,long gcflags);

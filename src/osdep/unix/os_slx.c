@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1993
- * Last Edited:	27 February 1996
+ * Last Edited:	3 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -47,6 +47,7 @@
 #include <errno.h>
 extern int errno;		/* just in case */
 #include <pwd.h>
+#include <shadow.h>
 #include "misc.h"
 
 
@@ -56,6 +57,5 @@ extern int errno;		/* just in case */
 #include "env_unix.c"
 #define fork vfork
 #include "tcp_unix.c"
-#include "log_lnx.c"
 #include "gr_waitp.c"
 #include "tz_sv4.c"

@@ -10,9 +10,9 @@
  *		Internet: MikeS@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	11 November 1993
+ * Last Edited:	16 April 1997
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,10 +33,13 @@
  *
  */
 
+#define INADEQUATE_MEMORY
+
 #include <tklib.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys\types.h>
+#include <io.h>
 
 #define gethostid clock
 

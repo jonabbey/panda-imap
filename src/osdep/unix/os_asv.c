@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	5 June 1996
+ * Last Edited:	18 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -60,15 +60,12 @@ extern char *sys_errlist[];
 
 #define pid_t short		/* may not be known on all ASV systems */
 
-#define initgroups(a,b)		/* do nothing */
-
 #include "strstr.c"
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
 #include "env_unix.c"
 #include "tcp_unix.c"
-#include "log_std.c"
 #include "gr_waitp.c"
 #include "strerror.c"
 #undef flock

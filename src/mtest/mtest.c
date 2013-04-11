@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	12 December 1995
+ * Last Edited:	7 January 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1995 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -51,10 +51,6 @@
 #include "nntp.h"
 
 /* Excellent reasons to hate ifdefs, and why my real code never uses them */
-
-#ifdef __MINT__
-# define unix 1
-#endif
 
 #ifndef unix
 # define unix 0
@@ -93,6 +89,7 @@ static char *newslist[] = {	/* Netnews server host list */
 
 int main (void);
 void mm (MAILSTREAM *stream,long debug);
+void overview_header (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov);
 void header (MAILSTREAM *stream,long msgno);
 void display_body (BODY *body,char *pfx,long i);
 void status (MAILSTREAM *stream);
@@ -116,9 +113,6 @@ int main ()
   }
 #endif
 #if UNIXLIKE
-#ifdef __MINT__
-    mint_setup ();
-#endif
   curusr = cpystr(myusername());/* current user is this name */
   {
     char *suffix;
@@ -158,13 +152,9 @@ int main ()
     else if (tmp[0]) stream = mail_open (stream,tmp,debug ? OP_DEBUG : NIL);
   } while (!stream && tmp[0]);
   mm (stream,debug);		/* run user interface if opened */
-#ifdef __MINT__
-  mint_cleanup ();
-#else
-# if MACOS
+#if MACOS
 				/* clean up resolver */
   if (resolveropen) CloseResolver ();
-# endif
 #endif
   return NIL;
 }
@@ -193,7 +183,7 @@ void mm (MAILSTREAM *stream,long debug)
 	puts ("?Missing message number");
 	break;
       }
-      if (last > 0 && last <= stream->nmsgs) {
+      if (last && (last <= stream->nmsgs)) {
 	mail_fetchstructure (stream,last,&body);
 	if (body) display_body (body,NIL,(long) 0);
 	else puts ("%No body information available");
@@ -214,7 +204,7 @@ void mm (MAILSTREAM *stream,long debug)
 	arg = cmd;
 	sprintf (arg,"%ld",last);
       }
-      if (last > 0 && last <= stream->nmsgs)
+      if (last && (last <= stream->nmsgs))
 	mail_setflag (stream,arg,"\\DELETED");
       else puts ("?Bad message number");
       break;
@@ -254,7 +244,7 @@ void mm (MAILSTREAM *stream,long debug)
 	puts ("?Missing message number");
 	break;
       }
-      if (last > 0 && last <= stream->nmsgs) header (stream,last);
+      if (last && (last <= stream->nmsgs)) header (stream,last);
       else puts ("?Bad message number");
       break;
     case 'L':			/* Literal command */
@@ -263,10 +253,8 @@ void mm (MAILSTREAM *stream,long debug)
 	puts ("?Missing message number");
 	break;
       }
-      if (last > 0 && last <= stream->nmsgs) {
-	printf ("%s",mail_fetchheader (stream,last));
-	puts (mail_fetchtext (stream,last));
-      }
+      if (last && (last <= stream->nmsgs))
+	puts (mail_fetch_message (stream,last,NIL,NIL));
       else puts ("?Bad message number");
       break;
     case 'M':
@@ -284,6 +272,13 @@ void mm (MAILSTREAM *stream,long debug)
       last = 0;
       status (stream);
       break;
+    case 'O':			/* Overview command */
+      if (!arg) {
+	puts ("?Missing UID");
+	break;
+      }
+      mail_fetch_overview (stream,arg,overview_header);
+      break;
     case 'Q':			/* Quit command */
       mail_close (stream);
       stream = NIL;
@@ -292,7 +287,7 @@ void mm (MAILSTREAM *stream,long debug)
       smtptest (debug);
       break;
     case '\0':			/* null command (type next message) */
-      if ((last <= 0) || (last++ >= stream->nmsgs)) {
+      if (!last || (last++ >= stream->nmsgs)) {
 	puts ("%No next message");
 	break;
       }
@@ -302,22 +297,29 @@ void mm (MAILSTREAM *stream,long debug)
 	puts ("?Missing message number");
 	break;
       }
-      if (last > 0 && last <= stream->nmsgs) {
+      if (last && (last <= stream->nmsgs)) {
 	STRINGLIST *lines = mail_newstringlist ();
 	STRINGLIST *cur = lines;
-	cur->size = strlen (cur->text = cpystr ("Date"));
+	cur->text.size = strlen ((char *) (cur->text.data = (unsigned char *)
+					   cpystr ("Date")));
 	cur = cur->next = mail_newstringlist ();
-	cur->size = strlen (cur->text = cpystr ("From"));
+	cur->text.size = strlen ((char *) (cur->text.data = (unsigned char *)
+					   cpystr ("From")));
 	cur = cur->next = mail_newstringlist ();
-	cur->size = strlen (cur->text = cpystr (">From"));
+	cur->text.size = strlen ((char *) (cur->text.data = (unsigned char *)
+					   cpystr (">From")));
 	cur = cur->next = mail_newstringlist ();
-	cur->size = strlen (cur->text = cpystr ("Subject"));
+	cur->text.size = strlen ((char *) (cur->text.data = (unsigned char *)
+					   cpystr ("Subject")));
 	cur = cur->next = mail_newstringlist ();
-	cur->size = strlen (cur->text = cpystr ("To"));
+	cur->text.size = strlen ((char *) (cur->text.data = (unsigned char *)
+					   cpystr ("To")));
 	cur = cur->next = mail_newstringlist ();
-	cur->size = strlen (cur->text = cpystr ("cc"));
+	cur->text.size = strlen ((char *) (cur->text.data = (unsigned char *)
+					   cpystr ("cc")));
 	cur = cur->next = mail_newstringlist ();
-	cur->size = strlen (cur->text = cpystr ("Newsgroups"));
+	cur->text.size = strlen ((char *) (cur->text.data = (unsigned char *)
+					   cpystr ("Newsgroups")));
 	printf ("%s",mail_fetchheader_full (stream,last,lines,NIL,NIL));
 	puts (mail_fetchtext (stream,last));
 	mail_free_stringlist (&lines);
@@ -351,14 +353,60 @@ void mm (MAILSTREAM *stream,long debug)
       break;
     case '?':			/* ? command */
       puts ("Body, Check, Delete, Expunge, Find, GC, Headers, Literal,");
-      puts (" MailboxStatus, New Mailbox, Quit, Send, Type, Undelete, Xit,");
-      puts (" +, -, or <RETURN> for next message");
+      puts (" MailboxStatus, New Mailbox, Overview, Quit, Send, Type,");
+      puts ("Undelete, Xit, +, -, or <RETURN> for next message");
       break;
     default:			/* bogus command */
       printf ("?Unrecognized command: %s\n",cmd);
       break;
     }
   }
+}
+
+/* MM display header
+ * Accepts: IMAP2 stream
+ *	    message number
+ */
+
+void overview_header (MAILSTREAM *stream,unsigned long uid,OVERVIEW *ov)
+{
+  unsigned long i;
+  char *t,tmp[MAILTMPLEN];
+  ADDRESS *adr;
+  unsigned long msgno = mail_msgno (stream,uid);
+  MESSAGECACHE *elt = mail_elt (stream,msgno);
+  MESSAGECACHE selt;
+  tmp[0] = elt->recent ? (elt->seen ? 'R': 'N') : ' ';
+  tmp[1] = (elt->recent | elt->seen) ? ' ' : 'U';
+  tmp[2] = elt->flagged ? 'F' : ' ';
+  tmp[3] = elt->answered ? 'A' : ' ';
+  tmp[4] = elt->deleted ? 'D' : ' ';
+  mail_parse_date (&selt,ov->date);
+  sprintf (tmp+5,"%4ld) ",elt->msgno);
+  mail_date (tmp+11,&selt);
+  tmp[17] = ' ';
+  tmp[18] = '\0';
+  memset (tmp+18,' ',(size_t) 20);
+  tmp[38] = '\0';		/* tie off with null */
+				/* get first from address from envelope */
+  for (adr = ov->from; adr && !adr->host; adr = adr->next);
+  if (adr) {			/* if a personal name exists use it */
+    if (!(t = adr->personal))
+      sprintf (t = tmp+400,"%s@%s",adr->mailbox,adr->host);
+    memcpy (tmp+18,t,(size_t) min (20,(long) strlen (t)));
+  }
+  strcat (tmp," ");
+  if (i = elt->user_flags) {
+    strcat (tmp,"{");
+    while (i) {
+      strcat (tmp,stream->user_flags[find_rightmost_bit (&i)]);
+      if (i) strcat (tmp," ");
+    }
+    strcat (tmp,"} ");
+  }
+  sprintf (tmp + strlen (tmp),"%.25s (%ld chars)",
+	   ov->subject ? ov->subject : " ",ov->optional.octets);
+  puts (tmp);
 }
 
 /* MM display header
@@ -413,7 +461,7 @@ void display_body (BODY *body,char *pfx,long i)
 				/* if not first time, extend prefix */
     if (pfx) sprintf (tmp,"%s%ld.",pfx,++i);
     else tmp[0] = '\0';
-    for (i = 0,part = body->contents.part; part; part = part->next)
+    for (i = 0,part = body->nested.part; part; part = part->next)
       display_body (&part->body,tmp,i++);
   }
   else {			/* non-multipart, output oneline descriptor */
@@ -436,7 +484,8 @@ void display_body (BODY *body,char *pfx,long i)
     }
     puts (tmp);			/* output this line */
 				/* encapsulated message? */
-    if (body->type == TYPEMESSAGE && (body = body->contents.msg.body)) {
+    if ((body->type == TYPEMESSAGE) && !strcmp (body->subtype,"RFC822") &&
+	(body = body->nested.msg->body)) {
       if (body->type == TYPEMULTIPART) display_body (body,pfx,i-1);
       else {			/* build encapsulation prefix */
 	sprintf (tmp,"%s%ld.",pfx,i);
@@ -453,7 +502,7 @@ void display_body (BODY *body,char *pfx,long i)
 void status (MAILSTREAM *stream)
 {
   long i;
-  char date[50];
+  char date[MAILTMPLEN];
   rfc822_date (date);
   puts (date);
   if (stream) {
@@ -511,7 +560,7 @@ void mm_notify (MAILSTREAM *stream,char *string,long errflg)
 }
 
 
-void mm_list (MAILSTREAM *stream,char delimiter,char *mailbox,long attributes)
+void mm_list (MAILSTREAM *stream,int delimiter,char *mailbox,long attributes)
 {
   putchar (' ');
   if (delimiter) putchar (delimiter);
@@ -526,7 +575,7 @@ void mm_list (MAILSTREAM *stream,char delimiter,char *mailbox,long attributes)
 }
 
 
-void mm_lsub (MAILSTREAM *stream,char delimiter,char *mailbox,long attributes)
+void mm_lsub (MAILSTREAM *stream,int delimiter,char *mailbox,long attributes)
 {
   putchar (' ');
   if (delimiter) putchar (delimiter);
@@ -634,7 +683,7 @@ void smtptest (long debug)
 {
   SENDSTREAM *stream = NIL;
   char line[MAILTMPLEN];
-  unsigned char *text = (unsigned char *) fs_get (8*MAILTMPLEN);
+  char *text = (char *) fs_get (8*MAILTMPLEN);
   ENVELOPE *msg = mail_newenvelope ();
   BODY *body = mail_newbody ();
   msg->from = mail_newaddr ();
@@ -667,12 +716,13 @@ void smtptest (long debug)
   while (gets (line)) {
     if (line[0] == '.') {
       if (line[1] == '\0') break;
-      else strcat ((char *) text,".");
+      else strcat (text,".");
     }
-    strcat ((char *) text,line);
-    strcat ((char *) text,"\015\012");
+    strcat (text,line);
+    strcat (text,"\015\012");
   }
-  body->contents.text = text;
+  body->contents.text.data = (unsigned char *) text;
+  body->contents.text.size = strlen (text);
   rfc822_date (line);
   msg->date = (char *) fs_get (1+strlen (line));
   strcpy (msg->date,line);

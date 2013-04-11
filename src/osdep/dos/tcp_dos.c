@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	14 March 1996
+ * Last Edited:	5 May 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -33,11 +33,9 @@
  *
  */
 
-				/* TCP timeout handler routine */
-static tcptimeout_t tcptimeout = NIL;
-				/* TCP timeouts, in seconds */
-static long tcptimeout_read = 0;
-static long tcptimeout_write = 0;
+static tcptimeout_t tmoh = NIL;	/* TCP timeout handler routine */
+static long ttmo_read = 0;	/* TCP timeouts, in seconds */
+static long ttmo_write = 0;
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -49,22 +47,22 @@ void *tcp_parameters (long function,void *value)
 {
   switch ((int) function) {
   case SET_TIMEOUT:
-    tcptimeout = (tcptimeout_t) value;
+    tmoh = (tcptimeout_t) value;
     break;
   case GET_TIMEOUT:
-    value = (void *) tcptimeout;
+    value = (void *) tmoh;
     break;
   case SET_READTIMEOUT:
-    tcptimeout_read = (long) value;
+    ttmo_read = (long) value;
     break;
   case GET_READTIMEOUT:
-    value = (void *) tcptimeout_read;
+    value = (void *) ttmo_read;
     break;
   case SET_WRITETIMEOUT:
-    tcptimeout_write = (long) value;
+    ttmo_write = (long) value;
     break;
   case GET_WRITETIMEOUT:
-    value = (void *) tcptimeout_write;
+    value = (void *) ttmo_write;
     break;
   default:
     value = NIL;		/* error case */
@@ -86,15 +84,6 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   struct sockaddr_in sin;
   int sock;
   char *s,tmp[MAILTMPLEN];
-  if (s = strchr (host,':')) {	/* port number specified? */
-    *s++ = '\0';		/* yes, tie off port */
-    port = strtoul (s,&s,10);	/* parse port */
-    if (s && *s) {
-      sprintf (tmp,"Junk after port number: %.80s",s);
-      mm_log (tmp,ERROR);
-      return NIL;
-    }
-  }
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */
@@ -241,8 +230,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer)
   bufptr[0] = '\0';		/* tie off string */
   return T;
 }
-
-
+
 /* TCP/IP receive data
  * Accepts: TCP/IP stream
  * Returns: T if success, NIL otherwise
@@ -254,28 +242,29 @@ long tcp_getdata (TCPSTREAM *stream)
   fd_set fds,efds;
   struct timeval tmo;
   time_t t = time (0);
-  tmo.tv_sec = tcptimeout_read;
-  tmo.tv_usec = 0;
-  FD_ZERO (&fds);		/* initialize selection vector */
-  FD_ZERO (&efds);		/* handle errors too */
-  if (stream->tcps < 0) return NIL;
+  if (stream->tcpsi < 0) return NIL;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
-    FD_SET (stream->tcps,&fds);	/* set bit in selection vector */
-    FD_SET (stream->tcps,&efds);/* set bit in selection vector */
+    time_t tl = time (0);	/* start of request */
+    tmo.tv_sec = ttmo_read;	/* read timeout */
+    tmo.tv_usec = 0;
+    FD_ZERO (&fds);		/* initialize selection vector */
+    FD_ZERO (&efds);		/* handle errors too */
+    FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
+    FD_SET(stream->tcpsi,&efds);/* set bit in error selection vector */
     errno = NIL;		/* block and read */
-    while (((i = select (stream->tcps+1,&fds,0,&efds,
-			 tmo.tv_sec ? &tmo : (struct timeval *) 0)) < 0) &&
-	   (errno == EINTR));
+    while (((i = select (stream->tcpsi+1,&fds,0,&efds,ttmo_read ? &tmo : 0))<0)
+	   && (errno == EINTR));
     if (!i) {			/* timeout? */
-      if (tcptimeout && ((*tcptimeout) (time (0) - t))) continue;
+      time_t tc = time (0);
+      if (tmoh && ((*tmoh) (tc - t,tc - tl))) continue;
       else return tcp_abort (stream);
     }
-    if (i < 0) return tcp_abort (stream);
-    while (((i = read (stream->tcps,stream->ibuf,BUFLEN)) < 0) &&
+    else if (i < 0) return tcp_abort (stream);
+    while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
 	   (errno == EINTR));
     if (i < 1) return tcp_abort (stream);
-    stream->iptr = stream->ibuf;
-    stream->ictr = i;		/* set new byte pointer and count */
+    stream->iptr = stream->ibuf;/* point at TCP buffer */
+    stream->ictr = i;		/* set new byte count */
   }
   return T;
 }
@@ -301,26 +290,30 @@ long tcp_soutr (TCPSTREAM *stream,char *string)
 
 long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 {
-  long i;
-  struct timeval tmo;
+  int i;
   fd_set fds;
+  struct timeval tmo;
   time_t t = time (0);
-  tmo.tv_sec = tcptimeout_write;
-  tmo.tv_usec = 0;
-  FD_ZERO (&fds);		/* initialize selection vector */
-  if (stream->tcps < 0) return NIL;
+  if (stream->tcpso < 0) return NIL;
   while (size > 0) {		/* until request satisfied */
-    FD_SET (stream->tcps,&fds);	/* set bit in selection vector */
-				/* block and write */
-    if (((i = select (stream->tcps+1,0,&fds,0,
-		      tmo.tv_sec ? &tmo : (struct timeval *) 0)) > 0) &&
-	((i = write (stream->tcps,string,size)) >= 0)) {
-      size -= i;		/* count this size */
-      string += i;
+    time_t tl = time (0);	/* start of request */
+    tmo.tv_sec = ttmo_write;	/* write timeout */
+    tmo.tv_usec = 0;
+    FD_ZERO (&fds);		/* initialize selection vector */
+    FD_SET (stream->tcpso,&fds);/* set bit in selection vector */
+    errno = NIL;		/* block and write */
+    while (((i = select (stream->tcpso+1,0,&fds,0,ttmo_write ? &tmo : 0)) < 0)
+	   && (errno == EINTR));
+    if (!i) {			/* timeout? */
+      time_t tc = time (0);
+      if (tmoh && ((*tmoh) (tc - t,tc - tl))) continue;
+      else return tcp_abort (stream);
     }
-				/* error or timeout */
-    else if (i || !(tcptimeout && ((*tcptimeout) (time (0) - t))))
-      return tcp_abort (stream);
+    else if (i < 0) return tcp_abort (stream);
+    while (((i = write (stream->tcpso,string,size)) < 0) && (errno == EINTR));
+    if (i < 0) return tcp_abort (stream);
+    size -= i;			/* how much we sent */
+    string += i;
   }
   return T;			/* all done */
 }
@@ -350,8 +343,7 @@ long tcp_abort (TCPSTREAM *stream)
   stream->tcps = -1;
   return NIL;
 }
-
-
+
 /* TCP/IP get host name
  * Accepts: TCP/IP stream
  * Returns: host name for this stream
@@ -360,6 +352,17 @@ long tcp_abort (TCPSTREAM *stream)
 char *tcp_host (TCPSTREAM *stream)
 {
   return stream->host;		/* return host name */
+}
+
+
+/* TCP/IP get remote host name
+ * Accepts: TCP/IP stream
+ * Returns: host name for this stream
+ */
+
+char *tcp_remotehost (TCPSTREAM *stream)
+{
+  return stream->host;		/* all we can do for now */
 }
 
 

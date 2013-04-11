@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		25 February 1996
-# Last Edited:	13 March 1996
+# Last Edited:	14 April 1998
 #
-# Copyright 1996 by the University of Washington
+# Copyright 1998 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -41,6 +41,8 @@ CC = `cat $C/CCTYPE`
 CFLAGS = -I$C `cat $C/CFLAGS`
 LDFLAGS = $(CCLIENTLIB) `cat $C/LDFLAGS`
 
+all:	mtest
+
 mtest: $(CCLIENTLIB) mtest.o
 	$(CC) $(CFLAGS) -o mtest mtest.o $(LDFLAGS)
 
@@ -50,7 +52,7 @@ $(CCLIENTLIB):
 	cd $C;make
 
 clean:
-	rm -f *.o mtest
+	rm -f *.o mtest || true
 
 # A monument to a hack of long ago and far away...
 love:

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	29 April 1996
+ * Last Edited:	30 December 1997
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1997 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -41,11 +41,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
-#include <sys/utime.h>
+#include <utime.h>
 #include <dirent.h>
 #include <stropts.h>		/* needed in daemons */
 #include <syslog.h>
 #include <sys/file.h>
+#include <ustat.h>
 
 
 /* Different names, equivalent things in BSD and SysV */
@@ -67,12 +68,15 @@
 #define LOCK_NB 4
 #define LOCK_UN 8
 
+#define utime portable_utime
+int portable_utime (char *file,time_t timep[2]);
 
 #include "env_unix.h"
 #include "fs.h"
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
+#include "lockfix.h"
 
 long gethostid (void);
 typedef int (*select_t) (struct direct *name);
@@ -80,3 +84,4 @@ typedef int (*compar_t) (void *d1,void *d2);
 int scandir (char *dirname,struct direct ***namelist,select_t select,
 	     compar_t compar);
 int bsd_flock (int fd,int operation);
+long ENV_INIT (char *user,char *home);

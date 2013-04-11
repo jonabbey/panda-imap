@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	28 June 1996
+ * Last Edited:	23 June 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -53,50 +53,83 @@
 /* Mailer parameters */
 
 long smtp_port = 0;		/* default port override */
+
+
+/* SMTP limits, current as of most recent draft */
+
+#define SMTPMAXLOCALPART 64
+#define SMTPMAXDOMAIN 255
+#define SMTPMAXPATH 256
+
+
+/* I have seen local parts of more than 64 octets, in spite of the SMTP
+ * limits.  So, we'll have a more generous limit that's still guaranteed
+ * not to pop the buffer, and let the server worry about it.  As of this
+ * writing, it comes out to 240.  Anyone with a mailbox name larger than
+ * that is in serious need of a life or at least a new ISP!  23 June 1998
+ */
+
+#define MAXLOCALPART ((MAILTMPLEN - (SMTPMAXDOMAIN + SMTPMAXPATH + 32)) / 2)
 
 /* Mail Transfer Protocol open connection
- * Accepts: service host list
+ * Accepts: network driver
+ *	    service host list
+ *	    port number
+ *	    service name
  *	    SMTP open options
  * Returns: SEND stream on success, NIL on failure
  */
 
-SENDSTREAM *smtp_open (char **hostlist,long options)
+SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
+			    unsigned long port,long options)
 {
   SENDSTREAM *stream = NIL;
   long reply;
   char *s,tmp[MAILTMPLEN];
   NETSTREAM *netstream;
   if (!(hostlist && *hostlist)) mm_log ("Missing SMTP service host",ERROR);
-  else do {			/* try to open connection */
+				/* maximum domain name is 64 characters */
+  else do if (strlen (*hostlist) < SMTPMAXDOMAIN) {
     if (smtp_port) sprintf (s = tmp,"%s:%ld",*hostlist,smtp_port);
     else s = *hostlist;		/* get server name */
-    if (netstream = net_open (s,"smtp",SMTPTCPPORT)) {
-      stream = (SENDSTREAM *) fs_get (sizeof (SENDSTREAM));
-				/* initialize stream */
-      memset ((void *) stream,0,sizeof (SENDSTREAM));
+				/* try to open connection */
+    if (netstream = net_open (dv,s,service,port)) {
+      stream = (SENDSTREAM *) memset (fs_get (sizeof (SENDSTREAM)),0,
+				      sizeof (SENDSTREAM));
       stream->netstream = netstream;
-      stream->debug = (options & SOP_DEBUG) ? T : NIL;
+      if (options & SOP_DEBUG) stream->debug = T;
+      if (options & (SOP_DSN | SOP_DSN_NOTIFY_FAILURE | SOP_DSN_NOTIFY_DELAY |
+		     SOP_DSN_NOTIFY_SUCCESS | SOP_DSN_RETURN_FULL)) {
+	ESMTP.dsn.want = T;
+	if (options & SOP_DSN_NOTIFY_FAILURE) ESMTP.dsn.notify.failure = T;
+	if (options & SOP_DSN_NOTIFY_DELAY) ESMTP.dsn.notify.delay = T;
+	if (options & SOP_DSN_NOTIFY_SUCCESS) ESMTP.dsn.notify.success = T;
+	if (options & SOP_DSN_RETURN_FULL) ESMTP.dsn.full = T;
+      }
+      if (options & SOP_8BITMIME) ESMTP.eightbit.want = T;
 				/* get name of local host to use */
-      s =  strcmp ("localhost",lcase (strcpy (tmp,*hostlist))) ?
+      s = strcmp ("localhost",lcase (strcpy (tmp,*hostlist))) ?
 	net_localhost (netstream) : "localhost";
       do reply = smtp_reply (stream);
       while ((reply < 100) || (stream->reply[3] == '-'));
-      if (reply == SMTPGREET) {	/* get SMTP greeting */
-	if ((options & SOP_ESMTP) && ((reply = smtp_ehlo(stream,s)) == SMTPOK))
-	  stream->local.esmtp.ok_ehlo = T;
-				/* try ordinary SMTP then */
-	else reply = smtp_send (stream,"HELO",s);
+      if (reply != SMTPGREET) {	/* get SMTP greeting */
+	sprintf (tmp,"SMTP greeting failure: %.80s",stream->reply);
+	mm_log (tmp,ERROR);
+	stream = smtp_close (stream);
       }
-      if (reply != SMTPOK) {	/* got successful connection? */
-	mm_log (stream->reply,ERROR);
+      else if ((options & (SOP_DSN | SOP_8BITMIME)) &&
+	       ((reply = smtp_ehlo (stream,s)) == SMTPOK)) ESMTP.ok = T;
+				/* try ordinary SMTP then */
+      else if ((reply = smtp_send (stream,"HELO",s)) != SMTPOK) {
+	sprintf (tmp,"SMTP hello failure: %.80s",stream->reply);
+	mm_log (tmp,ERROR);
 	stream = smtp_close (stream);
       }
     }
   } while (!stream && *++hostlist);
   return stream;
 }
-
-
+
 /* Mail Transfer Protocol close connection
  * Accepts: SEND stream
  * Returns: NIL always
@@ -124,6 +157,11 @@ SENDSTREAM *smtp_close (SENDSTREAM *stream)
 
 long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
 {
+  /* Note: This assumes that the envelope will never generate a header of
+   * more than 8K.  If your client generates godzilla headers, you will
+   * need to install your own rfc822out_t routine via SET_RFC822OUTPUT
+   * to use in place of this.
+   */
   char tmp[8*MAILTMPLEN];
   long error = NIL;
   if (!(env->to || env->cc || env->bcc)) {
@@ -134,9 +172,18 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
   				/* make sure stream is in good shape */
   smtp_send (stream,"RSET",NIL);
   strcpy (tmp,"FROM:<");	/* compose "MAIL FROM:<return-path>" */
-  rfc822_address (tmp,env->return_path);
+  if (env->return_path && env->return_path->host &&
+      !((env->return_path->adl &&
+	 (strlen (env->return_path->adl) > SMTPMAXPATH)) ||
+	(strlen (env->return_path->mailbox) > SMTPMAXLOCALPART) ||
+	(strlen (env->return_path->host) > SMTPMAXDOMAIN)))
+    rfc822_address (tmp,env->return_path);
   strcat (tmp,">");
-  if (stream->ok_8bitmime) strcat (tmp," BODY=8BITMIME");
+  if (ESMTP.ok) {
+    if (ESMTP.eightbit.ok && ESMTP.eightbit.want) strcat(tmp," BODY=8BITMIME");
+    if (ESMTP.dsn.ok && ESMTP.dsn.want)
+      strcat (tmp,ESMTP.dsn.full ? " RET=FULL" : " RET=HDRS");
+  }
 				/* send "MAIL FROM" command */
   if (!(smtp_send (stream,type,tmp) == SMTPOK)) return NIL;
 				/* negotiate the recipients */
@@ -155,7 +202,7 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
   smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection went away!");
 				/* output data, return success status */
   return rfc822_output (tmp,env,body,smtp_soutr,stream->netstream,
-			stream->ok_8bitmime) &&
+			ESMTP.eightbit.ok && ESMTP.eightbit.want) &&
 			  (smtp_send (stream,".",NIL) == SMTPOK);
 }
 
@@ -170,18 +217,45 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
 
 void smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
 {
-  char tmp[MAILTMPLEN];
-  while (adr) {
+  char *s,tmp[MAILTMPLEN];
+  while (adr) {			/* for each address on the list */
 				/* clear any former error */
     if (adr->error) fs_give ((void **) &adr->error);
     if (adr->host) {		/* ignore group syntax */
-      strcpy (tmp,"TO:<");	/* compose "RCPT TO:<return-path>" */
-      rfc822_address (tmp,adr);
-      strcat (tmp,">");
+				/* enforce SMTP limits to protect the buffer */
+      if (adr->adl && (strlen (adr->adl) > SMTPMAXPATH)) {
+	adr->error = cpystr ("501 Path too long");
+	*error = T;
+      }
+      else if (strlen (adr->mailbox) > MAXLOCALPART) {
+	adr->error = cpystr ("501 Recipient name too long");
+	*error = T;
+      }
+      if ((strlen (adr->host) > SMTPMAXDOMAIN)) {
+	adr->error = cpystr ("501 Recipient domain too long");
+	*error = T;
+      }
+      else {
+	strcpy (tmp,"TO:<");	/* compose "RCPT TO:<return-path>" */
+	rfc822_address (tmp,adr);
+	strcat (tmp,">");
+				/* want notifications */
+	if (ESMTP.ok && ESMTP.dsn.ok && ESMTP.dsn.want) {
+				/* yes, start with prefix */
+	  strcat (tmp," NOTIFY=");
+	  s = tmp + strlen (tmp);
+	  if (ESMTP.dsn.notify.failure) strcat (s,"FAILURE,");
+	  if (ESMTP.dsn.notify.delay) strcat (s,"DELAY,");
+	  if (ESMTP.dsn.notify.success) strcat (s,"SUCCESS,");
+				/* tie off last comma */
+	  if (*s) s[strlen (s) - 1] = '\0';
+	  else strcat (tmp,"NEVER");
+	}
 				/* send "RCPT TO" command */
-      if (!(smtp_send (stream,"RCPT",tmp) == SMTPOK)) {
-	*error = T;		/* note that an error occurred */
-	adr->error = cpystr (stream->reply);
+	if (!(smtp_send (stream,"RCPT",tmp) == SMTPOK)) {
+	  *error = T;		/* note that an error occurred */
+	  adr->error = cpystr (stream->reply);
+	}
       }
     }
     adr = adr->next;		/* do any subsequent recipients */
@@ -196,7 +270,7 @@ void smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
 
 long smtp_send (SENDSTREAM *stream,char *command,char *args)
 {
-  char tmp[MAILTMPLEN];
+  char tmp[MAILTMPLEN+64];
   long reply;
 				/* build the complete command */
   if (args) sprintf (tmp,"%s %s",command,args);
@@ -240,7 +314,7 @@ long smtp_reply (SENDSTREAM *stream)
 
 long smtp_ehlo (SENDSTREAM *stream,char *host)
 {
-  unsigned long i,j;
+  unsigned long i;
   char tmp[MAILTMPLEN];
   sprintf (tmp,"EHLO %s",host);	/* build the complete command */
   if (stream->debug) mm_dlog (tmp);
@@ -250,33 +324,34 @@ long smtp_ehlo (SENDSTREAM *stream,char *host)
     return smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection broken (EHLO)");
 				/* got an OK reply? */
   do if ((i = smtp_reply (stream)) == SMTPOK) {
-    ucase (strcpy (tmp,stream->reply+4));
-				/* command name */
-    j = (((long) tmp[0]) << 24) + (((long) tmp[1]) << 16) +
-      (((long) tmp[2]) << 8) + tmp[3];
+    ucase (strncpy (tmp,stream->reply+4,MAILTMPLEN-1));
+    tmp[MAILTMPLEN-1] = '\0';
 				/* defined by SMTP 8bit-MIMEtransport */
-    if (j == (((long) '8' << 24) + ((long) 'B' << 16) + ('I' << 8) + 'T') &&
-	tmp[4] == 'M' && tmp[5] == 'I' && tmp[6] == 'M' && tmp[7] == 'E' &&
-	!tmp[8]) stream->ok_8bitmime = T;
+    if ((tmp[0] == '8') && (tmp[1] == 'B') && (tmp[2] == 'I') &&
+	(tmp[3] == 'T') && (tmp[4] == 'M') && (tmp[5] == 'I') &&
+	(tmp[6] == 'M') && (tmp[7] == 'E') && !tmp[8]) ESMTP.eightbit.ok = T;
 				/* defined by SMTP Size Declaration */
-    else if (j == (((long) 'S' << 24) + ((long) 'I' << 16) + ('Z' << 8) + 'E')
-	     && (!tmp[4] || tmp[4] == ' ')) {
-      if (tmp[4]) stream->size = atoi (tmp+5);
-      stream->local.esmtp.ok_size = T;
+    else if ((tmp[0] == 'S') && (tmp[1] == 'I') && (tmp[2] == 'Z') &&
+	     (tmp[3] == 'E') && (!tmp[4] || tmp[4] == ' ')) {
+      if (tmp[4]) ESMTP.size.limit = atoi (tmp+5);
+      ESMTP.size.ok = T;
     }
+				/* defined by SMTP Delivery Status */
+    else if ((tmp[0] == 'D') && (tmp[1] == 'S') && (tmp[2] == 'N') && !tmp[3])
+      ESMTP.dsn.ok = T;
 				/* defined by SMTP Service Extensions */
-    else if (j == (((long) 'S' << 24) + ((long) 'E' << 16) + ('N' << 8) + 'D')
-	     && !tmp[4]) stream->local.esmtp.ok_send = T;
-    else if (j == (((long) 'S' << 24) + ((long) 'O' << 16) + ('M' << 8) + 'L')
-	     && !tmp[4]) stream->local.esmtp.ok_soml = T;
-    else if (j == (((long) 'S' << 24) + ((long) 'A' << 16) + ('M' << 8) + 'L')
-	     && !tmp[4]) stream->local.esmtp.ok_saml = T;
-    else if (j == (((long) 'E' << 24) + ((long) 'X' << 16) + ('P' << 8) + 'N')
-	     && !tmp[4]) stream->local.esmtp.ok_expn = T;
-    else if (j == (((long) 'H' << 24) + ((long) 'E' << 16) + ('L' << 8) + 'P')
-	     && !tmp[4]) stream->local.esmtp.ok_help = T;
-    else if (j == (((long) 'T' << 24) + ((long) 'U' << 16) + ('R' << 8) + 'N')
-	     && !tmp[4]) stream->local.esmtp.ok_turn = T;
+    else if ((tmp[0] == 'S') && (tmp[1] == 'E') && (tmp[2] == 'N') &&
+	     (tmp[3] == 'D') && !tmp[4]) ESMTP.service.send = T;
+    else if ((tmp[0] == 'S') && (tmp[1] == 'O') && (tmp[2] == 'M') &&
+	     (tmp[3] == 'L') && !tmp[4]) ESMTP.service.soml = T;
+    else if ((tmp[0] == 'S') && (tmp[1] == 'A') && (tmp[2] == 'M') &&
+	     (tmp[3] == 'L') && !tmp[4]) ESMTP.service.saml = T;
+    else if ((tmp[0] == 'E') && (tmp[1] == 'X') && (tmp[2] == 'P') &&
+	     (tmp[3] == 'N') && !tmp[4]) ESMTP.service.expn = T;
+    else if ((tmp[0] == 'H') && (tmp[1] == 'E') && (tmp[2] == 'L') &&
+	     (tmp[3] == 'P') && !tmp[4]) ESMTP.service.help = T;
+    else if ((tmp[0] == 'T') && (tmp[1] == 'U') && (tmp[2] == 'R') &&
+	     (tmp[3] == 'N') && !tmp[4]) ESMTP.service.turn = T;
   }
   while ((i < 100) || (stream->reply[3] == '-'));
   return i;			/* return the response code */

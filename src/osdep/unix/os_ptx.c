@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	20 May 1996
+ * Last Edited:	2 April 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -65,34 +65,34 @@ extern char *sys_errlist[];
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
-#define rfc822_date RFC822_date
+#define env_init ENV_INIT
 #include "env_unix.c"
-#undef rfc822_date
+#undef env_init
 #define getpeername Getpeername
 #define fork vfork
 #include "tcp_unix.c"
-#include "log_sv4.c"
 #include "gr_waitp.c"
 #undef flock
 #include "flock.c"
 #include "scandir.c"
 #include "tz_sv4.c"
+#include "utime.c"
 
-/* Jacket around rfc822_date() to work around PTX inetd braindamage */
+/* Jacket around env_init() to work around PTX inetd braindamage */
 
 static char may_need_server_init = T;
 
-void rfc822_date (char *date)
+long env_init (char *user,char *home)
 {
-  RFC822_date (date);		/* call the real routine */
   if (may_need_server_init) {	/* maybe need to do server init cruft? */
     may_need_server_init = NIL;	/* not any more we don't */
-    if (getuid () <= 0) {	/* if root, we're most likely a server */
+    if (!getuid ()) {		/* if root, we're most likely a server */
       t_sync (0);		/* PTX inetd is stupid, stupid, stupid */
       ioctl (0,I_PUSH,"tirdwr");/*  it needs this cruft, else servers won't */
       dup2 (0,1);		/*  work.  How obnoxious!!! */
     }
   }
+  ENV_INIT (user,home);		/* call the real routine */
 }
 
 /* Emulator for BSD gethostid() call

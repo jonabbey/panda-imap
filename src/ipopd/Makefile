@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		28 October 1990
-# Last Edited:	13 March 1996
+# Last Edited:	14 April 1998
 #
-# Copyright 1996 by the University of Washington
+# Copyright 1998 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -57,7 +57,7 @@ $(CCLIENTLIB):
 	cd $C;make
 
 clean:
-	rm -f *.o ipop2d ipop3d
+	rm -f *.o ipop2d ipop3d || true
 
 # A monument to a hack of long ago and far away...
 love:
