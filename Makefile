@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	8 May 2007
+# Last Edited:	7 November 2007
 
 
 # Normal command to build IMAP toolkit:
@@ -82,6 +82,7 @@
 # isc	Interactive Systems
 # ldb	Debian Linux
 # lfd	Fedora Core 4
+# ln8	Linux for Nokia N800
 # lnx	Linux with traditional passwords and crypt() in the C library
 #	 (see lnp, sl4, sl5, and slx)
 # lnp	Linux with Pluggable Authentication Modules (PAM)
@@ -92,7 +93,7 @@
 # lyn	LynxOS
 # mct	MachTen
 # mnt	Atari ST Mint (not MacMint)
-# neb	NetBSD/FreeBSD
+# neb	NetBSD
 # nec	NEC UX
 # nto	QNX Neutrine RTP
 # nxt	NEXTSTEP
@@ -307,7 +308,7 @@ SPECIALS:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsi d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul h11 hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx soc sol sos uw2: an
+a32 a41 aix bs3 bsi d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul h11 hpp hpx lnp lyn mct mnt nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx soc sol sos uw2: an
 	$(BUILD) BUILDTYPE=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
@@ -328,12 +329,20 @@ bsf:	an
 	PASSWDTYPE=pam \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock PAMLDFLAGS=-lpam"
 
-# I assume that Theo did the right thing.
+# I assume that Theo did the right thing for IPv6.  OpenBSD does not have PAM.
 
 bso:	an
 	$(TOUCH) ip6
 	$(BUILD) BUILDTYPE=$@ IP=$(IP6) \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
+
+# Info from Joel Reicher about NetBSD SSL paths.  I assume it has PAM because pam is in NetBSD sources...
+
+neb:	an
+	$(TOUCH) ip6
+	$(BUILD) BUILDTYPE=$@ IP=$(IP6) \
+	PASSWDTYPE=pam \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/openssl/certs SSLKEYS=/etc/openssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock PAMLDFLAGS=-lpam"
 
 cyg:	an
 	$(BUILD) BUILDTYPE=cyg \
@@ -351,6 +360,12 @@ lfd:	an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
 	EXTRACFLAGS="$(EXTRACFLAGS) -I/usr/kerberos/include" \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/pki/tls/certs SSLKEYS=/etc/pki/tls/private GSSDIR=/usr/kerberos LOCKPGM=/usr/sbin/mlock"
+
+ln8:	an
+	$(TOUCH) ip6
+	$(BUILD) BUILDTYPE=slx IP=$(IP6) \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/share/certs LOCKPGM=/usr/sbin/mlock MAILSPOOL=/var/mail"
+
 
 # RHE5 does not have the IPv6 bug
 

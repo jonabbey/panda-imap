@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 February 1994
- * Last Edited:	21 May 2007
+ * Last Edited:	5 November 2007
  */
 
 
@@ -37,7 +37,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "8";		/* edit number */
+char *version = "9";		/* edit number */
 int debugp = NIL;		/* flag saying debug */
 int verbosep = NIL;		/* flag saying verbose */
 int rwcopyp = NIL;		/* flag saying readwrite copy (for POP) */
@@ -721,13 +721,13 @@ void mm_dlog (char *string)
 void mm_login (NETMBX *mb,char *username,char *password,long trial)
 {
   char *s,tmp[MAILTMPLEN];
-  if (*mb->user) {
-    sprintf (tmp,"{%s/%s/user=%s} password: ",mb->host,mb->service,
-	     strcpy (username,mb->user));
-    s = tmp;
-  }
+  sprintf (s = tmp,"{%s/%s",mb->host,mb->service);
+  if (*mb->user) sprintf (tmp+strlen (tmp),"/user=%s",
+			  strcpy (username,mb->user));
+  if (*mb->authuser) sprintf (tmp+strlen (tmp),"/authuser=%s",mb->authuser);
+  if (*mb->user) strcat (s = tmp,"} password:");
   else {
-    printf ("{%s/%s} username: ",mb->host,mb->service);
+    printf ("%s} username: ",tmp);
     fgets (username,NETMAXUSER-1,stdin);
     username[NETMAXUSER-1] = '\0';
     if (s = strchr (username,'\n')) *s = '\0';

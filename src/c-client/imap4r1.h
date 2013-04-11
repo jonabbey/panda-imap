@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	5 June 2007
+ * Last Edited:	5 September 2007
  */
 
 
@@ -85,6 +85,7 @@ typedef struct imap_cap {
   unsigned int catenate : 1;	/* server has CATENATE (RFC 4469) */
   unsigned int condstore : 1;	/* server has CONDSTORE (RFC 4551) */
   unsigned int esearch : 1;	/* server has ESEARCH (RFC 4731) */
+  unsigned int within : 1;	/* server has WITHIN (RFC 5032) */
   unsigned int extlevel;	/* extension data level supported by server */
 				/* supported authenticators */
   unsigned int auth : MAXAUTHENTICATORS;
@@ -240,6 +241,11 @@ typedef struct imap_cap {
 /* Has ESEARCH extension */
 
 #define LEVELESEARCH(stream) imap_cap (stream)->esearch
+
+
+/* Has WITHIN extension */
+
+#define LEVELWITHIN(stream) imap_cap (stream)->within
 
 /* Body structure extension levels */
 

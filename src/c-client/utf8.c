@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	25 May 2007
+ * Last Edited:	9 October 2007
  */
 
 
@@ -596,7 +596,12 @@ unsigned short *utf8_rmap_gen (const CHARSET *cs,unsigned short *oldmap)
 				/* initialize table for ASCII */
     for (i = 0; i < 128; i++) rmap[i] = (unsigned short) i;
 				/* populate remainder of table with NOCHAR */
-    memset (rmap + 128,NOCHAR,(65536 - 128) * sizeof (unsigned short));
+#define NOCHARBYTE (NOCHAR & 0xff)
+#if NOCHAR - ((NOCHARBYTE << 8) | NOCHARBYTE)
+    while (i < 65536) rmap[i++] = NOCHAR;
+#else
+    memset (rmap + 128,NOCHARBYTE,(65536 - 128) * sizeof (unsigned short));
+#endif
     break;
   default:			/* unsupported charset type */
     rmap = NIL;			/* no map possible */
@@ -901,7 +906,7 @@ unsigned long utf8_get (unsigned char **s,unsigned long *i)
 
 unsigned long utf8_get_raw (unsigned char **s,unsigned long *i)
 {
-  unsigned char c;
+  unsigned char c,c1;
   unsigned char *t = *s;
   unsigned long j = *i;
   unsigned long ret = U8G_NOTUTF8;
@@ -919,22 +924,23 @@ unsigned long utf8_get_raw (unsigned char **s,unsigned long *i)
 				/* incomplete UTF-8 character */
     else if (more) return U8G_INCMPLT;
     else {			/* start of sequence */
+      c1 = j ? *t : 0xbf;	/* assume valid continuation if incomplete */
       if (c < 0x80) ret = c;	/* U+0000 - U+007f */
       else if (c < 0xc2);	/* c0 and c1 never valid */
       else if (c < 0xe0) {	/* U+0080 - U+07ff */
 	if (c &= 0x1f) more = 1;
       }
       else if (c < 0xf0) {	/* U+0800 - U+ffff */
-	if ((c &= 0x0f) || (*t >= 0xa0)) more = 2;
+	if ((c &= 0x0f) || (c1 >= 0xa0)) more = 2;
       }
       else if (c < 0xf8) {	/* U+10000 - U+10ffff (and 110000 - 1fffff) */
-	if ((c &= 0x07) || (*t >= 0x90)) more = 3;
+	if ((c &= 0x07) || (c1 >= 0x90)) more = 3;
       }
       else if (c < 0xfc) {	/* ISO 10646 200000 - 3ffffff */
-	if ((c &= 0x03) || (*t >= 0x88)) more = 4;
+	if ((c &= 0x03) || (c1 >= 0x88)) more = 4;
       }
       else if (c < 0xfe) {	/* ISO 10646 4000000 - 7fffffff */
-	if ((c &= 0x01) || (*t >= 0x84)) more = 5;
+	if ((c &= 0x01) || (c1 >= 0x84)) more = 5;
       }
 				/* fe and ff never valid */
       if (more) {		/* multi-octet, make sure more to come */
@@ -1117,7 +1123,8 @@ unsigned long ucs4_cs_get (CHARSET *cs,unsigned char **s,unsigned long *i)
       d = (*t++) << 8;		/* first octet of second surrogate */
       d |= *t++;		/* second octet of second surrogate */
       if ((d < UTF16_SURRL) || (d > UTF16_SURRLEND)) return U8G_NOTUTF8;
-      ret = 0x10000 + ((ret & 0x3ff) << 10) + (d & 0x3ff);
+      ret = UTF16_BASE + ((ret & UTF16_MASK) << UTF16_SHIFT) +
+	(d & UTF16_MASK);
     }
     break;
   default:			/* unknown/unsupported character set type */
@@ -1750,7 +1757,7 @@ void utf8_text_utf7 (SIZEDTEXT *text,SIZEDTEXT *ret,ucs4cn_t cv,ucs4de_t de)
 {
   unsigned long i;
   unsigned char *s;
-  unsigned int c,c1,d,uc,pass,e,e1,state;
+  unsigned int c,c1,d,uc,pass,e,e1,state,surrh;
   for (pass = 0,s = NIL,ret->size = 0; pass <= 1; pass++) {
     c1 = d = uc = e = e1 = 0;
     for (i = 0,state = NIL; i < text->size;) {
@@ -1810,6 +1817,14 @@ void utf8_text_utf7 (SIZEDTEXT *text,SIZEDTEXT *ret,ucs4cn_t cv,ucs4de_t de)
 	}
 	c = uc | (d & 0xff);	/* build UCS-2 character */
 	e1 = NIL;		/* back to first UCS-2 state, drop in */
+				/* surrogate pair?  */
+	if ((c >= UTF16_SURR) && (c <= UTF16_MAXSURR)) {
+				/* save high surrogate for later */
+	  if (c < UTF16_SURRL) surrh = c;
+	  else c = UTF16_BASE + ((surrh & UTF16_MASK) << UTF16_SHIFT) +
+		 (c & UTF16_MASK);
+	  break;		/* either way with surrogates, we're done */
+	}
       case U7_ASCII:		/* just install if ASCII */
 				/* convert if second pass */
 	if (pass) UTF8_WRITE_BMP (s,c,cv,de)
@@ -1926,7 +1941,8 @@ void utf8_text_utf16 (SIZEDTEXT *text,SIZEDTEXT *ret,ucs4cn_t cv,ucs4de_t de)
 	--i;			/* swallowed another 16-bits */
 				/* invalid second surrogate */
 	if ((d < UTF16_SURRL) || (d > UTF16_SURRLEND)) c = UBOGON;
-	else c = 0x10000 + ((c & 0x3ff) << 10) + (d & 0x3ff);
+	else c = UTF16_BASE + ((c & UTF16_MASK) << UTF16_SHIFT) +
+	       (d & UTF16_MASK);
       }
     }
     UTF8_COUNT (ret->size,c,cv,de);
@@ -1945,7 +1961,8 @@ void utf8_text_utf16 (SIZEDTEXT *text,SIZEDTEXT *ret,ucs4cn_t cv,ucs4de_t de)
 	--i;			/* swallowed another 16-bits */
 				/* invalid second surrogate */
 	if ((d < UTF16_SURRL) || (d > UTF16_SURRLEND)) c = UBOGON;
-	else c = 0x10000 + ((c & 0x3ff) << 10) + (d & 0x3ff);
+	else c = UTF16_BASE + ((c & UTF16_MASK) << UTF16_SHIFT) +
+	       (d & UTF16_MASK);
       }
     }
     UTF8_WRITE (s,c,cv,de)	/* convert UCS-4 to UTF-8 */

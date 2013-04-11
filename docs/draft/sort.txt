@@ -4,8 +4,10 @@
 
 
 IMAP Extensions Working Group                                 M. Crispin
-INTERNET-DRAFT: IMAP SORT                                   K. Murchison
-Document: internet-drafts/draft-ietf-imapext-sort-19.txt   November 2006
+Internet-Draft                                              K. Murchison
+Intended status: Proposed Standard                     September 5, 2007
+Expires: March 5, 2008
+Document: internet-drafts/draft-ietf-imapext-sort-19.txt
 
 
      INTERNET MESSAGE ACCESS PROTOCOL - SORT AND THREAD EXTENSIONS
@@ -34,13 +36,11 @@ Status of this Memo
    The list of Internet-Draft Shadow Directories can be accessed at
    http://www.ietf.org/shadow.html.
 
-   A revised version of this document will be submitted to the RFC
-   editor as an Informational Document for the Internet Community.
-
    A revised version of this draft document will be submitted to the RFC
    editor as a Proposed Standard for the Internet Community.  Discussion
    and suggestions for improvement are requested, and should be sent to
-   ietf-imapext@IMC.ORG.  This document will expire before 20 May 2007.
+   ietf-imapext@IMC.ORG.
+
    Distribution of this memo is unlimited.
 
 
@@ -232,6 +232,9 @@ BASE.6.4.SORT. SORT Command
          Sent date and time from the Date: header, adjusted by time
          zone.  This differs from the SENTON criteria in SEARCH, which
          uses just the date and not the time, nor adjusts by time zone.
+         If the sent date can not be determined (a Date: header is
+         missing or can not be parsed), the INTERNALDATE for that
+         message is used as the sent date.
 
       FROM
          [IMAP] addr-mailbox of the first "From" address.
@@ -752,6 +755,14 @@ NONWSP          = %x01-08 / %x0a-1f / %x21-ff
 
 7. Internationalization Considerations
 
+   As stated in the introduction, the server SHOULD support the
+   [IMAP-I18N] COMPARATOR extension and follow its rules to perform
+   collations in the SORT and THREAD extensions.
+
+   If the server does not support COMPARATOR, strings MUST be collated
+   according to the i;unicode-casemap collation described in
+   [UNICASEMAP].
+
    As described in [IMAP-I18N], strings in charsets other than US-ASCII
    and UTF-8 MUST be converted to UTF-8 and compared in ascending order
    according to the selected or active collation algorithm.  If the
@@ -797,18 +808,20 @@ NONWSP          = %x01-08 / %x0a-1f / %x21-ff
                          for Syntax Specifications: ABNF", RFC 4234
                          October 2005.
 
-   [CHARSET]             Freed, N. and J. Postel, "IANA Character Set
+   [CHARSET]             Freed, N. and Postel, J. "IANA Character Set
                          Registration Procedures", RFC 2978, October
                          2000.
 
-   [COMPARATOR]          Newman, C. "Internet Appplication Protocol
-                         Collation Registry", Work in Progress.
+   [COMPARATOR]          Newman, C. and Duerst, M. "Internet
+                         Appplication Protocol Collation Registry",
+                         RFC 4790, March 2007
 
    [IMAP]                Crispin, M. "Internet Message Access Protocol -
                          Version 4rev1", RFC 3501, March 2003.
 
-   [IMAP-I18N]           Newman, C. "Internet Message Access Protocol
-                         Internationalization", Work in Progress.
+   [IMAP-I18N]           Newman, C. and Gulbrandsen, A. "Internet
+                         Message Access Protocol Internationalization",
+                         Work in Progress.
 
    [KEYWORDS]            Bradner, S. "Key words for use in RFCs to
                          Indicate Requirement Levels", BCP 14, RFC 2119,
@@ -816,6 +829,9 @@ NONWSP          = %x01-08 / %x0a-1f / %x21-ff
 
    [RFC-2822]            Resnick, P. "Internet Message Format", RFC
                          2822, April 2001.
+
+   [UNICASEMAP]          Crispin, M. "i;unicode-casemap - Simple Unicode
+                         Collation Algorithm", Work in Progress.
 
 
 10. Informative References
@@ -856,7 +872,7 @@ Author's Address
 
 Full Copyright Statement
 
-   Copyright (C) The Internet Society (2006).
+   Copyright (C) The IETF Trust (2007).
 
    This document is subject to the rights, licenses and restrictions
    contained in BCP 78, and except as set forth therein, the authors
@@ -864,10 +880,10 @@ Full Copyright Statement
 
    This document and the information contained herein are provided on an
    "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
-   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY AND THE INTERNET
-   ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED,
-   INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE
-   INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY, THE IETF TRUST AND
+   THE INTERNET ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF
+   THE INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
    WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 
 Intellectual Property

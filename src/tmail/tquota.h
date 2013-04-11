@@ -12,7 +12,7 @@
  */
 
 /*
- * Program:	Operating-system dependent routines -- Mac OS X version
+ * Program:	Mail Delivery Module Quota Hook
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -22,33 +22,11 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:	1 August 1988
- * Last Edited:	16 August 2007
+ * Date:	10 September 2007
+ * Last Edited:	10 September 2007
  */
 
-#include "tcp_unix.h"		/* must be before osdep includes tcp.h */
-#include "mail.h"
-#include "osdep.h"
-#include <stdio.h>
-#include <sys/time.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <ctype.h>
-#include <errno.h>
-extern int errno;		/* just in case */
-#include <pwd.h>
-#include "misc.h"
+/* Function prototypes */
 
-
-#include "fs_unix.c"
-#include "ftl_unix.c"
-#include "nl_unix.c"
-#include "env_unix.c"
-#define fork vfork
-#include "getspnam.c"
-#include "tcp_unix.c"
-#include "gr_wait4.c"
-#include "tz_bsd.c"
+long tmail_quota (STRING *msg,char *path,uid_t uid,char *tmp,char *sender,
+		  long precedence);

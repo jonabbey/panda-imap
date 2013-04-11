@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	7 December 2006
+ * Last Edited:	16 August 2007
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
@@ -45,8 +45,8 @@ extern int errno;		/* just in case */
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
-#define fork vfork
 #include "env_unix.c"
+#define fork vfork
 #include "tcp_unix.c"
 #include "gr_waitp.c"
 #include "tz_bsd.c"

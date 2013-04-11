@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	25 October 2006
+ * Last Edited:	11 October 2007
  */
  
 #undef flock			/* name is used as a struct for fcntl */
-#undef fork			/* make damn sure that we don't use vfork!! */
 
 #ifndef NOFSTATVFS		/* thank you, SUN.  NOT! */
 # ifndef NOFSTATVFS64
@@ -140,7 +139,8 @@ int flocksim (int fd,int op)
        * same value on some systems.
        */
       if ((errno != EWOULDBLOCK) && (errno != EAGAIN) && (errno != EACCES)) {
-	sprintf (tmp,"Unexpected file locking failure: %s",strerror (errno));
+	sprintf (tmp,"Unexpected file locking failure: %.100s",
+		 strerror (errno));
 				/* give the user a warning of what happened */
 	MM_NOTIFY (NIL,tmp,WARN);
 	if (!logged++) syslog (LOG_ERR,"%s",tmp);
@@ -344,7 +344,7 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
   long ret = NIL;
   unsigned long i,j;
   int c,pid,pipei[2],pipeo[2];
-  char *s,*t,tmp[MAILTMPLEN];
+  char *s,*t,event[MAILTMPLEN],tmp[MAILTMPLEN];
   lockproxycopy = NIL;		/* not doing a lock proxycopy */
 				/* make pipe from slave */
   if (pipe (pipei) < 0) mm_log ("Can't create input pipe",ERROR);
@@ -375,16 +375,13 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
       fatal ("Can't do master pipe buffered I/O");
 				/* do slave events until EOF */
 				/* read event */
-    while (fgets (tmp,MAILTMPLEN,pi)) {
-				/* tie off event at end of line */
-      if (s = strchr (tmp,'\n')) *s = '\0';
-      else {
-	s = "Execution process event string too long: ";
-	sprintf (t = (char *) fs_get (strlen (s) + strlen (tmp) + 1),"%s:%s",
-		 s,tmp);
-	fatal (t);
+    while (fgets (event,MAILTMPLEN-1,pi)) {
+      if (!(s = strchr (event,'\n'))) {
+	sprintf (tmp,"Execution process event string too long: %.500s",event);
+	fatal (tmp);
       }
-      switch (tmp[0]) {		/* analyze event */
+      *s = '\0';		/* tie off event at end of line */
+      switch (event[0]) {	/* analyze event */
       case 'A':			/* append callback */
 	if ((*af) (NIL,data,&s,&t,&message)) {
 	  if (i = message ? SIZE (message) : 0) {
@@ -394,15 +391,11 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
 	  else s = t = "";	/* no flags or date if no message */
 	  errno = NIL;		/* reset last error */
 				/* build response */
-	  sprintf (tmp,"+%lu %s%lu %s%lu ",strlen (s),s,strlen (t),t,i);
-	  if (fputs (tmp,po) == EOF) {
-	    sprintf (tmp,"Failed to pipe command \"+%lu %s%lu %s%lu \": %s",
-		     strlen (s),s,strlen (t),t,i,strerror (errno));
-	    fatal (tmp);
-	  }
+	  if (fprintf (po,"+%lu %s%lu %s%lu ",strlen (s),s,strlen (t),t,i) < 0)
+	    fatal ("Failed to pipe append command");
 				/* write message text */
 	  if (i) do if (putc (c = 0xff & SNX (message),po) == EOF) {
-	    sprintf (tmp,"Failed to pipe %lu bytes (of %lu), last=%u: %s",
+	    sprintf (tmp,"Failed to pipe %lu bytes (of %lu), last=%u: %.100s",
 		     i,message->size,c,strerror (errno));
 	    fatal (tmp);
 	  } while (--i);
@@ -415,17 +408,15 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
 	break;
 
       case 'L':			/* mm_log() */
-	i = strtoul (tmp+1,&s,10);
+	i = strtoul (event+1,&s,10);
 	if (!s || (*s++ != ' ')) {
-	  s = "Invalid log event arguments: ";
-	  sprintf (t = (char *) fs_get (strlen (s) + strlen (tmp) + 1),"%s:%s",
-		   s,tmp);
-	  fatal (t);
+	  sprintf (tmp,"Invalid log event arguments: %.500s",event);
+	  fatal (tmp);
 	}
 	mm_log (s,i);
 	break;
       case 'N':			/* mm_notify() */
-	st = (MAILSTREAM *) strtoul (tmp+1,&s,16);
+	st = (MAILSTREAM *) strtoul (event+1,&s,16);
 	if (s && (*s++ == ' ')) {
 	  i = strtoul (s,&s,10);/* get severity */
 	  if (s && (*s++ == ' ')) {
@@ -433,13 +424,11 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
 	    break;
 	  }
 	}
-	s = "Invalid notify event arguments: ";
-	sprintf (t = (char *) fs_get (strlen (s) + strlen (tmp) + 1),"%s:%s",
-		 s,tmp);
-	fatal (t);
+	sprintf (tmp,"Invalid notify event arguments: %.500s",event);
+	fatal (tmp);
 
       case 'S':			/* mm_status() */
-	st = (MAILSTREAM *) strtoul (tmp+1,&s,16);
+	st = (MAILSTREAM *) strtoul (event+1,&s,16);
 	if (s && (*s++ == ' ')) {
 	  status.flags = strtoul (s,&s,10);
 	  if (s && (*s++ == ' ')) {
@@ -462,21 +451,19 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
 	    }
 	  }
 	}
-	s = "Invalid status event arguments: ";
-	sprintf (t = (char *) fs_get (strlen (s) + strlen (tmp) + 1),"%s:%s",
-		 s,tmp);
-	fatal (t);
+	sprintf (tmp,"Invalid status event arguments: %.500s",event);
+	fatal (tmp);
       case 'C':			/* mm_critical() */
-	st = (MAILSTREAM *) strtoul (tmp+1,&s,16);
+	st = (MAILSTREAM *) strtoul (event+1,&s,16);
 	mm_critical ((st == stream) ? stream : NIL);
 	break;
       case 'X':			/* mm_nocritical() */
-	st = (MAILSTREAM *) strtoul (tmp+1,&s,16);
+	st = (MAILSTREAM *) strtoul (event+1,&s,16);
 	mm_nocritical ((st == stream) ? stream : NIL);
 	break;
 
       case 'D':			/* mm_diskerror() */
-	st = (MAILSTREAM *) strtoul (tmp+1,&s,16);
+	st = (MAILSTREAM *) strtoul (event+1,&s,16);
 	if (s && (*s++ == ' ')) {
 	  i = strtoul (s,&s,10);
 	  if (s && (*s++ == ' ')) {
@@ -496,18 +483,14 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
 	    break;
 	  }
 	}
-	s = "Invalid diskerror event arguments: ";
-	sprintf (t = (char *) fs_get (strlen (s) + strlen (tmp) + 1),"%s:%s",
-		 s,tmp);
-	fatal (t);
+	sprintf (tmp,"Invalid diskerror event arguments: %.500s",event);
+	fatal (tmp);
       case 'F':			/* mm_fatal() */
-	mm_fatal (tmp+1);
+	mm_fatal (event+1);
 	break;
       default:			/* random lossage */
-	s = "Unknown event from execution process: ";
-	sprintf (t = (char *) fs_get (strlen (s) + strlen (tmp) + 1),"%s:%s",
-		 s,tmp);
-	fatal (t);
+	sprintf (tmp,"Unknown event from execution process: %.500s",event);
+	fatal (tmp);
       }
     }
     fclose (pi); fclose (po);	/* done with the pipes */
@@ -683,8 +666,7 @@ void slave_flags (MAILSTREAM *stream,unsigned long number)
 {
   /* this event never passed by slaves */
 }
-
-
+
 /* Mailbox status
  * Accepts: MAIL stream
  *	    mailbox name
@@ -693,9 +675,18 @@ void slave_flags (MAILSTREAM *stream,unsigned long number)
 
 void slave_status (MAILSTREAM *stream,char *mailbox,MAILSTATUS *status)
 {
-  fprintf (slaveout,"S%lx %lu %lu %lu %lu %lu %lu %s\n",
+  int i,c;
+  fprintf (slaveout,"S%lx %lu %lu %lu %lu %lu %lu ",
 	  (unsigned long) stream,status->flags,status->messages,status->recent,
 	  status->unseen,status->uidnext,status->uidvalidity,mailbox);
+				/* yow!  are we paranoid enough yet? */
+  for (i = 0; (i < 500) && (c = *mailbox++); ++i) switch (c) {
+  case '\r': case '\n':		/* newline in a mailbox name? */
+    c = ' ';
+  default:
+    putc (c,slaveout);
+  }
+  putc ('\n',slaveout);
   fflush (slaveout);
 }
 
@@ -707,7 +698,16 @@ void slave_status (MAILSTREAM *stream,char *mailbox,MAILSTATUS *status)
 
 void slave_notify (MAILSTREAM *stream,char *string,long errflg)
 {
-  fprintf (slaveout,"N%lx %lu %s\n",(unsigned long) stream,errflg,string);
+  int i,c;
+  fprintf (slaveout,"N%lx %lu ",(unsigned long) stream,errflg);
+				/* prevent more than 500 bytes */
+  for (i = 0; (i < 500) && (c = *string++); ++i) switch (c) {
+  case '\r': case '\n':		/* or embedded newline */
+    c = ' ';
+  default:
+    putc (c,slaveout);
+  }
+  putc ('\n',slaveout);
   fflush (slaveout);
 }
 
@@ -719,11 +719,19 @@ void slave_notify (MAILSTREAM *stream,char *string,long errflg)
 
 void slave_log (char *string,long errflg)
 {
-  fprintf (slaveout,"L%lu %s\n",errflg,string);
+  int i,c;
+  fprintf (slaveout,"L%lu ",errflg);
+				/* prevent more than 500 bytes */
+  for (i = 0; (i < 500) && (c = *string++); ++i) switch (c) {
+  case '\r': case '\n':		/* or embedded newline */
+    c = ' ';
+  default:
+    putc (c,slaveout);
+  }
+  putc ('\n',slaveout);
   fflush (slaveout);
 }
-
-
+
 /* About to enter critical code
  * Accepts: stream
  */
@@ -781,8 +789,17 @@ long slave_diskerror (MAILSTREAM *stream,long errcode,long serious)
 
 void slave_fatal (char *string)
 {
-  syslog (LOG_ALERT,"IMAP toolkit slave process crash: %.100s",string);
-  fprintf (slaveout,"F%s\n",string);
+  int i,c;
+  syslog (LOG_ALERT,"IMAP toolkit slave process crash: %.500s",string);
+  putc ('F',slaveout);
+				/* prevent more than 500 bytes */
+  for (i = 0; (i < 500) && (c = *string++); ++i) switch (c) {
+  case '\r': case '\n':		/* newline in a mailbox name? */
+    c = ' ';
+  default:
+    putc (c,slaveout);
+  }
+  putc ('\n',slaveout);
   fflush (slaveout);
   abort ();			/* die */
 }
@@ -812,7 +829,7 @@ static char *slave_append_read (unsigned long n,char *error)
   for (t = s; n && ((c = getc (slavein)) != EOF); *t++ = c,--n);
 #endif
   if (n) {
-    sprintf (tmp,"Pipe broken reading %s with %lu bytes remaining",error,n);
+    sprintf(tmp,"Pipe broken reading %.100s with %lu bytes remaining",error,n);
     slave_fatal (tmp);
   }
   return s;

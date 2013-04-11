@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 March 2006
- * Last Edited:	21 June 2007
+ * Last Edited:	1 November 2007
  */
 
 
@@ -1443,7 +1443,7 @@ long mix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* finish write if success */
       if (ret && (ret = !fflush (msgf))) {
 	fclose (msgf);		/* all good, close the msg file now */
-	if (!stream->rdonly)	/* write new metadata, index, and status */
+	if (!astream->rdonly)	/* write new metadata, index, and status */
 	  local->metaseq = local->indexseq = local->statusseq = seq;
 	if (ret = (mix_meta_update (astream) &&
 		   mix_index_update (astream,idxf))) {
@@ -1568,7 +1568,7 @@ long mix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* finish write if success */
 	if (ret && (ret = !fflush (msgf))) {
 	  fclose (msgf);	/* all good, close the msg file now */
-	  if (!stream->rdonly)	/* write new metadata, index, and status */
+	  if (!astream->rdonly)	/* write new metadata, index, and status */
 	    local->metaseq = local->indexseq = local->statusseq = seq;
 	  if ((ret = (mix_meta_update (astream) &&
 		      mix_index_update (astream,idxf) &&
@@ -2190,8 +2190,7 @@ long mix_index_update (MAILSTREAM *stream,FILE *idxf)
   unsigned long i;
   long ret = LONGT;
   if (!stream->rdonly) {	/* do nothing if stream readonly */
-    rewind (idxf);	       /* let's start at the very beginning */
-    ftruncate (fileno (idxf),0);
+    rewind (idxf);		/* let's start at the very beginning */
 				/* write modseq first */
     fprintf (idxf,SEQFMT,LOCAL->indexseq);
 				/* then write all messages */
@@ -2211,10 +2210,11 @@ long mix_index_update (MAILSTREAM *stream,FILE *idxf)
 	ret = NIL;
       }
     }
-  }
-  if (fflush (idxf)) {
-    MM_LOG ("Error flushing mix index file",ERROR);
-    ret = NIL;
+    if (fflush (idxf)) {
+      MM_LOG ("Error flushing mix index file",ERROR);
+      ret = NIL;
+    }
+    if (ret) ftruncate (fileno (idxf),ftell (idxf));
   }
   return ret;
 }
@@ -2237,11 +2237,10 @@ long mix_status_update (MAILSTREAM *stream,FILE **statf,long flag)
   long ret = LONGT;
   if (!stream->rdonly) {	/* do nothing if stream readonly */
     rewind (f);			/* let's start at the very beginning */
-    ftruncate (fileno (f),0);	/* ...a very good place to start... */
 				/* write sequence */
     fprintf (f,SEQFMT,LOCAL->statusseq);
 				/* write message status records */
-    for (i = 1; ret && (i <= stream->nmsgs); i++) {
+    for (i = 1; ret && (i <= stream->nmsgs); ++i) {
       MESSAGECACHE *elt = mail_elt (stream,i);
 				/* make sure all messages have a modseq */
       if (!elt->private.mod) elt->private.mod = LOCAL->statusseq;
@@ -2256,6 +2255,11 @@ long mix_status_update (MAILSTREAM *stream,FILE **statf,long flag)
 	ret = NIL;
       }
     }
+    if (ret && fflush (f)) {
+      MM_LOG ("Error flushing mix status file",ERROR);
+      ret = NIL;
+    }
+    if (ret) ftruncate (fileno (f),ftell (f));
   }
   if (flag) {			/* close index if requested */
     if (fclose (f)) {
@@ -2544,6 +2548,7 @@ FILE *mix_sortcache_open (MAILSTREAM *stream)
 long mix_sortcache_update (MAILSTREAM *stream,FILE **sortcache)
 {
   FILE *f = *sortcache;
+  long ret = LONGT;
   if (f) {			/* ignore if no file */
     unsigned long i,j;
     mailcache_t mc = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
@@ -2551,10 +2556,9 @@ long mix_sortcache_update (MAILSTREAM *stream,FILE **sortcache)
 	   !((SORTCACHE *) (*mc) (stream,i,CH_SORTCACHE))->dirty; ++i);
     if (i <= stream->nmsgs) {	/* only update if some entry is dirty */
       rewind (f);		/* let's start at the very beginning */
-      ftruncate (fileno (f),0);	/* ...a very good place to start... */
 				/* write sequence */
       fprintf (f,SEQFMT,LOCAL->sortcacheseq = mix_modseq(LOCAL->sortcacheseq));
-      for (i = 1; i <= stream->nmsgs; ++i) {
+      for (i = 1; ret && (i <= stream->nmsgs); ++i) {
 	MESSAGECACHE *elt = mail_elt (stream,i);
 	SORTCACHE *s = (SORTCACHE *) (*mc) (stream,i,CH_SORTCACHE);
 	STRINGLIST *sl;
@@ -2581,16 +2585,21 @@ long mix_sortcache_update (MAILSTREAM *stream,FILE **sortcache)
 	}
 	if (ferror (f)) {
 	  MM_LOG ("Error updating mix sortcache file",ERROR);
-	  return NIL;
+	  ret = NIL;
 	}
       }
+      if (ret && fflush (f)) {
+	MM_LOG ("Error flushing mix status file",ERROR);
+	ret = NIL;
+      }
+      if (ret) ftruncate (fileno (f),ftell (f));
     }
     if (fclose (f)) {
       MM_LOG ("Error closing mix sortcache file",ERROR);
-      return NIL;
+      ret = NIL;
     }
   }
-  return LONGT;
+  return ret;
 }
 
 /* MIX generic file routines */

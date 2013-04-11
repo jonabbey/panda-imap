@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	28 June 2007
+ * Last Edited:	6 September 2007
  */
 
 
@@ -1258,6 +1258,7 @@ long nntp_search_msg (MAILSTREAM *stream,unsigned long msgno,SEARCHPGM *pgm,
 		      OVERVIEW *ov)
 {
   unsigned short d;
+  unsigned long now = (unsigned long) time (0);
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   SEARCHHEADER *hdr;
   SEARCHOR *or;
@@ -1309,7 +1310,7 @@ long nntp_search_msg (MAILSTREAM *stream,unsigned long msgno,SEARCHPGM *pgm,
 	(pgm->smaller && (ov->optional.octets >= pgm->smaller))) return NIL;
 				/* date ranges */
     if ((pgm->sentbefore || pgm->senton || pgm->sentsince ||
-	 (pgm->before || pgm->on || pgm->since)) &&
+	 pgm->before || pgm->on || pgm->since) &&
 	(!mail_parse_date (&delt,ov->date) ||
 	 !(d = mail_shortdate (delt.year,delt.month,delt.day)) ||
 	 (pgm->sentbefore && (d >= pgm->sentbefore)) ||
@@ -1318,6 +1319,11 @@ long nntp_search_msg (MAILSTREAM *stream,unsigned long msgno,SEARCHPGM *pgm,
 	 (pgm->before && (d >= pgm->before)) ||
 	 (pgm->on && (d != pgm->on)) ||
 	 (pgm->since && (d < pgm->since)))) return NIL;
+    if (pgm->older || pgm->younger) {
+      unsigned long msgd = mail_longdate (elt);
+      if (pgm->older && msgd > (now - pgm->older)) return NIL;
+      if (pgm->younger && msgd < (now - pgm->younger)) return NIL;
+    }
     if ((pgm->from && !mail_search_addr (ov->from,pgm->from)) ||
 	(pgm->subject && !mail_search_header_text (ov->subject,pgm->subject))||
 	(pgm->message_id &&
@@ -2036,7 +2042,7 @@ long nntp_send_auth_work (SENDSTREAM *stream,NETMBX *mb,char *pwd,long flags)
 	fs_give ((void **) &lsterr);
       }
       stream->saslcancel = NIL;
-      if (nntp_send (stream,"AUTHINFO SASL",at->name)) {
+      if (nntp_send (stream,"AUTHINFO SASL",at->name) == NNTPCHALLENGE) {
 				/* hide client authentication responses */
 	if (!(at->flags & AU_SECURE)) stream->sensitive = T;
 	if ((*at->client) (nntp_challenge,nntp_response,"nntp",mb,stream,

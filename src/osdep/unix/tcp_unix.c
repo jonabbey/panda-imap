@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	31 January 2007
+ * Last Edited:	16 August 2007
  */
 
 #include "ip_unix.c"
@@ -1012,3 +1012,7 @@ long tcp_isclienthost (char *host)
     }
   return ret;
 }
+
+/* Following statement must be at end of this module */
+
+#undef fork			/* undo any use of vfork() */

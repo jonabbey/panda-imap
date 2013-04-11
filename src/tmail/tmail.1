@@ -1,6 +1,6 @@
 .ig
  * ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,13 +11,13 @@
  * 
  * ========================================================================
 ..
-.TH TMAIL 1 "August 30, 2006"
+.TH TMAIL 1 "September 27, 2007"
 .SH NAME
 tmail \- Mail Delivery Module
 .nh
 .SH SYNOPSIS
 .B tmail
-.I [\-D] [-f from_name] [\-I inbox_specifier] user[+folder] ...
+.I [-b format] [\-D] [-f from_name] [\-I inbox_specifier] user[+folder] ...
 .SH DESCRIPTION
 .I tmail
 delivers mail to a user's INBOX or a designated folder.
@@ -25,7 +25,8 @@ delivers mail to a user's INBOX or a designated folder.
 may be configured as a drop-in replacement for
 .IR binmail (1),
 .IR mail.local (1)
-or any program intended for use for mail delivery by
+or any program intended for use for mail delivery by a mail delivery program
+such as
 .IR sendmail (8).
 .PP
 .I tmail
@@ -41,8 +42,7 @@ then the calling program must be aware of the restrictions noted below.
 .PP
 When
 .I tmail
-exits, it returns exit status values to enable
-.IR sendmail (8)
+exits, it returns exit status values to enable the mail delivery program
 to determine whether a message was delivered successfully or had a
 temporary (requeue for later delivery) or permanent (return to sender)
 failure.
@@ -56,27 +56,30 @@ exist or the extension is not included, the message is delivered to the
 user's INBOX.
 If delivery is to INBOX and no INBOX currently exists,
 .I tmail
-will create a new INBOX, using the \fB-I\fR flag if specified.
+will create a new INBOX, using the \fB-I\fR or \fB-b\fR flag if specified.
 .I tmail
 recognizes the format of an existing INBOX or folder, and appends the new
 message in that format.
+.PP
+The \fB-b\fR flag specifies a format to create INBOX if INBOX does not
+already exist.  This flag requires privileges, and can not be used with
+\fB-I\fR.  The argument is
+a format name such as mix, mbx, etc.
 .PP
 The \fB-D\fR flag specifies debugging; this enables additional message
 telemetry.
 .PP
 The \fB-f\fR or \fB-r\fR flag is used by
-.IR sendmail (8)
-to specify a Return-Path.  The header
+the mail delivery program to specify a Return-Path.  The header
 .br
    Return-Path: <\fIfrom_name\fR> 
 .br 
 is prepended to the message before delivery.  
 .PP
-The \fB-I\fR flag is used by
-.IR sendmail (8)
-to specify an alternative INBOX name.  This affects the location and
-format of INBOX, and requires privileges.  If specified, it should be
-in one of three forms:
+The \fB-I\fR flag is used by the mail delivery program
+to specify an alternative INBOX name.  This flag requires privileges,
+and can not be used with \fB-b\fR.  This affects the location and format
+of INBOX.  If specified, it should be in one of three forms:
 .sp
 The first form of argument to \fB-I\fR is the string "INBOX", which
 means to write to the system default inbox using the system default
@@ -115,12 +118,11 @@ is not recommended; see below under
 .SH INSTALLATION
 If 
 .I tmail
-is to be used for mail delivery from 
-.IR sendmail (8),
-it 
+is to be used for mail delivery from the mail delivery program, it 
 .I must
 be installed setuid root.
 .sp
+If sendmail is the mail delivery program,
 .I tmail
 is invoked from sendmail.cf.  Look for the "Mlocal" line, and substitute
 the path name for the
@@ -131,8 +133,7 @@ add the flag to invoke
 with CRLF style newlines; this is usually done with E=\\r\\n in the Mlocal
 line.
 .sp
-For example, this is what is used on the author's system with
-sendmail version 8:
+Here is an example of an Mlocal line in sendmail version 8:
 .sp
 .nf
 Mlocal, P=/usr/local/etc/tmail, F=lsDFMAw5:/|@qPrn+,
@@ -145,14 +146,14 @@ If
 is to be called with the \fB-I\fR flag, it must be invoked with both
 real and effective UID root.  Many sendmail configurations invoke the
 local mailer as the sending user when that user is local, which
-will prevent \fB-I\fR from working.
+will prevent \fB-b\fR or \fB-I\fR from working.
 .SH SECURITY CONSIDERATIONS
 If
 .I tmail
 is invoked by an ordinary user, the Received: header line will
 indicate the name or UID of the user that invoked it.
 .PP
-Ordinary users are not permitted to use the \fB-I\fR flag since
+Ordinary users are not permitted to use the \fB-b\fR or \fB-I\fR flag since
 otherwise a user could create any file on another user's directory.
 .PP
 .I tmail

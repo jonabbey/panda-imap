@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 May 2007
+ * Last Edited:	14 September 2007
  */
 
 #include <grp.h>
@@ -556,15 +556,28 @@ void internal_date (char *date)
 void server_init (char *server,char *service,char *sslservice,
 		  void *clkint,void *kodint,void *hupint,void *trmint)
 {
-				/* only do this if for init call */
-  if (server && service && sslservice) {
+  int onceonly = server && service && sslservice;
+  if (onceonly) {		/* set server name in syslog */
     int mask;
-    long port;
-    struct servent *sv;
-				/* set server name in syslog */
     openlog (myServerName = cpystr (server),LOG_PID,syslog_facility);
     fclose (stderr);		/* possibly save a process ID */
     dorc (NIL,NIL);		/* do systemwide configuration */
+    switch (mask = umask (022)){/* check old umask */
+    case 0:			/* definitely unreasonable */
+    case 022:			/* don't need to change it */
+      break;
+    default:			/* already was a reasonable value */
+      umask (mask);		/* so change it back */
+    }
+  }
+  arm_signal (SIGALRM,clkint);	/* prepare for clock interrupt */
+  arm_signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
+  arm_signal (SIGHUP,hupint);	/* prepare for hangup */
+  arm_signal (SIGPIPE,hupint);	/* alternative hangup */
+  arm_signal (SIGTERM,trmint);	/* prepare for termination */
+  if (onceonly) {		/* set up network and maybe SSL */
+    long port;
+    struct servent *sv;
     /* Use SSL if SSL service, or if server starts with "s" and not service */
     if (((port = tcp_serverport ()) >= 0)) {
       if ((sv = getservbyname (service,"tcp")) && (port == ntohs (sv->s_port)))
@@ -581,19 +594,7 @@ void server_init (char *server,char *service,char *sslservice,
 	if (*server == 's') ssl_server_init (server);
       }
     }
-    switch (mask = umask (022)){/* check old umask */
-    case 0:			/* definitely unreasonable */
-    case 022:			/* don't need to change it */
-      break;
-    default:			/* already was a reasonable value */
-      umask (mask);		/* so change it back */
-    }
   }
-  arm_signal (SIGALRM,clkint);	/* prepare for clock interrupt */
-  arm_signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
-  arm_signal (SIGHUP,hupint);	/* prepare for hangup */
-  arm_signal (SIGPIPE,hupint);	/* alternative hangup */
-  arm_signal (SIGTERM,trmint);	/* prepare for termination */
 }
 
 /* Wait for stdin input
@@ -1166,6 +1167,8 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
     MM_CRITICAL (NIL);		/* go critical */
 				/* make command pipes */
     if (!closedBox && !stat (LOCKPGM,&sb) && (pipe (pi) >= 0)) {
+      long cf;
+      char *argv[4],arg[20];
 				/* if input pipes usable create output pipes */
       if ((pi[0] < FD_SETSIZE) && (pi[1] < FD_SETSIZE) && (pipe (po) >= 0)) {
 				/* make sure output pipes are usable */
@@ -1173,8 +1176,6 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
 				/* all is good, make inferior process */
 	else if (!(j = fork ())) {
 	  if (!fork ()) {	/* make grandchild so it's inherited by init */
-	    long cf;		/* don't change caller vars in case vfork() */
-	    char *argv[4],arg[20];
 				/* prepare argument vector */
 	    sprintf (arg,"%d",fd);
 	    argv[0] = LOCKPGM; argv[1] = arg;
@@ -1707,6 +1708,8 @@ void dorc (char *file,long flag)
 	  mail_parameters (NIL,SET_SASLUSESPTRNAME,(void *) atol (k));
 	else if (!compare_cstring (s,"set network-filesystem-stat-bug"))
 	  netfsstatbug = atoi (k);
+	else if (!compare_cstring (s,"set nntp-range"))
+	  mail_parameters (NIL,SET_NNTPRANGE,(void *) atol (k));
 
 	else if (!file) {	/* only allowed in system init */
 	  if (!compare_cstring (s,"set black-box-directory") &&

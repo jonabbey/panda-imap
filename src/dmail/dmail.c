@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 April 1993
- * Last Edited:	18 June 2007
+ * Last Edited:	10 September 2007
  */
 
 #include <stdio.h>
@@ -33,21 +33,20 @@ extern int errno;		/* just in case */
 #include <sysexits.h>
 #include <sys/file.h>
 #include <sys/stat.h>
-#include "mail.h"
-#include "osdep.h"
-#include "misc.h"
-#include "linkage.h"
+#include "c-client.h"
+#include "dquota.h"
 
 
 /* Globals */
 
-char *version = "16";		/* dmail edit version */
+char *version = "17";		/* dmail edit version */
 int debug = NIL;		/* debugging (don't fork) */
 int flagseen = NIL;		/* flag message as seen */
 int trycreate = NIL;		/* flag saying gotta create before appending */
 int critical = NIL;		/* flag saying in critical code */
 char *sender = NIL;		/* message origin */
 char *keywords = NIL;		/* keyword list */
+long precedence = 0;		/* delivery precedence - used by quota hook */
 
 
 /* Function prototypes */
@@ -158,6 +157,12 @@ int main (int argc,char *argv[])
     if (keywords) _exit (fail ("duplicate -k",EX_USAGE));
     if (argc--) keywords = cpystr (*++argv);
     else _exit (fail ("missing argument to -k",EX_USAGE));
+    break;
+  case 'p':
+    if (s[2] && ((s[2] == '-') || isdigit (s[2]))) precedence = atol (s + 2);
+    else if (argc-- && ((*(s = *++argv) == '-') || isdigit (*s)))
+      precedence = atol (s);
+    else _exit (fail ("missing argument to -p",EX_USAGE));
     break;
   default:			/* anything else */
     _exit (fail ("unknown switch",EX_USAGE));
@@ -379,6 +384,9 @@ int deliver_safely (MAILSTREAM *prt,STRING *st,char *mailbox,char *path,
     sprintf (tmp,"WARNING: file %.80s is publicly-readable",path);
     mm_log (tmp,WARN);
   }
+				/* check site-written quota procedure */
+  if (!dmail_quota (st,path,tmp,sender,precedence))
+    return fail (tmp,EX_CANTCREAT);
 				/* so far, so good */
   sprintf (tmp,"%s appending to %.80s (%s %.80s)",
 	   prt ? prt->dtb->name : "default",mailbox,
@@ -444,18 +452,22 @@ int delivery_unsafe (char *path,struct stat *sbuf,char *tmp)
 int fail (char *string,int code)
 {
   mm_log (string,ERROR);	/* pass up the string */
-#if T
   switch (code) {
+#if T
   case EX_USAGE:
   case EX_OSERR:
   case EX_SOFTWARE:
   case EX_NOUSER:
   case EX_CANTCREAT:
     code = EX_TEMPFAIL;		/* coerce these to TEMPFAIL */
+    break;
+#endif
+  case -1:			/* quota failure... */
+    code = EX_CANTCREAT;	/* ...really returns this code */
+    break;
   default:
     break;
   }
-#endif
   return code;			/* error code to return */
 }
 

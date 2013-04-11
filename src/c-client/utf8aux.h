@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	6 December 2006
+ * Last Edited:	9 October 2007
  */
 
 
@@ -40,3 +40,5 @@ unsigned char *mime2_token (unsigned char *s,unsigned char *se,
 unsigned char *mime2_text (unsigned char *s,unsigned char *se);
 long mime2_decode (unsigned char *e,unsigned char *t,unsigned char *te,
 		   SIZEDTEXT *txt);
+unsigned char *utf8_to_mutf7 (unsigned char *src);
+unsigned char *utf8_from_mutf7 (unsigned char *src);

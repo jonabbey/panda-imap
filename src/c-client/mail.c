@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	29 May 2007
+ * Last Edited:	8 October 2007
  */
 
 
@@ -1010,29 +1010,11 @@ long mail_create (MAILSTREAM *stream,char *mailbox)
     MM_LOG ("Can't create INBOX",ERROR);
     return NIL;
   }
-  for (s = mailbox; *s; s++) {	/* make sure valid name */
-    if (*s & 0x80) {		/* reserved for future use with UTF-8 */
-      MM_LOG ("Can't create mailbox name with 8-bit character",ERROR);
-      return NIL;
-    }
-				/* validate modified UTF-7 */
-    else if (*s == '&') while (*++s != '-') switch (*s) {
-      case '\0':
-	sprintf (tmp,"Can't create unterminated modified UTF-7 name: %.80s",
-		 mailbox);
-	MM_LOG (tmp,ERROR);
-	return NIL;
-      default:			/* must be alphanumeric */
-	if (!isalnum (*s)) {
-	  sprintf (tmp,"Can't create invalid modified UTF-7 name: %.80s",
-		   mailbox);
-	  MM_LOG (tmp,ERROR);
-	  return NIL;
-	}
-      case '+':			/* valid modified BASE64 */
-      case ',':
-	break;			/* all OK so far */
-      }
+				/* validate name */
+  if (s = mail_utf7_valid (mailbox)) {
+    sprintf (tmp,"Can't create %s: %.80s",s,mailbox);
+    MM_LOG (tmp,ERROR);
+    return NIL;
   }
 
 				/* see if special driver hack */
@@ -1105,9 +1087,15 @@ long mail_delete (MAILSTREAM *stream,char *mailbox)
 
 long mail_rename (MAILSTREAM *stream,char *old,char *newname)
 {
-  char tmp[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN];
   DRIVER *dtb = mail_valid (stream,old,"rename mailbox");
   if (!dtb) return NIL;
+				/* validate name */
+  if (s = mail_utf7_valid (newname)) {
+    sprintf (tmp,"Can't rename to %s: %.80s",s,newname);
+    MM_LOG (tmp,ERROR);
+    return NIL;
+  }
   if ((*old != '{') && (*old != '#') && mail_valid (NIL,newname,NIL)) {
     sprintf (tmp,"Can't rename %.80s: mailbox %.80s already exists",
 	     old,newname);
@@ -1115,6 +1103,32 @@ long mail_rename (MAILSTREAM *stream,char *old,char *newname)
     return NIL;
   }
   return SAFE_RENAME (dtb,stream,old,newname);
+}
+
+/* Validate mailbox as Modified UTF-7
+ * Accepts: candidate mailbox name
+ * Returns: error string if error, NIL if valid
+ */
+
+char *mail_utf7_valid (char *mailbox)
+{
+  char *s;
+  for (s = mailbox; *s; s++) {	/* make sure valid name */
+				/* reserved for future use with UTF-8 */
+    if (*s & 0x80) return "mailbox name with 8-bit octet";
+				/* validate modified UTF-7 */
+    else if (*s == '&') while (*++s != '-') switch (*s) {
+    case '\0':
+      return "unterminated modified UTF-7 name";
+    case '+':			/* valid modified BASE64 */
+    case ',':
+      break;			/* all OK so far */
+    default:			/* must be alphanumeric */
+      if (!isalnum (*s)) return "invalid modified UTF-7 name";
+      break;
+    }
+  }
+  return NIL;			/* all OK */
 }
 
 /* Mail status of mailbox
@@ -2411,7 +2425,7 @@ long mail_ping (MAILSTREAM *stream)
 	mail_search_full (snarf,NIL,mail_criteria ("UNDELETED"),SE_FREE)) {
       for (i = 1; ret && (i <= n); i++)	/* for each message */
 	if ((elt = mail_elt (snarf,i))->searched &&
-	    (s = mail_fetch_message (snarf,i,&len,NIL)) && len) {
+	    (s = mail_fetch_message (snarf,i,&len,FT_PEEK)) && len) {
 	  INIT (&bs,mail_string,s,len);
 	  if (mailsnarfpreserve) {
 				/* yes, make sure have fast data */
@@ -2421,7 +2435,7 @@ long mail_ping (MAILSTREAM *stream)
 	    }
 				/* initialize flag string */
 	    memset (flags,0,MAILTMPLEN);
-				/* output system flags */
+				/* output system flags except \Deleted */
 	    if (elt->seen) strcat (flags," \\Seen");
 	    if (elt->flagged) strcat (flags," \\Flagged");
 	    if (elt->answered) strcat (flags," \\Answered");
@@ -2441,14 +2455,14 @@ long mail_ping (MAILSTREAM *stream)
 	    if (snarf->dtb->flagmsg || !snarf->dtb->flag) {
 	      elt->valid = NIL;	/* prepare for flag alteration */
 	      if (snarf->dtb->flagmsg) (*snarf->dtb->flagmsg) (snarf,elt);
-	      elt->deleted = T;
-	      elt->valid = T;	/* flags now altered */
+				/* flags now altered */
+	      elt->deleted = elt->seen = elt->valid = T;
 	      if (snarf->dtb->flagmsg) (*snarf->dtb->flagmsg) (snarf,elt);
 	    }
 				/* driver has one-time flag call */
 	    if (snarf->dtb->flag) {
 	      sprintf (tmp,"%lu",i);
-	      (*snarf->dtb->flag) (snarf,tmp,"\\Deleted",ST_SET);
+	      (*snarf->dtb->flag) (snarf,tmp,"\\Deleted \\Seen",ST_SET);
 	    }
 	  }
 	  else {		/* copy failed */
@@ -3398,6 +3412,7 @@ long mail_search_msg (MAILSTREAM *stream,unsigned long msgno,char *section,
   SEARCHHEADER *hdr;
   SEARCHOR *or;
   SEARCHPGMLIST *not;
+  unsigned long now = (unsigned long) time (0);
   if (pgm->msgno || pgm->uid) {	/* message set searches */
     SEARCHSET *set;
 				/* message sequences */
@@ -3423,7 +3438,8 @@ long mail_search_msg (MAILSTREAM *stream,unsigned long msgno,char *section,
   /* Fast data searches */
 				/* need to fetch fast data? */
   if ((!elt->rfc822_size && (pgm->larger || pgm->smaller)) ||
-      (!elt->year && (pgm->before || pgm->on || pgm->since)) ||
+      (!elt->year && (pgm->before || pgm->on || pgm->since ||
+		      pgm->older || pgm->younger)) ||
       (!elt->valid && (pgm->answered || pgm->unanswered ||
 		       pgm->deleted || pgm->undeleted ||
 		       pgm->draft || pgm->undraft ||
@@ -3436,7 +3452,8 @@ long mail_search_msg (MAILSTREAM *stream,unsigned long msgno,char *section,
     for (i = elt->msgno;	/* find last unloaded message in range */
 	 (i < stream->nmsgs) && (ielt = mail_elt (stream,i+1)) &&
 	   ((!ielt->rfc822_size && (pgm->larger || pgm->smaller)) ||
-	    (!ielt->year && (pgm->before || pgm->on || pgm->since)) ||
+	    (!ielt->year && (pgm->before || pgm->on || pgm->since ||
+			     pgm->older || pgm->younger)) ||
 	    (!ielt->valid && (pgm->answered || pgm->unanswered ||
 			      pgm->deleted || pgm->undeleted ||
 			      pgm->draft || pgm->undraft ||
@@ -3474,6 +3491,11 @@ long mail_search_msg (MAILSTREAM *stream,unsigned long msgno,char *section,
     if (pgm->before && (d >= pgm->before)) return NIL;
     if (pgm->on && (d != pgm->on)) return NIL;
     if (pgm->since && (d < pgm->since)) return NIL;
+  }
+  if (pgm->older || pgm->younger) {
+    unsigned long msgd = mail_longdate (elt);
+    if (pgm->older && msgd > (now - pgm->older)) return NIL;
+    if (pgm->younger && msgd < (now - pgm->younger)) return NIL;
   }
 
 				/* envelope searches */
@@ -5431,6 +5453,7 @@ long mail_parse_flags (MAILSTREAM *stream,char *flag,unsigned long *uf)
 	    case '"': case '\\':/* quoted-specials */
 				/* atom_specials */
 	    case '(': case ')': case '{':
+	    case ']':		/* resp-specials */
 	      sprintf (msg,"Invalid flag: %.80s",t);
 	      MM_LOG (msg,WARN);
 	      t = NIL;

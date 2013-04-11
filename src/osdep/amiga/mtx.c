@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	15 June 2007
+ * Last Edited:	11 October 2007
  */
 
 
@@ -402,7 +402,7 @@ MAILSTREAM *mtx_open (MAILSTREAM *stream)
 				/* canonicalize the mailbox name */
   if (!mtx_file (tmp,stream->mailbox)) {
     sprintf (tmp,"Can't open - invalid name: %.80s",stream->mailbox);
-    mm_log (tmp,ERROR);
+    MM_LOG (tmp,ERROR);
   }
   if (stream->rdonly ||
       (fd = open (tmp,O_RDWR,NIL)) < 0) {
@@ -950,7 +950,7 @@ long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     }
   }
   if (ret && mail_parameters (NIL,GET_COPYUID,NIL))
-    mm_log ("Can not return meaningful COPYUID with this mailbox format",WARN);
+    MM_LOG ("Can not return meaningful COPYUID with this mailbox format",WARN);
   return ret;
 }
 
@@ -1067,7 +1067,7 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   unlockfd (ld,lock);		/* release exclusive parse/append permission */
   MM_NOCRITICAL (stream);	/* release critical */
   if (ret && mail_parameters (NIL,GET_APPENDUID,NIL))
-    mm_log ("Can not return meaningful APPENDUID with this mailbox format",
+    MM_LOG ("Can not return meaningful APPENDUID with this mailbox format",
 	    WARN);
   return ret;
 }
@@ -1116,7 +1116,7 @@ long mtx_parse (MAILSTREAM *stream)
     mtx_close (stream,NIL);
     return NIL;
   }
-  stream->silent = T;		/* don't pass up mm_exists() events yet */
+  stream->silent = T;		/* don't pass up exists events yet */
   while (sbuf.st_size - curpos){/* while there is stuff to parse */
 				/* get to that position in the file */
     lseek (LOCAL->fd,curpos,L_SET);

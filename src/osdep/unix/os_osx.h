@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 December 2006
+ * Last Edited:	26 October 2007
  */
 
 #include <stdlib.h>
@@ -34,6 +34,12 @@
 #include <fcntl.h>
 #include <syslog.h>
 #include <sys/file.h>
+
+
+/* Mac OS X gets this wrong as of Leopard */
+
+#define setpgrp setpgid
+
 
 #define unix 1
 

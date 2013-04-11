@@ -11,6 +11,27 @@
  * ========================================================================
  */
 
+Updated: 5 September 2007
+
+imap-2006k is a maintenance release, consisting primarily of bugfixes to
+problems discovered in the release that affected a small number of users.
+
+The primary focus of this maintenance release is to correct deadlock
+issues.  There were two major causes of the deadlocks:
+ . a change in imap-2006i attempted to resolve a glibc mutex-based
+   deadlock in imapd's signal handler, but ended up worsening the problem.
+ . a bug in the mbx driver, introduced as part of the UIDPLUS work in 2006,
+   applied an mbx-style lock briefly on a traditional UNIX format mailbox.
+   If the traditional UNIX format mailbox was already locked by some other
+   process, the result would be a deadlock of both processes.
+
+imapd's signal handling logic is rewritten to avoid the mutex issue, and
+the mbx driver is fixed so that mbx-style locks are only applied to mbx
+format mailboxes.
+
+imapd now supports the WITHIN extension.
+
+
 Updated: 14 June 2007
 
 imap-2006j is a maintenance release, consisting primarily of bugfixes to

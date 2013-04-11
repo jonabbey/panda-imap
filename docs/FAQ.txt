@@ -2895,7 +2895,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           The SECURITY PROBLEM came about because the server advertised
           the AUTH=PLAIN SASL authentication mechanism outside of a
-          TLS-encrypted session, in violation of RFC 2595. This message
+          TLS-encrypted session, in violation of RFC 4616. This message
           is just a warning, and in fact occurred after the server had
           disconnected.
      _________________________________________________________________
@@ -2917,18 +2917,18 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
  334 ok, go on
 
-          The problem is the "ok, go on". This violates RFC 2554's
+          The problem is the "ok, go on". This violates RFC 4954's
           requirement that the text part in a 334 response be a BASE64
           encoded string; in other words, it is a protocol syntax error.
 
-          In the case of AUTH=PLAIN, RFC 2222 (pp 4-5) requires that the
+          In the case of AUTH=PLAIN, RFC 4422 (page 7) requires that the
           encoded string have no data. In other words, the appropropiate
           standards-compliant server response is "334" followed by a
           SPACE and a CRLF.
 
           The SECURITY PROBLEM came about because the server advertised
           the AUTH=PLAIN SASL authentication mechanism outside of a
-          TLS-encrypted session, in violation of RFC 2595. This message
+          TLS-encrypted session, in violation of RFC 4616. This message
           is just a warning, and is not related the "Authentication
           cancelled" problem.
      _________________________________________________________________
@@ -2990,4 +2990,4 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           This book also has an excellent comparison of the UW and Cyrus
           IMAP servers.
 
-   Last Updated: 18 May 2007
+   Last Updated: 29 July 2007

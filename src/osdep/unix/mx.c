@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	14 June 2007
+ * Last Edited:	11 October 2007
  */
 
 
@@ -194,9 +194,8 @@ int mx_isvalid (char *name,char *tmp)
 
 int mx_namevalid (char *name)
 {
-  char *s;
-				/* make sure valid name */
-  for (s = name; s && *s;) {
+  char *s = (*name == '/') ? name + 1 : name;
+  while (s && *s) {		/* make sure valid name */
     if (isdigit (*s)) s++;	/* digit, check this node further... */
     else if (*s == '/') break;	/* all digit node, barf */
 				/* non-digit, skip to next node or return */
@@ -403,7 +402,7 @@ long mx_delete (MAILSTREAM *stream,char *mailbox)
       *(s = strrchr (tmp,'/')) = '\0';
       if (rmdir (tmp)) {	/* try to remove the directory */
 	sprintf (tmp,"Can't delete name %.80s: %s",mailbox,strerror (errno));
-	mm_log (tmp,WARN);
+	MM_LOG (tmp,WARN);
       }
     }
     return T;			/* always success */
@@ -725,7 +724,7 @@ long mx_ping (MAILSTREAM *stream)
   long recent = stream->recent;
   int silent = stream->silent;
   if (stat (stream->mailbox,&sbuf)) return NIL;
-  stream->silent = T;		/* don't pass up mm_exists() events yet */
+  stream->silent = T;		/* don't pass up exists events yet */
   if (sbuf.st_ctime != LOCAL->scantime) {
     struct direct **names = NIL;
     long nfiles = scandir (stream->mailbox,&names,mx_select,mx_numsort);
@@ -802,7 +801,7 @@ long mx_ping (MAILSTREAM *stream)
 	  }
 	  sprintf (tmp,"Message copy to MX mailbox failed: %.80s",
 		   s,strerror (errno));
-	  mm_log (tmp,ERROR);
+	  MM_LOG (tmp,ERROR);
 	  r = 0;		/* stop the snarf in its tracks */
 	}
       }

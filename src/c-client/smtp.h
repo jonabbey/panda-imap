@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	15 August 2007
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -73,3 +73,4 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 			    unsigned long port,long options);
 SENDSTREAM *smtp_close (SENDSTREAM *stream);
 long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *msg,BODY *body);
+long smtp_verbose (SENDSTREAM *stream);

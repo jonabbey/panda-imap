@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	25 May 2007
+ * Last Edited:	9 October 2007
  */
 
 /* UTF-8 size and conversion routines from UCS-2 values (thus in the BMP).
@@ -349,7 +349,9 @@
 #define UCS2_KATAKANA 0xff61	/* first katakana codepoint */
 #define UCS2_BOM 0xfeff		/* byte order mark */
 #define UCS2_BOGON 0xfffd	/* replacement character */
-
+				/* next two codepoints are not Unicode chars */
+#define UCS2_BOMCHECK 0xfffe	/* used to check byte order with UCS2_BOM */
+#define UCS2_NOTCHAR 0xffff	/* not a character */
 
 #define UCS4_BMPBASE 0x0000	/* Basic Multilingual Plane */
 #define UCS4_SMPBASE 0x10000	/* Supplementary Multilinugual Plane */
@@ -360,6 +362,9 @@
 #define UCS4_PVTBASE 0xf0000	/* private-space (two planes) */
 #define UCS4_MAXUNICODE 0x10ffff/* highest Unicode codepoint */
 
+#define UTF16_BASE 0x10000	/* base of codepoints needing surrogates */
+#define UTF16_SHIFT 10		/* surrogate shift */
+#define UTF16_MASK 0x3ff	/* surrogate mask */
 #define UTF16_SURR 0xd800	/* UTF-16 surrogate area */
 #define UTF16_SURRH 0xd800	/* UTF-16 first high surrogate */
 #define UTF16_SURRHEND 0xdbff	/* UTF-16 last high surrogate */
@@ -368,15 +373,18 @@
 #define UTF16_MAXSURR 0xdfff	/* end of UTF-16 surrogates */
 
 
-/*  UBOGON is used to represent a codepoint in a character set which does not
+/* UBOGON is used to represent a codepoint in a character set which does not
  * map to Unicode.  It is also used for mapping failures, e.g. incomplete
- * shift sequences.  NOCHAR is used to represent a codepoint in Unicode
- * which does not map to the target character set.  Note that these names
- * have the same text width as 0x????, for convenience in the mapping tables.
+ * shift sequences.  This name has the same text width as 0x????, for
+ * convenience in the mapping tables.
+ *
+ * NOCHAR is used to represent a codepoint in Unicode which does not map to
+ * the target character set in a reverse mapping table.  This name has the
+ * same text width as 0x???? in case we ever add static reverse mapping tables.
  */
 
 #define UBOGON UCS2_BOGON
-#define NOCHAR 0xffff
+#define NOCHAR UCS2_NOTCHAR
 
 /* Codepoints in non-Unicode character sets */
 

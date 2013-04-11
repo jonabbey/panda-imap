@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	6 November 2006
+ * Last Edited:	12 October 2007
  */
 
 
@@ -284,4 +284,166 @@ unsigned char *mime2_text (unsigned char *s,unsigned char *se)
   return ((s < t) && (*s == '?') && (s[1] == '=') &&
 	  ((se == (s + 2)) || (s[2] == ' ') || (s[2] == '\t') ||
 	   (s[2] == '\015') || (s[2] == '\012'))) ? s : NIL;
+}
+
+/* Convert UTF-16 string to Modified Base64
+ * Accepts: destination pointer
+ *	    source string
+ *	    source length in octets
+ * Returns: updated destination pointer
+ */
+
+static unsigned char *utf16_to_mbase64 (unsigned char *t,unsigned char *s,
+					size_t i)
+{
+  char *v = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+,";
+  *t++ = '&';			/* write shift-in */
+  while (i >= 3) {		/* process tuplets */
+    *t++ = v[s[0] >> 2];	/* byte 1: high 6 bits (1) */
+				/* byte 2: low 2 bits (1), high 4 bits (2) */
+    *t++ = v[((s[0] << 4) + (s[1] >> 4)) & 0x3f];
+				/* byte 3: low 4 bits (2), high 2 bits (3) */
+    *t++ = v[((s[1] << 2) + (s[2] >> 6)) & 0x3f];
+    *t++ = v[s[2] & 0x3f];	/* byte 4: low 6 bits (3) */
+    s += 3;
+    i -= 3;
+  }
+  if (i) {
+    *t++ = v[s[0] >> 2];	/* byte 1: high 6 bits (1) */
+				/* byte 2: low 2 bits (1), high 4 bits (2) */
+    *t++ = v[((s[0] << 4) + (--i ? (s[1] >> 4) : 0)) & 0x3f];
+				/* byte 3: low 4 bits (2) */
+    if (i) *t++ = v[(s[1] << 2) & 0x3f];
+  }
+  *t++ = '-';			/* write shift-out */
+  return t;
+}
+
+
+/* Poot a UTF-16 value to a buffer
+ * Accepts: buffer pointer
+ *	    value
+ * Returns: updated pointer
+ */
+
+static unsigned char *utf16_poot (unsigned char *s,unsigned long c)
+{
+  *s++ = (unsigned char) (c >> 8);
+  *s++ = (unsigned char) (c & 0xff);
+  return s;
+}
+
+/* Convert UTF-8 to Modified UTF-7
+ * Accepts: UTF-8 string
+ * Returns: Modified UTF-7 string on success, NIL if invalid UTF-8
+ */
+
+#define MAXUNIUTF8 4		/* maximum length of Unicode UTF-8 sequence */
+
+unsigned char *utf8_to_mutf7 (unsigned char *src)
+{
+  unsigned char *u16buf,*utf16;
+  unsigned char *ret,*t;
+  unsigned long j,c;
+  unsigned char *s = src;
+  unsigned long i = 0;
+  int nonascii = 0;
+  while (*s) {			/* pass one: count destination octets */
+    if (*s & 0x80) {		/* non-ASCII character? */
+      j = MAXUNIUTF8;		/* get single UCS-4 codepoint */
+      if ((c = utf8_get (&s,&j)) & U8G_ERROR) return NIL;
+				/* tally number of UTF-16 octets */
+      nonascii += (c & U8GM_NONBMP) ? 4 : 2;
+    }
+    else {			/* ASCII character */
+      if (nonascii) {		/* add pending Modified BASE64 size + shifts */
+	i += ((nonascii / 3) * 4) + ((j = nonascii % 3) ? j + 1 : 0) + 2;
+	nonascii = 0;		/* back to ASCII */
+      }
+      if (*s == '&') i += 2;	/* two octets if the escape */
+      else ++i;			/* otherwise just count another octet */
+      ++s;			/* advance to next source octet */
+    }
+  }
+  if (nonascii)			/* add pending Modified BASE64 size + shifts */
+    i += ((nonascii / 3) * 4) + ((j = nonascii % 3) ? j + 1 : 0) + 2;
+
+				/* create return buffer */
+  t = ret = (unsigned char *) fs_get (i + 1);
+				/* and scratch buffer */
+  utf16 = u16buf = (unsigned char *) fs_get (i + 1);
+  for (s = src; *s;) {		/* pass two: copy destination octets */
+    if (*s & 0x80) {		/* non-ASCII character? */
+      j = MAXUNIUTF8;		/* get single UCS-4 codepoint */
+      if ((c = utf8_get (&s,&j)) & U8G_ERROR) return NIL;
+      if (c & U8GM_NONBMP) {	/* non-BMP? */
+	c -= UTF16_BASE;	/* yes, convert to surrogate */
+	utf16 = utf16_poot (utf16_poot (utf16,(c >> UTF16_SHIFT)+UTF16_SURRH),
+			    (c & UTF16_MASK) + UTF16_SURRL);
+      }
+      else utf16 = utf16_poot (utf16,c);
+    }
+    else {			/* ASCII character */
+      if (utf16 != u16buf) {	/* add pending Modified BASE64 size + shifts */
+	t = utf16_to_mbase64 (t,u16buf,utf16 - u16buf);
+	utf16 = u16buf;		/* reset buffer */
+      }
+      *t++ = *s;		/* copy the character */
+      if (*s == '&') *t++ = '-';/* special sequence if the escape */
+      ++s;			/* advance to next source octet */
+    }
+  }
+				/* add pending Modified BASE64 size + shifts */
+  if (utf16 != u16buf) t = utf16_to_mbase64 (t,u16buf,utf16 - u16buf);
+  *t = '\0';			/* tie off destination */
+  if (i != (t - ret)) fatal ("utf8_to_mutf7 botch");
+  fs_give ((void **) &u16buf);
+  return ret;
+}
+
+/* Convert Modified UTF-7 to UTF-8
+ * Accepts: Modified UTF-7 string
+ * Returns: UTF-8 string on success, NIL if invalid Modified UTF-7
+ */
+
+unsigned char *utf8_from_mutf7 (unsigned char *src)
+{
+  SIZEDTEXT utf8,utf7;
+  unsigned char *s;
+  int mbase64 = 0;
+				/* disallow bogus strings */
+  if (mail_utf7_valid (src)) return NIL;
+				/* initialize SIZEDTEXTs */
+  memset (&utf7,0,sizeof (SIZEDTEXT));
+  memset (&utf8,0,sizeof (SIZEDTEXT));
+				/* make copy of source */
+  for (s = cpytxt (&utf7,src,strlen (src)); *s; ++s) switch (*s) {
+  case '&':			/* Modified UTF-7 uses & instead of + */
+    *s = '+';
+    mbase64 = T;		/* note that we are in Modified BASE64 */
+    break;
+  case '+':			/* temporarily swap text + to & */
+    if (!mbase64) *s = '&';
+    break;
+  case '-':			/* shift back to ASCII */
+    mbase64 = NIL;
+    break;
+  case ',':			/* Modified UTF-7 uses , instead of / ... */
+    if (mbase64) *s = '/';	/* ...in Modified BASE64 */
+    break;
+  }
+				/* do the conversion */
+  utf8_text_utf7 (&utf7,&utf8,NIL,NIL);
+				/* no longer need copy of source */
+  fs_give ((void **) &utf7.data);
+				/* post-process: switch & and + */
+  for (s = utf8.data; *s; ++s) switch (*s) {
+  case '&':
+    *s = '+';
+    break;
+  case '+':
+    *s = '&';
+    break;
+  }
+  return utf8.data;
 }

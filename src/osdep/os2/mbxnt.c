@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	22 June 2007
+ * Last Edited:	28 September 2007
  */
 
 
@@ -209,12 +209,7 @@ int mbx_isvalid (MAILSTREAM **stream,char *name,char *file,int *ld,char *lock,
       ((sbuf.st_mode & S_IFMT) == S_IFREG) &&
       ((fd = open (file,(flags ? O_RDWR : O_RDONLY)|O_BINARY,NIL)) >= 0)) {
     error = -1;			/* assume bogus format */
-
-				/* lock if making mini stream */
-    if (stream && (flock (fd,LOCK_SH) ||
-		   (flags && ((*ld = lockname (lock,file,LOCK_EX)) < 0))))
-      ret = -1;
-    else if (((((j = read (fd,hdr,HDRSIZE)) == HDRSIZE) && (hdr[0] == '*')) ||
+    if (((((j = read (fd,hdr,HDRSIZE)) == HDRSIZE) && (hdr[0] == '*')) ||
 				/* locked, set byte 0 to "*", read rest */
 	 ((j < 0) && (lseek (fd,1,L_SET) == 1) &&
 	  (read (fd,hdr+1,HDRSIZE-1) == (HDRSIZE-1)) && (hdr[0] = '*'))) &&
@@ -226,59 +221,67 @@ int mbx_isvalid (MAILSTREAM **stream,char *name,char *file,int *ld,char *lock,
 	isxdigit (hdr[16]) && isxdigit (hdr[17]) && isxdigit (hdr[18]) &&
 	isxdigit (hdr[19]) && isxdigit (hdr[20]) && isxdigit (hdr[21]) &&
 	isxdigit (hdr[22]) && (hdr[23] == '\015') && (hdr[24] == '\012')) {
-      ret = fd;
-      if (stream) {		/* stream specified? */
-	*stream = (MAILSTREAM *) memset (fs_get (sizeof (MAILSTREAM)),0,
-					 sizeof (MAILSTREAM));
-	hdr[15] = '\0';		/* tie off UIDVALIDITY */
-	(*stream)->uid_validity = strtoul (hdr+7,NIL,16);
-	hdr[15] = c;		/* now get UIDLAST */
-	(*stream)->uid_last = strtoul (hdr+15,NIL,16);
-				/* parse user flags */
-	for (i = 0, s = hdr + 25;
-	     (i < NUSERFLAGS) && (t = strchr (s,'\015')) && (t - s);
-	     i++, s = t + 2) {
-	  *t = '\0';		/* tie off flag */
-	  if (strlen (s) <= MAXUSERFLAG)
-	    (*stream)->user_flags[i] = cpystr (s);
-	}
+      ret = fd;			/* mbx format */
 
+      if (stream) {		/* lock if making a mini-stream */
+	if (flock (fd,LOCK_SH) ||
+	    (flags && ((*ld = lockname (lock,file,LOCK_EX)) < 0))) ret = -1;
+				/* reread data now that locked */
+	else if (lseek (fd,0,L_SET) ||
+		 (read (fd,hdr+1,HDRSIZE-1) != (HDRSIZE-1))) ret = -1;
+	else {
+	  *stream = (MAILSTREAM *) memset (fs_get (sizeof (MAILSTREAM)),0,
+					   sizeof (MAILSTREAM));
+	  hdr[15] = '\0';	/* tie off UIDVALIDITY */
+	  (*stream)->uid_validity = strtoul (hdr+7,NIL,16);
+	  hdr[15] = c;		/* now get UIDLAST */
+	  (*stream)->uid_last = strtoul (hdr+15,NIL,16);
+				/* parse user flags */
+	  for (i = 0, s = hdr + 25;
+	       (i < NUSERFLAGS) && (t = strchr (s,'\015')) && (t - s);
+	       i++, s = t + 2) {
+	    *t = '\0';		/* tie off flag */
+	    if (strlen (s) <= MAXUSERFLAG)
+	      (*stream)->user_flags[i] = cpystr (s);
+	  }
 				/* make sure have true UIDLAST */
-	if (flags & MBXISVALIDUID) {
-	  for (upd = NIL,pos = 2048, k = 0; pos < sbuf.st_size;
-	       pos += (j + k)) {
+	  if (flags & MBXISVALIDUID) {
+	    for (upd = NIL,pos = 2048, k = 0; pos < sbuf.st_size;
+		 pos += (j + k)) {
 				/* read header for this message */
-	    lseek (fd,pos,L_SET);
-	    if ((j = read (fd,hdr,64)) >= 0) {
-	      hdr[j] = '\0';
-	      if ((s = strchr (hdr,'\015')) && (s[1] == '\012')) {
-		*s = '\0';
-		k = s + 2 - hdr;
-		if ((s = strchr (hdr,',')) && (j = strtol (s+1,&s,10)) &&
-		    (*s == ';') && (s = strchr (s+1,'-'))) {
+	      lseek (fd,pos,L_SET);
+	      if ((j = read (fd,hdr,64)) >= 0) {
+		hdr[j] = '\0';
+		if ((s = strchr (hdr,'\015')) && (s[1] == '\012')) {
+		  *s = '\0';
+		  k = s + 2 - hdr;
+		  if ((s = strchr (hdr,',')) && (j = strtol (s+1,&s,10)) &&
+		      (*s == ';') && (s = strchr (s+1,'-'))) {
 				/* get UID if there is any */
-		  i = strtoul (++s,&t,16);
-		  if (!*t && (t == (s + 8)) && (i <= (*stream)->uid_last)) {
-		    if (!i) {
-		      lseek (fd,pos + s - hdr,L_SET);
-		      sprintf (hdr,"%08lx",++(*stream)->uid_last);
-		      write (fd,hdr,8);
-		      upd = T;
+		    i = strtoul (++s,&t,16);
+		    if (!*t && (t == (s + 8)) && (i <= (*stream)->uid_last)) {
+		      if (!i) {
+			lseek (fd,pos + s - hdr,L_SET);
+			sprintf (hdr,"%08lx",++(*stream)->uid_last);
+			write (fd,hdr,8);
+			upd = T;
+		      }
+		      continue;
 		    }
-		    continue;
 		  }
 		}
+		ret = -1;	/* error, give up */
+		*stream = mail_close (*stream);
+		pos = sbuf.st_size + 1;
+		j = k = 0;
 	      }
-	      ret = -1;		/* error, give up */
-	      *stream = mail_close (*stream);
-	      pos = sbuf.st_size + 1;
-	      j = k = 0;
 	    }
-	  }
-	  if (upd) {	    /* need to update hdr with new UIDLAST? */
-	    lseek (fd,15,L_SET);
-	    sprintf (hdr,"%08lx",(*stream)->uid_last);
-	    write (fd,hdr,8);
+
+	    if (upd) {	    /* need to update hdr with new UIDLAST? */
+	      lseek (fd,15,L_SET);
+	      sprintf (hdr,"%08lx",(*stream)->uid_last);
+	      write (fd,hdr,8);
+	    }
 	  }
 	}
       }
@@ -1048,7 +1051,8 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
       else internal_date (tmp);	/* get current date in IMAP format */
 				/* write header */
       if (fprintf (df,"%s,%lu;%08lx%04lx-%08lx\015\012",tmp,i = SIZE (message),
-		   uf,(unsigned long) f,++dstream->uid_last) < 0) ret = NIL;
+		   uf,(unsigned long) f,au ? ++dstream->uid_last : 0) < 0)
+	ret = NIL;
       else {			/* write message */
 	size_t j;
 	if (!message->cursize) SETPOS (message,GETPOS (message));
@@ -1073,11 +1077,12 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
       }
       ret = NIL;
     }
-				/* return sets if doing APPENDUID */
-    if (au && ret) (*au) (mailbox,dstream->uid_validity,dst);
+    if (au && ret) {		/* return sets if doing APPENDUID */
+      (*au) (mailbox,dstream->uid_validity,dst);
+      fseek (df,15,SEEK_SET);	/* update UIDLAST */
+      fprintf (df,"%08lx",dstream->uid_last);
+    }
     else mail_free_searchset (&dst);
-    fseek (df,15,SEEK_SET);	/* update UIDLAST */
-    fprintf (df,"%08lx",dstream->uid_last);
     if (ret) times.actime = time (0) - 1;
 				/* else preserve \Marked status */
     else times.actime = (sbuf.st_ctime > sbuf.st_atime) ?

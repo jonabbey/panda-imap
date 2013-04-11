@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	21 May 2007
+ * Last Edited:	17 September 2007
  */
 
 /* Parameter files */
@@ -46,10 +46,6 @@ extern int errno;		/* just in case */
 #define TIMEOUT 60*10
 
 
-/* Size of temporary buffers */
-#define TMPLEN 1024
-
-
 /* Server states */
 
 #define AUTHORIZATION 0
@@ -65,13 +61,14 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "98";		/* edit number of this server */
+char *version = "101";		/* edit number of this server */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 time_t idletime = 0;		/* time we went idle */
 unsigned long nmsgs = 0;	/* current number of messages */
 unsigned long ndele = 0;	/* number of deletes */
+unsigned long nseen = 0;	/* number of mark-seens */
 unsigned long last = 0;		/* highest message accessed */
 unsigned long il = 0;		/* initial last message */
 char challenge[128];		/* challenge */
@@ -80,8 +77,15 @@ char *user = NIL;		/* user name */
 char *pass = NIL;		/* password */
 char *initial = NIL;		/* initial response */
 long *msg = NIL;		/* message translation vector */
+short *flags = NIL;		/* flags */
 char *logout = "Logout";
 char *goodbye = "+OK Sayonara\015\012";
+
+
+/* POP3 flags */
+
+#define DELE 0x1
+#define SEEN 0x2
 
 
 /* Function prototypes */
@@ -105,7 +109,7 @@ int main (int argc,char *argv[])
 {
   unsigned long i,j,k;
   char *s,*t;
-  char tmp[TMPLEN];
+  char tmp[MAILTMPLEN];
   time_t autologouttime;
   char *pgmname = (argc && argv[0]) ?
     (((s = strrchr (argv[0],'/')) || (s = strrchr (argv[0],'\\'))) ?
@@ -148,7 +152,8 @@ int main (int argc,char *argv[])
     idletime = time (0);	/* get a command under timeout */
     alarm ((state == TRANSACTION) ? TIMEOUT : LOGINTIMEOUT);
     clearerr (stdin);		/* clear stdin errors */
-    while (!PSIN (tmp,TMPLEN)){	/* read command line */
+				/* read command line */
+    while (!PSIN (tmp,MAILTMPLEN)) {
 				/* ignore if some interrupt */
       if (ferror (stdin) && (errno == EINTR)) clearerr (stdin);
       else {
@@ -216,7 +221,7 @@ int main (int argc,char *argv[])
 		      tcp_clienthost ());
 	    }
 	    else if ((state = mbxopen ("INBOX")) == TRANSACTION)
-	      syslog (LOG_INFO,"Auth user=%.80s host=%.80s nmsgs=%ld/%ld",
+	      syslog (LOG_INFO,"Auth user=%.80s host=%.80s nmsgs=%lu/%lu",
 		      user,tcp_clienthost (),nmsgs,stream->nmsgs);
 	    else syslog (LOG_INFO,"Auth user=%.80s host=%.80s no mailbox",
 			 user,tcp_clienthost ());
@@ -248,7 +253,7 @@ int main (int argc,char *argv[])
 	    else if (!(user = apop_login (challenge,s,t,argc,argv)))
 	      PSOUT ("-ERR Bad APOP\015\012");
 	    else if ((state = mbxopen ("INBOX")) == TRANSACTION)
-	      syslog (LOG_INFO,"APOP user=%.80s host=%.80s nmsgs=%ld/%ld",
+	      syslog (LOG_INFO,"APOP user=%.80s host=%.80s nmsgs=%lu/%lu",
 		      user,tcp_clienthost (),nmsgs,stream->nmsgs);
 	    else syslog (LOG_INFO,"APOP user=%.80s host=%.80s no mailbox",
 			 user,tcp_clienthost ());
@@ -295,7 +300,8 @@ int main (int argc,char *argv[])
       case TRANSACTION:		/* logged in */
 	if (!strcmp (s,"STAT")) {
 	  for (i = 1,j = 0,k = 0; i <= nmsgs; i++)
-	    if (msg[i] > 0) {	/* message still exists? */
+				/* message still exists? */
+	    if (msg[i] && !(flags[i] & DELE)) {
 	      j++;		/* count one more undeleted message */
 	      k += mail_elt (stream,msg[i])->rfc822_size + SLEN;
 	    }
@@ -304,7 +310,8 @@ int main (int argc,char *argv[])
 	}
 	else if (!strcmp (s,"LIST")) {
 	  if (t && *t) {	/* argument do single message */
-	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && (msg[i] > 0)) {
+	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && msg[i] &&
+		!(flags[i] & DELE)) {
 	      sprintf (tmp,"+OK %lu %lu\015\012",i,
 		       mail_elt(stream,msg[i])->rfc822_size + SLEN);
 	      PSOUT (tmp);
@@ -313,18 +320,20 @@ int main (int argc,char *argv[])
 	  }
 	  else {		/* entire mailbox */
 	    PSOUT ("+OK Mailbox scan listing follows\015\012");
-	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++) if (msg[i] > 0) {
-	      sprintf (tmp,"%lu %lu\015\012",i,
-		       mail_elt (stream,msg[i])->rfc822_size + SLEN);
-	      PSOUT (tmp);
-	    }
+	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++)
+	      if (msg[i] && !(flags[i] & DELE)) {
+		sprintf (tmp,"%lu %lu\015\012",i,
+			 mail_elt (stream,msg[i])->rfc822_size + SLEN);
+		PSOUT (tmp);
+	      }
 	    PBOUT ('.');	/* end of list */
 	    CRLF;
 	  }
 	}
 	else if (!strcmp (s,"UIDL")) {
 	  if (t && *t) {	/* argument do single message */
-	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && (msg[i] > 0)) {
+	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && msg[i] &&
+		!(flags[i] & DELE)) {
 	      sprintf (tmp,"+OK %lu %08lx%08lx\015\012",i,stream->uid_validity,
 		       mail_uid (stream,msg[i]));
 	      PSOUT (tmp);
@@ -333,11 +342,12 @@ int main (int argc,char *argv[])
 	  }
 	  else {		/* entire mailbox */
 	    PSOUT ("+OK Unique-ID listing follows\015\012");
-	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++) if (msg[i] > 0) {
-	      sprintf (tmp,"%lu %08lx%08lx\015\012",i,stream->uid_validity,
-		       mail_uid (stream,msg[i]));
-	      PSOUT (tmp);
-	    }
+	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++)
+	      if (msg[i] && !(flags[i] & DELE)) {
+		sprintf (tmp,"%lu %08lx%08lx\015\012",i,stream->uid_validity,
+			 mail_uid (stream,msg[i]));
+		PSOUT (tmp);
+	      }
 	    PBOUT ('.');	/* end of list */
 	    CRLF;
 	  }
@@ -345,13 +355,19 @@ int main (int argc,char *argv[])
 
 	else if (!strcmp (s,"RETR")) {
 	  if (t && *t) {	/* must have an argument */
-	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && (msg[i] > 0)) {
+	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && msg[i] &&
+		!(flags[i] & DELE)) {
 	      MESSAGECACHE *elt;
 				/* update highest message accessed */
 	      if (i > last) last = i;
 	      sprintf (tmp,"+OK %lu octets\015\012",
 		       (elt = mail_elt (stream,msg[i]))->rfc822_size + SLEN);
 	      PSOUT (tmp);
+				/* if not marked seen or noted to be marked */
+	      if (!(elt->seen || (flags[i] & SEEN))) {
+		++nseen;	/* note that we need to mark it seen */
+		flags[i] |= SEEN;
+	      }
 				/* get header */
 	      t = mail_fetch_header (stream,msg[i],NIL,NIL,&k,FT_PEEK);
 	      blat (t,-1,k,NIL);/* write up to trailing CRLF */
@@ -370,7 +386,7 @@ int main (int argc,char *argv[])
 	      }
 				/* output text */
 	      t = mail_fetch_text (stream,msg[i],NIL,&k,
-				   FT_RETURNSTRINGSTRUCT);
+				   FT_RETURNSTRINGSTRUCT | FT_PEEK);
 	      if (k) {		/* only if there is a text body */
 		blat (t,-1,k,&stream->private.string);
 		CRLF;		/* end of list */
@@ -382,23 +398,21 @@ int main (int argc,char *argv[])
 	  }
 	  else PSOUT ("-ERR Missing message number argument\015\012");
 	}
+
 	else if (!strcmp (s,"DELE")) {
 	  if (t && *t) {	/* must have an argument */
-	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && (msg[i] > 0)) {
+	    if ((i = strtoul (t,NIL,10)) && (i <= nmsgs) && msg[i] &&
+		!(flags[i] & DELE)) {
 				/* update highest message accessed */
 	      if (i > last) last = i;
-				/* delete message */
-	      sprintf (tmp,"%ld",msg[i]);
-	      mail_setflag (stream,tmp,"\\Deleted");
-	      msg[i] = -msg[i];	/* note that we deleted this message */
+	      flags[i] |= DELE;	/* note that deletion is requested */
 	      PSOUT ("+OK Message deleted\015\012");
-	      ndele++;		/* one more message deleted */
+	      ++ndele;		/* one more message deleted */
 	    }
 	    else PSOUT ("-ERR No such message\015\012");
 	  }
 	  else PSOUT ("-ERR Missing message number argument\015\012");
 	}
-
 	else if (!strcmp (s,"NOOP"))
 	  PSOUT ("+OK No-op to you too!\015\012");
 	else if (!strcmp (s,"LAST")) {
@@ -409,9 +423,10 @@ int main (int argc,char *argv[])
 	  rset ();		/* reset the mailbox */
 	  PSOUT ("+OK Reset state\015\012");
 	}
+
 	else if (!strcmp (s,"TOP")) {
-	  if (t && *t && (i =strtoul (t,&s,10)) && (i <= nmsgs) &&
-	      (msg[i] > 0)) {
+	  if (t && *t && (i =strtoul (t,&s,10)) && (i <= nmsgs) && msg[i] &&
+	      !(flags[i] & DELE)) {
 				/* skip whitespace */
 	    while (*s == ' ') s++;
 				/* make sure line count argument good */
@@ -451,6 +466,7 @@ int main (int argc,char *argv[])
 	  }
 	  else PSOUT ("-ERR Bad message number argument\015\012");
 	}
+
 	else if (!strcmp (s,"XTND"))
 	  PSOUT ("-ERR Sorry I can't do that\015\012");
 	else PSOUT ("-ERR Unknown TRANSACTION state command\015\012");
@@ -472,10 +488,42 @@ int main (int argc,char *argv[])
       }
     }
   }
+
+				/* open and need to update? */
   if (stream && (state == UPDATE)) {
-    mail_expunge (stream);
-    syslog (LOG_INFO,"Update user=%.80s host=%.80s nmsgs=%ld ndele=%ld",
-	    user,tcp_clienthost (),stream->nmsgs,ndele);
+    if (nseen) {		/* only bother if messages need marking seen */
+      *(s = tmp) = '\0';	/* clear sequence */
+      for (i = 1; i <= nmsgs; ++i) if (flags[i] & SEEN) {
+	for (j = i + 1, k = 0; (j <= nmsgs) && (flags[j] & SEEN); ++j) k = j;
+	if (k) sprintf (s,",%lu:%lu",i,k);
+	else sprintf (s,",%lu",i);
+	s += strlen (s);		/* point to end of string */
+	if ((s - tmp) > (MAILTMPLEN - 30)) {
+	  mail_setflag (stream,tmp + 1,"\\Seen");
+	  *(s = tmp) = '\0';	/* restart sequence */
+	}
+	i = j;			/* continue after the range */
+      }
+      if (tmp[0]) mail_setflag (stream,tmp + 1,"\\Seen");
+    }
+    if (ndele) {		/* any messages to delete? */
+      *(s = tmp) = '\0';	/* clear sequence */
+      for (i = 1; i <= nmsgs; ++i) if (flags[i] & DELE) {
+	for (j = i + 1, k = 0; (j <= nmsgs) && (flags[j] & DELE); ++j) k = j;
+	if (k) sprintf (s,",%lu:%lu",i,k);
+	else sprintf (s,",%lu",i);
+	s += strlen (s);	/* point to end of string */
+	if ((s - tmp) > (MAILTMPLEN - 30)) {
+	  mail_setflag (stream,tmp + 1,"\\Deleted");
+	  *(s = tmp) = '\0';	/* restart sequence */
+	}
+	i = j;			/* continue after the range */
+      }
+      if (tmp[0]) mail_setflag (stream,tmp + 1,"\\Deleted");
+      mail_expunge (stream);
+    }
+    syslog (LOG_INFO,"Update user=%.80s host=%.80s nmsgs=%lu ndele=%lu nseen=%lu",
+	    user,tcp_clienthost (),stream->nmsgs,ndele,nseen);
     mail_close (stream);
   }
   sayonara (0);
@@ -595,7 +643,7 @@ void trmint ()
 
 int pass_login (char *t,int argc,char *argv[])
 {
-  char tmp[TMPLEN];
+  char tmp[MAILTMPLEN];
 				/* flush old passowrd */
   if (pass) fs_give ((void **) &pass);
   if (!(t && *t)) {		/* if no password given */
@@ -610,7 +658,7 @@ int pass_login (char *t,int argc,char *argv[])
     if (server_login (user,pass,t,argc,argv)) {
       int ret = mbxopen ("INBOX");
       if (ret == TRANSACTION)	/* mailbox opened OK? */
-	syslog (LOG_INFO,"%sLogin user=%.80s host=%.80s nmsgs=%ld/%ld",
+	syslog (LOG_INFO,"%sLogin user=%.80s host=%.80s nmsgs=%lu/%lu",
 		t ? "Admin " : "",user,tcp_clienthost (),nmsgs,stream->nmsgs);
       else syslog (LOG_INFO,"%sLogin user=%.80s host=%.80s no mailbox",
 		   t ? "Admin " : "",user,tcp_clienthost ());
@@ -711,29 +759,35 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
 int mbxopen (char *mailbox)
 {
   unsigned long i,j;
-  char tmp[TMPLEN];
+  char tmp[MAILTMPLEN];
   MESSAGECACHE *elt;
-  nmsgs = 0;			/* no messages yet */
   if (msg) fs_give ((void **) &msg);
 				/* open mailbox */
-  if (stream = mail_open (stream,mailbox,NIL)) {
-    if (!stream->rdonly) {	/* make sure not readonly */
-      if (j = stream->nmsgs) {	/* if mailbox non-empty */
-	sprintf (tmp,"1:%lu",j);/* fetch fast information for all messages */
-	mail_fetch_fast (stream,tmp,NIL);
-	msg = (long *) fs_get ((stream->nmsgs + 1) * sizeof (long));
-	for (i = 1; i <= j; i++) if (!(elt = mail_elt (stream,i))->deleted) {
-	  msg[++nmsgs] = i;	/* note the presence of this message */
-	  if (elt->seen) il = last = nmsgs;
-	}
-      }
-      sprintf (tmp,"+OK Mailbox open, %lu messages\015\012",nmsgs);
-      PSOUT (tmp);
-      return TRANSACTION;
+  if (!(stream = mail_open (stream,mailbox,NIL)))
+    goodbye = "-ERR Unable to open user's INBOX\015\012";
+  else if (stream->rdonly)	/* make sure not readonly */
+    goodbye = "-ERR Can't get lock.  Mailbox in use\015\012";
+  else {
+    nmsgs = 0;			/* no messages yet */
+    if (j = stream->nmsgs) {	/* if mailbox non-empty */
+      sprintf (tmp,"1:%lu",j);	/* fetch fast information for all messages */
+      mail_fetch_fast (stream,tmp,NIL);
     }
-    else goodbye = "-ERR Can't get lock.  Mailbox in use\015\012";
+				/* create 1-origin tables */
+    msg = (long *) fs_get (++j * sizeof (long));
+    flags = (short *) fs_get (j * sizeof (short));
+				/* build map */
+    for (i = 1; i < j; ++i) if (!(elt = mail_elt (stream,i))->deleted) {
+      msg[++nmsgs] = i;		/* note the presence of this message */
+      if (elt->seen) il = nmsgs;/* and set up initial LAST */
+    }
+				/* make sure unused map entries are zero */
+    for (i = nmsgs + 1; i < j; ++i) msg[i] = 0;
+    rset ();			/* do implicit RSET */
+    sprintf (tmp,"+OK Mailbox open, %lu messages\015\012",nmsgs);
+    PSOUT (tmp);
+    return TRANSACTION;
   }
-  else goodbye = "-ERR Unable to open user's INBOX\015\012";
   syslog (LOG_INFO,"Error opening or locking INBOX user=%.80s host=%.80s",
 	  user,tcp_clienthost ());
   return UPDATE;
@@ -796,22 +850,10 @@ long blat (char *text,long lines,unsigned long size,STRING *st)
 
 void rset ()
 {
-  unsigned long i;
-  char tmp[20];
-  if (nmsgs) {			/* undelete and unmark all of our messages */
-    for (i = 1; i <= nmsgs; i++) { /*  */
-      if (msg[i] < 0) {		/* ugly and inefficient, but trustworthy */
-	sprintf (tmp,"%ld",msg[i] = -msg[i]);
-	mail_clearflag (stream,tmp,i <= il ? "\\Deleted" : "\\Deleted \\Seen");
-      }
-      else if (i > il) {
-	sprintf (tmp,"%ld",msg[i]);
-	mail_clearflag (stream,tmp,"\\Seen");
-      }
-    }
-    last = il;
-  }
-  ndele = 0;			/* no more deleted messages */
+				/* clear all flags */
+  if (flags) memset ((void *) flags,0,(nmsgs + 1) * sizeof (short));
+  ndele = nseen = 0;		/* no more deleted or seen messages */
+  last = il;			/* restore previous LAST value */
 }
 
 /* Co-routines from MAIL library */

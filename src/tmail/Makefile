@@ -22,7 +22,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		5 April 1993
-# Last Edited:	30 August 2006
+# Last Edited:	10 September 2007
 
 
 C = ../c-client
@@ -35,10 +35,12 @@ CC = `cat $C/CCTYPE`
 CFLAGS = -I$C `cat $C/CFLAGS`
 LDFLAGS = $(CCLIENTLIB) `cat $C/LDFLAGS`
 
-tmail: $(CCLIENTLIB) tmail.o
-	$(CC) $(CFLAGS) -o tmail tmail.o $(LDFLAGS)
+tmail: $(CCLIENTLIB) tmail.o tquota.o
+	$(CC) $(CFLAGS) -o tmail tmail.o tquota.o $(LDFLAGS)
 
-tmail.o: $C/mail.h $C/misc.h $C/osdep.h
+tmail.o: $C/mail.h $C/misc.h $C/osdep.h tquota.h
+
+tquota.o: tquota.h
 
 $(CCLIENTLIB):
 	cd $C;make

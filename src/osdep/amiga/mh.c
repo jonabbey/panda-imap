@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	11 May 2007
+ * Last Edited:	11 October 2007
  */
 
 
@@ -1264,7 +1264,7 @@ long mh_canonicalize (char *pattern,char *ref,char *pat)
     for (i = 0, s = pattern; *s; *s++) if ((*s == '*') || (*s == '%')) ++i;
 				/* success if not too many */
     if (i <= MAXWILDCARDS) return LONGT;
-    MM_LOG ("Excessive wildcards in LIST/LSUB",ERROR);
+    mm_log ("Excessive wildcards in LIST/LSUB",ERROR);
   }
   return NIL;
 }

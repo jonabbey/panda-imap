@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	4 April 2007
+ * Last Edited:	15 August 2007
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -203,7 +203,7 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	  ESMTP.ok = T;		/* ESMTP server, start TLS if present */
 	  if (!dv && stls && ESMTP.service.starttls &&
 	      !mb.sslflag && !mb.notlsflag &&
-	      smtp_send (stream,"STARTTLS",NIL) == SMTPGREET) {
+	      (smtp_send (stream,"STARTTLS",NIL) == SMTPGREET)) {
 	    mb.tlsflag = T;	/* TLS OK, get into TLS at this end */
 	    stream->netstream->dtb = ssld;
 				/* TLS started, negotiate it */
@@ -306,7 +306,7 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
 	fs_give ((void **) &lsterr);
       }
       stream->saslcancel = NIL;
-      if (smtp_send (stream,"AUTH",at->name)) {
+      if (smtp_send (stream,"AUTH",at->name) == SMTPAUTHREADY) {
 				/* hide client authentication responses */
 	if (!(at->flags & AU_SECURE)) stream->sensitive = T;
 	if ((*at->client) (smtp_challenge,smtp_response,"smtp",mb,stream,
@@ -506,6 +506,23 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
     (smtp_send (stream,".",NIL) == SMTPOK);
 }
 
+/* Simple Mail Transfer Protocol send VERBose
+ * Accepts: SMTP stream
+ * Returns: T if successful, else NIL
+ *
+ * Descriptive text formerly in [al]pine sources:
+ * At worst, this command may cause the SMTP connection to get nuked.  Modern
+ * sendmail's recognize it, and possibly other SMTP implementations (the "ON"
+ * arg is for PMDF).  What's more, if it works, the reply code and accompanying
+ * text may vary from server to server.
+ */
+
+long smtp_verbose (SENDSTREAM *stream)
+{
+				/* accept any 2xx reply code */
+  return ((smtp_send (stream,"VERB","ON") / (long) 100) == 2) ? LONGT : NIL;
+}
+
 /* Internal routines */
 
 
@@ -611,7 +628,8 @@ long smtp_send (SENDSTREAM *stream,char *command,char *args)
   fs_give ((void **) &s);
   return ret;
 }
-
+
+
 /* Simple Mail Transfer Protocol get reply
  * Accepts: SMTP stream
  * Returns: reply code

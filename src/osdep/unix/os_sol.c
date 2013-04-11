@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	20 December 2006
+ * Last Edited:	16 August 2007
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
@@ -57,9 +57,9 @@ extern char *sys_errlist[];
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
-#define fork vfork
 #include "env_unix.c"
 #include "getspnam.c"
+#define fork vfork
 #include "tcp_unix.c"
 #include "gr_waitp.c"
 #include "flocksim.c"

@@ -2,10 +2,10 @@ Network Working Group                                       Chris Newman
 Internet-Draft                                          Sun Microsystems
 Intended Status: Proposed Standard                      Arnt Gulbrandsen
                                                   Oryx Mail Systems GmhH
-                                                              March 2007
+                                                             August 2007
 
          Internet Message Access Protocol Internationalization
-                     draft-ietf-imapext-i18n-10.txt
+                     draft-ietf-imapext-i18n-12.txt
 
 
 Status of this Memo
@@ -29,7 +29,7 @@ Status of this Memo
     Draft Shadow Directories can be accessed at
     http://www.ietf.org/shadow.html.
 
-    This Internet-Draft expires in September 2007.
+    This Internet-Draft expires in February 2008.
 
 
 Copyright Notice
@@ -49,9 +49,9 @@ Abstract
 
 
 
-Newman, Gulbrandsen      Expires September 2007                 [Page 1]
+Newman, Gulbrandsen       Expires February 2008                 [Page 1]
 
-Internet-draft                                                March 2007
+Internet-draft                                               August 2007
 
 
     error text, and translations for namespace prefixes.
@@ -64,12 +64,12 @@ Table of Contents
     3.  LANGUAGE Extension  . . . . . . . . . . . . . . . . . . . . .  3
     3.1 LANGUAGE Extension Requirements . . . . . . . . . . . . . . .  3
     3.2 LANGUAGE Command  . . . . . . . . . . . . . . . . . . . . . .  4
-    3.3 LANGUAGE Response . . . . . . . . . . . . . . . . . . . . . .  5
+    3.3 LANGUAGE Response . . . . . . . . . . . . . . . . . . . . . .  6
     3.4 TRANSLATION Extension to the NAMESPACE Response . . . . . . .  6
     3.5 Formal Syntax . . . . . . . . . . . . . . . . . . . . . . . .  6
     4.  COMPARATOR Extension  . . . . . . . . . . . . . . . . . . . .  7
     4.1 COMPARATOR Extension Requirements . . . . . . . . . . . . . .  8
-    4.2 Comparators and Charsets  . . . . . . . . . . . . . . . . . .  8
+    4.2 Comparators and Charsets  . . . . . . . . . . . . . . . . . .  9
     4.3 COMPARATOR Command  . . . . . . . . . . . . . . . . . . . . .  9
     4.4 COMPARATOR Response . . . . . . . . . . . . . . . . . . . . . 10
     4.5 Formal Syntax . . . . . . . . . . . . . . . . . . . . . . . . 10
@@ -105,9 +105,9 @@ Conventions Used in This Document
 
 
 
-Newman, Gulbrandsen      Expires September 2007                 [Page 2]
+Newman, Gulbrandsen       Expires February 2008                 [Page 2]
 
-Internet-draft                                                March 2007
+Internet-draft                                               August 2007
 
 
 2.  Introduction
@@ -121,10 +121,9 @@ Internet-draft                                                March 2007
     NAMESPACE extension [RFC2342] enables namespace translations.
 
     The COMPARATOR extension allows the client to request a suitable
-    comparator which will modify the behavior of the base
-    specification's SEARCH command as well as the SORT and THREAD
-    extensions [SORT].  This leverages the comparator registry
-    [RFC4790].
+    collation which will modify the behavior of the base specification's
+    SEARCH command as well as the SORT and THREAD extensions [SORT].
+    This leverages the collation registry [RFC4790].
 
 
 3.  LANGUAGE Extension
@@ -157,13 +156,18 @@ Internet-draft                                                March 2007
     Clients and servers that support this extension MUST also support
     the NAMESPACE extension [RFC2342].
 
-    The LANGUAGE command is valid in all states.
+    The LANGUAGE command is valid in all states. Clients are urged to
+    issue LANGUAGE before authentication, since some servers send
 
 
 
-Newman, Gulbrandsen      Expires September 2007                 [Page 3]
+Newman, Gulbrandsen       Expires February 2008                 [Page 3]
 
-Internet-draft                                                March 2007
+Internet-draft                                               August 2007
+
+
+    valuable user information as part of authentication (e.g. "password
+    is correct, but expired").
 
 
 3.2 LANGUAGE Command
@@ -179,7 +183,7 @@ Internet-draft                                                March 2007
 
     The LANGUAGE command requests that human-readable text emitted by
     the server be localized to a language matching one of the language
-    range argument as described by section 2.5 of RFC 3066.
+    range argument as described by section 2 of [RFC4647].
 
     If the command succeeds, the server will return human-readable
     responses in the first supported language specified.  These
@@ -190,9 +194,9 @@ Internet-draft                                                March 2007
     If the command fails, the server continues to return human-readable
     responses in the language it was previously using.
 
-    The special "*" language range argument indicates a request to use a
-    language designated as preferred by the server administrator.  The
-    preferred language MAY vary based on the currently active user.
+    The special "default" language range argument indicates a request to
+    use a language designated as preferred by the server administrator.
+    The preferred language MAY vary based on the currently active user.
 
     If a language range does not match a known language tag exactly but
     does match a language by the rules of [RFC4647], the server MUST
@@ -211,16 +215,15 @@ Internet-draft                                                March 2007
 
         < Client requested MUL language, which no server supports. >
 
+
+
+Newman, Gulbrandsen       Expires February 2008                 [Page 4]
+
+Internet-draft                                               August 2007
+
+
         C: A002 LANGUAGE MUL
         S: A002 NO Unsupported language MUL
-
-
-
-
-Newman, Gulbrandsen      Expires September 2007                 [Page 4]
-
-Internet-draft                                                March 2007
-
 
         < A LANGUAGE command with no arguments is a request to enumerate
           the list of languages the server supports. >
@@ -257,7 +260,7 @@ Internet-draft                                                March 2007
               ("Andere Ben&APw-tzer/"))) (("Public Folders/" "/"
               "TRANSLATION" ("Gemeinsame Mailboxen/")))
         S: D002 OK Sprachwechsel durch LANGUAGE-Befehl ausgefuehrt
-        C: D003 LANGUAGE "*"
+        C: D003 LANGUAGE "default"
         S: * LANGUAGE (DE)
         S: D003 OK Sprachwechsel durch LANGUAGE-Befehl ausgefuehrt
 
@@ -270,12 +273,9 @@ Internet-draft                                                March 2007
 
 
 
-
-
-
-Newman, Gulbrandsen      Expires September 2007                 [Page 5]
+Newman, Gulbrandsen       Expires February 2008                 [Page 5]
 
-Internet-draft                                                March 2007
+Internet-draft                                               August 2007
 
 
 3.3 LANGUAGE Response
@@ -320,29 +320,31 @@ Internet-draft                                                March 2007
 
     The following syntax specification inherits ABNF [RFC4234] rules
     from IMAP4rev1 [RFC3501], IMAP4 Namespace [RFC2342], Tags for the
-    Identifying Languages [RFC4646], and UTF-8 [RFC3629].
+    Identifying Languages [RFC4646], UTF-8 [RFC3629] and Collected
+    Extensions to IMAP4 ABNF [RFC4466].
 
     command-any     =/ language-cmd
         ; LANGUAGE command is valid in all states
 
+
+
+
+Newman, Gulbrandsen       Expires February 2008                 [Page 6]
+
+Internet-draft                                               August 2007
+
+
     language-cmd    = "LANGUAGE" *(SP lang-range-quoted)
 
+    response-payload  =/ language-data
 
-
-Newman, Gulbrandsen      Expires September 2007                 [Page 6]
-
-Internet-draft                                                March 2007
-
-
-    response-payload  =/ language-data / comparator-data
-
-    language-data     = "LANGUAGE" SP "(" lang-tag-quoted *(SP lang-tag-
-                      quoted) ")"
+    language-data     = "LANGUAGE" SP "(" lang-tag-quoted *(SP
+                      lang-tag-quoted) ")"
 
     namespace-trans   = SP DQUOTE "TRANSLATION" DQUOTE SP "(" string ")"
         ; the string is encoded in Modified UTF-7.
         ; this is a subset of the syntax permitted by
-        ; the Namespace_Response_Extension rule in [RFC2342]
+        ; the Namespace-Response-Extension rule in [RFC4466]
 
     lang-range-quoted = astring
         ; Once any literal wrapper or quoting is removed, this
@@ -380,15 +382,16 @@ Internet-draft                                                March 2007
     The term "default comparator" refers to the comparator which is used
     by SEARCH and SORT absent any negotiation using the COMPARATOR
     command.  The term "active comparator" refers to the comparator
+
+
+
+Newman, Gulbrandsen       Expires February 2008                 [Page 7]
+
+Internet-draft                                               August 2007
+
+
     which will be used within a session e.g. by SEARCH and SORT.  The
     COMPARATOR command is used to change the active comparator.
-
-
-
-Newman, Gulbrandsen      Expires September 2007                 [Page 7]
-
-Internet-draft                                                March 2007
-
 
     The active comparator applies to the following SEARCH keys: "BCC",
     "BODY", "CC", "FROM", "SUBJECT", "TEXT", "TO" and "HEADER".  If the
@@ -430,6 +433,24 @@ Internet-draft                                                March 2007
     The COMPARATOR command is valid in authenticated and selected
     states.
 
+    Note that since SEARCH uses the substring operation, IMAP servers
+    can only implement collations that offer the substring operation
+    (see [RFC4790 section 4.2.2). Since SORT uses ordering operation
+    (and by implication equality), IMAP servers which advertise the SORT
+    extension can only implement collations that offer all three
+
+
+
+Newman, Gulbrandsen       Expires February 2008                 [Page 8]
+
+Internet-draft                                               August 2007
+
+
+    operations (see [RFC4790] sections 4.2.2-4).
+
+    If the active collation does not provide the operations needed by an
+    IMAP command, the server MUST respond with a tagged BAD.
+
 
 4.2 Comparators and Character Encodings
 
@@ -439,16 +460,9 @@ Internet-draft                                                March 2007
     [RFC2045] for bodyparts) and convert character encodings compatibly
     before doing the collation operation.
 
-
-
-Newman, Gulbrandsen      Expires September 2007                 [Page 8]
-
-Internet-draft                                                March 2007
-
-
-    Strings encoded using unknown character encodings should never match
-    when using the SEARCH command, and should sort together with invalid
-    input for the SORT and THREAD commands.
+    Strings encoded using unknown character encodings should sort
+    together with invalid input (as defined by the active collation) for
+    the SORT and THREAD commands.
 
 
 4.3 COMPARATOR Command
@@ -464,13 +478,15 @@ Internet-draft                                                March 2007
     The COMPARATOR command is used to determine or change the active
     comparator.  When issued with no arguments, it results in a
     COMPARATOR response indicating the currently active comparator.
-    When issued with one or more comparator order argument, it will
-    change the active comparator if any comparator matches any argument.
-    The COMPARATOR response will list other matching comparators if more
-    than one matches the specified patterns.
 
-    The argument "*" refers to the server's default comparator.
-    Otherwise each argument is an comparator specification as defined in
+    When issued with one or more comparator argument, it changes the
+    active comparator as directed. (If more than one installed
+    comparator is matched by an argument, the first argument wins.) The
+    COMPARATOR response lists all matching comparators if more than one
+    matches the specified patterns.
+
+    The argument "default" refers to the server's default comparator.
+    Otherwise each argument is an collation specification as defined in
     the Internet Application Protocol Comparator Registry [RFC4790].
 
         < The client requests activating a Czech comparator if possible,
@@ -478,33 +494,17 @@ Internet-draft                                                March 2007
           suitable for Czech. The server picks the first supported
           comparator. >
 
-        C: A001 COMPARATOR cz;* i;basic
+
+
+
+Newman, Gulbrandsen       Expires February 2008                 [Page 9]
+
+Internet-draft                                               August 2007
+
+
+        C: A001 COMPARATOR "cz;*" i;basic
         S: * COMPARATOR i;basic
         S: A001 OK Will use i;basic for collation
-
-
-        < The client requests pure octet matching, then does a search
-          for potential GIF files, then switches back to its usual
-          comparator.  Note that this may not work on all IMAP servers,
-          see RFC 3501, page 50, second paragraph. >
-
-        C: B123 COMPARATOR i;octet
-        S: * COMPARATOR i;octet
-        S: B123 OK
-        C: B124 SEARCH OR BODY GIF87A BODY GIF89A
-        S: * SEARCH 42 69
-        S: B124 OK
-
-
-
-Newman, Gulbrandsen      Expires September 2007                 [Page 9]
-
-Internet-draft                                                March 2007
-
-
-        C: B125 COMPARATOR cz;* i;basic
-        S: * COMPARATOR i;basic
-        S: B125 OK.
 
 
 4.4 COMPARATOR Response
@@ -531,12 +531,14 @@ Internet-draft                                                March 2007
 
         comparator-cmd    = "COMPARATOR" *(SP comp-order-quoted)
 
-        comparator-data   = "COMPARATOR" SP comp-sel-quoted [SP "("
-                        comp-name-quoted *(SP comp-name-quoted) ")"]
+      response-payload  =/ comparator-data
 
-        comp-name-quoted  = astring
+        comparator-data   = "COMPARATOR" SP comp-sel-quoted [SP "("
+                        comp-id-quoted *(SP comp-id-quoted) ")"]
+
+        comp-id-quoted  = astring
             ; Once any literal wrapper or quoting is removed, this
-            ; follows the collation-name rule from [RFC4790]
+            ; follows the collation-id rule from [RFC4790]
 
         comp-order-quoted = astring
             ; Once any literal wrapper or quoting is removed, this
@@ -544,18 +546,16 @@ Internet-draft                                                March 2007
 
         comp-sel-quoted   = astring
             ; Once any literal wrapper or quoting is removed, this
-            ; follows the collation-sel rule from [RFC4790]
+            ; follows the collation-selected rule from [RFC4790]
 
 
 
 
 
 
-
-
-Newman, Gulbrandsen      Expires September 2007                [Page 10]
+Newman, Gulbrandsen       Expires February 2008                [Page 10]
 
-Internet-draft                                                March 2007
+Internet-draft                                               August 2007
 
 
 5.  Other IMAP Internationalization Issues
@@ -609,9 +609,9 @@ Internet-draft                                                March 2007
 
 
 
-Newman, Gulbrandsen      Expires September 2007                [Page 11]
+Newman, Gulbrandsen       Expires February 2008                [Page 11]
 
-Internet-draft                                                March 2007
+Internet-draft                                               August 2007
 
 
     it would be unwise to move forward with such work until the work in
@@ -621,9 +621,9 @@ Internet-draft                                                March 2007
 
 6.  IANA Considerations
 
-    The IANA is requested to add LANGUAGE and COMPARATOR to the IMAP
-    Extensions registry,
-    http://www.iana.org/assignments/imap4-capabilities.
+    The IANA is requested to add LANGUAGE and COMPARATOR to the IMAP4
+    Capabilities Registry.  [Note to IANA:
+    http://www.iana.org/assignments/imap4-capabilities]
 
 
 7.  Security Considerations
@@ -665,9 +665,9 @@ Internet-draft                                                March 2007
 
 
 
-Newman, Gulbrandsen      Expires September 2007                [Page 12]
+Newman, Gulbrandsen       Expires February 2008                [Page 12]
 
-Internet-draft                                                March 2007
+Internet-draft                                               August 2007
 
 
     incorporated into this document.
@@ -721,15 +721,18 @@ Normative References
 
 
 
-Newman, Gulbrandsen      Expires September 2007                [Page 13]
+Newman, Gulbrandsen       Expires February 2008                [Page 13]
 
-Internet-draft                                                March 2007
+Internet-draft                                               August 2007
 
 
                Internetworking, Demon Internet Ltd, October 2005.
 
     [RFC4422]  Melnikov, Zeilenga, "Simple Authentication and Security
                Layer (SASL)", RFC 4422, June 2006.
+
+    [RFC4466]  Melnikov, Daboo, "Collected Extensions to IMAP4 ABNF",
+               RFC 4466, Isode Ltd., April 2006.
 
     [RFC4646]  Philips, Davis, "Tags for Identifying Languages", BCP 47,
                RFC 4646, September 2006.
@@ -739,6 +742,14 @@ Internet-draft                                                March 2007
 
     [RFC4790]  Newman, Duerst, Gulbrandsen, "Internet Application
                Protocol Comparator Registry", RFC 4790, February 2007
+
+    [SORT]     Crispin, M. and K. Murchison, "INTERNET MESSAGE ACCESS
+               PROTOCOL - SORT AND THREAD EXTENSION", draft-ietf-
+               imapext-sort-18 (work in progress), November 2006.
+
+    [UCM]      Crispin, "i;unicode-casemap - Simple Unicode Collation
+               Algorithm", draft-crispin-collation-unicasemap-04.txt,
+               May 2007.
 
 
 Informative References
@@ -762,28 +773,19 @@ Informative References
                Internationalized Domain Names in Applications (IDNA)",
                RFC 3492, March 2003.
 
-    [SORT]     Crispin, M. and K. Murchison, "INTERNET MESSAGE ACCESS
-               PROTOCOL - SORT AND THREAD EXTENSION", draft-ietf-
-               imapext-sort-17 (work in progress), May 2004.
-
     [METADATA] Daboo, C., "IMAP METADATA Extension", draft-daboo-imap-
+
+
+
+Newman, Gulbrandsen       Expires February 2008                [Page 14]
+
+Internet-draft                                               August 2007
+
+
                annotatemore-10 (work in progress), November 2006.
 
-    [UCM]      Crispin,, "i;unicode-casemap - Simple Unicode Collation
-               Algorithm", draft-crispin-collation-unicasemap-00.txt,
-               December 2006.
-
-
-
-
-
-Newman, Gulbrandsen      Expires September 2007                [Page 14]
-
-Internet-draft                                                March 2007
-
-
     [IMAP-EAI] Resnick, Newman, "IMAP Support for UTF-8", draft-ietf-
-               iea-imap-utf8 (work in progress), May 2006.
+               eai-imap-utf8 (work in progress), May 2006.
 
 
 
@@ -831,11 +833,9 @@ Authors' Addresses
 
 
 
-
-
-Newman, Gulbrandsen      Expires September 2007                [Page 15]
+Newman, Gulbrandsen       Expires February 2008                [Page 15]
 
-Internet-draft                                                March 2007
+Internet-draft                                               August 2007
 
 
 Intellectual Property Statement
@@ -889,5 +889,5 @@ Acknowledgment
 
 
 
-Newman, Gulbrandsen      Expires September 2007                [Page 16]
+Newman, Gulbrandsen       Expires February 2008                [Page 16]
 
