@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	5 June 2007
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -555,8 +555,13 @@ void status (MAILSTREAM *stream)
 	  puts (" Atomic multiple APPEND (RFC 3502)");
 	if (LEVELBINARY (stream))
 	  puts (" Binary body content (RFC 3516)");
+	if (LEVELUNSELECT (stream)) puts (" Mailbox unselect (RFC 3691)");
+	if (LEVELURLAUTH (stream))
+	  puts (" URL authenticated fetch (RFC 4467)");
+	if (LEVELCATENATE (stream)) puts (" Catenation (RFC 4469)");
+	if (LEVELCONDSTORE (stream)) puts (" Conditional STORE (RFC 4551)");
+	if (LEVELESEARCH (stream)) puts (" Extended SEARCH (RFC 4731)");
 	puts ("Supported draft extensions:");
-	if (LEVELUNSELECT (stream)) puts (" Mailbox unselect");
 	if (LEVELSASLIR (stream)) puts (" SASL initial client response");
 	if (LEVELSORT (stream)) puts (" Server-based sorting");
 	if (LEVELTHREAD (stream)) {

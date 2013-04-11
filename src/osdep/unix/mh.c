@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	18 April 2007
+ * Last Edited:	11 May 2007
  */
 
 
@@ -925,6 +925,7 @@ long mh_ping (MAILSTREAM *stream)
 	  elt->hours = selt->hours;elt->minutes = selt->minutes;
 	  elt->seconds = selt->seconds;
 	  elt->zhours = selt->zhours; elt->zminutes = selt->zminutes;
+	  elt->zoccident = selt->zoccident;
 	  mh_setdate (LOCAL->buf,elt);
 	  sprintf (tmp,"%lu",i);/* delete it from the sysinbox */
 	  mail_flag (sysibx,tmp,"\\Deleted",ST_SET);

@@ -12,7 +12,7 @@
  */
 
 /*
- * Program:	Default driver linkage
+ * Program:	Operating-system dependent routines -- Windows Vista SUA
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -22,16 +22,29 @@
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
- * Date:	13 June 1995
- * Last Edited:	23 May 2007
+ * Date:	10 September 1993
+ * Last Edited:	4 May 2007
  */
+
+#define _REENTRANT		/* for strtok_r() */
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <time.h>		/* for struct tm */
+#include <fcntl.h>
+#include <syslog.h>
+#include <sys/file.h>
 
-  mail_link (&imapdriver);		/* link in the imap driver */
-  mail_link (&nntpdriver);		/* link in the nntp driver */
-  mail_link (&pop3driver);		/* link in the pop3 driver */
-  mail_link (&dummydriver);		/* link in the dummy driver */
-  auth_link (&auth_ext);		/* link in the ext authenticator */
-  auth_link (&auth_md5);		/* link in the md5 authenticator */
-  auth_link (&auth_pla);		/* link in the plain authenticator */
-  auth_link (&auth_log);		/* link in the log authenticator */
-  mail_versioncheck (CCLIENTVERSION);	/* validate version */
+
+#define setpgrp setpgid
+
+#define direct dirent
+
+
+#include "env_unix.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"

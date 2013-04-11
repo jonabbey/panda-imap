@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	4 April 2007
+ * Last Edited:	21 May 2007
  */
 
 /* Parameter files */
@@ -65,7 +65,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2006h.96";	/* server version */
+char *version = "98";		/* edit number of this server */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -132,6 +132,8 @@ int main (int argc,char *argv[])
     PSOUT (tcp_serverhost ());
     PBOUT (' ');
   }
+  PSOUT (CCLIENTVERSION);
+  PBOUT ('.');
   PSOUT (version);
   PSOUT (" server ready");
   if (challenge[0]) {		/* if MD5 enable, output challenge here */
@@ -151,10 +153,10 @@ int main (int argc,char *argv[])
       if (ferror (stdin) && (errno == EINTR)) clearerr (stdin);
       else {
 	char *e = ferror (stdin) ?
-	  strerror (errno) : "Command stream end of file";
+	  strerror (errno) : "Unexpected client disconnect";
 	alarm (0);		/* disable all interrupts */
 	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-	sprintf (logout = tmp,"%.80s, while reading line",strerror (errno));
+	sprintf (logout = tmp,"%.80s, while reading line",e);
 	goodbye = NIL;
 	rset ();		/* try to gracefully close the stream */
 	if (state == TRANSACTION) mail_close (stream);

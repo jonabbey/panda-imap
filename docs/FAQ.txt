@@ -1188,7 +1188,7 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
 
           A number of sites have done full-fledged format conversions,
           and are reportedly quite happy with the results. Feel free to
-          ask in the comp.mail.imap newsgroup or the c-client mailing
+          ask in the comp.mail.imap newsgroup or the imap-uw mailing
           list for advice or help.
      _________________________________________________________________
 
@@ -2958,17 +2958,22 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           If you have questions about the IMAP protocol, or want to
           participate in discussions of future directions of the IMAP
           protocol, the appropriate mailing list is
-          imap@u.washington.edu. You must be a subscriber to post to the
-          list; to subscribe, use imap-request@u.washington.edu
+          imap-protocol@u.washington.edu. You can subscribe to this
+          list via imap-protocol-request@u.washington.edu
 
           If you have questions about this software, you can send me
-          email directly or use the c-client@u.washington.edu mailing
+          email directly or use the imap-uw@u.washington.edu mailing
           list. You can subscribe to this list via
-          c-client-request@u.washington.edu
+          imap-uw-request@u.washington.edu
 
-          As an alternative to either of these, you can use the
-          comp.mail.imap newsgroup.
-     _________________________________________________________________
+          If you have general questions about the use of IMAP software
+          (not specific to the UW IMAP toolkit) use the
+          imap-use@u.washington.edu mailing list. You can subscribe to
+          this list via imap-use-request@u.washington.edu
+
+          You must be a subscriber to post to these lists.  As an
+          alternative, you can use the comp.mail.imap newsgroup.
+          _________________________________________________________________
 
    8.3 Where can I read more about IMAP and other email protocols?
 
@@ -2985,4 +2990,4 @@ mtest.c:515: the `gets' function is dangerous and should not be used.
           This book also has an excellent comparison of the UW and Cyrus
           IMAP servers.
 
-   Last Updated: 11 December 2006
+   Last Updated: 18 May 2007

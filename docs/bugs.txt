@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
  */
 
 	   KNOWN BUGS/MISFEATURES/DEFICIENCIES IN THE IMAP TOOLKIT
-			Last Updated: 30 August 2006
+			Last Updated: 11 May 2007
 
 The following are known problems/deficiencies in the imap-2006 toolkit:
 
@@ -28,7 +28,7 @@ The following are known problems/deficiencies in the imap-2006 toolkit:
       the SSLDIR variable, either by including a setting of EXTRASPECIALS
       in the make command line, e.g.
        build lnp SPECIALAUTHENTICATORS=ssl EXTRASPECIALS="SSLDIR=/usr/ssl"
-      or by editing imap-2006/src/osdep/unix/Makefile
+      or by editing .../src/osdep/unix/Makefile
    . /tmp, /usr/tmp or /var/tmp (if present), and the mail spool directory
       must be protected 1777 (world write with sticky bit); otherwise
       mailbox locking and updates won't work.  An alternative to 1777 on
@@ -70,11 +70,11 @@ The following are known problems/deficiencies in the imap-2006 toolkit:
       the public domain on September 6, 2000.  There is no longer any need to
       use RSAREF, and since RSAREF is slower than OpenSSL's RSA routines
       there's good reason not to.  If for some reason you still want to use
-      RSAREF, you will need to edit imap-2006/src/osdep/unix/Makefile to
+      RSAREF, you will need to edit .../src/osdep/unix/Makefile to
       change SSLRSA to load libRSAglue and librsaref.
    . By default, the UNIX SSL build assumes that no name conflict exists
       between OpenSSL and Kerberos 5.  If you are using an older version
-      of Kerberos, you may need to edit imap-2006/src/osdep/unix/Makefile
+      of Kerberos, you may need to edit .../src/osdep/unix/Makefile
       to change SSLCRYPTO so that it loads the OpenSSL libcrypto library
       explicitly as libcrypto.a.
    . By default, host names are canonicalized via gethostbyname() and
@@ -97,25 +97,28 @@ The following are known problems/deficiencies in the imap-2006 toolkit:
  . UIDPLUS bugs/limitations:
    . Not supported in all local file formats (see below).
    . There are two known issues with UIDPLUS in the mmdf and unix formats:
-     (a) There is a known timing race if the destination mailbox is
-         currently selected by a different IMAP server session.  If the
-         timing race is lost, then all UID in the mailbox will be reassigned
-         by the IMAP session which has the mailbox selected (thus making the
-         returned APPENDUID/COPYUID data useless).
-          This timing race occurs if the IMAP server doing APPEND/COPY does
-         multiple APPEND or COPY operations and the other IMAP server does
-         not see each new message before the next APPEND/COPY happens.
-         Aggregate COPY or MULTIAPPEND does not have this problem.
-          This issue can be avoided by using aggregate COPY and MULTIAPPEND,
-         or by inserting enough of a delay between separate copies so that
-         the other session has an opportunity to see the new message.
+     (a) If the destination mailbox is currently selected (whether in this
+         or another session), no COPYUID or APPENDUID is returned.  The other
+         choice was to assign a UID based upon the uid_last value and hope
+         that the session selecting the mailbox would pick it up and update
+         uid_last.  The problem was a timing race if another message was
+         copied/appended to that mailbox before the selecting session updated
+         the mailbox.  If the timing race is lost, then all UID in the mailbox
+         would be reassigned by the selecting session, thus making the
+         returned APPENDUID/COPYUID data useless and causing a performance
+         problem.
+          Earlier versions did the "hope for the best" method.  This is now
+         revoked in favor of not returning COPYUID/APPENDUID in imap-2006i.
+          Although this violates RFC 4315, there is a loophole which, although
+         for other purposes, permits this behavior.
      (b) There is a known failure if the destination mailbox is currently
          selected by legacy software (e.g. older versions of the IMAP
          server, Pine, etc.).  In this case, all UIDs end up being
          reassigned by the legacy software.
-     Note that if Pine is rebuilt with imap-2006 version of the c-client
+     Note that if Pine is rebuilt with imap-2006 or later version of c-client
      library, it will not have the (b) issue but it will have the (a)
-     issue.
+     issue.  Alpine also has the (a) issue but not the (b) issue.  However,
+     neither Pine nor the current version of Alpine use COPYUID/APPENDUID.
 
  . Annoyances:
    . Friendly host names (e.g. "server" instead of "server.foo.com") can't be
@@ -143,8 +146,8 @@ The following are known problems/deficiencies in the imap-2006 toolkit:
    . No support for enhanced status codes
 
  . UNIX limitations:
-   . IPv6 is supported but is not the default; you have to use IP=6 in the make
-      command
+   . IPv6 is supported but is not the default on most platforms; you have to
+      use IP=6 in the make command
    . Supported local file formats: mbx, mh, mmdf, mix, mtx, mx, news, phile,
       tenex, unix
    . Supported SASL mechanisms: CRAM-MD5, PLAIN, LOGIN, ANONYMOUS, GSSAPI

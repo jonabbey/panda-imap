@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	4 April 2007
+ * Last Edited:	8 June 2007
  */
 
 
@@ -50,7 +50,6 @@ extern int errno;		/* just in case */
 	
 typedef struct mx_local {
   int fd;			/* file descriptor of open index */
-  char *dir;			/* spool directory name */
   unsigned char *buf;		/* temporary buffer */
   unsigned long buflen;		/* current size of temporary buffer */
   unsigned long cachedtexts;	/* total size of all cached texts */
@@ -518,7 +517,9 @@ MAILSTREAM *mx_open (MAILSTREAM *stream)
 				/* note if an INBOX or not */
   stream->inbox = !compare_cstring (stream->mailbox,"INBOX");
   mx_file (tmp,stream->mailbox);/* get directory name */
-  LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
+				/* canonicalize mailbox name */
+  fs_give ((void **) &stream->mailbox);
+  stream->mailbox = cpystr (tmp);
 				/* make temporary buffer */
   LOCAL->buf = (char *) fs_get (CHUNKSIZE);
   LOCAL->buflen = CHUNKSIZE - 1;
@@ -549,7 +550,6 @@ void mx_close (MAILSTREAM *stream,long options)
     int silent = stream->silent;
     stream->silent = T;		/* note this stream is dying */
     if (options & CL_EXPUNGE) mx_expunge (stream,NIL,NIL);
-    if (LOCAL->dir) fs_give ((void **) &LOCAL->dir);
 				/* free local scratch buffer */
     if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
 				/* nuke the local data */
@@ -588,7 +588,7 @@ char *mx_fast_work (MAILSTREAM *stream,MESSAGECACHE *elt)
   struct stat sbuf;
   struct tm *tm;
 				/* build message file name */
-  sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
+  sprintf (LOCAL->buf,"%s/%lu",stream->mailbox,elt->private.uid);
 				/* have size yet? */
   if (!elt->rfc822_size && !stat (LOCAL->buf,&sbuf)) {
 				/* make plausible IMAPish date string */
@@ -724,11 +724,11 @@ long mx_ping (MAILSTREAM *stream)
   long nmsgs = stream->nmsgs;
   long recent = stream->recent;
   int silent = stream->silent;
-  if (stat (LOCAL->dir,&sbuf)) return NIL;
+  if (stat (stream->mailbox,&sbuf)) return NIL;
   stream->silent = T;		/* don't pass up mm_exists() events yet */
   if (sbuf.st_ctime != LOCAL->scantime) {
     struct direct **names = NIL;
-    long nfiles = scandir (LOCAL->dir,&names,mx_select,mx_numsort);
+    long nfiles = scandir (stream->mailbox,&names,mx_select,mx_numsort);
     if (nfiles < 0) nfiles = 0;	/* in case error */
     old = stream->uid_last;
 				/* note scanned now */
@@ -764,7 +764,7 @@ long mx_ping (MAILSTREAM *stream)
 	!sysibx->rdonly && (r = sysibx->nmsgs)) {
       for (i = 1; i <= r; ++i) {/* for each message in sysinbox mailbox */
 				/* build file name we will use */
-	sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,++old);
+	sprintf (LOCAL->buf,"%s/%lu",stream->mailbox,++old);
 				/* snarf message from Berkeley mailbox */
 	selt = mail_elt (sysibx,i);
 	if (((fd = open (LOCAL->buf,O_WRONLY|O_CREAT|O_EXCL,
@@ -807,7 +807,7 @@ long mx_ping (MAILSTREAM *stream)
 	}
       }
 				/* update scan time */
-      if (!stat (LOCAL->dir,&sbuf)) LOCAL->scantime = sbuf.st_ctime;      
+      if (!stat (stream->mailbox,&sbuf)) LOCAL->scantime = sbuf.st_ctime;      
       mail_expunge (sysibx);	/* now expunge all those messages */
     }
     if (sysibx) mail_close (sysibx);
@@ -852,7 +852,7 @@ long mx_expunge (MAILSTREAM *stream,char *sequence,long options)
     while (i <= stream->nmsgs) {/* for each message */
       elt = mail_elt (stream,i);/* if deleted, need to trash it */
       if (elt->deleted && (sequence ? elt->sequence : T)) {
-	sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
+	sprintf (LOCAL->buf,"%s/%lu",stream->mailbox,elt->private.uid);
 	if (unlink (LOCAL->buf)) {/* try to delete the message */
 	  sprintf (LOCAL->buf,"Expunge of message %lu failed, aborted: %s",i,
 		   strerror (errno));
@@ -1165,7 +1165,7 @@ long mx_lockindex (MAILSTREAM *stream)
   MESSAGECACHE *elt;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   if ((LOCAL->fd < 0) &&	/* get index file, no-op if already have it */
-      (LOCAL->fd = open (strcat (strcpy (tmp,LOCAL->dir),MXINDEXNAME),
+      (LOCAL->fd = open (strcat (strcpy (tmp,stream->mailbox),MXINDEXNAME),
 			 O_RDWR|O_CREAT,
 			 (long) mail_parameters (NIL,GET_MBXPROTECTION,NIL)))
       >= 0) {

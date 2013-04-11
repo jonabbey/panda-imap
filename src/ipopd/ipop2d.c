@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	4 April 2007
+ * Last Edited:	21 May 2007
  */
 
 
@@ -59,7 +59,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2006h.72";	/* server version */
+char *version = "74";		/* edit number of this server */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -112,7 +112,8 @@ int main (int argc,char *argv[])
   /* There are reports of POP2 clients which get upset if anything appears
    * between the "+" and the "POP2" in the greeting.
    */
-  printf ("+ POP2 %s v%s server ready\015\012",tcp_serverhost (),version);
+  printf ("+ POP2 %s %s.%s server ready\015\012",tcp_serverhost (),
+	  CCLIENTVERSION,version);
   fflush (stdout);		/* dump output buffer */
   state = AUTH;			/* initial server state */
   while (state != DONE) {	/* command processing loop */
@@ -123,7 +124,7 @@ int main (int argc,char *argv[])
       if (ferror (stdin) && (errno == EINTR)) clearerr (stdin);
       else {
 	char *e = ferror (stdin) ?
-	  strerror (errno) : "Command stream end of file";
+	  strerror (errno) : "Unexpected client disconnect";
 	alarm (0);		/* disable all interrupts */
 	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	sprintf (logout = cmdbuf,"%.80s while reading line",e);

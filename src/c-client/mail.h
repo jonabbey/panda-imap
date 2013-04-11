@@ -23,9 +23,13 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	30 January 2007
+ * Last Edited:	23 May 2007
  */
 
+/* The Version */
+
+#define CCLIENTVERSION "2006i"
+
 /* Build parameters */
 
 #define CACHEINCREMENT 250	/* cache growth increments */
@@ -1596,6 +1600,7 @@ void mm_fatal (char *string);
 void *mm_cache (MAILSTREAM *stream,unsigned long msgno,long op);
 
 extern STRINGDRIVER mail_string;
+void mail_versioncheck (char *version);
 void mail_link (DRIVER *driver);
 void *mail_parameters (MAILSTREAM *stream,long function,void *value);
 DRIVER *mail_valid (MAILSTREAM *stream,char *mailbox,char *purpose);

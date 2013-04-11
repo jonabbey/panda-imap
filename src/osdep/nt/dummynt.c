@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	30 August 2006
+ * Last Edited:	1 June 2007
  */
 
 
@@ -321,9 +321,21 @@ long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,
 		   long attributes,char *contents)
 {
   struct stat sbuf;
-  int fd;
-  long csiz,ssiz,bsiz;
+  struct _finddata_t f;
+  int fd,nochild;
+  long fhandle,csiz,ssiz,bsiz;
   char *s,*buf,tmp[MAILTMPLEN];
+				/* if not \NoInferiors */
+  if (!(attributes & LATT_NOINFERIORS) && mailboxdir (tmp,name,NIL) &&
+      strcat (tmp,(tmp[strlen (tmp) -1] == '\\') ? "*.*" : "\\*.*") &&
+      ((fhandle = _findfirst (tmp,&f)) >= 0)) {
+    nochild = T;
+    do if ((f.name[0] != '.') || (f.name[1] && ((f.name[1] != '.') ||
+						f.name[2]))) nochild = NIL;
+    while (nochild && !_findnext (fhandle,&f));
+    attributes |= nochild ? LATT_HASNOCHILDREN : LATT_HASCHILDREN;
+    _findclose (fhandle);	/* all done, flush directory */
+  }
   if (contents) {		/* want to search contents? */
 				/* forget it if can't select or open */
     if ((attributes & LATT_NOSELECT) || !(csiz = strlen (contents)) ||

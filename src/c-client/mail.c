@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	30 January 2007
+ * Last Edited:	29 May 2007
  */
 
 
@@ -36,6 +36,8 @@ char *UW_copyright = "Copyright 1988-2007 University of Washington\n\nLicensed u
 
 /* c-client global data */
 
+				/* version of this library */
+static char *mailcclientversion = CCLIENTVERSION;
 				/* list of mail drivers */
 static DRIVER *maildrivers = NIL;
 				/* list of authenticators */
@@ -285,6 +287,22 @@ static void mail_string_setpos (STRING *s,unsigned long i)
  * is a single integer.
  *
  */
+
+/* Mail version check
+ * Accepts: version
+ */
+
+void mail_versioncheck (char *version)
+{
+				/* attempt to protect again wrong .h */
+  if (strcmp (version,mailcclientversion)) {
+    char tmp[MAILTMPLEN];
+    sprintf (tmp,"c-client library version skew, app=%.100s library=%.100s",
+	     version,mailcclientversion);
+    fatal (tmp);
+  }
+}
+
 
 /* Mail link driver
  * Accepts: driver to add to list
@@ -2552,47 +2570,41 @@ long mail_append_multiple (MAILSTREAM *stream,char *mailbox,append_t af,
 {
   char *s,tmp[MAILTMPLEN];
   DRIVER *d = NIL;
+  long ret = NIL;
 				/* never allow names with newlines */
-  if (strpbrk (mailbox,"\015\012")) {
+  if (strpbrk (mailbox,"\015\012"))
     MM_LOG ("Can't append to mailbox with such a name",ERROR);
-    return NIL;
-  }
-  if (strlen (mailbox) >= (NETMAXHOST+(NETMAXUSER*2)+NETMAXMBX+NETMAXSRV+50)) {
+  else if (strlen (mailbox) >=
+	   (NETMAXHOST+(NETMAXUSER*2)+NETMAXMBX+NETMAXSRV+50)) {
     sprintf (tmp,"Can't append %.80s: %s",mailbox,(*mailbox == '{') ?
 	     "invalid remote specification" : "no such mailbox");
     MM_LOG (tmp,ERROR);
-    return NIL;
   }
-				/* see if special driver hack */
-  if (strncmp (lcase (strcpy (tmp,mailbox)),"#driver.",8))
-    d = mail_valid (stream,mailbox,NIL);
-				/* it is, tie off name at likely delimiter */
-  else if (!(s = strpbrk (tmp+8,"/\\:"))) {
-    sprintf (tmp,"Can't append to mailbox %.80s: bad driver syntax",mailbox);
-    MM_LOG (tmp,ERROR);
-    return NIL;
-  }
-  else {			/* found delimiter */
-    *s++ = '\0';
-    for (d = maildrivers; d && strcmp (d->name,tmp+8); d = d->next);
-    if (d) mailbox += s - tmp;/* skip past driver specification */
-    else {
-      sprintf (tmp,"Can't append to mailbox %.80s: unknown driver",mailbox);
+				/* special driver hack? */
+  else if (!strncmp (lcase (strcpy (tmp,mailbox)),"#driver.",8)) {
+				/* yes, tie off name at likely delimiter */
+    if (!(s = strpbrk (tmp+8,"/\\:"))) {
+      sprintf (tmp,"Can't append to mailbox %.80s: bad driver syntax",mailbox);
       MM_LOG (tmp,ERROR);
       return NIL;
     }
+    *s++ = '\0';		/* tie off at delimiter */
+    if (!(d = (DRIVER *) mail_parameters (NIL,GET_DRIVER,tmp+8))) {
+      sprintf (tmp,"Can't append to mailbox %.80s: unknown driver",mailbox);
+      MM_LOG (tmp,ERROR);
+    }
+    else ret = SAFE_APPEND (d,stream,mailbox + (s - tmp),af,data);
   }
-  if (!d) {			/* no driver, try for TRYCREATE if no stream */
-    if (!stream && (stream = default_proto (T)) &&
-	SAFE_APPEND (stream->dtb,stream,mailbox,af,data))
+  else if (d = mail_valid (stream,mailbox,NIL))
+    ret = SAFE_APPEND (d,stream,mailbox,af,data);
+				/* no driver, try for TRYCREATE if no stream */
+  else if (!stream && (stream = default_proto (T)) &&
+	   SAFE_APPEND (stream->dtb,stream,mailbox,af,data))
 				/* timing race? */
-      MM_NOTIFY (stream,"Append validity confusion",WARN);
+    MM_NOTIFY (stream,"Append validity confusion",WARN);
 				/* generate error message */
-    else mail_valid (stream,mailbox,"append to mailbox");
-    return NIL;
-  }
-				/* do append */
-  return SAFE_APPEND (d,stream,mailbox,af,data);
+  else mail_valid (stream,mailbox,"append to mailbox");
+  return ret;
 }
 
 /* Mail garbage collect stream

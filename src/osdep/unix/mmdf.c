@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	18 April 2007
+ * Last Edited:	11 May 2007
  */
 
 
@@ -1068,6 +1068,7 @@ long mmdf_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     return NIL;
   }
 
+  if (tstream->rdonly) cu = NIL;/* don't COPYUID if can't update uid_last */
   LOCAL->buf[0] = '\0';
   MM_CRITICAL (stream);		/* go critical */
   if ((fd = mmdf_lock (dummy_file (file,mailbox),O_WRONLY|O_APPEND,
@@ -1263,6 +1264,7 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     MM_LOG (tmp,ERROR);
     return NIL;
   }
+  if (tstream->rdonly) au = NIL;/* don't APPENDUID if can't update uid_last */
   if (((fd = mmdf_lock (dummy_file (file,mailbox),O_WRONLY|O_APPEND,
 			(long) mail_parameters (NIL,GET_MBXPROTECTION,NIL),
 			&lock,LOCK_EX)) < 0) ||
@@ -1312,6 +1314,7 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
  * Accepts: MAIL stream
  *	    scratch file
  *	    flags
+ *	    date
  *	    message stringstruct
  * Returns: NIL if write error, else T
  */
@@ -1387,7 +1390,7 @@ int mmdf_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
 				/* start of line? */
       if ((c == '\n')) switch (tmp[0]) {
       case 'S': case 's':	/* possible "Status:" */
-	if (hdrp && (i > 6) && ((tmp[1] == 't') || (tmp[1] == 'T')) &&
+	if (hdrp && (j > 6) && ((tmp[1] == 't') || (tmp[1] == 'T')) &&
 	    ((tmp[2] == 'a') || (tmp[2] == 'A')) &&
 	    ((tmp[3] == 't') || (tmp[3] == 'T')) &&
 	    ((tmp[4] == 'u') || (tmp[4] == 'U')) &&
@@ -1397,29 +1400,29 @@ int mmdf_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
       case 'X': case 'x':	/* possible X-??? header */
 	if (hdrp && (tmp[1] == '-') &&
 				/* possible X-UID: */
-	    (((i > 5) && ((tmp[2] == 'U') || (tmp[2] == 'u')) &&
+	    (((j > 5) && ((tmp[2] == 'U') || (tmp[2] == 'u')) &&
 	      ((tmp[3] == 'I') || (tmp[3] == 'i')) &&
 	      ((tmp[4] == 'D') || (tmp[4] == 'd')) && (tmp[5] == ':')) ||
 				/* possible X-IMAP: */
-	     ((i > 6) && ((tmp[2] == 'I') || (tmp[2] == 'i')) &&
+	     ((j > 6) && ((tmp[2] == 'I') || (tmp[2] == 'i')) &&
 	      ((tmp[3] == 'M') || (tmp[3] == 'm')) &&
 	      ((tmp[4] == 'A') || (tmp[4] == 'a')) &&
 	      ((tmp[5] == 'P') || (tmp[5] == 'p')) &&
 	      ((tmp[6] == ':') ||
 				/* or X-IMAPbase: */
-	       ((i > 10) && ((tmp[6] == 'b') || (tmp[6] == 'B')) &&
+	       ((j > 10) && ((tmp[6] == 'b') || (tmp[6] == 'B')) &&
 		((tmp[7] == 'a') || (tmp[7] == 'A')) &&
 		((tmp[8] == 's') || (tmp[8] == 'S')) &&
 		((tmp[9] == 'e') || (tmp[9] == 'E')) && (tmp[10] == ':')))) ||
 				/* possible X-Status: */
-	     ((i > 8) && ((tmp[2] == 'S') || (tmp[2] == 's')) &&
+	     ((j > 8) && ((tmp[2] == 'S') || (tmp[2] == 's')) &&
 	      ((tmp[3] == 't') || (tmp[3] == 'T')) &&
 	      ((tmp[4] == 'a') || (tmp[4] == 'A')) &&
 	      ((tmp[5] == 't') || (tmp[5] == 'T')) &&
 	      ((tmp[6] == 'u') || (tmp[6] == 'U')) &&
 	      ((tmp[7] == 's') || (tmp[7] == 'S')) && (tmp[8] == ':')) ||
 				/* possible X-Keywords: */
-	     ((i > 10) && ((tmp[2] == 'K') || (tmp[2] == 'k')) &&
+	     ((j > 10) && ((tmp[2] == 'K') || (tmp[2] == 'k')) &&
 	      ((tmp[3] == 'e') || (tmp[3] == 'E')) &&
 	      ((tmp[4] == 'y') || (tmp[4] == 'Y')) &&
 	      ((tmp[5] == 'w') || (tmp[5] == 'W')) &&

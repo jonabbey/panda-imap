@@ -1,5 +1,5 @@
 # ========================================================================
-# Copyright 1988-2006 University of Washington
+# Copyright 1988-2007 University of Washington
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	30 August 2006
+# Last Edited:	23 May 2007
 
 
 OS = wsk
@@ -46,6 +46,7 @@ osdep.h: os_$(OS).h
 	ECHO #define DEFAULTPROTO $(DEFAULTDRIVER)proto >> LINKAGE.H
 	ECHO   if (!mail_parameters (NIL,GET_GETS)) >> LINKAGE.C
 	ECHO     mail_parameters (NIL,SET_GETS,(void *) dos_default_gets); >> LINKAGE.C
+	ECHO mail_versioncheck (CCLIENTVERSION); >> LINKAGE.C
 
 mtest.obj: mail.h smtp.h misc.h osdep.h mtest.c
 

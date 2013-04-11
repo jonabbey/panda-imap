@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	4 April 2007
+ * Last Edited:	25 May 2007
  */
 
 
@@ -354,7 +354,7 @@ char *utf8_badcharset (char *charset)
 long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags)
 {
   ucs4cn_t cv = (flags & U8T_CASECANON) ? ucs4_titlecase : NIL;
-  ucs4de_t de = (flags & U8T_DECOMPOSE) ? ucs4_decompose : NIL;
+  ucs4de_t de = (flags & U8T_DECOMPOSE) ? ucs4_decompose_recursive : NIL;
   const CHARSET *cs = (charset && *charset) ?
     utf8_charset (charset) : utf8_infercharset (text);
   if (cs) return (text && ret) ? utf8_text_cs (text,cs,ret,cv,de) : LONGT;
@@ -2118,6 +2118,13 @@ struct decomposemore {
   } data;
 };
 
+#define RECURSIVEMORE struct recursivemore
+
+RECURSIVEMORE {
+  struct decomposemore *more;
+  RECURSIVEMORE *next;
+};
+
 
 /* Return decomposition of a UCS-4 character
  * Accepts: character or U8G_ERROR to return next from "more"
@@ -2234,4 +2241,60 @@ unsigned long ucs4_decompose (unsigned long c,void **more)
 	       ucs4_sipdecomptab[c - UCS4_SIPMIN] : c)) ret = c;
   }
   return ret;
+}
+
+/* Return recursive decomposition of a UCS-4 character
+ * Accepts: character or U8G_ERROR to return next from "more"
+ *	    pointer to returned more
+ * Returns: [next] decomposed value, more set if still more decomposition
+ */
+
+unsigned long ucs4_decompose_recursive (unsigned long c,void **more)
+{
+  unsigned long c1;
+  void *m,*mn;
+  RECURSIVEMORE *mr;
+  if (c & U8G_ERROR) {		/* want to chase more? */
+    mn = NIL;
+    if (mr = (RECURSIVEMORE *) *more) switch (mr->more->type) {
+    case MORESINGLE:		/* decompose single value */
+      c = ucs4_decompose_recursive (mr->more->data.single,&mn);
+      *more = mr->next;		/* done with this more, remove it */
+      fs_give ((void **) &mr->more);
+      fs_give ((void **) &mr);
+      break;
+    case MOREMULTIPLE:		/* decompose current value in multiple */
+      c = ucs4_decompose_recursive (*mr->more->data.multiple.next++,&mn);
+				/* if done with this multiple decomposition */
+      if (!--mr->more->data.multiple.count) {
+	*more = mr->next;	/* done with this more, remove it */
+	fs_give ((void **) &mr->more);
+	fs_give ((void **) &mr);
+      }
+      break;
+    default:			/* uh-oh */
+      fatal ("invalid more block argument to ucs4_decompose_recursive!");
+    }
+    else fatal ("no more block provided to ucs4_decompose_recursive!");
+    if (mr = mn) {		/* did this value recurse on us? */
+      mr->next = *more;		/* yes, insert new more at head */
+      *more = mr;
+    }
+  }
+  else {			/* start decomposition */
+    *more = NIL;		/* initially set no more */
+    mr = NIL;
+    do {			/* repeatedly decompose this codepoint */
+      c = ucs4_decompose (c1 = c,&m);
+      if (m) {			/* multi-byte decomposition */
+	if (c1 == c) fatal ("endless multiple decomposition!");
+				/* create a block to stash this more */
+	mr = memset (fs_get (sizeof (RECURSIVEMORE)),0,sizeof (RECURSIVEMORE));
+	mr->more = m;		/* note the expansion */
+	mr->next = *more;	/* old list is the tail */
+	*more = mr;		/* and this is the new head */
+      }
+    } while (c1 != c);		/* until nothing more to decompose */
+  }
+  return c;
 }

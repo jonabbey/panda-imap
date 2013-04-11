@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	18 April 2007
+ * Last Edited:	29 May 2007
  */
 
 
@@ -920,7 +920,7 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
       return NIL;
     }
     if (pc) return (*pc) (stream,sequence,mailbox,options);
-    unix_create (NIL,"INBOX");/* create empty INBOX */
+    unix_create (NIL,"INBOX");	/* create empty INBOX */
   case EINVAL:
     if (pc) return (*pc) (stream,sequence,mailbox,options);
     sprintf (LOCAL->buf,"Invalid UNIX-format mailbox name: %.80s",mailbox);
@@ -933,6 +933,7 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     return NIL;
   }
 
+  if (tstream->rdonly) cu = NIL;/* don't COPYUID if can't update uid_last */
   LOCAL->buf[0] = '\0';
   MM_CRITICAL (stream);		/* go critical */
   if ((fd = unix_lock (dummy_file (file,mailbox),O_WRONLY|O_APPEND,
@@ -1127,6 +1128,7 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     MM_LOG (tmp,ERROR);
     return NIL;
   }
+  if (tstream->rdonly) au = NIL;/* don't APPENDUID if can't update uid_last */
   if (((fd = unix_lock (dummy_file (file,mailbox),O_WRONLY|O_APPEND,
 		       (long) mail_parameters (NIL,GET_MBXPROTECTION,NIL),
 			&lock,LOCK_EX)) < 0) ||
@@ -1176,6 +1178,7 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
  * Accepts: MAIL stream
  *	    scratch file
  *	    flags
+ *	    date
  *	    message stringstruct
  * Returns: NIL if write error, else T
  */
@@ -1250,7 +1253,7 @@ int unix_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
 				/* start of line? */
       if ((c == '\n')) switch (tmp[0]) {
       case 'F':			/* possible "From " (case counts here) */
-	if ((i > 4) && (tmp[0] == 'F') && (tmp[1] == 'r') && (tmp[2] == 'o') &&
+	if ((j > 4) && (tmp[0] == 'F') && (tmp[1] == 'r') && (tmp[2] == 'o') &&
 	    (tmp[3] == 'm') && (tmp[4] == ' ')) {
 	  if (!unix_fromwidget) {
 	    VALID (tmp,x,ti,zn);/* conditional, only write widget if */
@@ -1260,7 +1263,7 @@ int unix_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
 	}
 	break;
       case 'S': case 's':	/* possible "Status:" */
-	if (hdrp && (i > 6) && ((tmp[1] == 't') || (tmp[1] == 'T')) &&
+	if (hdrp && (j > 6) && ((tmp[1] == 't') || (tmp[1] == 'T')) &&
 	    ((tmp[2] == 'a') || (tmp[2] == 'A')) &&
 	    ((tmp[3] == 't') || (tmp[3] == 'T')) &&
 	    ((tmp[4] == 'u') || (tmp[4] == 'U')) &&
@@ -1270,29 +1273,29 @@ int unix_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
       case 'X': case 'x':	/* possible X-??? header */
 	if (hdrp && (tmp[1] == '-') &&
 				/* possible X-UID: */
-	    (((i > 5) && ((tmp[2] == 'U') || (tmp[2] == 'u')) &&
+	    (((j > 5) && ((tmp[2] == 'U') || (tmp[2] == 'u')) &&
 	      ((tmp[3] == 'I') || (tmp[3] == 'i')) &&
 	      ((tmp[4] == 'D') || (tmp[4] == 'd')) && (tmp[5] == ':')) ||
 				/* possible X-IMAP: */
-	     ((i > 6) && ((tmp[2] == 'I') || (tmp[2] == 'i')) &&
+	     ((j > 6) && ((tmp[2] == 'I') || (tmp[2] == 'i')) &&
 	      ((tmp[3] == 'M') || (tmp[3] == 'm')) &&
 	      ((tmp[4] == 'A') || (tmp[4] == 'a')) &&
 	      ((tmp[5] == 'P') || (tmp[5] == 'p')) &&
 	      ((tmp[6] == ':') ||
 				/* or X-IMAPbase: */
-	       ((i > 10) && ((tmp[6] == 'b') || (tmp[6] == 'B')) &&
+	       ((j > 10) && ((tmp[6] == 'b') || (tmp[6] == 'B')) &&
 		((tmp[7] == 'a') || (tmp[7] == 'A')) &&
 		((tmp[8] == 's') || (tmp[8] == 'S')) &&
 		((tmp[9] == 'e') || (tmp[9] == 'E')) && (tmp[10] == ':')))) ||
 				/* possible X-Status: */
-	     ((i > 8) && ((tmp[2] == 'S') || (tmp[2] == 's')) &&
+	     ((j > 8) && ((tmp[2] == 'S') || (tmp[2] == 's')) &&
 	      ((tmp[3] == 't') || (tmp[3] == 'T')) &&
 	      ((tmp[4] == 'a') || (tmp[4] == 'A')) &&
 	      ((tmp[5] == 't') || (tmp[5] == 'T')) &&
 	      ((tmp[6] == 'u') || (tmp[6] == 'U')) &&
 	      ((tmp[7] == 's') || (tmp[7] == 'S')) && (tmp[8] == ':')) ||
 				/* possible X-Keywords: */
-	     ((i > 10) && ((tmp[2] == 'K') || (tmp[2] == 'k')) &&
+	     ((j > 10) && ((tmp[2] == 'K') || (tmp[2] == 'k')) &&
 	      ((tmp[3] == 'e') || (tmp[3] == 'E')) &&
 	      ((tmp[4] == 'y') || (tmp[4] == 'Y')) &&
 	      ((tmp[5] == 'w') || (tmp[5] == 'W')) &&
@@ -1770,6 +1773,7 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 	if (((nmsgs > 1) || !pseudoseen) && !elt->private.uid) {
 	  prevuid = elt->private.uid = ++stream->uid_last;
 	  elt->private.dirty = T;
+	  LOCAL->ddirty = T;	/* force update */
 	}
 	else elt->private.dirty = elt->recent;
 
@@ -2444,9 +2448,11 @@ DRIVER *mbox_valid (char *name)
 
 long mbox_create (MAILSTREAM *stream,char *mailbox)
 {
-				/* in case CREATEPROTO same-as-inbox */
-  return unix_create (NIL,compare_cstring (mailbox,"INBOX") ?
-		      mailbox : "mbox");
+  char tmp[MAILTMPLEN];
+  if (!compare_cstring (mailbox,"INBOX")) return unix_create (NIL,"mbox");
+  sprintf (tmp,"Can't create non-INBOX name as mbox: %.80s",mailbox);
+  MM_LOG (tmp,ERROR);
+  return NIL;
 }
 
 
@@ -2669,5 +2675,9 @@ long mbox_expunge (MAILSTREAM *stream,char *sequence,long options)
 
 long mbox_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
-  return unix_append (stream,"mbox",af,data);
+  char tmp[MAILTMPLEN];
+  if (mbox_valid (mailbox)) return unix_append (stream,"mbox",af,data);
+  sprintf (tmp,"Can't append to that name: %.80s",mailbox);
+  MM_LOG (tmp,ERROR);
+  return NIL;
 }

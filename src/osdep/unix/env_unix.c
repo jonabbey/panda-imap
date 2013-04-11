@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	4 April 2007
+ * Last Edited:	29 May 2007
  */
 
 #include <grp.h>
@@ -793,6 +793,9 @@ long env_init (char *user,char *home)
   nslist[0] = nslist[1] = nslist[2] = NIL;
 				/* myUserName must be set before dorc() call */
   myUserName = cpystr (user ? user : ANONYMOUSUSER);
+				/* force default prototypes to be set */
+  if (!createProto) createProto = &CREATEPROTO;
+  if (!appendProto) appendProto = &EMPTYPROTO;
   dorc (NIL,NIL);		/* do systemwide configuration */
   if (!home) {			/* closed box server */
 				/* standard user can only reference home */
@@ -861,9 +864,6 @@ long env_init (char *user,char *home)
   if (!myNewsrc) myNewsrc = cpystr(strcat (strcpy (tmp,myHomeDir),"/.newsrc"));
   if (!newsActive) newsActive = cpystr (ACTIVEFILE);
   if (!newsSpool) newsSpool = cpystr (NEWSSPOOL);
-				/* force default prototype to be set */
-  if (!createProto) createProto = &CREATEPROTO;
-  if (!appendProto) appendProto = &EMPTYPROTO;
 				/* re-do open action to get flags */
   (*createProto->dtb->open) (NIL);
   endpwent ();			/* close pw database */
@@ -1546,16 +1546,22 @@ void dorc (char *file,long flag)
 	if (myUserName) {	/* only valid if logged in */
 	  if (!compare_cstring (s,"set new-mailbox-format") ||
 	      !compare_cstring (s,"set new-folder-format")) {
-	    if (!compare_cstring (k,"same-as-inbox"))
-	      createProto = ((d = mail_valid (NIL,"INBOX",NIL)) &&
-			     compare_cstring (d->name,"dummy")) ?
-			       ((*d->open) (NIL)) : &CREATEPROTO;
+	    if (!compare_cstring (k,"same-as-inbox")) {
+	      if (d = mail_valid (NIL,"INBOX",NIL)) {
+		if (!compare_cstring (d->name,"mbox"))
+		  d = (DRIVER *) mail_parameters (NIL,GET_DRIVER,
+						  (void *) "unix");
+		else if (!compare_cstring (d->name,"dummy")) d = NIL;
+	      }
+	      createProto = d ? ((*d->open) (NIL)) : &CREATEPROTO;
+	    }
 	    else if (!compare_cstring (k,"system-standard"))
 	      createProto = &CREATEPROTO;
-	    else {		/* see if a driver name */
-	      for (d = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL);
-		   d && compare_cstring (d->name,k); d = d->next);
-	      if (d) createProto = (*d->open) (NIL);
+	    else {		/* canonicalize mbox to unix */
+	      if (!compare_cstring (k,"mbox")) k = "unix";
+				/* see if a driver name */
+	      if (d = (DRIVER *) mail_parameters (NIL,GET_DRIVER,(void *) k))
+		createProto = (*d->open) (NIL);
 	      else {		/* duh... */
 		sprintf (tmpx,"Unknown new mailbox format in %s: %s",
 			 file ? file : SYSCONFIG,k);
@@ -1565,7 +1571,8 @@ void dorc (char *file,long flag)
 	  }
 	  if (!compare_cstring (s,"set empty-mailbox-format") ||
 	      !compare_cstring (s,"set empty-folder-format")) {
-	    if (!compare_cstring (k,"same-as-inbox"))
+	    if (!compare_cstring (k,"invalid")) appendProto = NIL;
+	    else if (!compare_cstring (k,"same-as-inbox"))
 	      appendProto = ((d = mail_valid (NIL,"INBOX",NIL)) &&
 			     compare_cstring (d->name,"dummy")) ?
 			       ((*d->open) (NIL)) : &EMPTYPROTO;

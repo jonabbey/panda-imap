@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	18 April 2007
+# Last Edited:	8 May 2007
 
 
 # Normal command to build IMAP toolkit:
@@ -118,6 +118,7 @@
 # sol	Solaris (won't work unless "ucbcc" works -- use gso instead)
 # sos	OSF/1 with SecureWare
 # ssn	SUN-OS with shadow password security
+# sua	Windows Vista (Enterprise or Ultima) Subsystem for Unix Applications
 # sun	SUN-OS 4.1 or better (*not* Solaris) (see ssn)
 # sv2	SVR2 on AT&T PC-7300 (incomplete port)
 # sv4	generic SVR4
@@ -344,7 +345,7 @@ gcs:	an
 
 ldb:	an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
-	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock MAILSPOOL=/var/mail"
 
 lfd:	an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
@@ -490,6 +491,14 @@ sunok:
 sv2:
 	$(MAKE) ua LN=ln
 	$(BUILD) BUILDTYPE=$@ LN=ln
+
+# Hard links don't quite work right in SUA, and there don't seem to be any
+# SSL includes.  However, IPv6 works.
+
+sua:
+	$(TOUCH) ip6 sslnone
+	$(MAKE) an LN=cp SSLTYPE=none
+	$(BUILD) BUILDTYPE=$@ LN=cp IP=$(IP6) SSLTYPE=none
 
 
 # Pine port names, not distinguished in c-client

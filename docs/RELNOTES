@@ -11,6 +11,23 @@
  * ========================================================================
  */
 
+Updated: 5 June 2007
+
+imap-2006i is a maintenance release, consisting primarily of bugfixes to
+problems discovered in the release that affected a small number of users.
+
+imapd now supports the CHILDREN and ESEARCH extensions.
+
+imapd's attempt to return COPYUID/APPENDUID information for a traditional
+UNIX (and MMDF) format mailbox when the mailbox is open by another process
+has been declared to be a failure and is now revoked.  It was subject to a
+timing race, loss of which involved an expensive reset of the mailbox's UID
+regime.  Any imapd COPY or APPEND to a traditional UNIX or MMDF format that
+is open by some other process will now no longer return COPYUID/APPEND.
+Although this is technically in violation of RFC 4315, there is a loophole
+in that document and the timing race/performance problem is worse.
+
+
 Updated: 4 April 2007
 
 imap-2006h is a maintenance release, consisting primarily of bugfixes to

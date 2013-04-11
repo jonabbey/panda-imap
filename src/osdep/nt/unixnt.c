@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	18 April 2007
+ * Last Edited:	11 May 2007
  */
 
 
@@ -855,6 +855,7 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     return NIL;
   }
 
+  if (tstream->rdonly) cu = NIL;/* don't COPYUID if can't update uid_last */
   LOCAL->buf[0] = '\0';
   mm_critical (stream);		/* go critical */
   if ((fd = unix_lock (dummy_file (file,mailbox),
@@ -1058,6 +1059,7 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     MM_LOG (tmp,ERROR);
     return NIL;
   }
+  if (tstream->rdonly) au = NIL;/* don't APPENDUID if can't update uid_last */
   if (((fd = unix_lock (dummy_file (file,mailbox),
 			O_BINARY|O_WRONLY|O_APPEND|O_CREAT,S_IREAD|S_IWRITE,
 			lock,LOCK_EX)) < 0) || !(df = fdopen (fd,"ab"))) {
@@ -1108,6 +1110,7 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
  * Accepts: MAIL stream
  *	    scratch file
  *	    flags
+ *	    date
  *	    message stringstruct
  * Returns: NIL if write error, else T
  */
@@ -1118,8 +1121,16 @@ int unix_collect_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
   unsigned char *s,*t;
   unsigned long uf;
   long f = mail_parse_flags (stream,flags,&uf);
-				/* write metadata, note date ends with NL */
-  if (fprintf (sf,"%ld %lu %lu %s",f,uf,SIZE (msg) + 1,date) < 0) return NIL;
+				/* write metadata */
+  if (fprintf (sf,"%ld %lu %lu ",f,uf,SIZE (msg) + 2) < 0) return NIL;
+  for (s = date; *s; *s++) switch (*s) {
+  default:
+    if (putc (*s,sf) == EOF) return NIL;
+  case '\r': case '\n':
+    break;
+  }
+  if (fputs ("\r\n",sf) == EOF) return NIL;
+
   while (SIZE (msg)) {		/* copy text to scratch file */
     for (s = (unsigned char *) msg->curpos, t = s + msg->cursize; s < t; ++s)
       if (!*s) *s = 0x80;	/* disallow NUL */
@@ -1128,8 +1139,8 @@ int unix_collect_msg (MAILSTREAM *stream,FILE *sf,char *flags,char *date,
       SETPOS (msg,GETPOS (msg) + msg->cursize);
     else return NIL;		/* failed */
   }
-				/* write trailing newline and return */
-  return (putc ('\n',sf) == EOF) ? NIL : T;
+				/* write trailing CRLF and return */
+  return (fputs ("\r\n",sf) == EOF) ? NIL : T;
 }
 
 /* Append messages from scratch file to mailbox
@@ -1158,19 +1169,19 @@ int unix_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
     if ((*x++ != ' ') ||	/* build initial header */
 	(fprintf (df,"From %s@%s %sStatus: ",myusername(),mylocalhost(),x)<0)||
 	(f&fSEEN && (putc ('R',df) == EOF)) ||
-	(fputs ("\nX-Status: ",df) == EOF) ||
+	(fputs ("\r\nX-Status: ",df) == EOF) ||
 	(f&fDELETED && (putc ('D',df) == EOF)) ||
 	(f&fFLAGGED && (putc ('F',df) == EOF)) ||
 	(f&fANSWERED && (putc ('A',df) == EOF)) ||
 	(f&fDRAFT && (putc ('T',df) == EOF)) ||
-	(fputs ("\nX-Keywords:",df) == EOF)) return NIL;
+	(fputs ("\r\nX-Keywords:",df) == EOF)) return NIL;
     while (uf)			/* write user flags */
       if (fprintf (df," %s",stream->user_flags[find_rightmost_bit (&uf)]) < 0)
 	return NIL;
-    if (set && (fprintf (df,"\nX-UID: %lu",++(stream->uid_last)) < 0))
+    if (set && (fprintf (df,"\r\nX-UID: %lu",++(stream->uid_last)) < 0))
       return NIL;
 				/* finish last metadata header */
-    if (putc ('\n',df) == EOF) return NIL;
+    if (fputs ("\r\n",df) == EOF) return NIL;
 
     for (c = '\n'; i && fgets (tmp,MAILTMPLEN,sf); c = tmp[j-1]) {
 				/* get read line length */
@@ -1180,17 +1191,17 @@ int unix_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
 				/* complete line? */
       if ((c == '\n')) switch (tmp[0]) {
       case 'F':			/* possible "From " (case counts here) */
-	if ((i > 4) && (tmp[0] == 'F') && (tmp[1] == 'r') && (tmp[2] == 'o') &&
+	if ((j > 4) && (tmp[0] == 'F') && (tmp[1] == 'r') && (tmp[2] == 'o') &&
 	    (tmp[3] == 'm') && (tmp[4] == ' ')) {
 	  if (!unix_fromwidget) {
 	    VALID (tmp,x,ti,zn);/* conditional, only write widget if */
 	    if (!ti) break;	/*  it looks like a valid header */
-	  }				/* write the widget */
+	  }			/* write the widget */
 	  if (putc ('>',df) == EOF) return NIL;
 	}
 	break;
       case 'S': case 's':	/* possible "Status:" */
-	if (hdrp && (i > 6) && ((tmp[1] == 't') || (tmp[1] == 'T')) &&
+	if (hdrp && (j > 6) && ((tmp[1] == 't') || (tmp[1] == 'T')) &&
 	    ((tmp[2] == 'a') || (tmp[2] == 'A')) &&
 	    ((tmp[3] == 't') || (tmp[3] == 'T')) &&
 	    ((tmp[4] == 'u') || (tmp[4] == 'U')) &&
@@ -1200,29 +1211,29 @@ int unix_append_msgs (MAILSTREAM *stream,FILE *sf,FILE *df,SEARCHSET *set)
       case 'X': case 'x':	/* possible X-??? header */
 	if (hdrp && (tmp[1] == '-') &&
 				/* possible X-UID: */
-	    (((i > 5) && ((tmp[2] == 'U') || (tmp[2] == 'u')) &&
+	    (((j > 5) && ((tmp[2] == 'U') || (tmp[2] == 'u')) &&
 	      ((tmp[3] == 'I') || (tmp[3] == 'i')) &&
 	      ((tmp[4] == 'D') || (tmp[4] == 'd')) && (tmp[5] == ':')) ||
 				/* possible X-IMAP: */
-	     ((i > 6) && ((tmp[2] == 'I') || (tmp[2] == 'i')) &&
+	     ((j > 6) && ((tmp[2] == 'I') || (tmp[2] == 'i')) &&
 	      ((tmp[3] == 'M') || (tmp[3] == 'm')) &&
 	      ((tmp[4] == 'A') || (tmp[4] == 'a')) &&
 	      ((tmp[5] == 'P') || (tmp[5] == 'p')) &&
 	      ((tmp[6] == ':') ||
 				/* or X-IMAPbase: */
-	       ((i > 10) && ((tmp[6] == 'b') || (tmp[6] == 'B')) &&
+	       ((j > 10) && ((tmp[6] == 'b') || (tmp[6] == 'B')) &&
 		((tmp[7] == 'a') || (tmp[7] == 'A')) &&
 		((tmp[8] == 's') || (tmp[8] == 'S')) &&
 		((tmp[9] == 'e') || (tmp[9] == 'E')) && (tmp[10] == ':')))) ||
 				/* possible X-Status: */
-	     ((i > 8) && ((tmp[2] == 'S') || (tmp[2] == 's')) &&
+	     ((j > 8) && ((tmp[2] == 'S') || (tmp[2] == 's')) &&
 	      ((tmp[3] == 't') || (tmp[3] == 'T')) &&
 	      ((tmp[4] == 'a') || (tmp[4] == 'A')) &&
 	      ((tmp[5] == 't') || (tmp[5] == 'T')) &&
 	      ((tmp[6] == 'u') || (tmp[6] == 'U')) &&
 	      ((tmp[7] == 's') || (tmp[7] == 'S')) && (tmp[8] == ':')) ||
 				/* possible X-Keywords: */
-	     ((i > 10) && ((tmp[2] == 'K') || (tmp[2] == 'k')) &&
+	     ((j > 10) && ((tmp[2] == 'K') || (tmp[2] == 'k')) &&
 	      ((tmp[3] == 'e') || (tmp[3] == 'E')) &&
 	      ((tmp[4] == 'y') || (tmp[4] == 'Y')) &&
 	      ((tmp[5] == 'w') || (tmp[5] == 'W')) &&
@@ -1694,10 +1705,8 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 	      retain = T;	/* retaining continuation now */
 				/* line length in CRLF format newline */
 	      k = i + (((i < 2) || (s[i - 2] != '\r')) ? 1 : 0);
-				/* "internal" header size */
-	      elt->private.spare.data += k;
-				/* message size */
-	      elt->rfc822_size += k;
+				/* header size */
+	      elt->rfc822_size = elt->private.spare.data += k;
 	    }
 	    else {
 	      char err[MAILTMPLEN];
@@ -1716,6 +1725,7 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 	if (((nmsgs > 1) || !pseudoseen) && !elt->private.uid) {
 	  prevuid = elt->private.uid = ++stream->uid_last;
 	  elt->private.dirty = T;
+	  LOCAL->ddirty = T;	/* force update */
 	}
 	else elt->private.dirty = elt->recent;
 
@@ -1862,7 +1872,6 @@ char *unix_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size)
       if (!bs->cursize) SETPOS (bs,GETPOS (bs));
 				/* read newline at end */
       if (SIZE (bs)) ret[i++] = SNX (bs);
-      ret[i++] = '\n';		/* make sure newline at end */
       ret[i] = '\0';		/* makes debugging easier */
     }
     else {			/* this is easy */

@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # ========================================================================
-# Copyright 1988-2006 University of Washington
+# Copyright 1988-2007 University of Washington
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ fi
 cd $2
 
 for j in *.[ch]; do
-  ln -s "$BASE/$2/$j" "$BASE/$3"
+  $1 "$BASE/$2/$j" "$BASE/$3"
 done
 
 exit 0

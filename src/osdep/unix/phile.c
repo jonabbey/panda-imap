@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	30 August 2006
+ * Last Edited:	9 May 2006
  */
 
 
@@ -164,12 +164,12 @@ int phile_isvalid (char *name,char *tmp)
 				/* INBOX never accepted, any other name is */
   return ((s = mailboxfile (tmp,name)) && *s && !stat (s,&sbuf) &&
 	  !(sbuf.st_mode & S_IFDIR) &&
-				/* only allow empty files if #ftp */
-	  (sbuf.st_size || ((*name == '#') &&
-			    ((name[1] == 'f') || (name[1] == 'F')) &&
-			    ((name[2] == 't') || (name[2] == 'T')) &&
-			    ((name[3] == 'p') || (name[3] == 'P')) &&
-			    (name[4] == '/'))));
+				/* only allow empty files if no empty proto
+				   or if #ftp */
+	  (sbuf.st_size || !default_proto (T) ||
+	   ((*name == '#') && ((name[1] == 'f') || (name[1] == 'F')) &&
+	    ((name[2] == 't') || (name[2] == 'T')) &&
+	    ((name[3] == 'p') || (name[3] == 'P')) && (name[4] == '/'))));
 }
 
 /* File manipulate driver parameters

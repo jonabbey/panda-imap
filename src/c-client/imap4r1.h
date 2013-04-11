@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	6 December 2006
+ * Last Edited:	5 June 2007
  */
 
 
@@ -81,6 +81,10 @@ typedef struct imap_cap {
   unsigned int sasl_ir : 1;	/* server has SASL-IR initial response */
   unsigned int sort : 1;	/* server has SORT */
   unsigned int scan : 1;	/* server has SCAN */
+  unsigned int urlauth : 1;	/* server has URLAUTH (RFC 4467) */
+  unsigned int catenate : 1;	/* server has CATENATE (RFC 4469) */
+  unsigned int condstore : 1;	/* server has CONDSTORE (RFC 4551) */
+  unsigned int esearch : 1;	/* server has ESEARCH (RFC 4731) */
   unsigned int extlevel;	/* extension data level supported by server */
 				/* supported authenticators */
   unsigned int auth : MAXAUTHENTICATORS;
@@ -212,9 +216,30 @@ typedef struct imap_cap {
 
 #define LEVELTHREAD(stream) ((imap_cap (stream)->threader) ? T : NIL)
 
+
 /* Has SCAN extension */
 
 #define LEVELSCAN(stream) imap_cap (stream)->scan
+
+
+/* Has URLAUTH extension */
+
+#define LEVELURLAUTH(stream) imap_cap (stream)->urlauth
+
+
+/* Has CATENATE extension */
+
+#define LEVELCATENATE(stream) imap_cap (stream)->catenate
+
+
+/* Has CONDSTORE extension */
+
+#define LEVELCONDSTORE(stream) imap_cap (stream)->condstore
+
+
+/* Has ESEARCH extension */
+
+#define LEVELESEARCH(stream) imap_cap (stream)->esearch
 
 /* Body structure extension levels */
 

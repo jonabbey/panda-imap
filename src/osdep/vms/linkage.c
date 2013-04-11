@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	13 June 1995
- * Last Edited:	30 August 2006
+ * Last Edited:	23 May 2007
  */
 
   mail_link (&imapdriver);		/* link in the imap driver */
@@ -34,3 +34,4 @@
   auth_link (&auth_md5);		/* link in the md5 authenticator */
   auth_link (&auth_pla);		/* link in the plain authenticator */
   auth_link (&auth_log);		/* link in the log authenticator */
+  mail_versioncheck (CCLIENTVERSION);	/* validate version */

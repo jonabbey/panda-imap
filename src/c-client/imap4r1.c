@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	4 April 2007
+ * Last Edited:	5 June 2007
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -5483,6 +5483,10 @@ void imap_parse_capabilities (MAILSTREAM *stream,char *t)
     else if (!compare_cstring (t,"UNSELECT")) LOCAL->cap.unselect = T;
     else if (!compare_cstring (t,"SASL-IR")) LOCAL->cap.sasl_ir = T;
     else if (!compare_cstring (t,"SCAN")) LOCAL->cap.scan = T;
+    else if (!compare_cstring (t,"URLAUTH")) LOCAL->cap.urlauth = T;
+    else if (!compare_cstring (t,"CATENATE")) LOCAL->cap.catenate = T;
+    else if (!compare_cstring (t,"CONDSTORE")) LOCAL->cap.condstore = T;
+    else if (!compare_cstring (t,"ESEARCH")) LOCAL->cap.esearch = T;
     else if (((t[0] == 'S') || (t[0] == 's')) &&
 	     ((t[1] == 'O') || (t[1] == 'o')) &&
 	     ((t[2] == 'R') || (t[2] == 'r')) &&

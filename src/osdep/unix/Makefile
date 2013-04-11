@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	1 March 2007
+# Last Edited:	23 May 2007
 
 
 # Command line build parameters
@@ -775,6 +775,15 @@ ssn:	# Secure SUN-OS
 	 BASECFLAGS="-g -Dconst=" \
 	 BASELDFLAGS="-ldl"
 
+sua:	# Windows Vista Subsystem for UNIX Applications
+	$(BUILD) `$(CAT) SPECIALS` OS=sua \
+	 SIGTYPE=psx CRXTYPE=nfs LOGINPW=old \
+	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
+	 ACTIVEFILE=/var/lib/news/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -O2" \
+	 BASELDFLAGS="-lcrypt"
+
 sun:	# SUN-OS
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
 	 CRXTYPE=nfs \
@@ -956,6 +965,7 @@ onceenv:
 	echo $(OS) > OSTYPE
 	./drivers $(EXTRADRIVERS) $(DEFAULTDRIVERS) dummy
 	./mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)
+	echo "  mail_versioncheck (CCLIENTVERSION);" >> linkage.c
 	$(LN) os_$(OS).h osdep.h
 	$(LN) os_$(OS).c osdepbas.c
 	$(LN) log_$(LOGINPW).c osdeplog.c

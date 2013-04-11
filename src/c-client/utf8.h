@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	16 March 2007
+ * Last Edited:	25 May 2007
  */
 
 /* UTF-8 size and conversion routines from UCS-2 values (thus in the BMP).
@@ -561,3 +561,4 @@ long ucs4_width (unsigned long c);
 long utf8_strwidth (unsigned char *s);
 long utf8_textwidth (SIZEDTEXT *utf8);
 unsigned long ucs4_decompose (unsigned long c,void **more);
+unsigned long ucs4_decompose_recursive (unsigned long c,void **more);

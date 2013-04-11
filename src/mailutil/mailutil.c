@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 February 1994
- * Last Edited:	4 April 2007
+ * Last Edited:	21 May 2007
  */
 
 
@@ -37,7 +37,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "2006h.7";	/* program version */
+char *version = "8";		/* edit number */
 int debugp = NIL;		/* flag saying debug */
 int verbosep = NIL;		/* flag saying verbose */
 int rwcopyp = NIL;		/* flag saying readwrite copy (for POP) */
@@ -375,7 +375,7 @@ int main (int argc,char *argv[])
   }
 
   else {
-    printf ("%s version %s\n\n",pgm,version);
+    printf ("%s version %s.%s\n\n",pgm,CCLIENTVERSION,version);
     printf (usage2,pgm,"command [switches] arguments",pgm);
     printf (" %s\n",usgchk);
     puts   ("   ;; report number of messages and new messages");

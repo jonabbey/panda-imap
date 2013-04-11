@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 April 1993
- * Last Edited:	4 April 2007
+ * Last Edited:	21 May 2007
  */
 
 #include <stdio.h>
@@ -41,7 +41,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "2006h.17";	/* tmail release version */
+char *version = "19";		/* tmail edit version */
 int debug = NIL;		/* debugging (don't fork) */
 int trycreate = NIL;		/* flag saying gotta create before appending */
 int critical = NIL;		/* flag saying in critical code */
@@ -167,7 +167,7 @@ int main (int argc,char *argv[])
   else {			/* build delivery headers */
     if (sender) fprintf (f,"Return-Path: <%s>\015\012",sender);
 				/* start Received line: */
-    fprintf (f,"Received: via tmail-%s",version);
+    fprintf (f,"Received: via tmail-%s.%s",CCLIENTVERSION,version);
 				/* not root or daemon? */
     if (ruid && !((pwd = getpwnam ("daemon")) && (ruid == pwd->pw_uid))) {
       pwd = getpwuid (ruid);	/* get unprivileged user's information */
@@ -414,7 +414,8 @@ long ibxpath (MAILSTREAM *ds,char **mailbox,char *path)
 {
   char *s,tmp[MAILTMPLEN];
   long ret = T;
-  if (!strcmp (ds->dtb->name,"unix") || !strcmp (ds->dtb->name,"mmdf"))
+  if (!ds) ret = NIL;
+  else if (!strcmp (ds->dtb->name,"unix") || !strcmp (ds->dtb->name,"mmdf"))
     strcpy (path,sysinbox ());	/* use system INBOX for unix and MMDF */
   else if (!strcmp (ds->dtb->name,"tenex"))
     ret = (mailboxfile (path,"mail.txt") == path) ? T : NIL;

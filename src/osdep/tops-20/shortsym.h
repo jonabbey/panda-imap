@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	16 March 2007
+ * Last Edited:	25 May 2007
  */
 
 #define auth_link a_link
@@ -558,6 +558,7 @@
 #define textcpyoffstring txcpos
 #define ucs4_cs_get u4_csg
 #define ucs4_decompose u4_dcm
+#define ucs4_decompose_recursive u4_dcr
 #define ucs4_rmapbuf u4r_bf
 #define ucs4_rmaplen u4r_ln
 #define ucs4_rmaptext u4r_tx

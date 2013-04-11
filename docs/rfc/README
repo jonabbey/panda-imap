@@ -22,9 +22,9 @@ Items marked with "*" are supported in this distribution:
    rfc4314.txt	ACL
  * rfc3516.txt	BINARY
    rfc4469.txt	CATENATE
-   rfc3348.txt	CHILDREN
+ * rfc3348.txt	CHILDREN
    rfc4551.txt	CONDSTORE
-   rfc4731.txt	ESEARCH
+ * rfc4731.txt	ESEARCH
    rfc2971.txt	ID
  * rfc2177.txt	IDLE
  * rfc2088.txt	LITERAL+
@@ -48,7 +48,7 @@ and the SASL mechanisms supported in this distribution:
 
 
 The following documents relate to internationalization issues:
-   rfc4789.txt	Internet Application Protocol Collation Registry
+   rfc4790.txt	Internet Application Protocol Collation Registry
 
 
 The following documents are primarily of historic interest:

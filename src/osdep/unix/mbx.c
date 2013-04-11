@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	29January 2007
+ * Last Edited:	14 May 2007
  */
 
 
@@ -85,7 +85,8 @@ typedef struct mbx_local {
 /* Function prototypes */
 
 DRIVER *mbx_valid (char *name);
-int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp,long flags);
+int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp,int *ld,char *lock,
+		 long flags);
 void *mbx_parameters (long function,void *value);
 void mbx_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
 void mbx_list (MAILSTREAM *stream,char *ref,char *pat);
@@ -178,7 +179,7 @@ MAILSTREAM mbxproto = {&mbxdriver};
 DRIVER *mbx_valid (char *name)
 {
   char tmp[MAILTMPLEN];
-  int fd = mbx_isvalid (NIL,name,tmp,NIL);
+  int fd = mbx_isvalid (NIL,name,tmp,NIL,NIL,NIL);
   if (fd < 0) return NIL;
   close (fd);			/* don't need the fd now */
   return &mbxdriver;
@@ -189,6 +190,8 @@ DRIVER *mbx_valid (char *name)
  * Accepts: returned stream with valid mailbox keywords
  *	    mailbox name
  *	    scratch buffer
+ *	    returned lock fd
+ *	    returned lock name
  *	    RW flags or NIL for readonly
  * Returns: file descriptor if valid, NIL otherwise
  */
@@ -196,7 +199,8 @@ DRIVER *mbx_valid (char *name)
 #define MBXISVALIDNOUID 0x1	/* RW, don't do UID action */
 #define MBXISVALIDUID 0x2	/* RW, do UID action */
 
-int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp,long flags)
+int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp,int *ld,char *lock,
+		 long flags)
 {
   int fd,upd;
   int ret = -1;
@@ -206,12 +210,18 @@ int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp,long flags)
   char c,*s,*t,hdr[HDRSIZE];
   struct stat sbuf;
   time_t tp[2];
-  errno = EINVAL;		/* assume invalid argument */
+  int error = EINVAL;		/* assume invalid argument */
+  if (ld) *ld = -1;		/* initially no lock */
   if ((s = mbx_file (tmp,name)) && !stat (s,&sbuf) &&
       ((fd = open (tmp,(flags ? O_RDWR : O_RDONLY)|O_BINARY,NIL)) >= 0)) {
-    errno = -1;			/* bogus format */
-    /* I love cretinous C compilers -- don't you? */
-    if (read (fd,hdr,HDRSIZE) == HDRSIZE)
+    error = -1;			/* bogus format */
+
+				/* lock if making mini stream */
+    if (stream && (flock (fd,LOCK_SH) ||
+		   (flags && ((*ld = lockfd (fd,lock,LOCK_EX)) < 0))))
+      ret = -1;
+		/* I love cretinous C compilers -- don't you? */
+    else if (read (fd,hdr,HDRSIZE) == HDRSIZE)
       if ((hdr[0] == '*') && (hdr[1] == 'm') && (hdr[2] == 'b') &&
 	  (hdr[3] == 'x') && (hdr[4] == '*') && (hdr[5] == '\015') &&
 	  (hdr[6] == '\012') && isxdigit (hdr[7]) && isxdigit (hdr[8]))
@@ -223,7 +233,6 @@ int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp,long flags)
 	      isxdigit (hdr[21]) && isxdigit (hdr[22]) &&
 	      (hdr[23] == '\015') && (hdr[24] == '\012')) {
 	    ret = fd;
-
 	    if (stream) {	/* stream specified? */
 	      *stream = (MAILSTREAM *) memset (fs_get (sizeof (MAILSTREAM)),0,
 					       sizeof (MAILSTREAM));
@@ -239,6 +248,7 @@ int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp,long flags)
 		if (strlen (s) <= MAXUSERFLAG)
 		  (*stream)->user_flags[i] = cpystr (s);
 	      }
+
 				/* make sure have true UIDLAST */
 	      if (flags & MBXISVALIDUID) {
 		for (upd = NIL,pos = 2048, k = 0; pos < sbuf.st_size;
@@ -290,7 +300,10 @@ int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp,long flags)
     }
   }
 				/* in case INBOX but not mbx format */
-  else if ((errno == ENOENT) && !compare_cstring (name,"INBOX")) errno = -1;
+  else if (((error = errno) == ENOENT) && !compare_cstring (name,"INBOX"))
+    error = -1;
+  if ((ret < 0) && ld && (*ld >= 0)) unlockfd (*ld,lock);
+  errno = error;		/* return as last error */
   return ret;			/* return what we should */
 }
 
@@ -797,16 +810,21 @@ long mbx_ping (MAILSTREAM *stream)
     if (((sbuf.st_size - LOCAL->filesize) || LOCAL->flagcheck ||
 	 !stream->nmsgs || snarf) &&
 	((ld = lockfd (LOCAL->fd,lock,LOCK_EX)) >= 0)) {
-      if (LOCAL->flagcheck) {	/* sweep mailbox for changed message status */
-	if (ret = mbx_parse (stream)) {
-	  LOCAL->filetime = sbuf.st_mtime;
-	  for (i = 1; i <= stream->nmsgs; )
-	    if (mbx_elt (stream,i,LOCAL->expok)) ++i;
-	  LOCAL->flagcheck =NIL;/* got all the updates */
-	}
+				/* reparse header if not flagchecking */
+      if (!LOCAL->flagcheck) ret = mbx_parse (stream);
+				/* sweep mailbox for changed message status */
+      else if (ret = mbx_parse (stream)) {
+	unsigned long recent = 0;
+	LOCAL->filetime = sbuf.st_mtime;
+	for (i = 1; i <= stream->nmsgs; )
+	  if (elt = mbx_elt (stream,i,LOCAL->expok)) {
+	    if (elt->recent) ++recent;
+	    ++i;
+	  }
+	mail_recent (stream,recent);
+	LOCAL->flagcheck = NIL;	/* got all the updates */
       }
 				/* always reparse header at least */
-      else ret = mbx_parse (stream);
       if (ret && snarf) {	/* snarf new messages if still OK */
 	mbx_snarf (stream);
 				/* parse snarfed messages */
@@ -972,7 +990,7 @@ long mbx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   if (!((options & CP_UID) ? mail_uid_sequence (stream,sequence) :
 	mail_sequence (stream,sequence))) return NIL;
 				/* make sure valid mailbox */
-  if ((fd = mbx_isvalid (&dstream,mailbox,file,
+  if ((fd = mbx_isvalid (&dstream,mailbox,file,&ld,lock,
 			 cu ? MBXISVALIDUID : MBXISVALIDNOUID)) < 0)
     switch (errno) {
     case ENOENT:		/* no such file? */
@@ -990,12 +1008,6 @@ long mbx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
       return NIL;
     }
   MM_CRITICAL (stream);		/* go critical */
-				/* get parse/append permission */
-  if (flock (fd,LOCK_SH) || ((ld = lockfd (fd,lock,LOCK_EX)) < 0)) {
-    MM_LOG ("Unable to lock copy mailbox",ERROR);
-    MM_NOCRITICAL (stream);
-    return NIL;
-  }
   fstat (fd,&sbuf);		/* get current file size */
   lseek (fd,sbuf.st_size,L_SET);/* move to end of file */
 
@@ -1091,7 +1103,7 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   appenduid_t au = (appenduid_t) mail_parameters (NIL,GET_APPENDUID,NIL);
   SEARCHSET *dst = au ? mail_newsearchset () : NIL;
 				/* make sure valid mailbox */
-  if ((fd = mbx_isvalid (&dstream,mailbox,file,
+  if ((fd = mbx_isvalid (&dstream,mailbox,file,&ld,lock,
 			 au ? MBXISVALIDUID : MBXISVALIDNOUID)) < 0)
     switch (errno) {
     case ENOENT:		/* no such file? */
@@ -1114,11 +1126,6 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 
 				/* get first message */
   if (!MM_APPEND (af) (dstream,data,&flags,&date,&message)) close (fd);
-				/* get parse/append permission */
-  else if (flock (fd,LOCK_SH) || ((ld = lockfd (fd,lock,LOCK_EX)) < 0)) {
-    MM_LOG ("Unable to lock append mailbox",ERROR);
-    close (fd);
-  }
   else if (!(df = fdopen (fd,"r+b"))) {
     MM_LOG ("Unable to reopen append mailbox",ERROR);
     unlockfd (ld,lock);
