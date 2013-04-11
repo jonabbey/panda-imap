@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	6 December 2006
+ * Last Edited:	30 January 2007
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -222,12 +222,12 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	    }
 				/* TLS OK, re-negotiate EHLO */
 	    else if ((reply = smtp_ehlo (stream,s,&mb)) != SMTPOK) {
-	      sprintf (tmp,"SMTP EHLO failure after STARTLS: %.80s",
+	      sprintf (tmp,"SMTP EHLO failure after STARTTLS: %.80s",
 		       stream->reply);
 	      mm_log (tmp,ERROR);
 	      stream = smtp_close (stream);
 	    }
-	    ESMTP.ok = T;	/* TLS OK and EHLO successful */
+	    else ESMTP.ok = T;	/* TLS OK and EHLO successful */
 	  }
 	  else if (mb.tlsflag) {/* user specified /tls but can't do it */
 	    sprintf (tmp,"TLS unavailable with this server: %.80s",mb.host);
@@ -644,7 +644,7 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
   unsigned long i,j;
   long flags = (mb->secflag ? AU_SECURE : NIL) |
     (mb->authuser[0] ? AU_AUTHUSER : NIL);
-  char *s,*t,tmp[MAILTMPLEN];
+  char *s,*t,*r,tmp[MAILTMPLEN];
 				/* clear ESMTP data */
   memset (&ESMTP,0,sizeof (ESMTP));
   if (mb->loser) return 500;	/* never do EHLO if a loser */
@@ -660,9 +660,9 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
     if (stream->reply[4] && stream->reply[5] && stream->reply[6] &&
 	stream->reply[7] && (stream->reply[8] == '=')) stream->reply[8] = ' ';
 				/* get option code */
-    if (!(s = strtok (stream->reply+4," ")));
+    if (!(s = strtok_r (stream->reply+4," ",&r)));
 				/* have option, does it have a value */
-    else if ((t = strtok (NIL," ")) && *t) {
+    else if ((t = strtok_r (NIL," ",&r)) && *t) {
 				/* EHLO options which take arguments */
       if (!compare_cstring (s,"SIZE")) {
 	if (isdigit (*t)) ESMTP.size.limit = strtoul (t,&t,10);
@@ -679,7 +679,7 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
       else if (!compare_cstring (s,"AUTH"))
 	do if ((j = mail_lookup_auth_name (t,flags)) &&
 	       (--j < MAXAUTHENTICATORS)) ESMTP.auth |= (1 << j);
-	while ((t = strtok (NIL," ")) && *t);
+	while ((t = strtok_r (NIL," ",&r)) && *t);
     }
 				/* EHLO options which do not take arguments */
     else if (!compare_cstring (s,"SIZE")) ESMTP.size.ok = T;

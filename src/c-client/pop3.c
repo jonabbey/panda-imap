@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	6 December 2006
+ * Last Edited:	30 January 2007
  */
 
 
@@ -483,7 +483,7 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
 long pop3_capa (MAILSTREAM *stream,long flags)
 {
   unsigned long i;
-  char *s,*t,*args;
+  char *s,*t,*r,*args;
   if (LOCAL->cap.implementation)/* zap all old capabilities */
     fs_give ((void **) &LOCAL->cap.implementation);
   memset (&LOCAL->cap,0,sizeof (LOCAL->cap));
@@ -528,7 +528,7 @@ long pop3_capa (MAILSTREAM *stream,long flags)
 	-atoi (args) : atoi (args);
     }
     else if (!compare_cstring (t,"SASL") && args)
-      for (args = strtok (args," "); args; args = strtok (NIL," "))
+      for (args = strtok_r (args," ",&r); args; args = strtok_r (NIL," ",&r))
 	if ((i = mail_lookup_auth_name (args,flags)) &&
 	    (--i < MAXAUTHENTICATORS))
 	  LOCAL->cap.sasl |= (1 << i);

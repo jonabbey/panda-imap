@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	6 December 2006
+ * Last Edited:	30 January 2007
  */
 
 
@@ -1799,7 +1799,7 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 long nntp_extensions (SENDSTREAM *stream,long flags)
 {
   unsigned long i;
-  char *t,*args;
+  char *t,*r,*args;
 				/* zap all old extensions */
   memset (&NNTP.ext,0,sizeof (NNTP.ext));
   if (stream->loser) return NIL;/* nothing at all for losers */
@@ -1825,7 +1825,7 @@ long nntp_extensions (SENDSTREAM *stream,long flags)
 
     else if (!compare_cstring (t,"AUTHINFO") && args) {
       char *sasl = NIL;
-      for (args = strtok (args," "); args; args = strtok (NIL," ")) {
+      for (args = strtok_r (args," ",&r); args; args = strtok_r (NIL," ",&r)) {
 	if (!compare_cstring (args,"USER")) NNTP.ext.authuser = T;
 	else if (((args[0] == 'S') || (args[0] == 's')) &&
 		 ((args[1] == 'A') || (args[1] == 'a')) &&
@@ -1834,7 +1834,7 @@ long nntp_extensions (SENDSTREAM *stream,long flags)
 	  sasl = args + 5;
       }
       if (sasl) {		/* if SASL, look up authenticators */
-	for (sasl = strtok (sasl,","); sasl; sasl = strtok (NIL,","))
+	for (sasl = strtok_r (sasl,",",&r); sasl; sasl = strtok_r (NIL,",",&r))
 	  if ((i = mail_lookup_auth_name (sasl,flags)) &&
 	      (--i < MAXAUTHENTICATORS))
 	    NNTP.ext.sasl |= (1 << i);

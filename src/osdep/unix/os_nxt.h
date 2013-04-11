@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	30 January 2007
  */
 
 #include <libc.h>
@@ -35,6 +35,13 @@
 #include <syslog.h>
 #include <sys/file.h>
 
+/* Use ours instead of theirs */
+
+#define strtok STRTOK
+#define strtok_r STRTOK_R
+
+char *strtok (char *s,char *ct);
+char *strtok_r (char *s,char *ct,char **r);
 
 #include "env_unix.h"
 #include "fs.h"

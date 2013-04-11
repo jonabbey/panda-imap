@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	31 January 2007
  */
 
 
@@ -56,3 +56,4 @@ char *tcp_serveraddr (void);
 char *tcp_serverhost (void);
 long tcp_serverport (void);
 char *tcp_canonical (char *name);
+long tcp_isclienthost (char *host);

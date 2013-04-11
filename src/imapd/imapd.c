@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	18 January 2007
+ * Last Edited:	30 January 2007
  */
 
 /* Parameter files */
@@ -203,7 +203,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2006e.378";	/* version number of this server */
+char *version = "2006f.379";	/* version number of this server */
 char *logout = "Logout";	/* syslogreason for logout */
 char *goodbye = NIL;		/* bye reason */
 time_t alerttime = 0;		/* time of last alert */
@@ -3001,10 +3001,9 @@ void fetch_rfc822_text (unsigned long i,void *args)
   if (i) {			/* do work? */
     int f = mail_elt (stream,i)->seen;
     SIZEDTEXT st;
-    PSOUT ("RFC822.TEXT ");
     st.data = (unsigned char *)
-    mail_fetch_text (stream,i,NIL,&st.size,
-		     ((long) args) | FT_RETURNSTRINGSTRUCT);
+      mail_fetch_text (stream,i,NIL,&st.size,
+		       ((long) args) | FT_RETURNSTRINGSTRUCT);
     pbodypartstring (i,"RFC822.TEXT",&st,&stream->private.string,NIL);
   }
 }

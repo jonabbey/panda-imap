@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	21 October 1998
- * Last Edited:	30 August 2006
+ * Last Edited:	30 January 2007
  */
 
 /* MD5 context */
@@ -188,6 +188,7 @@ char *auth_md5_pwd (char *user)
   struct stat sbuf;
   int fd = open (MD5ENABLE,O_RDONLY,NIL);
   unsigned char *s,*t,*buf,*lusr,*lret;
+  char *r;
   char *ret = NIL;
   if (fd >= 0) {		/* found the file? */
     fstat (fd,&sbuf);		/* yes, slurp it into memory */
@@ -196,8 +197,8 @@ char *auth_md5_pwd (char *user)
     for (s = user; *s && ((*s < 'A') || (*s > 'Z')); s++);
 				/* yes, make lowercase copy */
     lusr = *s ? lcase (cpystr (user)) : NIL;
-    for (s = strtok (buf,"\015\012"),lret = NIL; s;
-	 s = ret ? NIL : strtok (NIL,"\015\012"))
+    for (s = strtok_r ((char *) buf,"\015\012",&r),lret = NIL; s;
+	 s = ret ? NIL : strtok_r (NIL,"\015\012",&r))
 				/* must be valid entry line */
       if (*s && (*s != '#') && (t = strchr (s,'\t')) && t[1]) {
 	*t++ = '\0';		/* found tab, tie off user, point to pwd */

@@ -1,5 +1,5 @@
 # ========================================================================
-# Copyright 1988-2006 University of Washington
+# Copyright 1988-2007 University of Washington
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	20 December 2006
+# Last Edited:	1 March 2007
 
 
 # Command line build parameters
@@ -876,7 +876,7 @@ smtp.o: mail.h misc.h osdep.h smtp.h rfc822.h
 rfc822.o: mail.h misc.h osdep.h rfc822.h
 tenex.o: mail.h misc.h osdep.h dummy.h
 unix.o: mail.h misc.h osdep.h unix.h pseudo.h dummy.h
-utf8.o: mail.h misc.h osdep.h utf8.h
+utf8.o: mail.h misc.h osdep.h utf8.h tmap.c widths.c
 utf8aux.o: mail.h misc.h osdep.h utf8.h
 
 

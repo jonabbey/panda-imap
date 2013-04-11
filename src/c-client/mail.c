@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	9 January 2007
+ * Last Edited:	30 January 2007
  */
 
 
@@ -3934,14 +3934,14 @@ char *mail_search_gets (readfn_t f,void *stream,unsigned long size,
 SEARCHPGM *mail_criteria (char *criteria)
 {
   SEARCHPGM *pgm = NIL;
-  char *criterion,tmp[MAILTMPLEN];
+  char *criterion,*r,tmp[MAILTMPLEN];
   int f;
   if (criteria) {		/* only if criteria defined */
 				/* make writeable copy of criteria */
     criteria = cpystr (criteria);
 				/* for each criterion */
-    for (pgm = mail_newsearchpgm (), criterion = strtok (criteria," ");
-	 criterion; (criterion = strtok (NIL," "))) {
+    for (pgm = mail_newsearchpgm (), criterion = strtok_r (criteria," ",&r);
+	 criterion; (criterion = strtok_r (NIL," ",&r))) {
       f = NIL;			/* init then scan the criterion */
       switch (*ucase (criterion)) {
       case 'A':			/* possible ALL, ANSWERED */
@@ -3949,14 +3949,15 @@ SEARCHPGM *mail_criteria (char *criteria)
 	else if (!strcmp (criterion+1,"NSWERED")) f = pgm->answered = T;
 	break;
       case 'B':			/* possible BCC, BEFORE, BODY */
-	if (!strcmp (criterion+1,"CC")) f = mail_criteria_string (&pgm->bcc);
+	if (!strcmp (criterion+1,"CC"))
+	  f = mail_criteria_string (&pgm->bcc,&r);
 	else if (!strcmp (criterion+1,"EFORE"))
-	  f = mail_criteria_date (&pgm->before);
+	  f = mail_criteria_date (&pgm->before,&r);
 	else if (!strcmp (criterion+1,"ODY"))
-	  f = mail_criteria_string (&pgm->body);
+	  f = mail_criteria_string (&pgm->body,&r);
 	break;
       case 'C':			/* possible CC */
-	if (!strcmp (criterion+1,"C")) f = mail_criteria_string (&pgm->cc);
+	if (!strcmp (criterion+1,"C")) f = mail_criteria_string (&pgm->cc,&r);
 	break;
       case 'D':			/* possible DELETED */
 	if (!strcmp (criterion+1,"ELETED")) f = pgm->deleted = T;
@@ -3964,11 +3965,11 @@ SEARCHPGM *mail_criteria (char *criteria)
       case 'F':			/* possible FLAGGED, FROM */
 	if (!strcmp (criterion+1,"LAGGED")) f = pgm->flagged = T;
 	else if (!strcmp (criterion+1,"ROM"))
-	  f = mail_criteria_string (&pgm->from);
+	  f = mail_criteria_string (&pgm->from,&r);
 	break;
       case 'K':			/* possible KEYWORD */
 	if (!strcmp (criterion+1,"EYWORD"))
-	  f = mail_criteria_string (&pgm->keyword);
+	  f = mail_criteria_string (&pgm->keyword,&r);
 	break;
 
       case 'N':			/* possible NEW */
@@ -3976,7 +3977,8 @@ SEARCHPGM *mail_criteria (char *criteria)
 	break;
       case 'O':			/* possible OLD, ON */
 	if (!strcmp (criterion+1,"LD")) f = pgm->old = T;
-	else if (!strcmp (criterion+1,"N")) f = mail_criteria_date (&pgm->on);
+	else if (!strcmp (criterion+1,"N"))
+	  f = mail_criteria_date (&pgm->on,&r);
 	break;
       case 'R':			/* possible RECENT */
 	if (!strcmp (criterion+1,"ECENT")) f = pgm->recent = T;
@@ -3984,14 +3986,15 @@ SEARCHPGM *mail_criteria (char *criteria)
       case 'S':			/* possible SEEN, SINCE, SUBJECT */
 	if (!strcmp (criterion+1,"EEN")) f = pgm->seen = T;
 	else if (!strcmp (criterion+1,"INCE"))
-	  f = mail_criteria_date (&pgm->since);
+	  f = mail_criteria_date (&pgm->since,&r);
 	else if (!strcmp (criterion+1,"UBJECT"))
-	  f = mail_criteria_string (&pgm->subject);
+	  f = mail_criteria_string (&pgm->subject,&r);
 	break;
       case 'T':			/* possible TEXT, TO */
-	if (!strcmp (criterion+1,"EXT")) f = mail_criteria_string (&pgm->text);
+	if (!strcmp (criterion+1,"EXT"))
+	  f = mail_criteria_string (&pgm->text,&r);
 	else if (!strcmp (criterion+1,"O"))
-	  f = mail_criteria_string (&pgm->to);
+	  f = mail_criteria_string (&pgm->to,&r);
 	break;
       case 'U':			/* possible UN* */
 	if (criterion[1] == 'N') {
@@ -3999,7 +4002,7 @@ SEARCHPGM *mail_criteria (char *criteria)
 	  else if (!strcmp (criterion+2,"DELETED")) f = pgm->undeleted = T;
 	  else if (!strcmp (criterion+2,"FLAGGED")) f = pgm->unflagged = T;
 	  else if (!strcmp (criterion+2,"KEYWORD"))
-	    f = mail_criteria_string (&pgm->unkeyword);
+	    f = mail_criteria_string (&pgm->unkeyword,&r);
 	  else if (!strcmp (criterion+2,"SEEN")) f = pgm->unseen = T;
 	}
 	break;
@@ -4021,15 +4024,16 @@ SEARCHPGM *mail_criteria (char *criteria)
 
 /* Parse a date
  * Accepts: pointer to date integer to return
+ *	    pointer to strtok state
  * Returns: T if successful, else NIL
  */
 
-int mail_criteria_date (unsigned short *date)
+int mail_criteria_date (unsigned short *date,char **r)
 {
   STRINGLIST *s = NIL;
   MESSAGECACHE elt;
 				/* parse the date and return fn if OK */
-  int ret = (mail_criteria_string (&s) &&
+  int ret = (mail_criteria_string (&s,r) &&
 	     mail_parse_date (&elt,(char *) s->text.data) &&
 	     (*date = mail_shortdate (elt.year,elt.month,elt.day))) ?
 	       T : NIL;
@@ -4052,13 +4056,14 @@ unsigned short mail_shortdate (unsigned int year,unsigned int month,
 
 /* Parse a string
  * Accepts: pointer to stringlist
+ *	    pointer to strtok state
  * Returns: T if successful, else NIL
  */
 
-int mail_criteria_string (STRINGLIST **s)
+int mail_criteria_string (STRINGLIST **s,char **r)
 {
   unsigned long n;
-  char e,*d,*end = " ",*c = strtok (NIL,"");
+  char e,*d,*end = " ",*c = strtok_r (NIL,"",r);
   if (!c) return NIL;		/* missing argument */
   switch (*c) {			/* see what the argument is */
   case '{':			/* literal string */
@@ -4067,7 +4072,7 @@ int mail_criteria_string (STRINGLIST **s)
 	(!(*(c = d + n)) || (*c == ' '))) {
       e = *--c;			/* store old delimiter */
       *c = '\377';		/* make sure not a space */
-      strtok (c," ");		/* reset the strtok mechanism */
+      strtok_r (c," ",r);	/* reset the strtok mechanism */
       *c = e;			/* put character back */
       break;
     }
@@ -4078,7 +4083,7 @@ int mail_criteria_string (STRINGLIST **s)
     if (strchr (c+1,'"')) end = "\"";
     else return NIL;		/* falls through */
   default:			/* atomic string */
-    if (d = strtok (c,end)) n = strlen (d);
+    if (d = strtok_r (c,end,r)) n = strlen (d);
     else return NIL;
     break;
   }

@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	10 January 2007
+ * Last Edited:	1 March 2007
  */
 
 
@@ -239,6 +239,7 @@ static const CHARSET utf8_csvalid[] = {
   {"IBM874",CT_1BYTE,(void *) ibm_874tab,SC_THAI,"ISO-8859-11"},
 				/* deepest sigh */
   {"ANSI_X3.4-1968",CT_ASCII,NIL,NIL,"US-ASCII"},
+  {"UNICODE-1-1-UTF-7",CT_UTF7,NIL,SC_UNICODE,"UTF-8"},
 				/* these should never appear in email */
   {"UCS-2",CT_UCS2,NIL,SC_UNICODE,"UTF-8"},
   {"UCS-4",CT_UCS4,NIL,SC_UNICODE,"UTF-8"},
@@ -1079,13 +1080,13 @@ unsigned long ucs4_cs_get (CHARSET *cs,unsigned char **s,unsigned long *i)
     else return U8G_ENDSTRI;	/* empty string */
     ret |= c;
 				/* surrogate? */
-    if ((ret >= 0xd800) && (ret <= 0xdfff)) {
+    if ((ret >= UTF16_SURR) && (ret <= UTF16_MAXSURR)) {
 				/* invalid first surrogate */
-      if ((ret > 0xdbff) || (j < 2)) return U8G_NOTUTF8;
+      if ((ret > UTF16_SURRHEND) || (j < 2)) return U8G_NOTUTF8;
       j -= 2;			/* count two octets */
       d = (*t++) << 8;		/* first octet of second surrogate */
       d |= *t++;		/* second octet of second surrogate */
-      if ((d < 0xdc00) || (d > 0xdfff)) return U8G_NOTUTF8;
+      if ((d < UTF16_SURRL) || (d > UTF16_SURRLEND)) return U8G_NOTUTF8;
       ret = 0x10000 + ((ret & 0x3ff) << 10) + (d & 0x3ff);
     }
     break;
@@ -1886,15 +1887,15 @@ void utf8_text_utf16 (SIZEDTEXT *text,SIZEDTEXT *ret,ucs4cn_t cv,ucs4de_t de)
     c = *t++ << 8;
     c |= *t++;
 				/* possible surrogate? */
-    if ((c >= 0xd800) && (c <= 0xdfff)) {
+    if ((c >= UTF16_SURR) && (c <= UTF16_MAXSURR)) {
 				/* invalid first surrogate */
-      if ((c > 0xdbff) || !i) c = UBOGON;
+      if ((c > UTF16_SURRHEND) || !i) c = UBOGON;
       else {			/* get second surrogate */
 	d = *t++ << 8;
 	d |= *t++;
 	--i;			/* swallowed another 16-bits */
 				/* invalid second surrogate */
-	if ((d < 0xdc00) || (d > 0xdfff)) c = UBOGON;
+	if ((d < UTF16_SURRL) || (d > UTF16_SURRLEND)) c = UBOGON;
 	else c = 0x10000 + ((c & 0x3ff) << 10) + (d & 0x3ff);
       }
     }
@@ -1905,15 +1906,15 @@ void utf8_text_utf16 (SIZEDTEXT *text,SIZEDTEXT *ret,ucs4cn_t cv,ucs4de_t de)
     c = *t++ << 8;
     c |= *t++;
 				/* possible surrogate? */
-    if ((c >= 0xd800) && (c <= 0xdfff)) {
+    if ((c >= UTF16_SURR) && (c <= UTF16_MAXSURR)) {
 				/* invalid first surrogate */
-      if ((c > 0xdbff) || !i) c = UBOGON;
+      if ((c > UTF16_SURRHEND) || !i) c = UBOGON;
       else {			/* get second surrogate */
 	d = *t++ << 8;
 	d |= *t++;
 	--i;			/* swallowed another 16-bits */
 				/* invalid second surrogate */
-	if ((d < 0xdc00) || (d > 0xdfff)) c = UBOGON;
+	if ((d < UTF16_SURRL) || (d > UTF16_SURRLEND)) c = UBOGON;
 	else c = 0x10000 + ((c & 0x3ff) << 10) + (d & 0x3ff);
       }
     }
@@ -2001,15 +2002,36 @@ unsigned long ucs4_titlecase (unsigned long c)
 long ucs4_width (unsigned long c)
 {
   long ret;
-  if (c >= UCS4_WIDLEN) {	/* not in BMP, SMP, or SIP */
-    if (c > UCS4_MAXUNICODE) return U4W_NOTUNCD;
-    if (c >= UCS4_PVTBASE) return U4W_PRIVATE;
-    if (c >= UCS4_SSPBASE) return U4W_SSPCHAR;
-    return U4W_UNASSGN;		/* unassigned space char */
+				/* out of range, not-a-char, or surrogates */
+  if ((c > UCS4_MAXUNICODE) || ((c & 0xfffe) == 0xfffe) ||
+      ((c >= UTF16_SURR) && (c <= UTF16_MAXSURR))) ret = U4W_NOTUNCD;
+				/* private-use */
+  else if (c >= UCS4_PVTBASE) ret = U4W_PRIVATE;
+				/* SSP are not printing characters */
+  else if (c >= UCS4_SSPBASE) ret = U4W_SSPCHAR;
+				/* unassigned planes */
+  else if (c >= UCS4_UNABASE) ret = U4W_UNASSGN;
+				/* SIP and reserved plane 3 are wide */
+  else if (c >= UCS4_SIPBASE) ret = 2;
+#if (UCS4_WIDLEN != UCS4_SIPBASE)
+#error "UCS4_WIDLEN != UCS4_SIPBASE"
+#endif
+				/* C0/C1 controls */
+  else if ((c <= UCS2_C0CONTROLEND) ||
+	   ((c >= UCS2_C1CONTROL) && (c <= UCS2_C1CONTROLEND)))
+    ret = U4W_CONTROL;
+				/* BMP and SMP get value from table */
+  else switch (ret = (ucs4_widthtab[(c >> 2)] >> ((3 - (c & 0x3)) << 1)) &0x3){
+  case 0:			/* zero-width */
+    if (c == 0x00ad) ret = 1;	/* force U+00ad (SOFT HYPHEN) to width 1 */
+  case 1:			/* single-width */
+  case 2:			/* double-width */
+    break;
+  case 3:			/* ambiguous width */
+    ret = (c >= 0x2100) ? 2 : 1;/* need to do something better than this */
+    break;
   }
-				/* get value from table (is this best way?) */
-  ret = (ucs4_widthtab[(c >> 2)] >> ((3 - (c & 0x3)) << 1)) & 0x3;
-  return (ret == 3) ? U4W_CTLSRGT : ret;
+  return ret;
 }
 
 /* Return screen width of UTF-8 string

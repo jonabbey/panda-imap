@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	8 January 2007
+ * Last Edited:	29January 2007
  */
 
 
@@ -794,7 +794,7 @@ long mbx_ping (MAILSTREAM *stream)
     if (LOCAL->filetime && (LOCAL->filetime < sbuf.st_mtime))
       LOCAL->flagcheck = T;	/* upgrade to flag checking */
 				/* new mail or flagcheck handling needed? */
-    if (((i = (sbuf.st_size - LOCAL->filesize)) || LOCAL->flagcheck ||
+    if (((sbuf.st_size - LOCAL->filesize) || LOCAL->flagcheck ||
 	 !stream->nmsgs || snarf) &&
 	((ld = lockfd (LOCAL->fd,lock,LOCK_EX)) >= 0)) {
       if (LOCAL->flagcheck) {	/* sweep mailbox for changed message status */
@@ -805,7 +805,8 @@ long mbx_ping (MAILSTREAM *stream)
 	  LOCAL->flagcheck =NIL;/* got all the updates */
 	}
       }
-      else if (i) ret = mbx_parse (stream);
+				/* always reparse header at least */
+      else ret = mbx_parse (stream);
       if (ret && snarf) {	/* snarf new messages if still OK */
 	mbx_snarf (stream);
 				/* parse snarfed messages */

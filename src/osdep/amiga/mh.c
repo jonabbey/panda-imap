@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	18 December 2006
+ * Last Edited:	30 January 2007
  */
 
 
@@ -241,7 +241,7 @@ int mh_namevalid (char *name)
 
 char *mh_path (char *tmp)
 {
-  char *s,*t,*v;
+  char *s,*t,*v,*r;
   int fd;
   struct stat sbuf;
   if (!mh_profile) {		/* build mh_profile and mh_pathname now */
@@ -252,7 +252,7 @@ char *mh_path (char *tmp)
       close (fd);		/* don't need the file any more */
       t[sbuf.st_size] = '\0';	/* tie it off */
 				/* parse profile file */
-      for (s = strtok (t,"\r\n"); s && *s; s = strtok (NIL,"\r\n")) {
+      for (s = strtok_r (t,"\r\n",&r); s && *s; s = strtok_r (NIL,"\r\n",&r)) {
 				/* found space in line? */
 	if (v = strpbrk (s," \t")) {
 	  *v++ = '\0';		/* tie off, is keyword "Path:"? */

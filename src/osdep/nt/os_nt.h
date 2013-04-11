@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	30 August 2006
+ * Last Edited:	30 January 2007
  */
 
 #include <stdlib.h>
@@ -39,6 +39,8 @@
 #include <lm.h>
 #undef ERROR
 #define ERROR (long) 2		/* must match mail.h */
+
+#define strtok_r strtok_s	/* for some reason they called it this */
 
 
 #include "env_nt.h"

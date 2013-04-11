@@ -15,7 +15,7 @@ sort.txt	draft-ietf-imapext-sort-19.txt
 		;; SORT and THREAD commands
 		;; Status: approved, blocked waiting for i18n
 
-i18n.txt	draft-ietf-imapext-i18n-06.txt
+i18n.txt	draft-ietf-imapext-i18n-10.txt
 		;; internationalization in IMAP
 
 compare.txt	draft-newman-i18n-comparator-14.txt

@@ -11,6 +11,29 @@
  * ========================================================================
  */
 
+Updated: 30 January 2007
+
+imap-2006f is a maintenance release, consisting primarily of bugfixes to
+problems discovered in the release that affected a small number of users.
+
+For the benefit of multi-threaded applications, use of strtok() has been
+abolished in the c-client library.  imapd and ipop3d stuff use it though.
+The TOPS-20 and VAX/VMS ports still use strtok() since they don't use UNIX
+threads.
+
+This version has been test-built on Linux, Mac OS X, NeXT, Windows XP,
+TOPS-20, and VAX/VMS.  This will probably be the last test-build on VAX/VMS
+since the system I use for that purpose is being shut down.  I have no way
+to test-build on DOS, legacy Mac OS (OS 9 and earlier), OS/2, or Windows CE;
+and the builds on those systems are probably broken.
+
+
+Updated: 26 January 2007
+
+imap-2006e is a maintenance release, consisting primarily of bugfixes to
+problems discovered in the release that affected a small number of users.
+
+
 Updated: 6 December 2006
 
 imap-2006d is a maintenance release, consisting primarily of bugfixes to

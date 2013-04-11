@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	19 January 2007
+ * Last Edited:	30 January 2007
  */
 
 /* Build parameters */
@@ -1703,8 +1703,8 @@ long mail_search_addr (ADDRESS *adr,STRINGLIST *st);
 char *mail_search_gets (readfn_t f,void *stream,unsigned long size,
 			GETS_DATA *md);
 SEARCHPGM *mail_criteria (char *criteria);
-int mail_criteria_date (unsigned short *date);
-int mail_criteria_string (STRINGLIST **s);
+int mail_criteria_date (unsigned short *date,char **r);
+int mail_criteria_string (STRINGLIST **s,char **r);
 unsigned short mail_shortdate (unsigned int year,unsigned int month,
 			       unsigned int day);
 SEARCHSET *mail_parse_set (char *s,char **ret);

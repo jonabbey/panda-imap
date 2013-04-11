@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	9 January 2007
+ * Last Edited:	31 January 2007
  */
 
 #include "ip_unix.c"
@@ -327,22 +327,28 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
 {
   TCPSTREAM *stream = NIL;
   void *adr;
-  char host[MAILTMPLEN],tmp[MAILTMPLEN],*path,*argv[MAXARGV+1];
+  char host[MAILTMPLEN],tmp[MAILTMPLEN],*path,*argv[MAXARGV+1],*r;
   int i,ti,pipei[2],pipeo[2];
   size_t len;
   time_t now;
   struct timeval tmo;
   fd_set fds,efds;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
+#ifdef SSHPATH			/* ssh path defined yet? */
+  if (!sshpath) sshpath = cpystr (SSHPATH);
+#endif
+#ifdef RSHPATH			/* rsh path defined yet? */
+  if (!rshpath) rshpath = cpystr (RSHPATH);
+#endif
   if (*service == '*') {	/* want ssh? */
 				/* return immediately if ssh disabled */
     if (!(sshpath && (ti = sshtimeout))) return NIL;
 				/* ssh command prototype defined yet? */
     if (!sshcommand) sshcommand = cpystr ("%s %s -l %s exec /etc/r%sd");
   }
-  else if (ti = rshtimeout) {	/* set rsh timeout */
-				/* rsh path/command prototypes defined yet? */
-    if (!rshpath) rshpath = cpystr (RSHPATH);
+				/* want rsh? */
+  else if (rshpath && (ti = rshtimeout)) {
+				/* rsh command prototype defined yet? */
     if (!rshcommand) rshcommand = cpystr ("%s %s -l %s exec /etc/r%sd");
   }
   else return NIL;		/* rsh disabled */
@@ -371,8 +377,8 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
     mm_log (msg,TCPDEBUG);
   }
 				/* parse command into argv */
-  for (i = 1,path = argv[0] = strtok (tmp," ");
-       (i < MAXARGV) && (argv[i] = strtok (NIL," ")); i++);
+  for (i = 1,path = argv[0] = strtok_r (tmp," ",&r);
+       (i < MAXARGV) && (argv[i] = strtok_r (NIL," ",&r)); i++);
   argv[i] = NIL;		/* make sure argv tied off */
 				/* make command pipes */
   if (pipe (pipei) < 0) return NIL;
@@ -962,7 +968,7 @@ char *tcp_name (struct sockaddr *sadr,long flag)
 }
 
 
-/* Validate name
+/* TCP/IP validate name
  * Accepts: domain name
  * Returns: name if valid, NIL otherwise
  */
@@ -979,5 +985,30 @@ char *tcp_name_valid (char *s)
 	    ((c >= '0') && (c <= '9')) || (c == '-') || (c == '.')));
     if (c) ret = NIL;
   }
+  return ret;
+}
+
+/* TCP/IP check if client is given host name
+ * Accepts: candidate host name
+ * Returns: T if match, NIL otherwise
+ */
+
+long tcp_isclienthost (char *host)
+{
+  int family;
+  size_t adrlen,sadrlen,len;
+  void *adr,*next;
+  struct sockaddr *sadr;
+  long ret = NIL;
+				/* make sure that myClientAddr is set */
+  if (tcp_clienthost () && myClientAddr)
+				/* get sockaddr of client */
+    for (adr = ip_nametoaddr (host,&adrlen,&family,NIL,&next); adr && !ret;
+	 adr = ip_nametoaddr (NIL,&adrlen,&family,NIL,&next)) {
+				/* build sockaddr of given address */
+      sadr = ip_sockaddr (family,adr,adrlen,1,&len);
+      if (!strcmp (myClientAddr,ip_sockaddrtostring (sadr))) ret = LONGT;
+      fs_give ((void **) &sadr);	/* done with client sockaddr */
+    }
   return ret;
 }

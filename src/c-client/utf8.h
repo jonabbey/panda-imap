@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	6 December 2006
+ * Last Edited:	1 March 2007
  */
 
 /* UTF-8 size and conversion routines from UCS-2 values (thus in the BMP).
@@ -74,7 +74,8 @@
 #define U4W_PRIVATE U4W_ERROR+2	/* private-space plane */
 #define U4W_SSPCHAR U4W_ERROR+3	/* Supplementary Special-purpose Plane */
 #define U4W_UNASSGN U4W_ERROR+4	/* unassigned space plane */
-#define U4W_CTLSRGT U4W_ERROR+5	/* C0/C1 control or surrogate */
+#define U4W_CONTROL U4W_ERROR+5	/* C0/C1 control */
+#define U4W_CTLSRGT U4W_CONTROL	/* in case legacy code references this */
 
 /* ISO-2022 engine states */
 
@@ -333,6 +334,11 @@
 
 /* Unicode codepoints */
 
+#define UCS2_C0CONTROL 0x00	/* first C0 control */
+#define UCS2_C0CONTROLEND 0x1F	/* last C0 control */
+#define UCS2_C1CONTROL 0x80	/* first C1 control */
+#define UCS2_C1CONTROLEND 0x9F	/* last C1 control */
+
 				/* ISO 646 substituted Unicode codepoints */
 #define UCS2_POUNDSTERLING 0x00a3
 #define UCS2_YEN 0x00a5
@@ -346,9 +352,18 @@
 #define UCS4_BMPBASE 0x0000	/* Basic Multilingual Plane */
 #define UCS4_SMPBASE 0x10000	/* Supplementary Multilinugual Plane */
 #define UCS4_SIPBASE 0x20000	/* Supplementary Ideographic Plane */
+				/* EastAsianWidth says plane 3 is wide */
+#define UCS4_UNABASE 0x40000	/* unassigned space */
 #define UCS4_SSPBASE 0xe0000	/* Supplementary Special-purpose Plane */
 #define UCS4_PVTBASE 0xf0000	/* private-space (two planes) */
 #define UCS4_MAXUNICODE 0x10ffff/* highest Unicode codepoint */
+
+#define UTF16_SURR 0xd800	/* UTF-16 surrogate area */
+#define UTF16_SURRH 0xd800	/* UTF-16 first high surrogate */
+#define UTF16_SURRHEND 0xdbff	/* UTF-16 last high surrogate */
+#define UTF16_SURRL 0xdc00	/* UTF-16 first low surrogate */
+#define UTF16_SURRLEND 0xdfff	/* UTF-16 last low surrogate */
+#define UTF16_MAXSURR 0xdfff	/* end of UTF-16 surrogates */
 
 
 /*  UBOGON is used to represent a codepoint in a character set which does not

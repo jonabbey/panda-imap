@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	30 August 2006
+ * Last Edited:	30 January 2007
  */
 
 
@@ -210,7 +210,7 @@ void news_list (MAILSTREAM *stream,char *ref,char *pat)
 {
   int fd;
   int i;
-  char *s,*t,*u,pattern[MAILTMPLEN],name[MAILTMPLEN];
+  char *s,*t,*u,*r,pattern[MAILTMPLEN],name[MAILTMPLEN];
   struct stat sbuf;
   if (!pat || !*pat) {		/* empty pattern? */
     if (news_canonicalize (ref,"*",pattern)) {
@@ -231,7 +231,7 @@ void news_list (MAILSTREAM *stream,char *ref,char *pat)
     strcpy (name,"#news.");	/* write initial prefix */
     i = strlen (pattern);	/* length of pattern */
     if (pattern[--i] != '%') i = 0;
-    if (t = strtok (s,"\n")) do if (u = strchr (t,' ')) {
+    if (t = strtok_r (s,"\n",&r)) do if (u = strchr (t,' ')) {
       *u = '\0';		/* tie off at end of name */
       strcpy (name + 6,t);	/* make full form of name */
       if (pmatch_full (name,pattern,'.')) mm_list (stream,'.',name,NIL);
@@ -240,7 +240,7 @@ void news_list (MAILSTREAM *stream,char *ref,char *pat)
 	if (pmatch_full (name,pattern,'.'))
 	  mm_list (stream,'.',name,LATT_NOSELECT);
       }
-    } while (t = strtok (NIL,"\n"));
+    } while (t = strtok_r (NIL,"\n",&r));
     fs_give ((void **) &s);
   }
 }

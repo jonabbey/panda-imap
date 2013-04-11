@@ -51,3 +51,4 @@ extern int errno;		/* just in case */
 #include "tcp_unix.c"
 #include "gr_wait4.c"
 #include "tz_bsd.c"
+#include "strtok.c"

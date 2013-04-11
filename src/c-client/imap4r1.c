@@ -3560,6 +3560,7 @@ IMAPPARSEDREPLY *imap_reply (MAILSTREAM *stream,char *tag)
 
 IMAPPARSEDREPLY *imap_parse_reply (MAILSTREAM *stream,char *text)
 {
+  char *r;
   if (LOCAL->reply.line) fs_give ((void **) &LOCAL->reply.line);
 				/* init fields in case error */
   LOCAL->reply.key = LOCAL->reply.text = LOCAL->reply.tag = NIL;
@@ -3570,7 +3571,7 @@ IMAPPARSEDREPLY *imap_parse_reply (MAILSTREAM *stream,char *text)
     return NIL;
   }
   if (stream->debug) mm_dlog (LOCAL->reply.line);
-  if (!(LOCAL->reply.tag = (char *) strtok (LOCAL->reply.line," "))) {
+  if (!(LOCAL->reply.tag = strtok_r (LOCAL->reply.line," ",&r))) {
     mm_notify (stream,"IMAP server sent a blank line",WARN);
     stream->unhealthy = T;
     return NIL;
@@ -3578,7 +3579,7 @@ IMAPPARSEDREPLY *imap_parse_reply (MAILSTREAM *stream,char *text)
 				/* non-continuation replies */
   if (strcmp (LOCAL->reply.tag,"+")) {
 				/* parse key */
-    if (!(LOCAL->reply.key = (char *) strtok (NIL," "))) {
+    if (!(LOCAL->reply.key = strtok_r (NIL," ",&r))) {
 				/* determine what is missing */
       sprintf (LOCAL->tmp,"Missing IMAP reply key: %.80s",
 	       (char *) LOCAL->reply.tag);
@@ -3588,12 +3589,12 @@ IMAPPARSEDREPLY *imap_parse_reply (MAILSTREAM *stream,char *text)
     }
     ucase (LOCAL->reply.key);	/* canonicalize key to upper */
 				/* get text as well, allow empty text */
-    if (!(LOCAL->reply.text = (char *) strtok (NIL,"\n")))
+    if (!(LOCAL->reply.text = strtok_r (NIL,"\n",&r)))
       LOCAL->reply.text = LOCAL->reply.key + strlen (LOCAL->reply.key);
   }
   else {			/* special handling of continuation */
     LOCAL->reply.key = "BAD";	/* so it barfs if not expecting continuation */
-    if (!(LOCAL->reply.text = (char *) strtok (NIL,"\n")))
+    if (!(LOCAL->reply.text = strtok_r (NIL,"\n",&r)))
       LOCAL->reply.text = "";
   }
   return &LOCAL->reply;		/* return parsed reply */
@@ -3661,6 +3662,7 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
   unsigned long i = 0;
   unsigned long j,msgno;
   unsigned char *s,*t;
+  char *r;
 				/* see if key is a number */
   if (isdigit (*reply->key)) {
     msgno = strtoul (reply->key,(char **) &s,10);
@@ -3677,9 +3679,9 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
       return;
     }
 				/* get message data type, canonicalize upper */
-    s = ucase ((char *) strtok (reply->text," "));
+    s = ucase (strtok_r (reply->text," ",&r));
 				/* and locate the text after it */
-    t = (char *) strtok (NIL,"\n");
+    t = strtok_r (NIL,"\n",&r);
 				/* now take the action */
 				/* change in size of mailbox */
     if (!strcmp (s,"EXISTS")) mail_exists (stream,msgno);
@@ -3703,8 +3705,8 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
 	(imapenvelope_t) mail_parameters (stream,GET_IMAPENVELOPE,NIL);
       ++t;			/* skip past open parenthesis */
 				/* parse Lisp-form property list */
-      while (prop = ((char *) strtok (t," )"))) {
-	t = (char *) strtok (NIL,"\n");
+      while (prop = (strtok_r (t," )",&r))) {
+	t = strtok_r (NIL,"\n",&r);
 	INIT_GETS (md,stream,elt->msgno,NIL,0,0);
 	e = NIL;		/* not pointing at any envelope yet */
 				/* canonicalize property, parse it */
@@ -3865,7 +3867,8 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
   }
 
   else if (!strcmp (reply->key,"FLAGS") && reply->text &&
-	   (*reply->text == '(') && (s = (char *) strtok (reply->text+1," )")))
+	   (*reply->text == '(') &&
+	   (s = strtok_r (reply->text+1," )",&r)))
     do if (*s != '\\') {
       for (i = 0; (i < NUSERFLAGS) && stream->user_flags[i] &&
 	     compare_cstring (s,stream->user_flags[i]); i++);
@@ -3876,10 +3879,10 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
       }
       else if (!stream->user_flags[i]) stream->user_flags[i++] = cpystr (s);
     }
-    while (s = (char *) strtok (NIL," )"));
+    while (s = strtok_r (NIL," )",&r));
   else if (!strcmp (reply->key,"SEARCH")) {
 				/* only do something if have text */
-    if (reply->text && (t = (char *) strtok (reply->text," "))) do
+    if (reply->text && (t = strtok_r (reply->text," ",&r))) do
       if (i = strtoul (t,NIL,10)) {
 				/* UIDs always passed to main program */
 	if (LOCAL->uidsearch) mm_searched (stream,i);
@@ -3889,7 +3892,7 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
 	  mail_elt (stream,i)->searched = T;
 	  if (!stream->silent) mm_searched (stream,i);
 	}
-      } while (t = (char *) strtok (NIL," "));
+      } while (t = strtok_r (NIL," ",&r));
   }
   else if (!strcmp (reply->key,"SORT")) {
     sortresults_t sr = (sortresults_t)
@@ -3899,12 +3902,11 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
     LOCAL->sortdata = (unsigned long *)
       fs_get ((stream->nmsgs + 1) * sizeof (unsigned long));
 				/* only do something if have text */
-    if (reply->text && (t = (char *) strtok (reply->text," "))) {
+    if (reply->text && (t = strtok_r (reply->text," ",&r))) {
       do if ((i = atol (t)) && (LOCAL->filter ?
 				mail_elt (stream,i)->searched : T))
 	LOCAL->sortdata[LOCAL->sortsize++] = i;
-      while ((t = (char *) strtok (NIL," ")) &&
-	     (LOCAL->sortsize < stream->nmsgs));
+      while ((t = strtok_r (NIL," ",&r)) && (LOCAL->sortsize < stream->nmsgs));
     }
     LOCAL->sortdata[LOCAL->sortsize] = 0;
 				/* also return via callback if requested */
@@ -3978,7 +3980,7 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
     char delimiter = '\0';
     *s++ = '\0';		/* tie off attribute list */
 				/* parse attribute list */
-    if (t = (char *) strtok (reply->text+1," ")) do {
+    if (t = strtok_r (reply->text+1," ",&r)) do {
       if (!compare_cstring (t,"\\NoInferiors")) i |= LATT_NOINFERIORS;
       else if (!compare_cstring (t,"\\NoSelect")) i |= LATT_NOSELECT;
       else if (!compare_cstring (t,"\\Marked")) i |= LATT_MARKED;
@@ -3987,7 +3989,7 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
       else if (!compare_cstring (t,"\\HasNoChildren")) i |= LATT_HASNOCHILDREN;
 				/* ignore extension flags */
     }
-    while (t = (char *) strtok (NIL," "));
+    while (t = strtok_r (NIL," ",&r));
     switch (*++s) {		/* process delimiter */
     case 'N':			/* NIL */
     case 'n':
@@ -4225,7 +4227,7 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
 
 void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy)
 {
-  char *s,*t;
+  char *s,*t,*r;
   size_t i;
   unsigned long j;
   MESSAGECACHE *elt;
@@ -4256,7 +4258,7 @@ void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy)
 	stream->perm_seen = stream->perm_deleted = stream->perm_answered =
 	  stream->perm_draft = stream->kwd_create = NIL;
 	stream->perm_user_flags = NIL;
-	if (s = strtok (s+1," ")) do {
+	if (s = strtok_r (s+1," ",&r)) do {
 	  if (*s == '\\') {	/* system flags */
 	    if (!compare_cstring (s,"\\Seen")) stream->perm_seen = T;
 	    else if (!compare_cstring (s,"\\Deleted"))
@@ -4270,7 +4272,7 @@ void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy)
 	  }
 	  else stream->perm_user_flags |= imap_parse_user_flag (stream,s);
 	}
-	while (s = strtok (NIL," "));
+	while (s = strtok_r (NIL," ",&r));
       }
 
       else if (!compare_cstring (t,"CAPABILITY"))
@@ -5431,7 +5433,7 @@ void imap_parse_extension (MAILSTREAM *stream,unsigned char **txtptr,
 
 void imap_parse_capabilities (MAILSTREAM *stream,char *t)
 {
-  char *s;
+  char *s,*r;
   unsigned long i;
   THREADER *thr,*th;
   if (!LOCAL->gotcapability) {	/* need to save previous capabilities? */
@@ -5445,7 +5447,7 @@ void imap_parse_capabilities (MAILSTREAM *stream,char *t)
     memset (&LOCAL->cap,0,sizeof (LOCAL->cap));
     LOCAL->gotcapability = T;	/* flag that capabilities arrived */
   }
-  for (t = (char *) strtok (t," "); t; t = (char *) strtok (NIL," ")) {
+  for (t = strtok_r (t," ",&r); t; t = strtok_r (NIL," ",&r)) {
     if (!compare_cstring (t,"IMAP4"))
       LOCAL->cap.imap4 = LOCAL->cap.imap2bis = LOCAL->cap.rfc1176 = T;
     else if (!compare_cstring (t,"IMAP4rev1"))

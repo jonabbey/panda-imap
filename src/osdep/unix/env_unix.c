@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	16 January 2007
+ * Last Edited:	31 January 2007
  */
 
 #include <grp.h>
@@ -1520,7 +1520,7 @@ char *default_user_flag (unsigned long i)
 void dorc (char *file,long flag)
 {
   int i;
-  char *s,*t,*k,tmp[MAILTMPLEN],tmpx[MAILTMPLEN];
+  char *s,*t,*k,*r,tmp[MAILTMPLEN],tmpx[MAILTMPLEN];
   extern MAILSTREAM CREATEPROTO;
   extern MAILSTREAM EMPTYPROTO;
   DRIVER *d;
@@ -1531,12 +1531,13 @@ void dorc (char *file,long flag)
     if ((k = strchr (s,' ')) && (k = strchr (++k,' '))) {
       *k++ = '\0';		/* tie off two words */
       if (!compare_cstring (s,"set keywords") && !userFlags[0]) {
-	k = strtok (k,", ");	/* yes, get first keyword */
+				/* yes, get first keyword */
+	k = strtok_r (k,", ",&r);
 				/* copy keyword list */
 	for (i = 0; k && i < NUSERFLAGS; ++i) if (strlen (k) <= MAXUSERFLAG) {
 	  if (userFlags[i]) fs_give ((void **) &userFlags[i]);
 	  userFlags[i] = cpystr (k);
-	  k = strtok (NIL,", ");
+	  k = strtok_r (NIL,", ",&r);
 	}
 	if (flag) break;	/* found "set keywords" in .mminit */
       }
@@ -1721,14 +1722,13 @@ void dorc (char *file,long flag)
 	    logtry = atoi (k);
 	  else if (!compare_cstring (s,"set chroot-server"))
 	    closedBox = atoi (k);
-	  else if (!compare_cstring (s,"set restrict-mailbox-access")) {
-	    for (k = strtok (k,", "); k; k = strtok (NIL,", ")) {
+	  else if (!compare_cstring (s,"set restrict-mailbox-access"))
+	    for (k = strtok_r (k,", ",&r); k; k = strtok_r (NIL,", ",&r)) {
 	      if (!compare_cstring (k,"root")) restrictBox |= RESTRICTROOT;
 	      else if (!compare_cstring (k,"otherusers"))
 		restrictBox |= RESTRICTOTHERUSER;
 	      else if (!compare_cstring (k,"all")) restrictBox = -1;
 	    }
-	  }
 	  else if (!compare_cstring (s,"set advertise-the-world"))
 	    advertisetheworld = atoi (k);
 	  else if (!compare_cstring (s,"set limited-advertise"))
@@ -1742,6 +1742,13 @@ void dorc (char *file,long flag)
 	    mail_parameters (NIL,SET_ALLOWREVERSEDNS,(void *) atol (k));
 	  else if (!compare_cstring (s,"set k5-cp-uses-service-name"))
 	    kerb_cp_svr_name = atoi (k);
+				/* must appear in file after any
+				 * "set disable-plaintext" command! */
+	  else if (!compare_cstring (s,"set plaintext-allowed-clients")) {
+	    for (k = strtok_r (k,", ",&r); k && !tcp_isclienthost (k);
+		 k = strtok_r (NIL,", ",&r));
+	    if (k) disablePlaintext = 0;
+	  }
 	}
       }
     }
