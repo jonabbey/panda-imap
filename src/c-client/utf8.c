@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	4 October 1999
+ * Last Edited:	27 April 2000
  *
  * Copyright 1999 by the University of Washington
  *
@@ -223,13 +223,13 @@ long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags)
     }
     return LONGT;
   }
-				/* otherwise look for charset */
-  for (i = 0, ucase (strcpy (tmp,charset)); utf8_csvalid[i].name; i++)
-    if (!strcmp (tmp,utf8_csvalid[i].name)) {
-      if (ret && utf8_csvalid[i].dsp)
-	(*utf8_csvalid[i].dsp) (text,ret,utf8_csvalid[i].tab);
-      return LONGT;		/* success */
-    }
+  if (strlen (charset) < 128)	/* otherwise look for charset */
+    for (i = 0, ucase (strcpy (tmp,charset)); utf8_csvalid[i].name; i++)
+      if (!strcmp (tmp,utf8_csvalid[i].name)) {
+	if (ret && utf8_csvalid[i].dsp)
+	  (*utf8_csvalid[i].dsp) (text,ret,utf8_csvalid[i].tab);
+	return LONGT;		/* success */
+      }
   if (flags) {			/* charset not found */
     strcpy (tmp,"[BADCHARSET (");
     for (i = 0, t = tmp + strlen (tmp); utf8_csvalid[i].name;

@@ -263,9 +263,10 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
       dummy_listed (stream,'/',dir,LATT_NOSELECT,contents);
 				/* scan directory, ignore . and .. */
     if (!dir || dir[strlen (dir) - 1] == '/') while (d = readdir (dp))
-      if ((d->d_name[0] != '.') ||
-	  (d->d_name[1] && (((d->d_name[1] != '.') || d->d_name[2]) &&
-			    strcmp (d->d_name+1,MXINDEXNAME+2)))) {
+      if (((d->d_name[0] != '.') ||
+	   (d->d_name[1] && (((d->d_name[1] != '.') || d->d_name[2]) &&
+			     strcmp (d->d_name+1,MXINDEXNAME+2)))) &&
+	  (strlen (d->d_name) <= NETMAXMBX)) {
 				/* see if name is useful */
 	if (dir) sprintf (tmp,"%s%s",dir,d->d_name);
 	else strcpy (tmp,d->d_name);

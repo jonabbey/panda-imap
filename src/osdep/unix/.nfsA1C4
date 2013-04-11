@@ -660,15 +660,9 @@ char *mailboxdir (char *dst,char *dir,char *name)
 {
   char tmp[MAILTMPLEN];
   if (dir || name) {		/* if either argument provided */
-    if (dir) {
-      if (strlen (dir) > NETMAXMBX) return NIL;
-      strcpy (tmp,dir);		/* write directory prefix */
-    }
+    if (dir) strcpy (tmp,dir);	/* write directory prefix */
     else tmp[0] = '\0';		/* otherwise null string */
-    if (name) {
-      if (strlen (name) > NETMAXMBX) return NIL;
-      strcat (tmp,name);	/* write name in directory */
-    }
+    if (name) strcat (tmp,name);/* write name in directory */
 				/* validate name, return its name */
     if (!mailboxfile (dst,tmp)) return NIL;
   }
@@ -688,8 +682,7 @@ char *mailboxfile (char *dst,char *name)
   char *dir = myhomedir ();
   *dst = '\0';			/* default to empty string */
 				/* check invalid name */
-  if (!name || !*name || (*name == '{') || (strlen (name) > NETMAXMBX))
-    return NIL;
+  if (!name || !*name || (*name == '{')) return NIL;
 				/* check for INBOX */
   if (((name[0] == 'I') || (name[0] == 'i')) &&
       ((name[1] == 'N') || (name[1] == 'n')) &&
