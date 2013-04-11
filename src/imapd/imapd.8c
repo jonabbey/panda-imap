@@ -1,0 +1,32 @@
+.TH IMAPD 8C "April 26, 1995"
+.UC 5
+.SH NAME
+IMAPd \- Internet Message Access Protocol server
+.SH SYNOPSIS
+.B /usr/etc/imapd
+.SH DESCRIPTION
+.I imapd
+is a server which supports the
+.B IMAP4
+remote mail access protocol as documented in RFC-1730.
+.I imapd
+is invoked by the internet server (see
+.IR inetd (8)),
+normally for requests to connect to the
+.B IMAP4
+port as indicated by the
+.I /etc/services
+file (see
+.IR services (5)).
+Normally, this is port 143.
+.PP
+.I imapd
+can also be accessed via
+.IR rsh (1C)
+by many Unix-based clients.  To do this, the
+.I imapd
+binary must have a link to
+.I /etc/rimapd
+since this is where this software expects it to be located.
+.SH "SEE ALSO"
+rsh(1C) ipopd(8C)

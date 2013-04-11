@@ -1,4 +1,28 @@
-IMAP2bis toolkit 3.6 is the FINAL version of the IMAP toolkit that
-supports the IMAP2 protocol.  The next IMAP toolkit will be 4.0, which
-supports IMAP4 and has *major* internal and external changes.  At the
-time of this writing toolkit 4.0 is in alpha test.
+Updated: 29 July 1996
+
+This is a snapshot of development sources of the IMAP4 version of the
+IMAP toolkit.  It is updated frequently.
+
+This version supports the RFC-1730 version of IMAP4.
+
+Until the dust settles, I'm not keeping any revision histories.  I
+plan on starting an RCS revision history after the IMAP4rev1 updates
+are made.
+
+This suggests that you shouldn't spend too much time working on your
+own custom changes, otherwise, you'll have a devil's time keeping
+merged.  Rather, you should concentrate on getting your mail program
+to use the new interfaces.
+
+The following are known problems/deficiencies:
+ . No local file drivers for Mac, TOPS-20, or VMS.
+ . OS/2 port isn't finished
+ . search CHARSETs other than US-ASCII are not yet supported.
+ . AUTHENTICATE command in IMAP server doesn't have any protection
+    mechanisms yet.
+ . Only Kerberos client support is there yet.
+ . Sticky UIDs are not supported in the mh, mtx, or tenex drivers.
+ . POP3 UIDs are only supported in the server, not in the client.
+ . Only the mbx and mx drivers support creation of keywords.
+ . No support for TCP open timeouts on Winsock, generic DOS, and VMS Multinet.
+ . No support for any TCP timeouts on Waterloo DOS, TOPS-20, and VMS Netlib.

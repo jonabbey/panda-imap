@@ -1,0 +1,27 @@
+#!/bin/sh
+
+BASE=`pwd`
+
+if [ ! -d $BASE/$3 ]; then
+ mkdir $BASE/$3
+fi
+
+if [ -f $BASE/$2/Makefile ]; then
+  $1 $BASE/$2/Makefile $BASE/$3
+fi
+
+if [ -f $BASE/$2/drivers ]; then
+  $1 $BASE/$2/drivers $BASE/$3
+fi
+
+if [ -f $BASE/$2/mkauths ]; then
+  $1 $BASE/$2/mkauths $BASE/$3
+fi
+
+cd $BASE/$2
+
+for j in *.[ch]; do
+  ln -s $BASE/$2/$j $BASE/$3
+done
+
+exit 0

@@ -1,0 +1,100 @@
+# Program:	Portable C client makefile -- NT version
+#
+# Author:	Mark Crispin
+#		Networks and Distributed Computing
+#		Computing & Communications
+#		University of Washington
+#		Administration Building, AG-44
+#		Seattle, WA  98195
+#		Internet: MRC@CAC.Washington.EDU
+#
+# Date:		11 May 1989
+# Last Edited:	8 February 1996
+#
+# Copyright 1996 by the University of Washington
+#
+#  Permission to use, copy, modify, and distribute this software and its
+# documentation for any purpose and without fee is hereby granted, provided
+# that the above copyright notice appears in all copies and that both the
+# above copyright notice and this permission notice appear in supporting
+# documentation, and that the name of the University of Washington not be
+# used in advertising or publicity pertaining to distribution of the software
+# without specific, written prior permission.  This software is made
+# available "as is", and
+# THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
+# WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
+# NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
+# INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
+# (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+
+EXTRAAUTHENTICATORS=
+DEFAULTAUTHENTICATORS=log
+EXTRADRIVERS = 
+DRIVERS = imap nntp pop3 mtx tenex bezerk dummy
+DEFAULTDRIVER = mtx
+CFLAGS= /MT /W3 /DWIN32 -nologo $(EXTRACFLAGS)
+CC = cl
+CCLIENTLIB= cclient.lib
+
+all:	$(CCLIENTLIB)
+
+.c.obj:
+	$(CC) -c $(CFLAGS) $*.c
+
+osdep.h: os_nt.h
+	copy os_nt.h osdep.h
+	drivers $(EXTRADRIVERS) $(DRIVERS)
+	mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)
+	setproto $(DEFAULTDRIVER)
+
+mail.obj: mail.h misc.h osdep.h mail.c
+
+misc.obj: mail.h misc.h misc.c
+
+netmsg.obj: mail.h misc.h netmsg.h osdep.h netmsg.c
+
+newsrc.obj: mail.h misc.h newsrc.h osdep.h newsrc.c
+
+rfc822.obj: mail.h rfc822.h misc.h rfc822.c
+
+smanager.obj: mail.h misc.h smanager.c
+
+imap4.obj: mail.h imap4.h misc.h osdep.h imap4.c
+
+nntp.obj: mail.h nntp.h smtp.h rfc822.h misc.h osdep.h nntp.c
+
+pop3.obj: mail.h pop3.h misc.h osdep.h pop3.c
+
+smtp.obj: mail.h smtp.h rfc822.h misc.h osdep.h smtp.c
+
+os_nt.obj: mail.h osdep.h env_nt.h fs.h ftl.h nl.h tcp.h tcp_nt.h syslog.h \
+	os_nt.c fs_nt.c ftl_nt.c nl_nt.c env_nt.c tcp_nt.c log_nt.c syslog.c \
+	mailfile.h
+
+mtxnt.obj: mail.h mtxnt.h misc.h osdep.h mtxnt.c
+
+tenexnt.obj: mail.h tenexnt.h misc.h osdep.h tenexnt.c
+
+bezerknt.obj: mail.h bezerknt.h misc.h osdep.h bezerknt.c
+
+dummynt.obj: mail.h dummy.h misc.h osdep.h dummynt.c
+
+$(CCLIENTLIB): mail.obj misc.obj netmsg.obj newsrc.obj rfc822.obj \
+	smanager.obj imap4.obj nntp.obj pop3.obj smtp.obj os_nt.obj \
+	mtxnt.obj tenexnt.obj bezerknt.obj dummynt.obj
+	erase $(CCLIENTLIB)
+	LIB /NOLOGO /OUT:cclient.lib mail.obj misc.obj netmsg.obj newsrc.obj \
+	rfc822.obj smanager.obj imap4.obj nntp.obj pop3.obj smtp.obj \
+	os_nt.obj mtxnt.obj tenexnt.obj bezerknt.obj dummynt.obj
+
+clean:
+	RM /f /x *.lib *.obj linkage.* osdep.* auths.c *.exe *.exp
+
+# A monument to a hack of long ago and far away...
+
+love:
+	@echo not war?

@@ -1,0 +1,120 @@
+		 c-client mail_parameters() functions
+
+The following parameters are in the IMAP-3.6 toolkit:
+
+GET_DRIVERS
+ (DRIVER *) list of all lunk mail drivers
+
+GET_GETS / SET_GETS
+ (mailgets_t) if non-zero, has routine to get a string from a stream; zero to
+	read entirely into fs_get() buffer.  See mm_gets().
+
+GET_CACHE / SET_CACHE
+ (mailcache_t) c-client cache management routine.  See mm_cache().
+
+GET_USERNAME / SET_USERNAME
+ (char *) user name
+
+GET_HOMEDIR / SET_HOMEDIR
+ (char *) home directory
+
+GET_LOCALHOST / SET_LOCALHOST
+ (char *) local host name
+
+GET_SYSINBOX / SET_SYSINBOX
+ (char *) system inbox (/usr/spool/mail/????????)
+
+GET_OPENTIMEOUT / SET_OPENTIMEOUT
+ (long) number of seconds before open timeout.  Unix and Mac only.
+
+GET_READTIMEOUT / SET_READTIMEOUT
+ (long) number of seconds before read timeout.  Not in Waterloo or TOPS-20.
+
+GET_WRITETIMEOUT / SET_WRITETIMEOUT
+ (long) number of seconds before write timeout.  Not in Waterloo or TOPS-20.
+
+GET_CLOSETIMEOUT / SET_CLOSETIMEOUT
+ (long) number of seconds before close timeout.  Mac only.
+
+GET_TIMEOUT / SET_TIMEOUT
+ (tcptimeout_t) routine to be called on a TCP timeout
+
+GET_MAXLOGINTRIALS / SET_MAXLOGINTRIALS
+ (long) number of failed login attempts permitted before punting (this is in
+	the client; servers may have their own limit)
+
+GET_LOOKAHEAD / SET_LOOKAHEAD
+ (long) number of envelopes/UIDs to do an advance lookahead prefetch in
+	mail_fetchstructure(), mail_uid().
+
+GET_IMAPPORT / SET_IMAPPORT
+ (long) IMAP TCP contact port
+
+GET_PREFETCH / SET_PREFETCH
+ (long) non-zero if SEARCH should prefetch envelopes of matching messages
+
+GET_LOGINFULLNAME / SET_LOGINFULLNAME
+ (long) non-zero if mm_login should be given the full mailbox name instead of
+	just the host name
+
+GET_CLOSEONERROR / SET_CLOSEONERROR
+ (long) non-zero if SELECT or EXAMINE failure should close the stream
+	(otherwise it is left half-open so it can be used on a retry)
+
+GET_POP3PORT / SET_POP3PORT
+ (long) POP3 TCP contact port
+
+GET_MBXPROTECTION / SET_MBXPROTECTION
+ (long) default protection of new mailbox files
+
+GET_LOCKPROTECTION / SET_LOCKPROTECTION
+ (long) default protection of new lock files
+
+GET_FROMWIDGET / SET_FROMWIDGET
+ (long) non-zero if ">" to be inserted in front of all "From " lines, zero to
+	to use smart algorithm
+
+GET_NEWSACTIVE / SET_NEWSACTIVE
+ (char *) news active file name
+
+GET_NEWSSPOOL / SET_NEWSSPOOL
+ (char *) news spool directory
+
+GET_NEWSRC / SET_NEWSRC
+ (char *) news state file name
+
+GET_EXTENSION / SET_EXTENSION
+ (char *) file extension for mail on DOS
+
+GET_DISABLEFCNTLLOCK / SET_DISABLEFCNTLLOCK
+ (long) non-zero if flock() disabled (SVR4 only)
+
+GET_LOCKEACCESERROR / SET_LOCKEACCESERROR
+ (long) non-zero if EACCES error on lock file reports an error
+
+
+The following parameters are new in the IMAP-4 toolkit:
+
+ENABLE_DRIVER / DISABLE_DRIVER
+ (DRIVER *) driver to enable or disable
+
+GET_SMTPVERBOSE / SET_SMTPVERBOSE
+ (smtpverbose_t) routine to be called on SMTP VERBose debug reponse
+
+GET_RFC822OUTPUT / SET_RFC822OUTPUT
+ (rfc822out_t) routine to be called to output an RFC822-format message
+
+GET_RSHTIMEOUT / SET_RSHTIMEOUT
+ (long) number of seconds before rsh timeout.  Unix only.
+
+GET_DIRPROTECTION / SET_DIRPROTECTION
+ (long) default new directory protection
+
+GET_LISTMAXLEVEL / SET_LISTMAXLEVEL
+ (long) maximum level of LIST directory recursion with * wildcard
+
+GET_NNTPPORT / SET_NNTPPORT
+ (long) NNTP TCP contact port
+
+GET_ANONYMOUSHOME / SET_ANONYMOUSHOME
+ (char *) anonymous home directory
