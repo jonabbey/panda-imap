@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	7 January 2003
+ * Last Edited:	17 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -202,9 +202,9 @@ void unix_lsub (MAILSTREAM *stream,char *ref,char *pat)
 
 long unix_create (MAILSTREAM *stream,char *mailbox)
 {
-  char *s,mbx[MAILTMPLEN],tmp[MAILTMPLEN], ctmp[MAILTMPLEN];
+  char *s,mbx[MAILTMPLEN],tmp[MAILTMPLEN];
   long ret = NIL;
-  int fd, ctmplen;
+  int fd;
   time_t ti = time (0);
   if (!(s = dummy_file (mbx,mailbox))) {
     sprintf (tmp,"Can't create %.80s: invalid name",mailbox);
@@ -221,11 +221,9 @@ long unix_create (MAILSTREAM *stream,char *mailbox)
     }
     else {			/* initialize header */
       memset (tmp,'\0',MAILTMPLEN);
-      strcpy(ctmp, ctime(&ti));
-      ctmplen = strlen(ctmp);
-      if(ctmp[ctmplen-2] == '\r') ctmp[ctmplen-2] = '\0';
-      else if(ctmp[ctmplen-1] == '\n') ctmp[ctmplen-1] = '\0';
-      sprintf (tmp,"From %s %s\r\nDate: ",pseudo_from,ctmp);
+      sprintf (tmp,"From %s %s",pseudo_from,ctime (&ti));
+      if (s = strpbrk (tmp,"\r\n")) *s = '\0';
+      strcat (tmp,"\r\nDate: ");
       rfc822_fixed_date (s = tmp + strlen (tmp));
       sprintf (s += strlen (s),	/* write the pseudo-header */
 	       "\r\nFrom: %s <%s@%s>\r\nSubject: %s\r\nX-IMAP: %010lu 0000000000\r\nStatus: RO\r\n\r\n%s\r\n\r\n",
@@ -439,15 +437,17 @@ char *unix_header (MAILSTREAM *stream,unsigned long msgno,
   elt = mail_elt (stream,msgno);/* get cache */
   if (!unix_hlines) {		/* once only code */
     STRINGLIST *lines = unix_hlines = mail_newstringlist ();
-    lines->text.size = strlen (lines->text.data = (unsigned char *) "Status");
+    lines->text.size = strlen ((char *) (lines->text.data =
+					 (unsigned char *) "Status"));
     lines = lines->next = mail_newstringlist ();
-    lines->text.size = strlen (lines->text.data = (unsigned char *)
-			       "X-Status");
+    lines->text.size = strlen ((char *) (lines->text.data =
+					 (unsigned char *) "X-Status"));
     lines = lines->next = mail_newstringlist ();
-    lines->text.size = strlen (lines->text.data = (unsigned char *)
-			       "X-Keywords");
+    lines->text.size = strlen ((char *) (lines->text.data =
+					 (unsigned char *) "X-Keywords"));
     lines = lines->next = mail_newstringlist ();
-    lines->text.size = strlen (lines->text.data = (unsigned char *) "X-UID");
+    lines->text.size = strlen ((char *) (lines->text.data =
+					 (unsigned char *) "X-UID"));
     lines = lines->next = mail_newstringlist ();
     lines->text.size = strlen ((char *) (lines->text.data =
 					 (unsigned char *) "X-IMAP"));

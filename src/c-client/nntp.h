@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	3 March 2003
+ * Last Edited:	2 May 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -39,6 +39,7 @@
 #define NNTPCHALLENGE (long) 351/* NNTP challenge, want response */
 #define NNTPWANTAUTH (long) 380	/* NNTP authentication needed */
 #define NNTPWANTPASS (long) 381	/* NNTP password needed */
+#define NNTPTLSSTART (long) 382	/* NNTP continue with TLS negotiation */
 #define NNTPSOFTFATAL (long) 400/* NNTP soft fatal code */
 #define NNTPWANTAUTH2 (long) 480/* NNTP authentication needed (alternate) */
 #define NNTPBADCMD (long) 500	/* NNTP unrecognized command */
@@ -49,6 +50,8 @@
 typedef struct nntp_local {
   SENDSTREAM *nntpstream;	/* NNTP stream for I/O */
   unsigned int dirty : 1;	/* disk copy of .newsrc needs updating */
+  unsigned int tlsflag : 1;	/* TLS session */
+  unsigned int notlsflag : 1;	/* TLS not used in session */
   unsigned int sslflag : 1;	/* SSL session */
   unsigned int novalidate : 1;	/* certificate not validated */
   unsigned int xover : 1;	/* supports XOVER */
@@ -90,7 +93,7 @@ void *nntp_parameters (long function,void *value);
 void nntp_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
 void nntp_list (MAILSTREAM *stream,char *ref,char *pat);
 void nntp_lsub (MAILSTREAM *stream,char *ref,char *pat);
-long nntp_canonicalize (char *ref,char *pat,char *pattern);
+long nntp_canonicalize (char *ref,char *pat,char *pattern,char *wildmat);
 long nntp_subscribe (MAILSTREAM *stream,char *mailbox);
 long nntp_unsubscribe (MAILSTREAM *stream,char *mailbox);
 long nntp_create (MAILSTREAM *stream,char *mailbox);
@@ -137,6 +140,8 @@ long nntp_send (SENDSTREAM *stream,char *command,char *args);
 long nntp_send_work (SENDSTREAM *stream,char *command,char *args);
 long nntp_send_auth (SENDSTREAM *stream);
 long nntp_send_auth_work (SENDSTREAM *stream,NETMBX *mb,char *pwd);
+void *nntp_challenge (void *s,unsigned long *len);
+long nntp_response (void *s,char *response,unsigned long size);
 long nntp_reply (SENDSTREAM *stream);
 long nntp_fake (SENDSTREAM *stream,char *text);
 long nntp_soutr (void *stream,char *s);

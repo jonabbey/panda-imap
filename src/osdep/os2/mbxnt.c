@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	26 December 2002
+ * Last Edited:	9 May 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -925,6 +925,7 @@ long mbx_parse (MAILSTREAM *stream)
   short dirty = NIL;
   short added = NIL;
   short silent = stream->silent;
+  short uidwarn = T;
   fstat (LOCAL->fd,&sbuf);	/* get status */
   if (sbuf.st_size < curpos) {	/* sanity check */
     sprintf (tmp,"Mailbox shrank from %lu to %lu!",
@@ -1026,12 +1027,16 @@ long mbx_parse (MAILSTREAM *stream)
 				/* parse UID */
     if ((m = strtoul (t+13,NIL,16)) &&
 	((m <= lastuid) || (m > stream->uid_last))) {
-      sprintf (tmp,"Invalid UID %08lx in message %lu, rebuilding UIDs",
+      if (uidwarn) {
+	sprintf (tmp,"Invalid UID %08lx in message %lu, rebuilding UIDs",
 		 m,nmsgs+1);
-      mm_log (tmp,WARN);
+	MM_LOG (tmp,WARN);
+	uidwarn = NIL;
+				/* restart UID validity */
+	stream->uid_validity = time (0);
+      }
       m = 0;			/* lose this UID */
-      dirty = T;		/* restart UID validity and last UID */
-      stream->uid_validity = time (0);
+      dirty = T;		/* mark dirty, set new lastuid */
       stream->uid_last = lastuid;
     }
 
@@ -1366,29 +1371,31 @@ unsigned long mbx_rewrite (MAILSTREAM *stream,unsigned long *reclaimed,
 	mail_expunged(stream,i);/* notify upper levels */
 	n++;			/* count up one more expunged message */
       }
-      else if (i++ && delta) {	/* preserved message */
+      else {
+	i++;			/* count this message */
 	if (elt->recent) ++recent;
-				/* first byte to preserve */
-	j = elt->private.special.offset;
-	do {			/* read from source position */
-	  m = min (k,LOCAL->buflen);
-	  lseek (LOCAL->fd,j,L_SET);
-	  read (LOCAL->fd,LOCAL->buf,m);
-	  pos = j - delta;	/* write to destination position */
-	  while (T) {
-	    lseek (LOCAL->fd,pos,L_SET);
-	    if (write (LOCAL->fd,LOCAL->buf,m) > 0) break;
-	    mm_notify (stream,strerror (errno),WARN);
-	    mm_diskerror (stream,errno,T);
-	  }
-	  pos += m;		/* new position */
-	  j += m;		/* next chunk, perhaps */
-	} while (k -= m);	/* until done */
+	if (delta) {		/* moved, note first byte to preserve */
+	  j = elt->private.special.offset;
+	  do {			/* read from source position */
+	    m = min (k,LOCAL->buflen);
+	    lseek (LOCAL->fd,j,L_SET);
+	    read (LOCAL->fd,LOCAL->buf,m);
+	    pos = j - delta;	/* write to destination position */
+	    while (T) {
+	      lseek (LOCAL->fd,pos,L_SET);
+	      if (write (LOCAL->fd,LOCAL->buf,m) > 0) break;
+	      mm_notify (stream,strerror (errno),WARN);
+	      mm_diskerror (stream,errno,T);
+	    }
+	    pos += m;		/* new position */
+	    j += m;		/* next chunk, perhaps */
+	  } while (k -= m);	/* until done */
 				/* note the new address of this text */
-	elt->private.special.offset -= delta;
-      }
+	  elt->private.special.offset -= delta;
+	}
 				/* preserved but no deleted messages yet */
-      else pos = elt->private.special.offset + k;
+	else pos = elt->private.special.offset + k;
+      }
     }
 				/* deltaed file size match position? */
     if (m = (LOCAL->filesize -= delta) - pos) {

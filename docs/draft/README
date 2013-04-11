@@ -1,4 +1,4 @@
-Last Updated: 7 March 2003
+Last Updated: 21 May 2003
 
 This directory contains Internet Drafts which, at the time of release of
 this software, were not yet been published as RFCs.  These documents are
@@ -11,11 +11,13 @@ by the successor RFC.
 
 File Name	I-D Name
 ---------	--------
-binary.txt	draft-nerenberg-imap-binary-07.txt
-		;; BINARY extension
-		;; Status: RFC editor queue
-
-sort.txt	draft-ietf-imapext-sort-12.txt
+sort.txt	draft-ietf-imapext-sort-13.txt
 		;; SORT and THREAD commands
-		;; Status: further work needed on i18n collation,
-		;;  per IESG request
+		;; Status: in last call
+		;;  will be blocked waiting for i18n
+
+i18n.txt	draft-ietf-imapext-i18n-00.txt
+		;; new document
+
+compare.txt	draft-newman-i18n-comparator-00.txt
+		;; new document

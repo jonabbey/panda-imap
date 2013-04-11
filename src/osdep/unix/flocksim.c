@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	16 January 2003
+ * Last Edited:	25 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -147,7 +147,7 @@ main ()
     fl.l_whence = fl.l_start = fl.l_len = 0;
     fl.l_pid = getpid ();	/* shouldn't be necessary */
     fl.l_type = F_WRLCK;
-    if (flock (fd,LOCK_EX) == -1) abort ();
+    if (fcntl (fd,F_SETLKW,&fl) == -1) abort ();
     puts ("OS BUG: child got lock");
   }
 }

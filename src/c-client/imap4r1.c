@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	24 March 2003
+ * Last Edited:	28 May 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2003 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -317,16 +317,11 @@ void imap_list_work (MAILSTREAM *stream,char *cmd,char *ref,char *pat,
     aref.type = ASTRING; aref.text = (void *) (ref ? ref : "");
     apat.type = LISTMAILBOX; apat.text = (void *) pat;
 				/* referrals armed? */
-    if (LOCAL->cap.mbx_ref && mail_parameters (stream,GET_IMAPREFERRAL,NIL) &&
-      ((cmd[0] == 'L') || (cmd[0] == 'l')) && !cmd[4]) {
+    if (LOCAL->cap.mbx_ref && mail_parameters (stream,GET_IMAPREFERRAL,NIL)) {
 				/* yes, convert LIST -> RLIST */
-      if (((cmd[1] == 'I') || (cmd[1] == 'i')) &&
-	  ((cmd[2] == 'S') || (cmd[1] == 's')) &&
-	  ((cmd[3] == 'T') || (cmd[3] == 't'))) cmd = "RLIST";
+      if (!compare_cstring (cmd,"LIST")) cmd = "RLIST";
 				/* and convert LSUB -> RLSUB */
-      else if (((cmd[1] == 'S') || (cmd[1] == 's')) &&
-	       ((cmd[2] == 'U') || (cmd[1] == 'u')) &&
-	       ((cmd[3] == 'B') || (cmd[3] == 'b'))) cmd = "RLSUB";
+      else if (!compare_cstring (cmd,"LSUB")) cmd = "RLSUB";
     }
     imap_send (stream,cmd,args);
   }
@@ -1136,7 +1131,7 @@ long imap_overview (MAILSTREAM *stream,overview_t ofn)
 	    else sprintf (t,",%lu",i);
 	    start = last = i;	/* begin a new range */
 	    if ((len - ((t += strlen (t)) - s)) < 20)
-	      fs_resize ((void **) s,len += MAILTMPLEN);
+	      fs_resize ((void **) &s,len += MAILTMPLEN);
 	  }
 	}
 	else {			/* first time, start new buffer */
@@ -1774,7 +1769,7 @@ unsigned long *imap_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 	      else sprintf (t,",%lu",i);
 	      start = last = i;	/* begin a new range */
 	      if ((j = ((t += strlen (t)) - s)) > (MAILTMPLEN - 20)) {
-		fs_resize ((void **) s,len += MAILTMPLEN);
+		fs_resize ((void **) &s,len += MAILTMPLEN);
 		t = s + j;	/* relocate current pointer */
 	      }
 	    }
@@ -3854,7 +3849,6 @@ void imap_parse_header (MAILSTREAM *stream,ENVELOPE **env,SIZEDTEXT *hdr,
   if (*env) {			/* need to merge this header into envelope? */
     if (!(*env)->newsgroups) {	/* need Newsgroups? */
       (*env)->newsgroups = nenv->newsgroups;
-      (*env)->ngbogus = nenv->ngbogus;
       nenv->newsgroups = NIL;
     }
     if (!(*env)->followup_to) {	/* need Followup-To? */
@@ -3866,6 +3860,7 @@ void imap_parse_header (MAILSTREAM *stream,ENVELOPE **env,SIZEDTEXT *hdr,
       nenv->references = NIL;
     }
     mail_free_envelope (&nenv);
+    (*env)->imapenvonly = NIL;	/* have complete envelope now */
   }
 				/* otherwise set it to this envelope */
   else (*env = nenv)->incomplete = stl ? T : NIL;
@@ -3904,13 +3899,14 @@ void imap_parse_envelope (MAILSTREAM *stream,ENVELOPE **env,char **txtptr,
     if (oenv) {			/* need to merge old envelope? */
       (*env)->newsgroups = oenv->newsgroups;
       oenv->newsgroups = NIL;
-      (*env)->ngbogus = oenv->ngbogus;
       (*env)->followup_to = oenv->followup_to;
       oenv->followup_to = NIL;
       (*env)->references = oenv->references;
       oenv->references = NIL;
       mail_free_envelope(&oenv);/* free old envelope */
     }
+				/* have IMAP envelope components only */
+    else (*env)->imapenvonly = T;
     if (**txtptr != ')') {
       sprintf (LOCAL->tmp,"Junk at end of envelope: %.80s",*txtptr);
       mm_log (LOCAL->tmp,WARN);

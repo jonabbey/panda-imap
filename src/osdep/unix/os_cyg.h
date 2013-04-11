@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	6 November 2001
+ * Last Edited:	25 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -31,12 +31,6 @@
 #define direct dirent
 
 
-struct ustat {
-  int f_tinode;			/* all we care about */
-};
-
-int ustat (int dev,struct ustat *ubuf);
-
 /* Cygwin gets this wrong */
 
 #define SYSTEMUID 18		/* Cygwin returns this for SYSTEM */
@@ -48,4 +42,4 @@ uid_t Geteuid (void);
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
-#include "flocksim.h"
+#include "flockcyg.h"

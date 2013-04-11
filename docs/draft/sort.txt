@@ -6,10 +6,10 @@
 
 IMAP Extensions Working Group                                 M. Crispin
 INTERNET-DRAFT: IMAP SORT                                   K. Murchison
-Document: internet-drafts/draft-ietf-imapext-sort-12.txt      March 2003
+Document: internet-drafts/draft-ietf-imapext-sort-13.txt        May 2003
 
 
-      INTERNET MESSAGE ACCESS PROTOCOL - SORT AND THREAD EXTENSION
+     INTERNET MESSAGE ACCESS PROTOCOL - SORT AND THREAD EXTENSIONS
 
 Status of this Memo
 
@@ -38,16 +38,16 @@ Status of this Memo
    A revised version of this draft document will be submitted to the RFC
    editor as a Proposed Standard for the Internet Community.  Discussion
    and suggestions for improvement are requested, and should be sent to
-   ietf-imapext@IMC.ORG.  This document will expire before 24 September
+   ietf-imapext@IMC.ORG.  This document will expire before 14 November
    2003.  Distribution of this memo is unlimited.
 
 
 Abstract
 
    This document describes the base-level server-based sorting and
-   threading extension to the [IMAP] protocol.  This extension provides
-   substantial performance improvements for IMAP clients which offer
-   sorted and threaded views.
+   threading extensions to the [IMAP] protocol.  These extensions
+   provide substantial performance improvements for IMAP clients which
+   offer sorted and threaded views.
 
    A server which supports the base-level SORT extension indicates this
    with a capability name which starts with "SORT".  Future,
@@ -57,15 +57,15 @@ Abstract
 
 Crispin                                                         [Page 1]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
    with "SORT", indicating support for this base level.
 
-   A server which supports this extension indicates this with one or
-   more capability names consisting of "THREAD=" followed by a supported
-   threading algorithm name as described in this document.  This
-   provides for future upwards-compatible extensions.
+   A server which supports the THREAD extension indicates this with one
+   or more capability names consisting of "THREAD=" followed by a
+   supported threading algorithm name as described in this document.
+   This provides for future upwards-compatible extensions.
 
    The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
    "SHOULD", "SHOULD NOT", "MAY", and "OPTIONAL" in this document are to
@@ -113,7 +113,7 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
 
 Crispin                                                         [Page 2]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
 Base Subject Text
@@ -169,19 +169,19 @@ Sent Date
 
 Crispin                                                         [Page 3]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
 Additional Commands
 
-   This command is an extension to the IMAP4rev1 base protocol.
+   These commands are extension to the IMAP4rev1 base protocol.
 
-   The section header is intended to correspond with where it would be
-   located in the main document if it was part of the base
+   The section headings are intended to correspond with where they would
+   be located in the main document if they were part of the base
    specification.
 
 
-6.3.SORT.       SORT Command
+6.4.SORT.       SORT Command
 
    Arguments:  sort program
                charset specification
@@ -225,7 +225,7 @@ Additional Commands
 
 Crispin                                                         [Page 4]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
       which they appear in the mailbox.  In other words, there is an
@@ -281,7 +281,7 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
 
 Crispin                                                         [Page 5]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
       SIZE
@@ -305,7 +305,7 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
                S: A284 OK SORT completed
 
 
-6.3.THREAD.     THREAD Command
+6.4.THREAD.     THREAD Command
 
 Arguments:  threading algorithm
             charset specification
@@ -337,18 +337,17 @@ Result:     OK - thread completed
 
 Crispin                                                         [Page 6]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
       the interpretation of strings in the searching criteria.  It then
       returns the matching messages in an untagged THREAD response,
       threaded according to the specified threading algorithm.
 
-      Sorting is in ascending order.  Earlier dates sort before later
-      dates; smaller sizes sort before larger sizes; and strings are
-      sorted according to ascending values established by their
-      collation algorithm (see under "Internationalization
-      Considerations").
+      All collation is in ascending order.  Earlier dates collate before
+      later dates and strings are collated according to ascending values
+      established by their collation algorithm (see under
+      "Internationalization Considerations").
 
       The defined threading algorithms are as follows:
 
@@ -387,17 +386,16 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
       REFERENCES
          The REFERENCES threading algorithm is based on the [THREADING]
          algorithm written used in "Netscape Mail and News" versions 2.0
-
+         through 3.0.  This algorithm threads the searched messages by
+         grouping them together in parent/child relationships based on
 
 
 
 Crispin                                                         [Page 7]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
-         through 3.0.  This algorithm threads the searched messages by
-         grouping them together in parent/child relationships based on
          which messages are replies to others.  The parent/child
          relationships are built using two methods: reconstructing a
          message's ancestry using the references contained within it;
@@ -444,16 +442,15 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
 
          A message is considered to be a reply or forward if the base
          subject extraction rules, applied to the original subject,
+         remove any of the following: a subj-refwd, a "(fwd)"
+         subj-trailer, or a subj-fwd-hdr and subj-fwd-trl.
 
 
 
 Crispin                                                         [Page 8]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
-
-         remove any of the following: a subj-refwd, a "(fwd)"
-         subj-trailer, or a subj-fwd-hdr and subj-fwd-trl.
 
          The REFERENCES algorithm is significantly more complex than
          ORDEREDSUBJECT and consists of six main steps.  These steps are
@@ -500,17 +497,17 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
                   Note: Message ID comparisons are case-sensitive.
 
             (B) Create a parent/child link between the last reference
+            (or NIL if there are no references) and the current message.
+            If the current message already has a parent, it is probably
+            the result of a truncated References header line, so break
 
 
 
 Crispin                                                         [Page 9]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
-            (or NIL if there are no references) and the current message.
-            If the current message already has a parent, it is probably
-            the result of a truncated References header line, so break
             the current parent/child link before creating the new
             correct one.  As in step 1.A, do not create the parent/child
             link if creating that link would introduce a loop.  Note
@@ -556,16 +553,16 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
 
                (i) Find the subject of this thread, by using the base
                subject from either the current message or its first
+               child if the current message is a dummy.  This is the
+               thread subject.
+
 
 
 
 Crispin                                                        [Page 10]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
-
-               child if the current message is a dummy.  This is the
-               thread subject.
 
                (ii) If the thread subject is empty, skip this message.
 
@@ -612,15 +609,16 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
                   If the message in the subject table is a dummy and the
                   current message is not, make the current message a
                   child of the message in the subject table (a sibling
+                  of its children).
+
+
 
 
 
 Crispin                                                        [Page 11]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
-
-                  of its children).
 
                   If the current message is a reply or forward and the
                   message in the subject table is not, make the current
@@ -668,17 +666,19 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
                S: A285 OK THREAD completed
 
 
+        Note: The line breaks in the first and third client
+        responses are for editorial clarity and do not appear in
 
 
 
 Crispin                                                        [Page 12]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
-        Note: The line breaks in the first and third client
-        responses are for editorial clarity and do not appear in
         real THREAD responses.
+
+
 
 
 
@@ -729,15 +729,15 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
 
 Crispin                                                        [Page 13]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
 Additional Responses
 
-   This response is an extension to the IMAP4rev1 base protocol.
+   These responses are extensions to the IMAP4rev1 base protocol.
 
-   The section heading of this response is intended to correspond with
-   where it would be located in the main document.
+   The section headings of these responses are intended to correspond
+   with where they would be located in the main document.
 
 
 7.2.SORT.       SORT Response
@@ -785,7 +785,7 @@ Additional Responses
 
 Crispin                                                        [Page 14]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
       44), and 96 (child of 7).  Since some later messages are parents
@@ -841,7 +841,7 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
 
 Crispin                                                        [Page 15]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
 Formal Syntax of SORT and THREAD commands and Responses
@@ -897,7 +897,7 @@ Formal Syntax of SORT and THREAD commands and Responses
 
 Crispin                                                        [Page 16]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
    subj-middle     = *subj-blob (subj-base / subj-fwd)
@@ -953,7 +953,7 @@ Internationalization Considerations
 
 Crispin                                                        [Page 17]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
 
 
 12.     IANA Considerations
@@ -964,8 +964,9 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
 
         http://www.iana.org/assignments/imap4-capabilities
 
-   In addition, additional threading algorithms also need to be
-   registered with IANA.
+   This document consitutes registration of the SORT and THREAD IMAP
+   capabilities, as well as the ORDEREDSUBJECT and REFERENCES IMAP
+   threading algorithms.
 
 
 A.      References
@@ -1002,14 +1003,16 @@ Author's Address
 
    Phone: (206) 543-5762
 
-   EMail: MRC@CAC.Washington.EDU
 
 
 
 
 Crispin                                                        [Page 18]
 
-INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
+INTERNET DRAFT                 IMAP SORT        EXPIRES 14 November 2003
+
+
+   EMail: MRC@CAC.Washington.EDU
 
 
    Kenneth Murchison
@@ -1020,9 +1023,6 @@ INTERNET DRAFT                 IMAP SORT       EXPIRES 24 September 2003
    Phone: (716) 662-8973 x26
 
    EMail: ken@oceana.com
-
-
-
 
 
 

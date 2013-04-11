@@ -1,0 +1,124 @@
+head	1.2;
+access;
+symbols;
+locks; strict;
+comment	@# @;
+
+
+1.2
+date	2003.03.05.05.23.46;	author mrc;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2003.03.05.05.23.16;	author mrc;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@gssapi directory is gone
+@
+text
+@# Program:	IMAP Toolkit Makefile for Windows 2000
+#
+# Author:	Mark Crispin
+#		Networks and Distributed Computing
+#		Computing & Communications
+#		University of Washington
+#		Administration Building, AG-44
+#		Seattle, WA  98195
+#		Internet: MRC@@CAC.Washington.EDU
+#
+# Date:		7 December 1989
+# Last Edited:	4 March 2003
+#
+# The IMAP toolkit provided in this Distribution is
+# Copyright 1988-2003 University of Washington.
+#
+# The full text of our legal notices is contained in the file called
+# CPYRIGHT, included with this Distribution.
+
+
+COPY=copy
+CD=cd
+MAKE=nmake /nologo /f makefile.w2k
+MKDIR=mkdir
+RD=rmdir /s /q
+
+
+# Make the IMAP Toolkit
+
+build:	c-client mtest mailutil imapd ipopd
+	$(CD) c-client
+	$(MAKE)
+	$(CD) ..\mtest
+	$(MAKE)
+	$(CD) ..\mailutil
+	$(MAKE)
+	$(CD) ..\ipopd
+	$(MAKE)
+	$(CD) ..\imapd
+	$(MAKE)
+	$(CD) ..
+
+c-client:
+	$(MKDIR) c-client
+	$(COPY) src\c-client\*.* c-client
+	$(COPY) src\charset\*.* c-client
+	$(COPY) src\osdep\nt\*.* c-client
+
+mtest:
+	$(MKDIR) mtest
+	$(COPY) src\mtest\*.* mtest
+
+mailutil:
+	$(MKDIR) mailutil
+	$(COPY) src\mailutil\*.* mailutil
+
+ipopd:
+	$(MKDIR) ipopd
+	$(COPY) src\ipopd\*.* ipopd
+
+imapd:
+	$(MKDIR) imapd
+	$(COPY) src\imapd\*.* imapd
+
+clean:
+	$(RD) c-client mtest mailutil ipopd imapd
+
+# A monument to a hack of long ago and far away...
+love:
+	@@echo 'not war?'
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d12 1
+a12 1
+# Last Edited:	2 July 2002
+d15 1
+a15 1
+# Copyright 2002 University of Washington.
+d30 1
+a30 1
+build:	c-client gssapi mtest mailutil imapd ipopd
+a48 5
+gssapi:
+	$(MKDIR) gssapi
+	$(COPY) src\osdep\nt\gssapi\generic.h gssapi\gssapi_generic.h
+	$(COPY) src\osdep\nt\gssapi\krb5.h gssapi\gssapi_krb5.h
+
+d66 1
+a66 1
+	$(RD) c-client gssapi mtest mailutil ipopd imapd
+@

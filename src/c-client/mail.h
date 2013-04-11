@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	2 April 2003
+ * Last Edited:	28 May 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -112,6 +112,8 @@
 #define SET_DEBUGSENSITIVE (long) 148
 #define GET_TCPDEBUG (long) 149
 #define SET_TCPDEBUG (long) 150
+#define GET_FREESTREAMSPAREP (long) 151
+#define SET_FREESTREAMSPAREP (long) 152
 
 	/* 2xx: environment */
 #define GET_USERNAME (long) 201
@@ -577,8 +579,8 @@ ADDRESS {
 /* Message envelope */
 
 typedef struct mail_envelope {
-  unsigned int ngbogus : 1;	/* newsgroups may be bogus */
   unsigned int incomplete : 1;	/* envelope may be incomplete */
+  unsigned int imapenvonly : 1;	/* envelope only has IMAP envelope */
   char *remail;			/* remail header if any */
   ADDRESS *return_path;		/* error return address */
   char *date;			/* message composition date string */
@@ -1005,6 +1007,7 @@ typedef struct mail_stream {
     } search;
   } private;
 			/* reserved for use by main program */
+  void *sparep;			/* spare pointer */
   unsigned int spare : 1;	/* first spare bit */
   unsigned int spare2 : 1;	/* second spare bit */
   unsigned int spare3 : 1;	/* third spare bit */
@@ -1148,10 +1151,14 @@ typedef struct send_stream {
 	unsigned int over : 1;	/* supports OVER */
 	unsigned int hdr : 1;	/* supports HDR */
 	unsigned int pat : 1;	/* supports PAT */
+				/* supports STARTTLS */
+	unsigned int starttls : 1;
 				/* server has MULTIDOMAIN */
 	unsigned int multidomain : 1;
 				/* supports AUTHINFO USER */
 	unsigned int authuser : 1;
+				/* supported authenticators */
+	unsigned int sasl : MAXAUTHENTICATORS;
       } ext;
     } nntp;
   } protocol;
@@ -1200,6 +1207,7 @@ typedef long (*append_t) (MAILSTREAM *stream,void *data,char **flags,
 			  char **date,STRING **message);
 typedef void (*freeenvelopesparep_t) (void **sparep);
 typedef void (*freeeltsparep_t) (void **sparep);
+typedef void (*freestreamsparep_t) (void **sparep);
 typedef void *(*sslstart_t) (void *stream,char *host,unsigned long flags);
 typedef long (*sslcertificatequery_t) (char *reason,char *host,char *cert);
 typedef void (*sslfailure_t) (char *host,char *reason,unsigned long flags);

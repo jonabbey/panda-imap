@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	4 November 2002
+ * Last Edited:	20 May 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -200,6 +200,7 @@ static const CHARSET utf8_csvalid[] = {
   {"WINDOWS-1257",CT_1BYTE,(void *) windows_1257tab,SC_LATIN_7,"ISO-8859-13"},
   {"WINDOWS-1258",CT_1BYTE,(void *) windows_1258tab,SC_VIETNAMESE,"VISCII"},
 				/* deeper sigh */
+  {"IBM367",CT_ASCII,NIL,NIL,"US-ASCII"},
   {"IBM437",CT_1BYTE,(void *) ibm_437tab,SC_LATIN_1,"ISO-8859-1"},
   {"IBM737",CT_1BYTE,(void *) ibm_737tab,SC_GREEK,"ISO-8859-7"},
   {"IBM775",CT_1BYTE,(void *) ibm_775tab,SC_LATIN_7,"ISO-8859-13"},
@@ -216,6 +217,8 @@ static const CHARSET utf8_csvalid[] = {
   {"IBM866",CT_1BYTE,(void *) ibm_866tab,SC_CYRILLIC,"KOI8-R"},
   {"IBM869",CT_1BYTE,(void *) ibm_869tab,SC_GREEK,"ISO-8859-7"},
   {"IBM874",CT_1BYTE,(void *) ibm_874tab,SC_THAI,"ISO-8859-11"},
+				/* deepest sigh */
+  {"ANSI_X3.4-1968",CT_ASCII,NIL,NIL,"US-ASCII"},
   NIL
 };
 

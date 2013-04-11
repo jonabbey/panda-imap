@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	6 November 2001
+ * Last Edited:	25 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -37,20 +37,19 @@
  * Returns: passwd struct if password validated, NIL otherwise
  */
 
+static char *cyg_user = NIL;
+static HANDLE cyg_hdl = NIL;
+
 struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
 {
-  HANDLE hdl;
-  static struct passwd ret;
+				/* flush last pw-checked user */
+  if (cyg_user) fs_give ((void **) &cyg_user);
 				/* forbid if UID 0 or SYSTEM uid */
   if (!pw->pw_uid || (pw->pw_uid == SYSTEMUID) ||
-      ((hdl = cygwin_logon_user (pw,pass)) == INVALID_HANDLE_VALUE))
+      ((cyg_hdl = cygwin_logon_user (pw,pass)) == INVALID_HANDLE_VALUE))
     return NIL;			/* bad UID or password */
-				/* do the ImpersonateLoggedOnUser() */
-  cygwin_set_impersonation_token (hdl);
-  memset (&ret,0,sizeof (struct passwd));
-  ret.pw_uid = pw->pw_uid;	/* fill in return struct values */
-  ret.pw_gid = pw->pw_gid;
-  ret.pw_name = (char *) fs_get (strlen (pw->pw_name) + 2);
-  sprintf (ret.pw_name,":%s",pw->pw_name);
-  return &ret;
+				/* remember user for this handle */
+  cyg_user = cpystr (pw->pw_name);
+  return pw;
 }
+

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	7 April 2003
+ * Last Edited:	20 May 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -1449,9 +1449,14 @@ ADDRESS *rfc822_cpy_adr (ADDRESS *adr)
 
 void rfc822_skipws (char **s)
 {
-  while (T) {
-    if (**s == ' ') ++*s;	/* skip space */
-    else if ((**s != '(') || !rfc822_skip_comment (s,(long) NIL)) return;
+  while (T) switch (**s) {
+  case ' ': case '\t': case '\015': case '\012':
+    ++*s;			/* skip all forms of LWSP */
+    break;
+  case '(':			/* start of comment */
+    if (rfc822_skip_comment (s,(long) NIL)) break;
+  default:
+    return;			/* end of whitespace */
   }
 }
 

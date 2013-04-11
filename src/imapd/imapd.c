@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	2 April 2003
+ * Last Edited:	30 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -178,7 +178,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2003.337";	/* version number of this server */
+char *version = "2003.338";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
@@ -556,7 +556,7 @@ int main (int argc,char *argv[])
 	  }
 	}
 				/* close mailbox */
-	else if (!strcmp (cmd,"CLOSE")) {
+	else if (!strcmp (cmd,"CLOSE") || !strcmp (cmd,"UNSELECT")) {
 				/* no arguments */
 	  if (arg) response = badarg;
 	  else {
@@ -564,7 +564,8 @@ int main (int argc,char *argv[])
 	    if (lastsel) fs_give ((void **) &lastsel);
 	    if (lastid) fs_give ((void **) &lastid);
 	    if (lastst.data) fs_give ((void **) &lastst.data);
-	    stream = mail_close_full (stream,anonymous ? NIL : CL_EXPUNGE);
+	    stream = mail_close_full (stream,((*cmd == 'C') && !anonymous) ?
+				      CL_EXPUNGE : NIL);
 	    state = SELECT;	/* no longer opened */
 	    lastcheck = 0;	/* no last checkpoint */
 	  }
@@ -3217,7 +3218,7 @@ void pcapability (long flag)
   PSOUT (" X-NETSCAPE");
 #endif
   if (flag >= 0) {		/* want post-authentication capabilities? */
-    PSOUT (" IDLE NAMESPACE MAILBOX-REFERRALS BINARY SCAN SORT");
+    PSOUT (" IDLE NAMESPACE MAILBOX-REFERRALS BINARY UNSELECT SCAN SORT");
     while (thr) {		/* threaders */
       PSOUT (" THREAD=");
       PSOUT (thr->name);

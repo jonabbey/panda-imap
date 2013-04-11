@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	6 November 2001
+ * Last Edited:	25 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -46,17 +46,8 @@ extern int errno;		/* just in case */
 #include "tcp_unix.c"
 #include "gr_wait.c"
 #include "tz_nul.c"
-#include "flocksim.c"
+#include "flockcyg.c"
 #include "gethstid.c"
-
-
-/* Kludge to satisfy test_nfs() */
-
-int ustat (int dev,struct ustat *ubuf)
-{
-  ubuf->f_tinode = 10569;	/* random number */
-  return 0;
-}
 
 
 /* Emulator for geteuid() call

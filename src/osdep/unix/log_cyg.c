@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	6 November 2001
+ * Last Edited:	25 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -27,6 +27,12 @@
 
 long loginpw (struct passwd *pw,int argc,char *argv[])
 {
-  return !((*pw->pw_name != ':') || setgid (pw->pw_gid) ||
-	   initgroups (pw->pw_name+1,pw->pw_gid) || setuid (pw->pw_uid));
+  uid_t uid = pw->pw_uid;
+				/* must be same user name as last checkpw() */
+  if (!(cyg_user && !strcmp (pw->pw_name,cyg_user))) return NIL;
+				/* do the ImpersonateLoggedOnUser() */
+  cygwin_set_impersonation_token (cyg_hdl);
+
+  return !(setgid (pw->pw_gid) || initgroups (cyg_user,pw->pw_gid) ||
+	   setuid (uid));
 }

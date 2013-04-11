@@ -1,4 +1,32 @@
-# Program:	IMAP Toolkit Makefile
+head	1.2;
+access;
+symbols;
+locks; strict;
+comment	@# @;
+
+
+1.2
+date	2003.04.17.00.32.59;	author mrc;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2003.04.17.00.32.30;	author mrc;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@caution people who try to build for SUN-OS that they probably want to build
+for Solaris instead
+@
+text
+@# Program:	IMAP Toolkit Makefile
 #
 # Author:	Mark Crispin
 #		Networks and Distributed Computing
@@ -6,7 +34,7 @@
 #		University of Washington
 #		Administration Building, AG-44
 #		Seattle, WA  98195
-#		Internet: MRC@CAC.Washington.EDU
+#		Internet: MRC@@CAC.Washington.EDU
 #
 # Date:		7 December 1989
 # Last Edited:	16 April 2003
@@ -259,9 +287,9 @@ BUILD=$(MAKE) build EXTRACFLAGS='$(EXTRACFLAGS)'\
 all:	SPECIALS c-client rebuild bundled
 
 c-client:
-	@echo Not processed yet.  In a first-time build, you must specify
-	@echo the system type so that the sources are properly processed.
-	@false
+	@@echo Not processed yet.  In a first-time build, you must specify
+	@@echo the system type so that the sources are properly processed.
+	@@false
 
 
 SPECIALS:
@@ -270,14 +298,14 @@ SPECIALS:
 # Note on SCO you may have to set LN to "ln".
 
 a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp ghs go5 gsc gsg gso gul hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
-	$(BUILD) BUILDTYPE=$@
+	$(BUILD) BUILDTYPE=$@@
 
 # If you use sv4, you may find that it works to move it to use the an process.
 # If so, you probably will want to delete the "-Dconst=" from the sv4 CFLAGS in
 # the c-client Makefile.
 
 aos art asv aux bsd cvx dpx dyn isc pyr sv4 ult vul vu2: ua
-	$(BUILD) BUILDTYPE=$@
+	$(BUILD) BUILDTYPE=$@@
 
 # Knotheads moved Kerberos and SSL locations on these platforms
 
@@ -302,65 +330,65 @@ osx:	an
 # Linux systems are shadow these days.
 
 lnx:	lnxnul an
-	$(BUILD) BUILDTYPE=$@
+	$(BUILD) BUILDTYPE=$@@
 
 lnxnul:
-	@$(SH) -c '(test $(PASSWDTYPE) = nul) || make lnxok'
+	@@$(SH) -c '(test $(PASSWDTYPE) = nul) || make lnxok'
 
 lnxok:
-	@echo You are building for traditional Linux.  Most modern Linux
-	@echo systems require that you build using make slx.  Do you want
-	@echo to continue this build?  Type y or n please:
-	@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
-	@echo OK, I will remember that you really want to build for
-	@echo traditional Linux.  You will not see this message again.
-	@echo If you discover that you can not log in to the POP and IMAP
-	@echo servers, then do the following commands:
-	@echo % rm lnxok
-	@echo % make clean
-	@echo % make slx
-	@echo If slx does not work, try sl4 or sl5.  Be sure to do a
-	@echo make clean between each try!
-	@$(TOUCH) lnxok
+	@@echo You are building for traditional Linux.  Most modern Linux
+	@@echo systems require that you build using make slx.  Do you want
+	@@echo to continue this build?  Type y or n please:
+	@@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
+	@@echo OK, I will remember that you really want to build for
+	@@echo traditional Linux.  You will not see this message again.
+	@@echo If you discover that you can not log in to the POP and IMAP
+	@@echo servers, then do the following commands:
+	@@echo % rm lnxok
+	@@echo % make clean
+	@@echo % make slx
+	@@echo If slx does not work, try sl4 or sl5.  Be sure to do a
+	@@echo make clean between each try!
+	@@$(TOUCH) lnxok
 
 
 # SUN-OS C compiler makes you load libdl by hand...
 
 ssn sun: sunok suntools ua
-	$(BUILD) BUILDTYPE=$@
+	$(BUILD) BUILDTYPE=$@@
 
 suntools:
 	$(CD) tools;$(MAKE) LDFLAGS=-ldl
 
 gsu:	sunok an
-	$(BUILD) BUILDTYPE=$@
+	$(BUILD) BUILDTYPE=$@@
 
 s40:	sunok ua
-	$(BUILD) BUILDTYPE=$@
+	$(BUILD) BUILDTYPE=$@@
 
 sunok:
-	@echo You are building for the old BSD-based SUN-OS.  This is NOT
-	@echo the modern SVR4-based Solaris.  If you want to build for
-	@echo Solaris, you should use make gso or make sol.  Do you want
-	@echo to continue this build?  Type y or n please:
-	@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
-	@echo OK, I will remember that you really want to build for the old
-	@echo BSD-based SUN-OS.  You will not see this message again.
-	@echo If the build fails and you realize that you really wanted to
-	@echo build for Solaris, then do the following commands:
-	@echo % rm sunok
-	@echo % make clean
-	@echo % make gso
-	@echo If gso does not work, try sol.  Be sure to do a make clean
-	@echo between each try!
-	@$(TOUCH) sunok
+	@@echo You are building for the old BSD-based SUN-OS.  This is NOT
+	@@echo the modern SVR4-based Solaris.  If you want to build for
+	@@echo Solaris, you should use make gso or make sol.  Do you want
+	@@echo to continue this build?  Type y or n please:
+	@@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
+	@@echo OK, I will remember that you really want to build for the old
+	@@echo BSD-based SUN-OS.  You will not see this message again.
+	@@echo If the build fails and you realize that you really wanted to
+	@@echo build for Solaris, then do the following commands:
+	@@echo % rm sunok
+	@@echo % make clean
+	@@echo % make gso
+	@@echo If gso does not work, try sol.  Be sure to do a make clean
+	@@echo between each try!
+	@@$(TOUCH) sunok
 
 
 # SVR2 doesn't have symbolic links (at least my SVR2 system doesn't)
 
 sv2:
 	$(MAKE) ua LN=ln
-	$(BUILD) BUILDTYPE=$@ LN=ln
+	$(BUILD) BUILDTYPE=$@@ LN=ln
 
 
 # Pine port names, not distinguished in c-client
@@ -381,7 +409,7 @@ hxd:
 
 ami am2 ama amn:
 	$(MAKE) an LN=cp SYSTEM=amiga
-	$(BUILD) BUILDTYPE=$@ LN=cp
+	$(BUILD) BUILDTYPE=$@@ LN=cp
 
 
 # Courtesy entries for Microsoft systems
@@ -402,66 +430,66 @@ wce:
 # SSL build choices
 
 sslnopwd sslunix.nopwd sslsco.nopwd:
-	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	@echo + Building in full compliance with IESG security requirements:
-	@echo ++ TLS/SSL encryption is supported
-	@echo ++ Unencrypted plaintext passwords are prohibited
-	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@@echo + Building in full compliance with IESG security requirements:
+	@@echo ++ TLS/SSL encryption is supported
+	@@echo ++ Unencrypted plaintext passwords are prohibited
+	@@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 sslunix sslsco:
-	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	@echo + Building in PARTIAL compliance with IESG security requirements:
-	@echo + Compliant:
-	@echo ++ TLS/SSL encryption is supported
-	@echo + Non-compliant:
-	@echo ++ Unencrypted plaintext passwords are permitted
-	@echo +
-	@echo + In order to rectify this problem, you MUST build with:
-	@echo ++ SSLTYPE=$(SSLTYPE).nopwd
-	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	@echo
-	@echo Do you want to continue this build anyway?  Type y or n please:
-	@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
+	@@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@@echo + Building in PARTIAL compliance with IESG security requirements:
+	@@echo + Compliant:
+	@@echo ++ TLS/SSL encryption is supported
+	@@echo + Non-compliant:
+	@@echo ++ Unencrypted plaintext passwords are permitted
+	@@echo +
+	@@echo + In order to rectify this problem, you MUST build with:
+	@@echo ++ SSLTYPE=$(SSLTYPE).nopwd
+	@@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@@echo
+	@@echo Do you want to continue this build anyway?  Type y or n please:
+	@@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
 
 sslnone:
-	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	@echo + Building in NON-COMPLIANCE with IESG security requirements:
-	@echo + Non-compliant:
-	@echo ++ TLS/SSL encryption is NOT supported
-	@echo ++ Unencrypted plaintext passwords are permitted
-	@echo +
-	@echo + In order to rectify this problem, you MUST build with:
-	@echo ++ SSLTYPE=nopwd
-	@echo + You must also have OpenSSL or equivalent installed.
-	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	@echo
-	@echo Do you want to continue this build anyway?  Type y or n please:
-	@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
+	@@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@@echo + Building in NON-COMPLIANCE with IESG security requirements:
+	@@echo + Non-compliant:
+	@@echo ++ TLS/SSL encryption is NOT supported
+	@@echo ++ Unencrypted plaintext passwords are permitted
+	@@echo +
+	@@echo + In order to rectify this problem, you MUST build with:
+	@@echo ++ SSLTYPE=nopwd
+	@@echo + You must also have OpenSSL or equivalent installed.
+	@@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@@echo
+	@@echo Do you want to continue this build anyway?  Type y or n please:
+	@@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
 
 
 # C compiler types
 
 an ua:
 	$(MAKE) ssl$(SSLTYPE)
-	@echo Applying $@ process to sources...
-	$(TOOLS)/$@ "$(LN)" src/c-client c-client
-	$(TOOLS)/$@ "$(LN)" src/ansilib c-client
-	$(TOOLS)/$@ "$(LN)" src/charset c-client
-	$(TOOLS)/$@ "$(LN)" src/osdep/$(SYSTEM) c-client
-	$(TOOLS)/$@ "$(LN)" src/mtest mtest
-	$(TOOLS)/$@ "$(LN)" src/ipopd ipopd
-	$(TOOLS)/$@ "$(LN)" src/imapd imapd
-	$(TOOLS)/$@ "$(LN)" src/mailutil mailutil
-	$(TOOLS)/$@ "$(LN)" src/mlock mlock
-	$(TOOLS)/$@ "$(LN)" src/dmail dmail
-	$(TOOLS)/$@ "$(LN)" src/tmail tmail
-	$(LN) $(TOOLS)/$@ .
+	@@echo Applying $@@ process to sources...
+	$(TOOLS)/$@@ "$(LN)" src/c-client c-client
+	$(TOOLS)/$@@ "$(LN)" src/ansilib c-client
+	$(TOOLS)/$@@ "$(LN)" src/charset c-client
+	$(TOOLS)/$@@ "$(LN)" src/osdep/$(SYSTEM) c-client
+	$(TOOLS)/$@@ "$(LN)" src/mtest mtest
+	$(TOOLS)/$@@ "$(LN)" src/ipopd ipopd
+	$(TOOLS)/$@@ "$(LN)" src/imapd imapd
+	$(TOOLS)/$@@ "$(LN)" src/mailutil mailutil
+	$(TOOLS)/$@@ "$(LN)" src/mlock mlock
+	$(TOOLS)/$@@ "$(LN)" src/dmail dmail
+	$(TOOLS)/$@@ "$(LN)" src/tmail tmail
+	$(LN) $(TOOLS)/$@@ .
 
 build:	OSTYPE rebuild rebuildclean bundled
 
 OSTYPE:
-	@echo Building c-client for $(BUILDTYPE)...
-	@$(TOUCH) SPECIALS
+	@@echo Building c-client for $(BUILDTYPE)...
+	@@$(TOUCH) SPECIALS
 	echo `$(CAT) SPECIALS` $(EXTRASPECIALS) > c-client/SPECIALS
 	$(CD) c-client;$(MAKE) $(BUILDTYPE) EXTRACFLAGS='$(EXTRACFLAGS)'\
 	 EXTRALDFLAGS='$(EXTRALDFLAGS)'\
@@ -473,9 +501,9 @@ OSTYPE:
 	$(TOUCH) rebuild
 
 rebuild:
-	@$(SH) -c '(test $(BUILDTYPE) = rebuild -o $(BUILDTYPE) = `$(CAT) OSTYPE`) || (echo Already built for `$(CAT) OSTYPE` -- you must do \"make clean\" first && exit 1)'
-	@echo Rebuilding c-client for `$(CAT) OSTYPE`...
-	@$(TOUCH) SPECIALS
+	@@$(SH) -c '(test $(BUILDTYPE) = rebuild -o $(BUILDTYPE) = `$(CAT) OSTYPE`) || (echo Already built for `$(CAT) OSTYPE` -- you must do \"make clean\" first && exit 1)'
+	@@echo Rebuilding c-client for `$(CAT) OSTYPE`...
+	@@$(TOUCH) SPECIALS
 	$(CD) c-client;$(MAKE) all CC=`$(CAT) CCTYPE` \
 	 CFLAGS="`$(CAT) CFLAGS`" `$(CAT) SPECIALS`
 
@@ -483,31 +511,59 @@ rebuildclean:
 	$(SH) -c '$(RM) rebuild || true'
 
 bundled:
-	@echo Building bundled tools...
+	@@echo Building bundled tools...
 	$(CD) mtest;$(MAKE)
 	$(CD) ipopd;$(MAKE)
 	$(CD) imapd;$(MAKE)
 	$(CD) mailutil;$(MAKE)
-	@$(SH) -c '(test -f /usr/include/sysexits.h ) || make sysexitwarn'
+	@@$(SH) -c '(test -f /usr/include/sysexits.h ) || make sysexitwarn'
 	$(CD) mlock;$(MAKE) || true
 	$(CD) dmail;$(MAKE) || true
 	$(CD) tmail;$(MAKE) || true
 
 
 sysexitwarn:
-	@echo Hmm...it does not look like /usr/include/sysexits.h exists.
-	@echo Either your system is too ancient to have the sysexits.h
-	@echo include, or your C compiler gets it from some other location
-	@echo than /usr/include.  If your system is too old to have the
-	@echo sysexits.h include, you will not be able to build the
-	@echo following programs.
+	@@echo Hmm...it does not look like /usr/include/sysexits.h exists.
+	@@echo Either your system is too ancient to have the sysexits.h
+	@@echo include, or your C compiler gets it from some other location
+	@@echo than /usr/include.  If your system is too old to have the
+	@@echo sysexits.h include, you will not be able to build the
+	@@echo following programs.
 
 clean:
-	@echo Removing old processed sources and binaries...
+	@@echo Removing old processed sources and binaries...
 	$(SH) -c '$(RM) an ua OSTYPE SPECIALS c-client mtest imapd ipopd mailutil mlock dmail tmail || true'
 	$(CD) tools;$(MAKE) clean
 
 
 # A monument to a hack of long ago and far away...
 love:
-	@echo not war?
+	@@echo not war?
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d12 1
+a12 1
+# Last Edited:	4 November 2002
+d15 1
+a15 1
+# Copyright 2002 University of Washington.
+d272 1
+a272 1
+a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp ghs go5 gsc gsg gso gsu gul hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
+d279 1
+a279 1
+aos art asv aux bsd cvx dpx dyn isc pyr s40 sv4 ult vul vu2: ua
+d327 1
+a327 1
+# SUN-OS makes you load libdl by hand...
+d329 1
+a329 1
+ssn sun: suntools ua
+d334 23
+@

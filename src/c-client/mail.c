@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	14 March 2003
+ * Last Edited:	16 March 2003
  *
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -76,6 +76,8 @@ static threadresults_t mailthreadresults = NIL;
 static freeenvelopesparep_t mailfreeenvelopesparep = NIL;
 				/* free envelope extra stuff callback */
 static freeeltsparep_t mailfreeeltsparep = NIL;
+				/* free stream extra stuff callback */
+static freestreamsparep_t mailfreestreamsparep = NIL;
 				/* SSL start routine */
 static sslstart_t mailsslstart = NIL;
 				/* SSL certificate query */
@@ -398,6 +400,11 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
     mailfreeeltsparep = (freeeltsparep_t) value;
   case GET_FREEELTSPAREP:
     ret = (void *) mailfreeeltsparep;
+    break;
+  case SET_FREESTREAMSPAREP:
+    mailfreestreamsparep = (freestreamsparep_t) value;
+  case GET_FREESTREAMSPAREP:
+    ret = (void *) mailfreestreamsparep;
     break;
 
   case SET_SSLSTART:
@@ -1171,6 +1178,8 @@ MAILSTREAM *mail_close_full (MAILSTREAM *stream,long options)
     for (i = 0; i < NUSERFLAGS; i++)
       if (stream->user_flags[i]) fs_give ((void **) &stream->user_flags[i]);
     mail_free_cache (stream);	/* finally free the stream's storage */
+    if (mailfreestreamsparep && stream->sparep)
+      (*mailfreestreamsparep) (&stream->sparep);
     if (!stream->use) fs_give ((void **) &stream);
   }
   return NIL;
