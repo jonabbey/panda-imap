@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	27 February 1993
+ * Last Edited:	14 September 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -330,6 +330,96 @@ DRIVER *mail_valid (MAILSTREAM *stream,char *mailbox,char *purpose,long nopen)
   }
   return factory;		/* return driver factory */
 }
+
+
+/* Mail validate network mailbox name
+ * Accepts: mailbox name
+ *	    mailbox driver to validate against
+ *	    pointer to where to return host name if non-NIL
+ *	    pointer to where to return mailbox name if non-NIL
+ * Returns: driver on success, NIL on failure
+ */
+
+DRIVER *mail_valid_net (char *name,DRIVER *drv,char *host,char *mailbox)
+{
+  NETMBX mb;
+  if (!mail_valid_net_parse (name,&mb) || strcmp (mb.service,drv->name))
+    return NIL;
+  if (host) strcpy (host,mb.host);
+  if (mailbox) strcpy (mailbox,mb.mailbox);
+  return drv;
+}
+
+/* Mail validate network mailbox name
+ * Accepts: mailbox name
+ *	    NETMBX structure to return values
+ * Returns: T on success, NIL on failure
+ */
+
+long mail_valid_net_parse (char *name,NETMBX *mb)
+{
+  long i;
+  char c,*s,*t,*v;
+  mb->port = 0;			/* initialize structure */
+  *mb->host = *mb->mailbox = *mb->service = '\0';
+  mb->anoflag = NIL;		/* not (yet) anonymous */
+				/* check if bboard */
+  if (mb->bbdflag = (*name == '*') ? T : NIL) name++;
+				/* have host specification? */
+  if (!(*name == '{' && (t = strchr (s = name+1,'}')) && (i = t - s)))
+    return NIL;			/* not valid host specification */
+  strncpy (mb->host,s,i);	/* set host name */
+  mb->host[i] = '\0';		/* tie it off */
+  strcpy (mb->mailbox,t+1);	/* set mailbox name */
+				/* any switches or port specification? */
+  if (t = strpbrk (mb->host,"/:")) {
+    c = *t;			/* yes, remember delimiter */
+    *t++ = '\0';		/* tie off host name */
+    lcase (t);			/* coerce remaining stuff to lowercase */
+    do switch (c) {		/* act based upon the character */
+    case ':':			/* port specification */
+      if (mb->port || ((mb->port = strtol (t,&t,10)) <= 0)) return NIL;
+      c = t ? *t++ : '\0';	/* get delimiter, advance pointer */
+      break;
+
+    case '/':			/* switch */
+				/* find delimiter */
+      if (t = strpbrk (s = t,"/:=")) {
+	c = *t;			/* remember delimiter for later */
+	*t++ = '\0';		/* tie off switch name */
+      }
+      else c = '\0';		/* no delimiter */
+      if (c == '=') {		/* parse switches which take arguments */
+	if (t = strpbrk (v = t,"/:")) {
+	  c = *t;		/* remember delimiter for later */
+	  *t++ = '\0';		/* tie off switch name */
+	}
+	else c = '\0';		/* no delimiter */
+	if (!strcmp (s,"service")) {
+	  if (*mb->service) return NIL;
+	  else strcpy (mb->service,v);
+	}
+	else return NIL;	/* invalid argument switch */
+      }
+      else {			/* non-argument switch */
+	if (!strcmp (s,"anonymous")) mb->anoflag = T;
+	else if (!strcmp (s,"imap") || !strcmp (s,"imap2") ||
+		 !strcmp (s,"nntp")) {
+	  if (*mb->service) return NIL;
+	  else strcpy (mb->service,s);
+	} 
+	else return NIL;	/* invalid non-argument switch */
+      }
+      break;
+    default:			/* anything else is bogus */
+      return NIL;
+    } while (c);		/* see if anything more to parse */
+  }
+				/* default service name */
+  if (!(*mb->service && strcmp (mb->service,"imap")))
+    strcpy (mb->service,"imap2");
+  return T;
+}
 
 /* Mail subscribe to mailbox
  * Accepts: mail stream
@@ -396,17 +486,29 @@ long mail_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox)
 
 long mail_create (MAILSTREAM *stream,char *mailbox)
 {
+  int localp = *mailbox != '{';
   char tmp[MAILTMPLEN];
-  if (strcmp (stream->dtb->name,"imap2") &&
-      mail_valid (stream,mailbox,NIL,LONGT)) {
+  if (!stream) {		/* guess at driver if stream not specified */
+    if (localp) {		/* if local */
+      if (!(stream = mail_open (NIL,"INBOX",OP_PROTOTYPE)))
+	stream = mailstd_proto;	/* default to standard if no INBOX */
+    }
+    else stream = mail_open (NIL,mailbox,OP_PROTOTYPE);
+  }
+  if (!stream) {		/* damn, still no prototype! */
+    sprintf (tmp,"Can't create mailbox %s: indeterminate format",mailbox);
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+				/* must not already exist if local */
+  if (localp && mail_valid (stream,mailbox,NIL,LONGT)) {
     sprintf (tmp,"Can't create mailbox %s: mailbox already exists",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
   return stream->dtb ? (*stream->dtb->create) (stream,mailbox) : NIL;
 }
-
-
+
 /* Mail delete mailbox
  * Accepts: mail stream
  *	    mailbox name to delete
@@ -448,8 +550,6 @@ long mail_rename (MAILSTREAM *stream,char *old,char *new)
 
 MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
 {
-  long i;
-  char tmp[MAILTMPLEN];
   DRIVER *factory = mail_valid (NIL,name,(!(stream && stream->silent)) ?
 				"open mailbox" : NIL,(long) NIL);
   if (factory) {		/* must have a factory */
@@ -577,7 +677,6 @@ LONGCACHE *mail_lelt (MAILSTREAM *stream,long msgno)
 
 MESSAGECACHE *mail_elt (MAILSTREAM *stream,long msgno)
 {
-  MESSAGECACHE *elt;
   if (msgno < 1) fatal ("Bad msgno in mail_elt");
 				/* be sure it the cache is large enough */
   (*mailcache) (stream,msgno,CH_SIZE);
@@ -820,7 +919,7 @@ long mail_move (MAILSTREAM *stream,char *sequence,char *mailbox)
 
 long mail_append (MAILSTREAM *stream,char *mailbox,STRING *message)
 {
-  DRIVER *factory = mail_valid (stream,mailbox,"append to mailbox",LONGT);
+  DRIVER *factory = mail_valid (stream,mailbox,"append to mailbox",(long) NIL);
 				/* do the driver's action */
   return factory ? (factory->append) (stream,mailbox,message) : NIL;
 }
@@ -834,15 +933,21 @@ void mail_gc (MAILSTREAM *stream,long gcflags)
 {
   unsigned long i = 1;
   LONGCACHE *lelt;
-				/* garbage collect long cache envelopes? */
-  if ((gcflags & GC_ENV) && !stream->scache)
-    while (i <= stream->nmsgs)
+  				/* do the driver's action first */
+  if (stream->dtb) (*stream->dtb->gc) (stream,gcflags);
+  if (gcflags & GC_ENV) {	/* garbage collect envelopes? */
+				/* yes, free long cache if in use */
+    if (!stream->scache) while (i <= stream->nmsgs)
       if (lelt = (LONGCACHE *) (*mailcache) (stream,i++,CH_LELT)) {
 	mail_free_envelope (&lelt->env);
 	mail_free_body (&lelt->body);
       }
-  				/* do the driver's action */
-  if (stream->dtb) (*stream->dtb->gc) (stream,gcflags);
+    stream->msgno = 0;		/* free this cruft too */
+    mail_free_envelope (&stream->env);
+    mail_free_body (&stream->body);
+  }
+				/* free text if any */
+  if ((gcflags & GC_TEXTS) && (stream->text)) fs_give ((void **)&stream->text);
 }
 
 /* Mail output date from elt fields
@@ -886,7 +991,7 @@ char *mail_cdate (char *string,MESSAGECACHE *elt)
   }
   else m = elt->month - 3;	/* March is month 0 */
   sprintf (string,"%s %s %2d %02d:%02d:%02d %4d\n",
-	   cdays[(elt->day + ((7+31*m)/12) + y+(y/4)+(y/400)-(y/100)) % 7],s,
+	   cdays[(int)(elt->day+((7+31*m)/12)+y+(y/4)+(y/400)-(y/100)) % 7],s,
 	   elt->day,elt->hours,elt->minutes,elt->seconds,elt->year + BASEYEAR);
   return string;
 }
@@ -1414,6 +1519,7 @@ void mail_free_cache (MAILSTREAM *stream)
   stream->msgno = 0;		/* free this cruft too */
   mail_free_envelope (&stream->env);
   mail_free_body (&stream->body);
+  if (stream->text) fs_give ((void **) &stream->text);
 }
 
 

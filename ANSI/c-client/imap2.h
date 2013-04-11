@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	29 October 1992
+ * Last Edited:	8 September 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -18,8 +18,8 @@
  *		by the Biomedical Research Technology Program of the National
  *		Institutes of Health under grant number RR-00785.
  *
- * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1992 by the University of Washington.
+ * Original version Copyright 1988 by The Leland Stanford Junior University
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -52,6 +52,8 @@
 #define IMAPTCPPORT 143		/* assigned TCP contact port */
 #define SET_PORT 104
 #define GET_PORT 105
+#define SET_PREFETCH 106
+#define GET_PREFETCH 107
 
 
 /* IMAP2 specific definitions */
@@ -78,6 +80,7 @@ typedef struct imap_local {
   unsigned int use_find : 1;	/* server supports FIND command */
   unsigned int use_bboard : 1;	/* server supports BBOARD command */
   unsigned int use_purge : 1;	/* server supports PURGE command */
+  char *prefix;			/* find prefix */
   char tmp[IMAPTMPLEN];		/* temporary buffer */
 } IMAPLOCAL;
 
@@ -124,11 +127,10 @@ typedef struct imap_local {
 #define map_do_gc idogc
 #define map_gc_body igcb
 
-#define imap_hostfield imhfld
-#define imap_mailboxfield immfld
 #define imap_host imhost
 #define imap_select imsele
 #define imap_send imsend
+#define imap_send_literal imsndl
 #define imap_reply imrepl
 #define imap_parse_reply imprep
 #define imap_fake imfake
@@ -190,10 +192,10 @@ void map_gc (MAILSTREAM *stream,long gcflags);
 void map_do_gc (MAILSTREAM *stream,long gcflags);
 void map_gc_body (BODY *body);
 
-char *imap_hostfield (char *string);
-char *imap_mailboxfield (char *string);
 char *imap_host (MAILSTREAM *stream);
 IMAPPARSEDREPLY *imap_send (MAILSTREAM *stream,char *cmd,char *arg,char *arg2);
+IMAPPARSEDREPLY *imap_send_literal (MAILSTREAM *stream,char *cmd,char *arg,
+				    STRING *arg2);
 IMAPPARSEDREPLY *imap_reply (MAILSTREAM *stream,char *tag);
 IMAPPARSEDREPLY *imap_parse_reply (MAILSTREAM *stream,char *text);
 IMAPPARSEDREPLY *imap_fake (MAILSTREAM *stream,char *tag,char *text);

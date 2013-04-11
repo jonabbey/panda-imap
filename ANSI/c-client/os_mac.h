@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	27 October 1992
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by Mark Crispin
+ * Copyright 1993 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -70,7 +70,8 @@ void *fs_get (size_t size);
 void fs_resize (void **block,size_t size);
 void fs_give (void **block);
 void fatal (char *string);
-char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl);
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl);
 unsigned long strcrlflen (STRING *s);
 TCPSTREAM *tcp_open (char *host,long port);
 pascal void tcp_dns_result (struct hostInfo *hostInfoPtr,char *userDataPtr);
@@ -86,6 +87,4 @@ char *tcp_localhost (TCPSTREAM *stream);
 unsigned long gethostid (void);
 long random (void);
 long getpid (void);
-char *re_comp (char *s);
-long re_exec (char *s);
 long wait (void);

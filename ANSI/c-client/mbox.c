@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	23 December 1992
+ * Last Edited:	15 July 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -58,9 +58,9 @@ DRIVER mboxdriver = {
   mbox_valid,			/* mailbox is valid for us */
   bezerk_parameters,		/* manipulate parameters */
   mbox_find,			/* find mailboxes */
-  bezerk_find_bboards,		/* find bboards */
+  mbox_find,			/* find bboards */
   mbox_find,			/* find all mailboxes */
-  bezerk_find_all_bboards,	/* find all bboards */
+  mbox_find,			/* find all bboards */
   bezerk_subscribe,		/* subscribe to mailbox */
   bezerk_unsubscribe,		/* unsubscribe from mailbox */
   bezerk_subscribe_bboard,	/* subscribe to bboard */
@@ -112,7 +112,7 @@ DRIVER *mbox_valid (char *name)
     if ((stat(s,&sbuf) == 0) && (fd = open (s,O_RDONLY,NIL)) >= 0) {
 				/* allow empty or valid file */
       if ((sbuf.st_size == 0) || ((read (fd,s,MAILTMPLEN-1) >= 0) &&
-				  (*s == 'F') && VALID (ti,zn))) ret = T;
+				  (*s == 'F') && VALID (s,t,ti,zn))) ret = T;
       close (fd);		/* close the file */
 
     }
@@ -182,7 +182,7 @@ long mbox_ping (MAILSTREAM *stream)
 				/* yes, read it */
 	read (sfd,s = (char *) fs_get (sbuf.st_size + 1),size);
 	s[sbuf.st_size] = '\0';	/* tie it off */
-	if ((*s == 'F') && VALID (ti,zn)) {
+	if ((*s == 'F') && VALID (s,t,ti,zn)) {
 	  if ((fd = bezerk_lock (stream->mailbox,O_WRONLY|O_APPEND,NIL,lock,
 				 LOCK_EX)) >= 0) {
 	    fstat (fd,&sbuf);	/* get current file size before write*/

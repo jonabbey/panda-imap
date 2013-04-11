@@ -8,9 +8,9 @@
  *		Internet: donn@cac.washington.edu
  *
  * Date:	11 May 1989
- * Last Edited:	2 November 1992
+ * Last Edited:	2 September 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -81,13 +81,14 @@ extern char *sys_errlist[];
 
 char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
+char may_need_server_init = T;
+
 void rfc822_date (date)
 	char *date;
 {
   int zone,dstnow;
-  struct tm *t;
-  int time_sec = time (0);
-  t = localtime (&time_sec);	/* convert to individual items */
+  time_t time_sec = time (0);
+  struct tm *t = localtime (&time_sec);
   tzset ();			/* initialize timezone/daylight variables */
 				/* see if it is DST now */
   dstnow = daylight && t->tm_isdst;
@@ -98,6 +99,14 @@ void rfc822_date (date)
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
 	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
 	   tzname[dstnow]);
+  if (may_need_server_init) {	/* maybe need to do server init cruft? */
+    may_need_server_init = NIL;	/* not any more we don't */
+    if (getuid () <= 0) {	/* if root, we're most likely a server */
+      t_sync (0);		/* PTX inetd is stupid, stupid, stupid */
+      ioctl (0,I_PUSH,"tirdwr");/*  it needs this cruft, else servers won't */
+      dup2 (0,1);		/*  work.  How obnoxious!!! */
+    }
+  }
 }
 
 /* Get a block of free storage
@@ -156,9 +165,10 @@ void fatal (string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (dst,dstl,src,srcl)
+unsigned long strcrlfcpy (dst,dstl,src,srcl)
 	char **dst;
 	unsigned long *dstl;
 	char *src;
@@ -189,13 +199,13 @@ char *strcrlfcpy (dst,dstl,src,srcl)
     break;
   }
   *d = '\0';			/* tie off destination */
-  return *dst;			/* return destination */
+  return d - *dst;		/* return length */
 }
 
 
 /* Length of string after strcrlfcpy applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (s)
@@ -227,10 +237,12 @@ unsigned long strcrlflen (s)
  * Returns: T if password validated, NIL otherwise
  */
 
-int server_login (user,pass,home)
+long server_login (user,pass,home,argc,argv)
 	char *user;
 	char *pass;
 	char **home;
+	int argc;
+	char *argv[];
 {
   struct passwd *pw = getpwnam (lcase (user));
   struct spwd *sp;
@@ -439,7 +451,7 @@ TCPSTREAM *tcp_aopen (host,service)
     dup2 (pipeo[0],0);		/* parent's output is my input */
     close (pipeo[0]); close (pipeo[1]);
 				/* now run it */
-    execl ("/usr/ucb/resh","resh",hostname,"exec",service,0);
+    execl ("/usr/bin/resh","resh",hostname,"exec",service,0);
     _exit (1);			/* spazzed */
   }
 
@@ -467,7 +479,6 @@ char *tcp_getline (stream)
 {
   int n,m;
   char *st,*ret,*stp;
-  char tmp[2];
   char c = '\0';
   char d;
 				/* make sure have data */
@@ -571,7 +582,7 @@ long tcp_getdata (stream)
  * Returns: T if success else NIL
  */
 
-int tcp_soutr (stream,string)
+long tcp_soutr (stream,string)
 	TCPSTREAM *stream;
 	char *string;
 {
@@ -709,42 +720,6 @@ void *memmove (s,ct,n)
   if (dest < src) for (i = 0; i < n; ++i) dp[i] = sp[i];
   else if (dest > src) for (i = n - 1; i >= 0; --i) dp[i] = sp[i];
   return s;
-}
-
-/* Emulator for BSD re_comp() call
- * Accepts: character string to compile
- * Returns: 0 if successful, else error message
- * Uses the regexpr(3X) libraries.
- * Don't forget to link against /usr/lib/libgen.a
- */
-
-#define PATMAX 256
-static char re_space[PATMAX];
-
-char *re_comp (str)
-	char *str;
-{
-  char *c;
-  static char *invalstr = "invalid string";
-  if (str) {			/* must have a string to compile */
-    c = compile (str,re_space,re_space + PATMAX);
-    if ((c >= re_space) && (c <= re_space + PATMAX)) return 0;
-  }
-  re_space[0] = 0;
-  return invalstr;
-}
-
-
-/* Emulator for BSD re_exec() call
- * Accepts: string to match
- * Returns: 1 if string matches, 0 if fails to match, -1 if re_comp() failed
- */
-
-long re_exec (str)
-	char *str;
-{
-  if (!re_space[0]) return -1;	/* re_comp() failed? */
-  return step (str,re_space) ? 1 : 0;
 }
 
 /* Emulator for BSD scandir() call

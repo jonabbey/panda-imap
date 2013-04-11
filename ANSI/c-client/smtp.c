@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	2 October 1992
+ * Last Edited:	18 March 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -174,13 +174,15 @@ void smtp_rcpt (SMTPSTREAM *stream,ADDRESS *adr,long *error)
   while (adr) {
 				/* clear any former error */
     if (adr->error) fs_give ((void **) &adr->error);
-    strcpy (tmp,"TO:<");	/* compose "RCPT TO:<return-path>" */
-    rfc822_address (tmp,adr);
-    strcat (tmp,">");
+    if (adr->host) {		/* ignore group syntax */
+      strcpy (tmp,"TO:<");	/* compose "RCPT TO:<return-path>" */
+      rfc822_address (tmp,adr);
+      strcat (tmp,">");
 				/* send "RCPT TO" command */
-    if (!(smtp_send (stream,"RCPT",tmp) == SMTPOK)) {
-      *error = T;		/* note that an error occurred */
-      adr->error = cpystr (stream->reply);
+      if (!(smtp_send (stream,"RCPT",tmp) == SMTPOK)) {
+	*error = T;		/* note that an error occurred */
+	adr->error = cpystr (stream->reply);
+      }
     }
     adr = adr->next;		/* do any subsequent recipients */
   }

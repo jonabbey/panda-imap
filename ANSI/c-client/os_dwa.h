@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	27 October 1992
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -54,9 +54,11 @@
 void rfc822_date (char *date);
 void *fs_get (size_t size);
 void fs_resize (void **block,size_t size);
+char *myhomedir ();
 void fs_give (void **block);
 void fatal (char *string);
-char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl);
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl);
 unsigned long strcrlflen (STRING *s);
 TCPSTREAM *TCP_open (char *host,long port);
 TCPSTREAM *tcp_aopen (char *host,char *service);
@@ -70,5 +72,3 @@ char *tcp_host (TCPSTREAM *stream);
 char *tcp_localhost (TCPSTREAM *stream);
 long random (void);
 long getpid (void);
-char *re_comp (char *s);
-long re_exec (char *s);

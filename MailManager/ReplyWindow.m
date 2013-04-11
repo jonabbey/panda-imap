@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 June 1989
- * Last Edited:	28 September 1992
+ * Last Edited:	22 April 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -78,8 +78,9 @@
 
   sprintf (tmp,"On %s, %s wrote:\n\n> Subject: %s\n",
 	   e->env->date,frm,e->env->subject ? e->env->subject : "(none)");
-  write_address ((d = tmp),"> To:",e->env->to);
-  write_address (d,"> cc:",e->env->cc);
+  d = tmp + strlen (tmp);
+  write_address (&d,"> To",e->env->to);
+  write_address (&d,"> cc",e->env->cc);
   strcat (d,">\n> ");		// trailing junk
 				// get size of header + text
   i = strlen (src = text) + strlen (tmp);

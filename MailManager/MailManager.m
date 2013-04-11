@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	17 February 1989
- * Last Edited:	11 February 1993
+ * Last Edited:	28 March 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -250,15 +250,9 @@ id read_action;
     x = NX_X (&frame); y = NX_Y (&frame);
   }
   if (stream) {			// have an old stream?
-    //  This is ugly and disgusting.  There probably should be a mail_host ()
-    // routine, and there'll probably have to be if some non-IMAP protocol
-    // that involves a host name is ever implemented.
-    //  This is presently the only code anywhere that knows about the internals
-    // of a driver, i.e. imap_hostfield ().  Hopefully it will not propagate.
-    extern char *imap_hostfield ();
-    if (stream->dtb == &imapdriver) [mailboxHost setStringValueNoCopy:
-				     imap_hostfield (stream->mailbox)
-				     shouldFree:T];
+				// yes, network connection?
+    if (mail_valid_net (stream->mailbox,stream->dtb,tmp,NIL))
+      [mailboxHost setStringValue:tmp];
     else [mailboxHost setStringValue:""];
   }
 				// default host is repository if no stream

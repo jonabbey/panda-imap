@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	27 October 1992
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -136,9 +136,11 @@ void fatal (char *string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl)
 {
   if (srcl > *dstl) {		/* resize if not enough space */
     fs_give ((void **) dst);	/* fs_resize does an unnecessary copy */
@@ -147,18 +149,37 @@ char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
 				/* copy strings */
   if (srcl) memcpy (*dst,src,srcl);
   *(*dst + srcl) = '\0';	/* tie off destination */
-  return *dst;			/* return destination */
+  return srcl;			/* return length */
 }
 
 
 /* Length of string after strcrlfcpy applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (STRING *s)
 {
   return SIZE (s);		/* no-brainer on DOS! */
+}
+
+
+/* Return my home directory name
+ * Returns: my home directory name
+ */
+
+char *hdname = NIL;
+
+char *myhomedir ()
+{
+  int i;
+  char *s;
+  if (!hdname) {		/* get home directory name if not yet known */
+    hdname = cpystr ((s = getenv ("HOME")) ? s : "");
+    if ((i = strlen (hdname)) && ((hdname[i-1] == '\\') || (hdname[i-1]=='/')))
+      hdname[i-1] = '\0';	/* tie off trailing directory delimiter */
+  }
+  return hdname;
 }
 
 /* TCP/IP open
@@ -176,7 +197,7 @@ TCPSTREAM *tcp_open (char *host,long port)
   long adr,i,j,k,l;
   char *s;
   char tmp[MAILTMPLEN];
-  char *hostname = cpystr (host);
+  char *hostname = NIL;
 				/* set default gets routine */
   if (!mailgets) mailgets = mm_gets;
   /* The domain literal form is used (rather than simply the dotted decimal
@@ -187,24 +208,23 @@ TCPSTREAM *tcp_open (char *host,long port)
   if (host[0] == '[' && host[(strlen (host))-1] == ']') {
     strcpy (tmp,host+1);	/* yes, copy number part */
     tmp[strlen (tmp)-1] = '\0';
-    if ((sin.sin_addr.s_addr == inet_addr (tmp)) == -1) {
+    if ((sin.sin_addr.s_addr = inet_addr (tmp)) == -1) {
       sprintf (tmp,"Bad format domain-literal: %.80s",host);
       mm_log (tmp,ERROR);
-      fs_give ((void **) hostname);
       return NIL;
     }
+    else hostname = cpystr (host);
   }
   else {			/* lookup host name */
-    if ((host_name = gethostbyname (lcase (hostname)))) {
+    if ((host_name = gethostbyname (lcase (strcpy (tmp,host))))) {
 				/* copy host name */
-      strcpy (hostname,host_name->h_name);
+      hostname = cpystr (host_name->h_name);
 				/* copy host addresses */
       memcpy (&sin.sin_addr,host_name->h_addr,host_name->h_length);
     }
     else {
       sprintf (tmp,"Host not found: %s",host);
       mm_log (tmp,ERROR);
-      fs_give ((void **) hostname);
       return NIL;
     }
   }
@@ -221,10 +241,18 @@ TCPSTREAM *tcp_open (char *host,long port)
 				/* open connection */
   if (connect (sock,(struct sockaddr *) &sin,sizeof (sin)) < 0) {
     switch (errno) {		/* analyze error */
-    case ECONNREFUSED: s = "Refused"; break;
-    case ENOBUFS: s = "Insufficient system resources"; break;
-    case ETIMEDOUT: s = "Timed out"; break;
-    default: s = "Unknown error"; break;
+    case ECONNREFUSED:
+      s = "Refused";
+      break;
+    case ENOBUFS:
+      s = "Insufficient system resources";
+      break;
+    case ETIMEDOUT:
+      s = "Timed out";
+      break;
+    default:
+      s = "Unknown error";
+      break;
     }
     sprintf (tmp,"Can't connect to %.80s,%ld: %s (%d)",hostname,port,s,errno);
     mm_log (tmp,ERROR);
@@ -235,10 +263,13 @@ TCPSTREAM *tcp_open (char *host,long port)
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
   stream->host = hostname;	/* official host name */
-  adr = gethostid ();		/* get local IP address */
-  i = adr >> 24; j = (adr >> 16) & 0xff; k = (adr >> 8) & 0xff; l = adr & 0xff;
-  sprintf (tmp,"[%ld.%ld.%ld.%ld]",i,j,k,l);
-  stream->localhost = cpystr (tmp);
+  if (adr = gethostid ()) {	/* get local IP address */
+    i = adr >> 24; j = (adr >> 16) & 0xff; k = (adr >> 8) & 0xff;
+    l = adr & 0xff;
+    sprintf (tmp,"[%ld.%ld.%ld.%ld]",i,j,k,l);
+    stream->localhost = cpystr (tmp);
+  }
+  else stream->localhost = cpystr ("random-pc");
   stream->tcps = sock;		/* init socket */
   stream->ictr = 0;		/* init input counter */
   return stream;		/* return success */
@@ -264,7 +295,6 @@ char *tcp_getline (TCPSTREAM *stream)
 {
   int n,m;
   char *st,*ret,*stp;
-  char tmp[2];
   char c = '\0';
   char d;
 				/* make sure have data */
@@ -451,25 +481,4 @@ long random ()
 long getpid ()
 {
   return 1;
-}
-
-
-/* These two are used for pattern matching in misc.c, but are actually never
- * called in DOS.
- */
-
-
-/* Dummy re_comp -- always return NIL */
-
-char *re_comp (char *s)
-{
-  return NIL;
-}
-
-
-/* Dummy re_exec -- always return T */
-
-long re_exec (char *s)
-{
-  return T;
 }

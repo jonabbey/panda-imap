@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	10 January 1993
+# Last Edited:	24 May 1993
 #
 # Copyright 1993 by the University of Washington
 #
@@ -55,6 +55,9 @@ dawz.obj: mail.h dawz.h misc.h osdep.h dawz.c
 nntpcdos.obj: mail.h nntpcdos.h misc.h osdep.h nntpcdos.c
 	cl -c $(CFLAGS) nntpcdos.c
 
+dummydos.obj: mail.h dummy.h misc.h osdep.h dummydos.c
+	cl -c -AL dummydos.c
+
 smtp.obj: mail.h smtp.h rfc822.h misc.h osdep.h smtp.c
 	cl -c $(CFLAGS) smtp.c
 
@@ -75,10 +78,10 @@ osdep.obj: mail.h osdep.h os_dwa.c
 	cl -c $(CFLAGS) os_dwa.c
 	rename os_dwa.obj osdep.obj
 
-cclient.lib: mail.obj imap2.obj dawz.obj nntpcdos.obj smtp.obj nntp.obj \
-	misc.obj rfc822.obj sm_dos.obj osdep.obj
+cclient.lib: mail.obj imap2.obj dawz.obj nntpcdos.obj dummydos.obj smtp.obj \
+	nntp.obj misc.obj rfc822.obj sm_dos.obj osdep.obj
 	erase cclient.lib
-	lib cclient +mail+imap2+dawz+nntpcdos+smtp+nntp+misc+rfc822+sm_dos+osdep;
+	lib cclient +mail+imap2+dawz+nntpcdos+dummydos+smtp+nntp+misc+rfc822+sm_dos+osdep;
 
 mtest.exe: mtest.obj cclient.lib
 	link /NOI /stack:32767 mtest.obj,mtest.exe,,cclient.lib wattcplg.lib;

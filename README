@@ -1,11 +1,11 @@
 		     IMAP Development Environment
-			    9 December 1992
+			     9 August 1993
 			     Mark Crispin
 
 COPYRIGHT NOTICE:
 
 Some portions Copyright 1988 by The Leland Stanford Junior University.
-Copyright 1989, 1990, 1991, 1992 by the University of Washington.
+Copyright 1989, 1990, 1991, 1992, 1993 by the University of Washington.
 
  Permission to use, copy, modify, and distribute this software and its
 documentation for any purpose and without fee is hereby granted, provided
@@ -33,7 +33,7 @@ regarding this software may be reported to the author:
  Internet:	MRC@CAC.Washington.EDU
  Postal mail:	Mark Crispin
 		University of Washington
-		Networks and Distributed Computing, HG-45
+		Networks and Distributed Computing, JE-30
 		Seattle, WA  98195
 		USA
  Phone:		+1 (206) 543-5762
@@ -70,24 +70,25 @@ Other programs:
 NOTES ON THE VARIOUS COMPONENTS:
 
      MS runs under BSD Unix and requires Columbia's CCMD command package in
-a ccmd directory at the same level as the root of this directory tree.
+a ccmd directory at the same level as the root of this directory tree.  If
+ccmd is not available the build of ms is ignored.
 
-     MTest has been run under BSD Unix, MS-DOS, Macintosh, and TOPS-20.  It
-is a very primitive interface, however, and is suited mainly as a
-model of how to write a main program for the C-Client.  You should take
-a look at the source to figure out how to use it; briefly, it first asks
-for a mailbox name (either a local file path or an IMAP mailbox in the
-form {hostname}mailbox) and then puts you in a command mode where "?" will
-give you a list of commands.
+     MTest has been run under Unix, MS-DOS, Macintosh, and TOPS-20.  It is
+a very primitive interface, however, and is suited mainly as a model of how
+to write a main program for the C-Client.  You should take a look at the
+source to figure out how to use it; briefly, it first asks for a mailbox
+name (either a local file path or an IMAP mailbox in the form
+{hostname}mailbox) and then puts you in a command mode where "?" will give
+you a list of commands.
 
-     MailManager and EasyMail run on a NeXT and requires the NeXT
-Application Kit to build and execute.  MS and MTest will also run on the
-NeXT, albeit inside a terminal emulator window.
+     MailManager and EasyMail run on a NeXT and require NEXTSTEP to build
+and execute.  MS and MTest will also run on the NeXT, albeit inside a
+terminal emulator window.
 
      The Unix clients ms and/or mtest may be installed on a system
-directory.  There is also a man page for ms.  The Pine mailer has IMAP
-support, and is available separately on the FTP.CAC.Washington.EDU
-archives.
+directory.  There is also a man page for ms.  The Pine mailer for Unix and
+DOS has IMAP2 support, and is available separately on the
+FTP.CAC.Washington.EDU archives.
 
      The Unix servers ipop2d, ipop3d, and imapd should be installed in
 a system daemon directory, and invoked by your /etc/inetd.conf file
@@ -128,16 +129,15 @@ system.  For example, if you are running on a Sun, do:
 	% ln -s makefile.sun Makefile
 
      If your system type is not one of the ones supplied, start with
-makefile.nxt if you are using an ANSI compiler and makefile.dyn if you are
+makefile.nxt if you are using an ANSI compiler and makefile.bsd if you are
 using a non-ANSI compiler, then modify them as necessary.  If you send the
 result back to us, we will make it available for others using your
 particular system type.
 
      If you are building an MS-DOS client, you will need a TCP/IP stack
 installed on your DOS system along with its development environment.  The
-current supported stacks are Novell, Beame & Whiteside, PC/IP, and
-Waterloo.  MTest runs under MS-DOS.  A DOS version of Pine is presently in
-beta test.
+current supported stacks are Novell, Beame & Whiteside, PC/IP, PC-NFS, and
+Waterloo.  MTest and a version of Pine called PC Pine run under DOS.
 
      If you are building a Macintosh client, you will need MacTCP installed
 on your system as well as the MacTCP C includes and libraries.  MTest runs
@@ -149,7 +149,7 @@ to prevent it from generating bad code, since those MacTCP files violate
 Apple's standards of always using explicit shorts or longs, never ints.
 You could avoid this if you set 4-byte ints in THINK C; however, the ANSI
 library uses 2-byte ints so you lose the functionality of those functions.
-C-Client itself is 2-byte int or 4-byte int clean; it can be used in either
+c-client itself is 2-byte int or 4-byte int clean; it can be used in either
 mode.
 
      The most important bug in the MacTCP files that you need to fix is in
@@ -159,11 +159,11 @@ several other changes you need to make if you decide to compile dnr.c under
 THINK C instead of using the Apple-supplied object file; see me for details
 if you decide to undertake such an effort.
 
-     I have provided C-Client sources for TOPS-20 systems, but you're
-on your own in terms of a nice TOPS-20 like main program.  Maybe
-someday some nice person will try porting MS to TOPS-20.  It's been a few
-years since I last tried building C-Client on TOPS-20, so some hacking may
-be needed to get it to work.
+     I have provided a c-client por for TOPS-20 systems, but you're on your
+own in terms of a nice TOPS-20 like main program.  Maybe someday some nice
+person will try porting MS to TOPS-20.  It's been a few years since I last
+tried building c-client on TOPS-20, so some hacking may be needed to get it
+to work.
 
      If you are building a TOPS-20 server, you should install MAPSER.EXE on
 SYSTEM: and have IMAPSV.EXE invoked as a SYSJOB or PTYCON subjob (NOT a

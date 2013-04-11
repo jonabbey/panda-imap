@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 November 1988
- * Last Edited:	25 January 1993
+ * Last Edited:	8 September 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -44,7 +44,7 @@ static char *copyright = "\
  CCMD command interface is:\n\
   Copyright 1986, 1987 Columbia University in the City of New York";
 static char *author = "Mark Crispin";
-static char *version = "7.86";
+static char *version = "7.92";
 static char *bug_mailbox = "MRC";
 static char *bug_host = "CAC.Washington.EDU";
 static char *hostlist[] = {	/* SMTP server host list */
@@ -842,14 +842,23 @@ void c_find (short help)
 	  strcpy (tmp,strchr (stream->mailbox,'{'));
 	  if (s = strchr (tmp,'}')) s[1] = '\0';
 	  if (strcmp (tmp,lsthst)) {
-	    mail_find (stream,"*");
-	    mail_find_bboards (stream,"*");
+	    sprintf (lsthst,"%s*",tmp);
+	    mail_find (stream,lsthst);
+	    mail_find_bboards (stream,lsthst);
 	  }
 	}
 	return;			/* all done */
       }
 				/* do a find if about to fall off the end */
-      else if (stream && (i == bbdtab._ktcnt)) mail_find_bboards (stream,"*");
+      else if (stream && (i == bbdtab._ktcnt)) {
+	if (stream->mailbox[1] == '{') {
+	  strcpy (tmp,stream->mailbox + 1);
+	  if (s = strchr (tmp,'}')) s[1] = '\0';
+	  strcat (tmp,"*");
+	}
+	else strcpy (tmp,"*");
+	mail_find_bboards (stream,tmp);
+      }
     }
 				/* punt stream */
     stream = mail_close (stream);
@@ -1335,10 +1344,11 @@ void c_read (short help)
   pval parseval;
   fdb *used;
   static fdb cmdfdb = {_CMKEY,NIL,NIL,(pdat) &(reatab),"Command, ","NEXT",NIL};
+  char *defseq = (stream && *stream->mailbox == '*') ? "NEW" : "UNSEEN";
   int olddone = done;
   if (help) cmxprintf ("\
 The READ command enters read sub-mode on the specified messages.\n");
-  else if (do_sequence ("UNSEEN")) for (current=1; current <= nmsgs; ++current)
+  else if (do_sequence (defseq)) for (current=1; current <= nmsgs; ++current)
     if (mail_elt (stream,current)->spare) {
 				/* make sure we have flags & envelope */
       mail_fetchstructure (stream,current,NIL);
@@ -1361,6 +1371,7 @@ The READ command enters read sub-mode on the specified messages.\n");
       }
       if (done > 0) break;	/* negative means NEXT command */
     }
+  sequence[current = 0] = '\0';	/* invalidate sequence */
   done = olddone;		/* cancel done status */
 }
 
@@ -2993,9 +3004,10 @@ void do_get (char *mailbox)
 				    (stream->mailbox[1] == '{'))) {
       strcpy (tmp,strchr (stream->mailbox,'{'));
       if (s = strchr (tmp,'}')) s[1] = '\0';
-      if (strcmp (tmp,lsthst)) {
-	mail_find (stream,"*");	/* find possible remote mailboxes/bboards */
-	mail_find_bboards (stream,"*");
+      if (strcmp (tmp,lsthst)) {/* find remote bboards */
+	sprintf (lsthst,"%s*",tmp);
+	mail_find (stream,lsthst);
+	mail_find_bboards (stream,lsthst);
       }
     }
   }
@@ -3057,7 +3069,6 @@ void answer_message (int msgno,int allflag)
       copy_adr (env->cc,msg->cc);
       msg->bcc = copy_adr (env->bcc,NIL);
     }
-    if (env->newsgroups) msg->newsgroups = cpystr (env->newsgroups);
     if (env->subject) {		/* use subject in reply */
       strncpy (tmp,env->subject,3);
       tmp[3] ='\0';		/* tie off copy of first 3 chars */
@@ -3204,11 +3215,11 @@ void type_message (FILE *file,long msgno)
     if (env) {			/* make sure we have an envelope */
 				/* output envelope */
       if (env->date) fprintf (file,"Date: %s\n",env->date);
-      type_address (file,"From:",env->from);
+      type_address (file,"From",env->from);
       if (env->subject) fprintf (file,"Subject: %s\n",env->subject);
-      type_address (file,"To:",env->to);
-      type_address (file,"cc:",env->cc);
-      type_address (file,"bcc:",env->bcc);
+      type_address (file,"To",env->to);
+      type_address (file,"cc",env->cc);
+      type_address (file,"bcc",env->bcc);
     }
     putc ('\n',file);		/* output message text */
 #if unix
@@ -3228,22 +3239,11 @@ void type_message (FILE *file,long msgno)
 
 void type_address (FILE *file,char *tag,ADDRESS *adr)
 {
-  int i = strlen (tag);
-  char tmp[TMPLEN];
-  if (adr) {			/* no-op if address empty */
-    fprintf (file,"%s",tag);	/* output tag */
-    while (adr) {		/* for each address in the list */
-      if (adr->personal) {	/* output as personal name only */
-	sprintf (tmp,"%s <%s@%s>",adr->personal,adr->mailbox,adr->host);
-	type_string (file,&i,tmp,NIL,NIL);
-      }
-      else 			/* stuck with user@host */
-	type_string (file,&i,adr->mailbox,'@',adr->host);
-				/* if any more addresses */
-      if (adr = adr->next) fputc (',',file);
-    }
-  fprintf (file,"\n");		/* tie off line at end */
-  }
+  char c,tmp[8196];
+  char *s = tmp;
+  *s = '\0';
+  rfc822_address_line (&s,tag,NIL,adr);
+  for (s = tmp; c = *s++;) if (c != '\r') putc (c,file);
 }
 
 
@@ -3293,8 +3293,7 @@ ENVELOPE *send_init ()
   msg->message_id = cpystr (tmp);
   return (msg);
 }
-
-
+
 /* Copy address list
  * Accepts: MAP address list
  *	    optional MTP address list to append to
@@ -3303,19 +3302,23 @@ ENVELOPE *send_init ()
 
 ADDRESS *copy_adr (ADDRESS *adr,ADDRESS *ret)
 {
-  ADDRESS *dadr;			/* current destination */
+  ADDRESS *dadr;		/* current destination */
   ADDRESS *prev = ret;		/* previous destination */
+  ADDRESS *tadr;
 				/* run down previous list until the end */
   if (prev) while (prev->next) prev = prev->next;
   while (adr) {			/* loop while there's still an MAP adr */
-    dadr = mail_newaddr ();	/* instantiate a new address */
-    if (!ret) ret = dadr;	/* note return */
-    if (prev) prev->next = dadr;/* tie on to the end of any previous */
-    dadr->personal = cpystr (adr->personal);
-    dadr->adl = cpystr (adr->adl);
-    dadr->mailbox = cpystr (adr->mailbox);
-    dadr->host = cpystr (adr->host);
-    prev = dadr;		/* this is now the previous */
+    if (adr->host) {		/* ignore group stuff */
+      dadr = mail_newaddr ();	/* instantiate a new address */
+      if (!ret) ret = dadr;	/* note return */
+				/* tie on to the end of any previous */
+      if (prev) prev->next = dadr;
+      dadr->personal = cpystr (adr->personal);
+      dadr->adl = cpystr (adr->adl);
+      dadr->mailbox = cpystr (adr->mailbox);
+      dadr->host = cpystr (adr->host);
+      prev = dadr;		/* this is now the previous */
+    }
     adr = adr->next;		/* go to next address in list */
   }
   return (ret);			/* return the MTP address list */
@@ -3468,29 +3471,31 @@ void cmerr (char *string)
   cmnl (cmcsb._cmej);		/* tie off with newline */
 }
 
-/* Co-routines from MAIL library */
+/* Co-routines from c-client */
 
 
 /* Message matches a search
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
-void mm_searched (MAILSTREAM *stream,long msgno)
+void mm_searched (MAILSTREAM *s,long msgno)
 {
 				/* don't need to do anything special here */
 }
 
 
 /* Message exists (i.e. there are that many messages in the mailbox)
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
-void mm_exists (MAILSTREAM *stream,long number)
+void mm_exists (MAILSTREAM *s,long number)
 {
-  int delta = number-nmsgs;
-  if (delta < 0) cmxprintf ("%%Mailbox shrunk from %d to %d!!",nmsgs,number);
+  int delta;
+  if (s != stream) return;
+  if ((delta = number-nmsgs) < 0)
+    cmxprintf ("%%Mailbox shrunk from %d to %d!!",nmsgs,number);
   if (nmsgs) switch (delta) {	/* no output if first time */
   case 0:			/* no new messages */
     break;
@@ -3506,15 +3511,25 @@ void mm_exists (MAILSTREAM *stream,long number)
 
 
 /* Message expunged
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
-void mm_expunged (MAILSTREAM *stream,long number)
+void mm_expunged (MAILSTREAM *s,long number)
 {
-  nmsgs--;			/* decrement number of messages */
+  if (s == stream) nmsgs--;	/* decrement number of messages */
 }
 
+/* Message flag status change
+ * Accepts: MAIL stream
+ *	    message number
+ */
+
+void mm_flags (MAILSTREAM *s,long number)
+{
+}
+
+
 /* Mailbox found
  * Accepts: Mailbox name
  */
@@ -3553,12 +3568,12 @@ void mm_bboard (char *string)
 }
 
 /* Notification event
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    string to log
  *	    error flag
  */
 
-void mm_notify (MAILSTREAM *stream,char *string,long errflg)
+void mm_notify (MAILSTREAM *s,char *string,long errflg)
 {
   mm_log (string,errflg);	/* just do mm_log action */
 }
@@ -3659,7 +3674,7 @@ void mm_login (char *host,char *username,char *password,long trial)
  * Accepts: stream
  */
 
-void mm_critical (MAILSTREAM *stream)
+void mm_critical (MAILSTREAM *s)
 {
   critical = T;			/* note in critical code */
 }
@@ -3669,7 +3684,7 @@ void mm_critical (MAILSTREAM *stream)
  * Accepts: stream
  */
 
-void mm_nocritical (MAILSTREAM *stream)
+void mm_nocritical (MAILSTREAM *s)
 {
   critical = NIL;		/* note not in critical code */
 }
@@ -3682,7 +3697,7 @@ void mm_nocritical (MAILSTREAM *stream)
  * Returns: T if user wants to abort
  */
 
-long mm_diskerror (MAILSTREAM *stream,long errcode,long serious)
+long mm_diskerror (MAILSTREAM *s,long errcode,long serious)
 {
   if (serious) cmxprintf ("[Warning: mailbox on disk is probably damaged.]\n");
   cmxprintf ("Will retry if you continue MS.\n");

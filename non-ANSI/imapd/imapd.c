@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	15 February 1993
+ * Last Edited:	22 September 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -46,14 +46,11 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/dir.h>		/* makes news.h happy */
 #include "misc.h"
-#include "news.h"		/* moby sigh */
 
 
 /* Autologout timer */
 #define TIMEOUT 60*30
-#define KODTIMER 60*2
 
 /* Size of temporary buffers */
 #define TMPLEN 8192
@@ -68,13 +65,15 @@
 
 /* Global storage */
 
-char *version = "7.1(53)";	/* version number of this server */
+char *version = "7.4(70)";	/* version number of this server */
 struct itimerval timer;		/* timeout state */
 int state = LOGIN;		/* server state */
 int mackludge = 0;		/* MacMS kludge */
 int anonymous = 0;		/* non-zero if anonymous */
 long idletime = 0;		/* time we became idle */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
+MAILSTREAM *tstream = NIL;	/* temporary mailbox stream */
+MAILSTREAM *create_policy;	/* current creation policy */
 long nmsgs = 0;			/* number of messages */
 long recent = 0;		/* number of recent messages */
 char *host = NIL;		/* local host name */
@@ -88,6 +87,7 @@ char *cmd;			/* command portion of command */
 char *arg;			/* pointer to current argument of command */
 char *lsterr = NIL;		/* last error message from c-client */
 char *response = NIL;		/* command response */
+char *litbuf = NIL;		/* buffer to hold literals */
 
 
 /* Response texts */
@@ -107,7 +107,8 @@ char *argrdy = "+ Ready for argument\015\012";
 
 /* Drivers we use */
 
-extern DRIVER bezerkdriver,tenexdriver,imapdriver,newsdriver,dummydriver;
+extern DRIVER bezerkdriver,tenexdriver,imapdriver,newsdriver,nntpdriver,
+  philedriver,dummydriver;
 
 
 /* Function prototypes */
@@ -115,6 +116,7 @@ extern DRIVER bezerkdriver,tenexdriver,imapdriver,newsdriver,dummydriver;
 void main  ();
 void clkint  ();
 void kodint  ();
+void dorc  ();
 char *snarf  ();
 void fetch  ();
 void fetch_body  ();
@@ -134,8 +136,6 @@ void pstring  ();
 void paddr  ();
 long cstring  ();
 long caddr  ();
-
-extern char *crypt  ();
 
 /* Main program */
 
@@ -143,26 +143,34 @@ void main (argc,argv)
 	int argc;
 	char *argv[];
 {
-  int i;
-  char *s,*t = "OK",*u,*v;
+  long i;
+  char *s,*t,*u,*v,tmp[MAILTMPLEN];
   struct hostent *hst;
   void (*f) () = NIL;
   mail_link (&tenexdriver);	/* install the Tenex mail driver */
   mail_link (&bezerkdriver);	/* install the Berkeley mail driver */
   mail_link (&imapdriver);	/* install the IMAP driver */
   mail_link (&newsdriver);	/* install the netnews driver */
+  mail_link (&nntpdriver);	/* install the NNTP driver */
+  mail_link (&philedriver);	/* install the file driver */
   mail_link (&dummydriver);	/* install the dummy driver */
+  create_policy = mailstd_proto;/* default to creating system default */
   gethostname (cmdbuf,TMPLEN-1);/* get local name */
   host = cpystr ((hst = gethostbyname (cmdbuf)) ? hst->h_name : cmdbuf);
   rfc822_date (cmdbuf);		/* get date/time now */
-  if ((i = getuid ()) > 0) {	/* logged in? */
+  if (i = getuid ()) {		/* logged in? */
     if (!(s = (char *) getlogin ())) s = (getpwuid (i))->pw_name;
+    if (i < 0) anonymous = T;	/* must be anonymous if pseudo-user */
     user = cpystr (s);		/* set up user name */
     pass = cpystr ("*");	/* and fake password */
     state = SELECT;		/* enter select state */
     t = "PREAUTH";		/* pre-authorized */
   }
+  else t = "OK";
   printf ("* %s %s IMAP2bis Service %s at %s\015\012",t,host,version,cmdbuf);
+  dorc ("/etc/imapd.conf");	/* run system init */
+				/* run user's init */
+  if (i) dorc (strcat (strcpy (tmp,myhomedir ()),"/.imaprc"));
   fflush (stdout);		/* dump output buffer */
   signal (SIGALRM,clkint);	/* prepare for clock interrupt */
   signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
@@ -179,7 +187,9 @@ void main (argc,argv)
     timer.it_value.tv_sec = timer.it_value.tv_usec = 0;
     setitimer (ITIMER_REAL,&timer,NIL);
     idletime = 0;		/* not idle any more */
-    fs_give ((void **) &lsterr);/* no last error */
+				/* no more last error or literal */
+    if (lsterr) fs_give ((void **) &lsterr);
+    if (litbuf) fs_give ((void **) &litbuf);
 				/* find end of line */
     if (!strchr (cmdbuf,'\012')) fputs (toobig,stdout);
     else if (!(tag = strtok (cmdbuf," \015\012"))) fputs (nulcmd,stdout);
@@ -204,10 +214,10 @@ void main (argc,argv)
 	if (!(s = snarf (&arg))) response = misarg;
 	else if (arg) response = badarg;
 	else {
-	  if (!((i = atoi (s)) && i > 0 && i <= 4))
+	  if (!((i = atol (s)) && i > 0 && i <= 4))
 	    response = "%s BAD Unknown version\015\012";
 	  else if (mackludge = (i == 4))
-	    fputs ("* OK The MacMS kludge is enabled\015\012",stdout);
+	    fputs ("* OK [MacMS] The MacMS kludge is enabled\015\012",stdout);
 	}
       }
       else if (!strcmp (cmd,"NOOP")) {
@@ -237,6 +247,8 @@ void main (argc,argv)
 	    setgid (pwd->pw_gid);
 	    setuid (pwd->pw_uid);
 	    state = SELECT;	/* make selected */
+				/* run user's init */
+	    dorc (strcat (strcpy (tmp,myhomedir ()),"/.imaprc"));
 	  }
 	  else response = "%s NO Bad %s user name and/or password\015\012";
 	}
@@ -329,7 +341,10 @@ void main (argc,argv)
 	else if (!(anonymous || strcmp (cmd,"COPY"))) {
 	  if (!((s = snarf (&arg)) && (t = snarf (&arg)))) response = misarg;
 	  else if (arg) response = badarg;
-	  else mail_copy (stream,s,t);
+	  else if (!mail_copy (stream,s,t)) {
+	    response = lose;
+	    if (!lsterr) lsterr = cpystr ("No such destination mailbox");
+	  }
 	}
 
 				/* search mailbox */
@@ -341,7 +356,7 @@ void main (argc,argv)
 	    while ((*(t = arg + strlen (arg) - 1) == '}') &&
 		   (s = strrchr (arg,'{')) && response == win) {
 				/* get length of literal, validate */
-	      if (((i = atoi (++s)) < 1) || (TMPLEN - (t++ - cmdbuf) < i + 10))
+	      if (((i = atol (++s)) < 1) || (TMPLEN - (t++ - cmdbuf) < i + 10))
 		response = badlit;
 	      else {
 		*t++ = '\015';	/* reappend CR/LF */
@@ -384,19 +399,20 @@ void main (argc,argv)
       case SELECT:		/* valid whenever logged in */
 				/* select new mailbox */
 	if ((!(anonymous || strcmp (cmd,"SELECT"))) ||
-	    (!strcmp (cmd,"BBOARD"))) {
+	    (!strcmp (cmd,"BBOARD")) || (!strcmp (cmd,"EXAMINE"))) {
 				/* single argument */
 	  if (!(s = snarf (&arg))) response = misarg;
 	  else if (arg) response = badarg;
 	  else {
-	    char tmp[MAILTMPLEN];
 	    sprintf (tmp,"%s%s",(*cmd == 'B') ? "*" : "",s);
 	    recent = -1;	/* make sure we get an update */
-	    if ((stream = mail_open (stream,tmp,anonymous ? OP_ANONYMOUS:NIL))
+	    if ((stream = mail_open (stream,tmp,anonymous ? OP_ANONYMOUS : NIL
+				     + (*cmd == 'E') ? OP_READONLY : NIL))
 		&& ((response == win) || (response == altwin))) {
 				/* flush old list */
 	      fs_give ((void **) &flags);
-	      *s = '(';		/* start new flag list over old file name */
+	      s = tmp;		/* write flags here */
+	      *s = '(';		/* start new flag list */
 	      s[1] = '\0';
 	      for (i = 0; i < NUSERFLAGS; i++)
 		if (t = stream->user_flags[i]) strcat (strcat (s,t)," ");
@@ -438,46 +454,40 @@ void main (argc,argv)
 	    response = misarg;	/* missing required argument */
 	  else if (arg) response = badarg;
 	  else if (anonymous) {	/* special version for anonymous users */
-	    if (!strcmp (cmd,"BBOARDS") || !strcmp (cmd,"ALL.BBOARDS")) {
-	      struct stat sbuf;
-	      if (!(stat (NEWSSPOOL,&sbuf) || stat (ACTIVEFILE,&sbuf)) &&
-		  ((i = open (ACTIVEFILE,O_RDONLY,NIL)) >= 0)) {
-				/* get file size and read data */
-		fstat (i,&sbuf);
-		read (i,v = (char *) fs_get (sbuf.st_size+1),sbuf.st_size);
-		close (i);	/* close file */
-				/* tie off string */
-		v[sbuf.st_size] = '\0';
-		if (t = strtok (v,"\n")) do if (u = strchr (t,' ')) {
-		  *u = '\0';	/* tie off at end of name */
-		  if (pmatch (lcase (t),s)) mm_bboard (t);
-		} while (t = strtok (NIL,"\n"));
-		fs_give ((void **) &v);
-	      }
-	    }
+	    if (!strcmp (cmd,"BBOARDS")) mail_find_bboards (NIL,s);
+	    else if (!strcmp (cmd,"ALL.BBOARDS")) mail_find_all_bboard (NIL,s);
 				/* bboards not supported here */
     	    else response = badfnd;
 	  }
 	  else {		/* dispatch based on type */
-	    if (!strcmp (cmd,"MAILBOXES")) {
-	      mail_find (NIL,s);
-	      if (stream && *stream->mailbox == '{') mail_find (stream,s);
+	    if ((!strcmp (cmd,"MAILBOXES"))||(!strcmp (cmd,"ALL.MAILBOXES"))) {
+	      if (*s == '{') tstream = mail_open (NIL,s,OP_HALFOPEN);
+	      if (*cmd == 'A') { /* want them all? */
+		mail_find_all (NIL,s);
+		if (tstream) mail_find_all (tstream,s);
+	      }
+	      else {		/* just subscribed */
+		mail_find (NIL,s);
+		if (tstream) mail_find (tstream,s);
+	      }
 	    }
-	    else if (!strcmp (cmd,"ALL.MAILBOXES")) {
-	      mail_find_all (NIL,s);
-	      if (stream && *stream->mailbox == '{') mail_find (stream,s);
-	    }
-	    else if (!strcmp (cmd,"BBOARDS")) {
-	      mail_find_bboards (NIL,s);
-	      if (stream && *stream->mailbox == '{')
-		mail_find_bboards (stream,s);
-	    }
-	    else if (!strcmp (cmd,"ALL.BBOARDS")) {
-	      mail_find_all_bboard (NIL,s);
-	      if (stream && *stream->mailbox == '{')
-		mail_find_all_bboard (stream,s);
+	    else if ((!strcmp (cmd,"BBOARDS"))||(!strcmp (cmd,"ALL.BBOARDS"))){
+	      if (*s == '{') {	/* prepend leading * if remote */
+		sprintf (tmp,"*%s",s);
+		tstream = mail_open (NIL,tmp,OP_HALFOPEN);
+	      }
+	      if (*cmd == 'A') { /* want them all? */
+		mail_find_all_bboard (NIL,s);
+		if (tstream) mail_find_all_bboard (tstream,s);
+	      }
+	      else {		/* just subscribed */
+		mail_find_bboards (NIL,s);
+		if (tstream) mail_find_bboards (tstream,s);
+	      }
 	    }
 	    else response = badfnd;
+	    if (tstream) mail_close (tstream);
+	    tstream = NIL;	/* no more temporary stream */
 	  }
 	}
 
@@ -513,12 +523,9 @@ void main (argc,argv)
 	else if (!(anonymous || strcmp (cmd,"CREATE"))) {
 	  if (!(s = snarf (&arg))) response = misarg;
 	  else if (arg) response = badarg;
-	  else if (state == OPEN) mail_create (stream,s);
-	  else {		/* use the same driver as INBOX */
-	    MAILSTREAM *st = mail_open (NIL,"INBOX",OP_PROTOTYPE);
-	    if (st) mail_create (st,s);
-	    else response = "%s NO Can't %s without an INBOX";
-	  }
+				/* use specified creation policy */
+	  mail_create (tstream = create_policy,s);
+	  tstream = NIL;	/* drop prototype */
 	}
 				/* delete mailbox */
 	else if (!(anonymous || strcmp (cmd,"DELETE"))) {
@@ -556,9 +563,17 @@ void main (argc,argv)
         response = "%s BAD Server in unknown state for %s command\015\012";
 	break;
       }
-				/* change in recent messages? */
-      if ((state == OPEN) && (recent != stream->recent))
-	printf ("* %d RECENT\015\012",(recent = stream->recent));
+      if (state == OPEN) {	/* mailbox open? */
+				/* yes, change in recent messages? */
+	if (recent != stream->recent)
+	  printf ("* %d RECENT\015\012",(recent = stream->recent));
+				/* output changed flags */
+	for (i = 1; i <= stream->nmsgs; i++) if (mail_elt (stream,i)->spare) {
+	  printf ("* %d FETCH (",i);
+	  fetch_flags (i,NIL);
+	  fputs (")\015\012",stdout);
+	}
+      }
 				/* get text for alternative win message now */
       if (response == altwin) cmd = lsterr;
 				/* output response */
@@ -568,8 +583,7 @@ void main (argc,argv)
   } while (state != LOGOUT);	/* until logged out */
   exit (0);			/* all done */
 }
-
-
+
 /* Clock interrupt
  */
 
@@ -590,12 +604,47 @@ void clkint ()
 void kodint ()
 {
   long t = time (0);
-  if ((state == OPEN) && idletime && (t > idletime + KODTIMER)) {
-    fputs ("* OK Kiss Of Death received, attempting read-only\015\012",stdout);
+  if (state == OPEN) {		/* must be open for this to work */
+    fputs ("* OK [READ-ONLY] Now READ-ONLY.  Mailbox lock surrendered\015\012",
+	   stdout);
     fflush (stdout);		/* make sure output blatted */
     stream->readonly = T;	/* make the stream readonly */
     mail_ping (stream);		/* cause it to stick! */
   }
+}
+
+/* Process rc file
+ * Accepts: file name
+ */
+
+void dorc (file)
+	char *file;
+{
+  char *s,*t,*k;
+  void *fs;
+  struct stat sbuf;
+  int fd = open (file,O_RDONLY, NIL);
+  if (fd < 0) return;		/* punt if no file */
+  fstat (fd,&sbuf);		/* yes, get size */
+				/* make readin area and read the file */
+  read (fd,(s = (char *) (fs = fs_get (sbuf.st_size + 1))),sbuf.st_size);
+  close (fd);			/* don't need the file any more */
+  s[sbuf.st_size] = '\0';	/* tie it off */
+				/* parse init file */
+  while (*s && (t = strchr (s,'\n'))) {
+    *t = '\0';			/* tie off line, find second space */
+    if ((k = strchr (s,' ')) && (k = strchr (++k,' '))) {
+      *k++ = '\0';		/* tie off two words*/
+      if (!strcmp (lcase (s),"set create-folder-format")) {
+	if (!strcmp (lcase (k),"same-as-inbox")) create_policy = NIL;
+	else if (!strcmp (lcase (k),"system-standard"))
+	  create_policy = mailstd_proto;
+	else printf ("* NO Unknown format in imaprc: %s\015\012",k);
+      }
+    }
+    s = ++t;			/* try next line */
+  }
+  fs_give (&fs);		/* free buffer */
 }
 
 /* Snarf an argument
@@ -620,18 +669,19 @@ char *snarf (arg)
     break;
   case '{':			/* literal string */
     if (isdigit (*s)) {		/* be sure about that */
-      i = strtol (s,&c,10);	/* get its length */
+      i = strtol (s,&t,10);	/* get its length */
 				/* validate end of literal */
-      if (*c++ != '}' || *c++) return NIL;
-      if ((i + 10) > (TMPLEN - (c - cmdbuf))) return NIL;
+      if (*t++ != '}' || *t++) return NIL;
       fputs (argrdy,stdout);	/* tell client ready for argument */
       fflush (stdout);		/* dump output buffer */
-      t = c;			/* get it */
-      while (i--) *t++ = getchar ();
-      *t++ = NIL;		/* make sure string tied off */
+				/* get a literal buffer */
+      c = litbuf = (char *) fs_get (i+1);
 				/* start timeout */
       timer.it_value.tv_sec = TIMEOUT; timer.it_value.tv_usec = 0;
       setitimer (ITIMER_REAL,&timer,NIL);
+      while (i--) *c++ = getchar ();
+      *c++ = NIL;		/* make sure string tied off */
+      c = litbuf;		/* return value */
     				/* get new command tail */
       if (!fgets ((*arg = t),TMPLEN - (t - cmdbuf) - 1,stdin)) _exit (1);
 				/* clear timeout */
@@ -645,7 +695,7 @@ char *snarf (arg)
     }
 				/* otherwise fall through (third party IMAP) */
   default:			/* atomic string */
-    c = strtok (*arg," \015\012");
+    c = strtok (c," \015\012");
     break;
   }
 				/* remainder of arguments */
@@ -807,7 +857,7 @@ void fetch_flags (i,s)
 	char *s;
 {
   char tmp[MAILTMPLEN];
-  long u;
+  unsigned long u;
   char *t;
   MESSAGECACHE *elt = mail_elt (stream,i);
   s = tmp;
@@ -826,6 +876,7 @@ void fetch_flags (i,s)
     }
   while (u);			/* until no more user flags */
   printf ("FLAGS (%s)",tmp+1);	/* output results, skip first char of list */
+  elt->spare = NIL;		/* we've sent the update */
 }
 
 
@@ -970,8 +1021,10 @@ void pbody (body)
     putchar ('(');		/* delimiter */
 				/* multipart type? */
     if (body->type == TYPEMULTIPART) {
-      for (part = body->contents.part; part; part = part->next)
-	pbody (&(part->body));	/* print each part */
+				/* print each part */
+      if (part = body->contents.part)
+	for (; part; part = part->next) pbody (&(part->body));
+      else fputs ("(\"TEXT\" \"PLAIN\" NIL NIL NIL \"7BIT\" 0 0)",stdout);
       putchar (' ');		/* space delimiter */
       pstring (body->subtype);	/* and finally the subtype */
     }
@@ -1024,12 +1077,9 @@ void pstring (s)
 	char *s;
 {
   char c,*t;
-  if (t = s) {			/* is there a string? */
-				/* yes, search for specials */
-    while (c = *t++) if (c == '"' || c == '{' || c == '\015' || c == '\012' ||
-			 c == '%' || c == '\\') break;
+  if (s) {			/* is there a string? */
 				/* must use literal string */
-    if (c) printf ("{%d}\015\012%s",strlen (s),s);
+    if (strpbrk (s,"\012\015\"%{\\")) printf ("{%d}\015\012%s",strlen (s),s);
     else printf ("\"%s\"",s);	/* may use quoted string */
   }
   else fputs ("NIL",stdout);	/* empty string */
@@ -1063,25 +1113,24 @@ void paddr (a)
 
 /* Count string and space afterwards
  * Accepts: string
+ * Returns: 1 plus length of string
  */
 
 long cstring (s)
 	char *s;
 {
   char tmp[20];
-  char c,*t;
-  long i;
-  if (t = s) {			/* is there a string? */
-				/* yes, search for specials */
-    while (c = *t++) if (c == '"' || c == '{' || c == '\015' || c == '\012' ||
-			 c == '%' || c == '\\') break;
-    if (c) {			/* must use literal string */
-      sprintf (tmp,"{%d}\015\012",i = strlen (s));
-      return strlen (tmp) + i + 1;
+  long i = s ? strlen (s) : 0;
+  if (s) {			/* is there a string? */
+				/* must use literal string */
+    if (strpbrk (s,"\012\015\"%{\\")) {
+      sprintf (tmp,"{%d}\015\012",i);
+      i += strlen (tmp);
     }
-    else return 3 + strlen (s);	/* quoted string */
+    else i += 2;		/* quoted string */
   }
-  else return 4;		/* NIL plus space */
+  else i += 3;			/* NIL */
+  return i + 1;			/* return string plus trailing space */
 }
 
 
@@ -1105,12 +1154,12 @@ long caddr (a)
 
 
 /* Message matches a search
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
-void mm_searched (stream,msgno)
-	MAILSTREAM *stream;
+void mm_searched (s,msgno)
+	MAILSTREAM *s;
 	long msgno;
 {
 				/* nothing to do here */
@@ -1119,33 +1168,46 @@ void mm_searched (stream,msgno)
 
 /* Message exists (mailbox)
 	i.e. there are that many messages in the mailbox;
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
-void mm_exists (stream,number)
-	MAILSTREAM *stream;
+void mm_exists (s,number)
+	MAILSTREAM *s;
 	long number;
 {
-				/* note change in number of messages */
-  printf ("* %d EXISTS\015\012",(nmsgs = number));
-  recent = -1;			/* make sure fetch new recent count */
+  if (s != tstream) {		/* note change in number of messages */
+    printf ("* %d EXISTS\015\012",(nmsgs = number));
+    recent = -1;		/* make sure fetch new recent count */
+  }
 }
 
 
 /* Message expunged
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
-void mm_expunged (stream,number)
-	MAILSTREAM *stream;
+void mm_expunged (s,number)
+	MAILSTREAM *s;
 	long number;
 {
-  printf ("* %d EXPUNGE\015\012",number);
+  if (s != tstream) printf ("* %d EXPUNGE\015\012",number);
 }
 
 
+/* Message status changed
+ * Accepts: MAIL stream
+ *	    message number
+ */
+
+void mm_flags (s,number)
+	MAILSTREAM *s;
+	long number;
+{
+  if (s != tstream) mail_elt (s,number)->spare = T;
+}
+
 /* Mailbox found
  * Accepts: Mailbox name
  */
@@ -1168,20 +1230,31 @@ void mm_bboard (string)
 }
 
 /* Notification event
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    string to log
  *	    error flag
  */
 
-void mm_notify (stream,string,errflg)
-	MAILSTREAM *stream;
+void mm_notify (s,string,errflg)
+	MAILSTREAM *s;
 	char *string;
 	long errflg;
 {
-  mm_log (string,errflg);	/* just do mm_log action */
+  if (!tstream || (s != tstream)) switch (errflg) {
+  case NIL:			/* information message, set as OK response */
+  case PARSE:			/* parse glitch, output unsolicited OK */
+    printf ("* OK %s\015\012",string);
+    break;
+  case WARN:			/* warning, output unsolicited NO (kludge!) */
+    printf ("* NO %s\015\012",string);
+    break;
+  case ERROR:			/* error that broke command */
+  default:			/* default should never happen */
+    printf ("* BAD %s\015\012",string);
+    break;
+  }
 }
-
-
+
 /* Log an event for the user to see
  * Accepts: string to log
  *	    error flag
@@ -1200,7 +1273,7 @@ void mm_log (string,errflg)
     }
     break;
   case PARSE:			/* parse glitch, output unsolicited OK */
-    printf ("* OK %s\015\012",string);
+    printf ("* OK [PARSE] %s\015\012",string);
     break;
   case WARN:			/* warning, output unsolicited NO (kludge!) */
     if (strcmp (string,"Mailbox is empty")) printf ("* NO %s\015\012",string);
@@ -1246,8 +1319,8 @@ void mm_login (host,username,password,trial)
  * Accepts: stream
  */
 
-void mm_critical (stream)
-	MAILSTREAM *stream;
+void mm_critical (s)
+	MAILSTREAM *s;
 {
   /* Not doing anything here for now */
 }
@@ -1257,8 +1330,8 @@ void mm_critical (stream)
  * Accepts: stream
  */
 
-void mm_nocritical (stream)
-	MAILSTREAM *stream;
+void mm_nocritical (s)
+	MAILSTREAM *s;
 {
   /* Not doing anything here for now */
 }
@@ -1271,8 +1344,8 @@ void mm_nocritical (stream)
  * Returns: abort flag
  */
 
-long mm_diskerror (stream,errcode,serious)
-	MAILSTREAM *stream;
+long mm_diskerror (s,errcode,serious)
+	MAILSTREAM *s;
 	long errcode;
 	long serious;
 {

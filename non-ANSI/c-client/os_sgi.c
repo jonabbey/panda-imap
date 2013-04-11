@@ -9,7 +9,7 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	11 February 1993
+ * Last Edited:	16 August 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -146,9 +146,10 @@ void fatal (string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (dst,dstl,src,srcl)
+unsigned long strcrlfcpy (dst,dstl,src,srcl)
 	char **dst;
 	unsigned long *dstl;
 	char *src;
@@ -179,13 +180,13 @@ char *strcrlfcpy (dst,dstl,src,srcl)
     break;
   }
   *d = '\0';			/* tie off destination */
-  return *dst;			/* return destination */
+  return d- *dst;		/* return length */
 }
 
 
 /* Length of string after strcrlfcpy applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (s)
@@ -217,10 +218,12 @@ unsigned long strcrlflen (s)
  * Returns: T if password validated, NIL otherwise
  */
 
-long server_login (user,pass,home)
+long server_login (user,pass,home,argc,argv)
 	char *user;
 	char *pass;
 	char **home;
+	int argc;
+	char *argv[];
 {
   struct passwd *pw = getpwnam (lcase (user));
 				/* no entry for this user or root */
@@ -433,7 +436,6 @@ char *tcp_getline (stream)
 {
   int n,m;
   char *st,*ret,*stp;
-  char tmp[2];
   char c = '\0';
   char d;
 				/* make sure have data */
@@ -615,241 +617,4 @@ char *tcp_localhost (stream)
 	TCPSTREAM *stream;
 {
   return stream->localhost;	/* return local host name */
-}
-
-/* Find token in string
- * Accepts: source pointer or NIL to use previous source
- *	    vector of token delimiters pointer
- * Returns: pointer to next token
- */
-
-char *ts = NIL;			/* string to locate tokens */
-
-char *strtok (s,ct)
-     char *s;
-     char *ct;
-{
-  char *t;
-  if (!s) s = ts;		/* use previous token if none specified */
-  if (!(s && *s)) return NIL;	/* no tokens */
-				/* find any leading delimiters */
-  do for (t = ct, ts = NIL; *t; t++) if (*t == *s) {
-    if (*(ts = ++s)) break;	/* yes, restart seach if more in string */
-    return ts = NIL;		/* else no more tokens */
-  } while (ts);			/* continue until no more leading delimiters */
-				/* can we find a new delimiter? */
-  for (ts = s; *ts; ts++) for (t = ct; *t; t++) if (*t == *ts) {
-    *ts++ = '\0';		/* yes, tie off token at that point */
-    return s;			/* return our token */
-  }
-  ts = NIL;			/* no more tokens */
-  return s;			/* return final token */
-}
-
-
-/* Find first occurance of character in string
- * Accepts: source pointer
- *	    character to search
- * Returns: pointer to character or NIL if none
- */
-
-char *strchr (cs,c)
-     char *cs;
-     char c;
-{
-  return index (cs,c);		/* they should have this one */
-}
-
-
-/* Find last occurance of character in string
- * Accepts: source pointer
- *	    character to search
- * Returns: pointer to character or NIL if none
- */
-
-char *strrchr (cs,c)
-     char *cs;
-     char c;
-{
-  return rindex (cs,c);		/* they should have this one */
-}
-
-/* Return pointer to first occurance in string of a substring
- * Accepts: source pointer
- *	    substring pointer
- * Returns: pointer to substring in source or NIL if not found
- */
-
-char *strstr (cs,ct)
-     char *cs;
-     char *ct;
-{
-  char *s;
-  char *t;
-  while (cs = index (cs,*ct)) {	/* for each occurance of the first character */
-				/* see if remainder of string matches */
-    for (s = cs + 1, t = ct + 1; *t && *s == *t; s++, t++);
-    if (!*t) return cs;		/* if ran out of substring then have match */
-    cs++;			/* try from next character */
-  }
-  return NIL;			/* not found */
-}
-
-
-/* Return pointer to first occurance in string of any delimiter
- * Accepts: source pointer
- *	    vector of delimiters pointer
- * Returns: pointer to delimiter or NIL if not found
- */
-
-char *strpbrk (cs,ct)
-     char *cs;
-     char *ct;
-{
-  char *s;
-				/* search for delimiter until end of string */
-  for (; *cs; cs++) for (s = ct; *s; s++) if (*s == *cs) return cs;
-  return NIL;			/* not found */
-}
-
-
-/* Return implementation-defined string corresponding to error
- * Accepts: error number
- * Returns: string for that error
- */
-
-char *strerror (n)
-     int n;
-{
-  return (n >= 0 && n < sys_nerr) ? sys_errlist[n] : NIL;
-}
-
-/* Copy memory block
- * Accepts: destination pointer
- *	    source pointer
- *	    length
- * Returns: destination pointer
- */
-
-char *memcpy (s,ct,n)
-     char *s;
-     char *ct;
-     int n;
-{
-  bcopy (ct,s,n);		/* they should have this one */
-  return ct;
-}
-
-
-/* Copy memory block
- * Accepts: destination pointer
- *	    source pointer
- *	    length
- * Returns: destination pointer
- */
-
-char *memmove (s,ct,n)
-     char *s;
-     char *ct;
-     int n;
-{
-  bcopy (ct,s,n);		/* they should have this one */
-  return ct;
-}
-
-
-/* Set a block of memory
- * Accepts: destination pointer
- *	    value to set
- *	    length
- * Returns: destination pointer
- */
-
-char *memset (s,c,n)
-     char *s;
-     char c;
-     int n;
-{
-  if (c) while (n) s[--n] = c;	/* this way if non-zero */
-  else bzero (s,n);		/* they should have this one */
-  return s;
-}
-
-/*
- * Turn a string long into the real thing
- * Accepts: source string
- *	    pointer to place to return end pointer
- *	    base
- * Returns: parsed long integer, end pointer is updated
- */
-
-long strtol (s,endp,base)
-     char *s;
-     char **endp;
-     int base;
-{
-  long value = 0;		/* the accumulated value */
-  int negative = 0;		/* this a negative number? */
-  int ok;			/* true while valid chars for number */
-  char c;
-				/* insist upon valid base */
-  if (base && (base < 2 || base > 36)) return NIL;
-  while (isspace (*s)) s++;	/* skip leading whitespace */
-  if (!base) {			/* if base = 0, */
-    if (*s == '-') {		/* integer constants are allowed a */
-      negative = 1;		/* leading unary minus, but not */
-      s++;			/* unary plus. */
-    }
-    else negative = 0;
-    if (*s == '0') {		/* if it starts with 0, its either */
-				/* 0X, which marks a hex constant, */
-      if (toupper (*++s) == 'X') {
-	s++;			/* skip the X */
-       	base = 16;		/* base is hex 16 */
-      }
-      else base = 8;		/* leading 0 means octal number */
-    }
-    else base = 10;		/* otherwise, decimal. */
-    do {
-      switch (base) {		/* char has to be valid for base */
-      case 8:			/* this digit ok? */
-	ok = isodigit(*s);
-	break;
-      case 10:
-	ok = isdigit(*s);
-	break;
-      case 16:
-	ok = isxdigit(*s);
-	break;
-      default:			/* it's good form you know */
-	return NIL;
-      }
-				/* if valid char, accumulate */
-      if (ok) value = value * base + toint(*s++);
-    } while (ok);
-    if (toupper(*s) == 'L') s++;/* ignore 'l' or 'L' marker */
-    if (endp) *endp = s;	/* set user pointer to after num */
-    return (negative) ? -value : value;
-  }
-
-  switch (*s) {			/* check for leading sign char */
-  case '-':
-    negative = 1;		/* yes, negative #.  fall into '+' */
-  case '+':
-    s++;			/* skip the sign character */
-  }
-				/* allow hex prefix "0x" */
-  if (base == 16 && *s == '0' && toupper (*(s + 1)) == 'X') s += 2;
-  do {
-				/* convert to numeric form if digit*/
-    if (isdigit (*s)) c = toint (*s);
-				/* alphabetic conversion */
-    else if (isalpha (*s)) c = *s - (isupper (*s) ? 'A' : 'a') + 10;
-    else break;			/* else no way it's valid */
-    if (c >= base) break;	/* digit out of range for base? */
-    value = value * base + c;	/* accumulate the digit */
-  } while (*++s);		/* loop until non-numeric character */
-  if (endp) *endp = s;		/* save users endp to after number */
-				/* negate number if needed */
-  return (negative) ? -value : value;
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	8 December 1992
+ * Last Edited:	19 May 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -35,8 +35,7 @@
 
 /* Build parameters */
 
-#define MAILBOXDIR "C:\\MAIL\\%s"
-#define INBOXNAME "MAIL.TXT"
+#define DEFEXT ".MTX"
 
 /* Command bits from dawz_getflags(), must correspond to mailbox bit values */
 
@@ -54,6 +53,16 @@ typedef struct dawz_local {
 } DAWZLOCAL;
 
 
+/* Drive-dependent data passed to init method */
+
+typedef struct dawz_data {
+  int fd;			/* file data */
+  unsigned long pos;		/* initial position */
+} DAWZDATA;
+
+
+STRINGDRIVER dawz_string;
+
 /* Convenient access to local data */
 
 #define LOCAL ((DAWZLOCAL *) stream->local)
@@ -61,7 +70,7 @@ typedef struct dawz_local {
 /* Function prototypes */
 
 DRIVER *dawz_valid (char *name);
-int dawz_isvalid (char *name);
+long dawz_isvalid (char *name);
 void *dawz_parameters (long function,void *value);
 void dawz_find (MAILSTREAM *stream,char *pat);
 void dawz_find_bboards (MAILSTREAM *stream,char *pat);
@@ -97,9 +106,10 @@ long dawz_move (MAILSTREAM *stream,char *sequence,char *mailbox);
 long dawz_append (MAILSTREAM *stream,char *mailbox,STRING *message);
 void dawz_gc (MAILSTREAM *stream,long gcflags);
 char *dawz_file (char *dst,char *name);
-int dawz_getflags (MAILSTREAM *stream,char *flag);
-int dawz_parse (MAILSTREAM *stream);
-int dawz_copy_messages (MAILSTREAM *stream,char *mailbox);
+long dawz_badname (char *tmp,char *s);
+long dawz_getflags (MAILSTREAM *stream,char *flag);
+long dawz_parse (MAILSTREAM *stream);
+long dawz_copy_messages (MAILSTREAM *stream,char *mailbox);
 void dawz_update_status (MAILSTREAM *stream,long msgno);
 char dawz_search_all (MAILSTREAM *stream,long msgno,char *d,long n);
 char dawz_search_answered (MAILSTREAM *stream,long msgno,char *d,long n);

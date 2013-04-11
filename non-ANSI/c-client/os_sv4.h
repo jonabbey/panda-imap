@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	5 January 1993
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,17 +36,23 @@
 #define MAILFILE "/var/mail/%s"
 #define ACTIVEFILE "/usr/share/news/active"
 #define NEWSSPOOL "/var/spool/news"
-#define NEWSRC strcat (strcpy (tmp,getpwuid (geteuid ())->pw_dir),"/.newsrc")
+#define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 
 #include <string.h>
-#include <stdlib.h>
+
 #include <sys/types.h>
+#include <stdlib.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
 #include <sys/utime.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+
+
+/* some cretin SysV's have gettimeofday() but not the right definition!! */
+
+#define gettimeofday Gettimeofday
 
 
 /* Different names, equivalent things in BSD and SysV */
@@ -82,7 +88,7 @@ void *fs_get  ();
 void fs_resize  ();
 void fs_give  ();
 void fatal  ();
-char *strcrlfcpy  ();
+unsigned long strcrlfcpy  ();
 unsigned long strcrlflen  ();
 long server_login  ();
 char *myusername ();
@@ -102,8 +108,6 @@ char *tcp_localhost  ();
 long gethostid ();
 long random ();
 void *memmove ();
-char *re_comp ();
-long re_exec ();
 int scandir ();
 int flock ();
 int gettimeofday ();

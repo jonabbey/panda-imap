@@ -3,7 +3,7 @@
 # Author:	Ken Bobey
 #
 # Date:		24 March 1992
-# Last Edited:	10 February 1993
+# Last Edited:	24 May 1993
 #
 # Copyright 1993 by the University of Washington
 #
@@ -33,16 +33,16 @@ CFLAGS = -c -AL -Gsw -Zei -Ip:\x\msc6\include -Ip:\x\bwtcp3\include
 LFLAGS = /NOE /NOI /ST:20000
 LLIBS = cclient.lib p:\x\bwtcp3\lib\lbwtcp p:\x\msc6\lib\llibce
 
-cfiles = nntp.c imap2.c dawz.c nntpcdos.c smtp.c misc.c rfc822.c sm_dos.c mail.c mtest.c os_dbw.c
+cfiles = nntp.c imap2.c dawz.c nntpcdos.c dummydos.c smtp.c misc.c rfc822.c sm_dos.c mail.c mtest.c os_dbw.c
 
-objfiles = nntp.obj imap2.obj dawz.obj nntpcdos.obj smtp.obj misc.obj rfc822.obj sm_dos.c mail.obj mtest.obj os_dbw.obj
+objfiles = nntp.obj imap2.obj dawz.obj nntpcdos.obj dummydos.obj smtp.obj misc.obj rfc822.obj sm_dos.c mail.obj mtest.obj os_dbw.obj
 
 mtest: mtest.obj cclient.lib
 	 $(LINK) $(LFLAGS) mtest,mtest.exe,,$(LLIBS),,
 
 cclient.lib: $(objfiles)
 	 erase cclient.lib
-	 $(LIB) cclient.lib +nntp +imap2 +dawz +nntpcdos +smtp +misc +rfc822 +sm_dos +mail +os_dbw,,
+	 $(LIB) cclient.lib +nntp +imap2 +dawz +nntpcdos +dummydos +smtp +misc +rfc822 +sm_dos +mail +os_dbw,,
 
 .c.obj:
 	$(CC) $(CFLAGS) $*.c

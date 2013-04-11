@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	19 November 1992
- * Last Edited:	16 February 1993
+ * Last Edited:	11 May 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -34,10 +34,10 @@
  */
 
 
-#include <sys/file.h>
-#include <sys/stat.h>
 #include "mail.h"
 #include "osdep.h"
+#include <sys/file.h>
+#include <sys/stat.h>
 #include "misc.h"
 
 #define SUBSCRIPTIONFILE(t) sprintf (t,"%s/.mailboxlist",myhomedir ())

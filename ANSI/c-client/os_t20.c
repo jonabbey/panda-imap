@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	3 December 1992
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by Mark Crispin
+ * Copyright 1993 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -133,9 +133,11 @@ void fatal (char *string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl)
 {
   if (srcl > *dstl) {		/* make sure enough space for text */
     fs_give ((void **) dst);	/* fs_resize does an unnecessary copy */
@@ -144,13 +146,13 @@ char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
 				/* copy strings */
   if (srcl) memcpy (*dst,src,srcl);
   *(*dst + srcl) = '\0';	/* tie off destination */
-  return *dst;			/* return destination */
+  return srcl;			/* return length */
 }
 
 
 /* Length of string after strcrlfcpy applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (STRING *s)

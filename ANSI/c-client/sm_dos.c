@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 December 1992
- * Last Edited:	8 December 1992
+ * Last Edited:	11 May 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,7 +44,7 @@
 #include "misc.h"
 #include "dawz.h"
 
-#define SUBSCRIPTIONFILE(t) sprintf (t,MAILBOXDIR,"SUBSCRIB.LST")
+#define SUBSCRIPTIONFILE(t) sprintf (t,"%s\\SUBSCRIB.LST",myhomedir ())
 
 /* Subscribe to mailbox
  * Accepts: mailbox name
@@ -120,7 +120,8 @@ long sm_unsubscribe (char *mailbox)
 				/* yes, seek to start of file and write new */
       lseek (fd,(long) 0,SEEK_SET);
       if (end != txt) write (fd,txt,end - txt);
-      chsize (fd,end - txt);	/* tie off file */
+				/* tie off file */
+      chsize (fd,(long) (end - txt));
     }
     else {			/* subscription not found */
       sprintf (tmp,"Not subscribed to mailbox %s",mailbox);

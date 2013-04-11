@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	5 January 1993
+ * Last Edited:	2 September 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -88,7 +88,7 @@ void rfc822_date (date)
 {
   int zone,dstnow;
   struct tm *t;
-  int time_sec = time (0);
+  time_t time_sec = time (0);
   t = localtime (&time_sec);	/* convert to individual items */
   tzset ();			/* initialize timezone/daylight variables */
 				/* see if it is DST now */
@@ -158,9 +158,10 @@ void fatal (string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (dst,dstl,src,srcl)
+unsigned long strcrlfcpy (dst,dstl,src,srcl)
 	char **dst;
 	unsigned long *dstl;
 	char *src;
@@ -191,13 +192,13 @@ char *strcrlfcpy (dst,dstl,src,srcl)
     break;
   }
   *d = '\0';			/* tie off destination */
-  return *dst;			/* return destination */
+  return d - *dst;		/* return length */
 }
 
 
 /* Length of string after strcrlflen applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (s)
@@ -229,10 +230,12 @@ unsigned long strcrlflen (s)
  * Returns: T if password validated, NIL otherwise
  */
 
-int server_login (user,pass,home)
+long server_login (user,pass,home,argc,argv)
 	char *user;
 	char *pass;
 	char **home;
+	int argc;
+	char *argv[];
 {
   struct passwd *pw = getpwnam (lcase (user));
   struct spwd *sp;
@@ -441,7 +444,7 @@ TCPSTREAM *tcp_aopen (host,service)
     dup2 (pipeo[0],0);		/* parent's output is my input */
     close (pipeo[0]); close (pipeo[1]);
 				/* now run it */
-    execl ("/usr/ucb/resh","resh",hostname,"exec",service,0);
+    execl ("/usr/bin/resh","resh",hostname,"exec",service,0);
     _exit (1);			/* spazzed */
   }
 
@@ -468,56 +471,43 @@ char *tcp_getline (stream)
 	TCPSTREAM *stream;
 {
   int n,m;
-  char *st;
-  char *ret;
-  char *stp;
-  char tmp[2];
-  struct pollfd pollfd;
-  int pollstatus;
-  if (stream->tcpsi < 0) return NIL;
-  pollfd.fd = stream->tcpsi;	/* initialize selection vector */
-  while (stream->ictr < 1) {	/* if nothing in the buffer */
-				/* block and read */
-    pollfd.events = POLLIN;
-    /* Note: am not sure here that it wouldn't also be a good idea to
-	restart poll() on EINTR, if SIGCHLD or whatever are expected.	DC */
-    while (((pollstatus = poll (&pollfd,1,-1)) < 0) && (errno == EAGAIN));
-    if (!pollstatus ||
-	((stream->ictr = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 1)) {
-      close (stream->tcpsi);	/* nuke the socket */
-      if (stream->tcpsi != stream->tcpso) close (stream->tcpso);
-      stream->tcpsi = stream->tcpso = -1;
-      return NIL;
-    }
-    stream->iptr = stream->ibuf;/* point at TCP buffer */
-  }
+  char *st,*ret,*stp;
+  char c = '\0';
+  char d;
+				/* make sure have data */
+  if (!tcp_getdata (stream)) return NIL;
   st = stream->iptr;		/* save start of string */
   n = 0;			/* init string count */
   while (stream->ictr--) {	/* look for end of line */
-				/* saw the trailing CR? */
-    if (stream->iptr++[0] == '\015') {
-      ret = (char *) fs_get (n+1);
+    d = *stream->iptr++;	/* slurp another character */
+    if ((c == '\015') && (d == '\012')) {
+      ret = (char *) fs_get (n--);
       memcpy (ret,st,n);	/* copy into a free storage string */
       ret[n] = '\0';		/* tie off string with null */
-				/* eat the line feed */
-      tcp_getbuffer (stream,1,tmp);
-      return ret;		/* return it to caller */
+      return ret;
     }
-    ++n;			/* else count and try next character */
+    n++;			/* count another character searched */
+    c = d;			/* remember previous character */
   }
-  stp = (char *) fs_get (n);	/* copy first part of string */
-  memcpy (stp,st,n);
-				/* recurse to get remainder */
-  if (st = tcp_getline (stream)) {
-				/* build total string */
-    ret = (char *) fs_get (n+1+(m = strlen (st)));
+				/* copy partial string from buffer */
+  memcpy ((ret = stp = (char *) fs_get (n)),st,n);
+				/* get more data from the net */
+  if (!tcp_getdata (stream)) return NIL;
+				/* special case of newline broken by buffer */
+  if ((c == '\015') && (*stream->iptr == '\012')) {
+    stream->iptr++;		/* eat the line feed */
+    stream->ictr--;
+    ret[n - 1] = '\0';		/* tie off string with null */
+  }
+				/* else recurse to get remainder */
+  else if (st = tcp_getline (stream)) {
+    ret = (char *) fs_get (n + 1 + (m = strlen (st)));
     memcpy (ret,stp,n);		/* copy first part */
-    memcpy (ret+n,st,m);	/* and second part */
-    ret[n+m] = '\0';		/* tie off string with null */
-    fs_give ((void **) &st);	/* flush partial string */
-    fs_give ((void **) &stp);	/* flush initial fragment */
+    memcpy (ret + n,st,m);	/* and second part */
+    fs_give ((void **) &stp);	/* flush first part */
+    fs_give ((void **) &st);	/* flush second part */
+    ret[n + m] = '\0';		/* tie off string with null */
   }
-  else ret = stp;		/* return the fragment */
   return ret;
 }
 
@@ -535,24 +525,8 @@ long tcp_getbuffer (stream,size,buffer)
 {
   unsigned long n;
   char *bufptr = buffer;
-  struct pollfd pollfd;
-  int pollstatus;
-  pollfd.fd = stream->tcpsi;	/* initialize selection vector */
-  pollfd.events = POLLIN;
-  if (stream->tcpsi < 0) return NIL;
   while (size > 0) {		/* until request satisfied */
-    while (stream->ictr < 1) {	/* if nothing in the buffer */
-      while (((pollstatus = poll (&pollfd,1,-1)) < 0) && (errno == EAGAIN));
-      if (!pollstatus ||
-	  ((stream->ictr = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 1)) {
-	close (stream->tcpsi);	/* nuke the socket */
-	if (stream->tcpsi != stream->tcpso) close (stream->tcpso);
-	stream->tcpsi = stream->tcpso = -1;
-	return NIL;
-      }
-				/* point at TCP buffer */
-      stream->iptr = stream->ibuf;
-    }
+    if (!tcp_getdata (stream)) return NIL;
     n = min (size,stream->ictr);/* number of bytes to transfer */
 				/* do the copy */
     memcpy (bufptr,stream->iptr,n);
@@ -564,6 +538,36 @@ long tcp_getbuffer (stream,size,buffer)
   bufptr[0] = '\0';		/* tie off string */
   return T;
 }
+
+
+/* TCP/IP receive data
+ * Accepts: TCP/IP stream
+ * Returns: T if success, NIL otherwise
+ */
+
+long tcp_getdata (stream)
+	TCPSTREAM *stream;
+{
+  struct pollfd pollfd;
+  int pollstatus;
+  if (stream->tcpsi < 0) return NIL;
+  pollfd.fd = stream->tcpsi;	/* initialize selection vector */
+  while (stream->ictr < 1) {	/* if nothing in the buffer */
+    pollfd.events = POLLIN;	/* block and read */
+    /* Note: am not sure here that it wouldn't also be a good idea to
+	restart poll() on EINTR, if SIGCHLD or whatever are expected.	DC */
+    while (((pollstatus = poll (&pollfd,1,-1)) < 0) && (errno == EAGAIN));
+    if (!pollstatus ||
+	((stream->ictr = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 1)) {
+      close (stream->tcpsi);	/* nuke the socket */
+      if (stream->tcpsi != stream->tcpso) close (stream->tcpso);
+      stream->tcpsi = stream->tcpso = -1;
+      return NIL;
+    }
+    stream->iptr = stream->ibuf;/* point at TCP buffer */
+  }
+  return T;
+}
 
 /* TCP/IP send string as record
  * Accepts: TCP/IP stream
@@ -571,7 +575,7 @@ long tcp_getbuffer (stream,size,buffer)
  * Returns: T if success else NIL
  */
 
-int tcp_soutr (stream,string)
+long tcp_soutr (stream,string)
 	TCPSTREAM *stream;
 	char *string;
 {
@@ -679,43 +683,6 @@ long random ()
     srand48 (getpid ());
   }
   return lrand48 ();
-}
-
-
-/* Emulator for BSD re_comp() call
- * Accepts: character string to compile
- * Returns: 0 if successful, else error message
- * Uses the regexpr(3X) libraries.
- * Don't forget to link against /usr/lib/libgen.a
- */
-
-#define PATMAX 256
-static char re_space[PATMAX];
-
-char *re_comp (str)
-	char *str;
-{
-  char *c;
-  static char *invalstr = "invalid string";
-  if (str) {			/* must have a string to compile */
-    c = compile (str,re_space,re_space + PATMAX);
-    if ((c >= re_space) && (c <= re_space + PATMAX)) return 0;
-  }
-  re_space[0] = 0;
-  return invalstr;
-}
-
-
-/* Emulator for BSD re_exec() call
- * Accepts: string to match
- * Returns: 1 if string matches, 0 if fails to match, -1 if re_comp() failed
- */
-
-long re_exec (str)
-	char *str;
-{
-  if (!re_space[0]) return -1;	/* re_comp() failed? */
-  return step (str,re_space) ? 1 : 0;
 }
 
 /* Emulator for BSD scandir() call

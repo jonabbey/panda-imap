@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	8 December 1992
+ * Last Edited:	9 September 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -18,8 +18,8 @@
  *		by the Biomedical Research Technology Program of the National
  *		Institutes of Health under grant number RR-00785.
  *
- * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1992 by the University of Washington.
+ * Original version Copyright 1988 by The Leland Stanford Junior University
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -94,6 +94,7 @@ MAILSTREAM imapproto = {&imapdriver};
 long map_maxlogintrials = MAXLOGINTRIALS;
 long map_lookahead = MAPLOOKAHEAD;
 long map_port = IMAPTCPPORT;
+long map_prefetch = T;
 
 /* Mail Access Protocol validate mailbox
  * Accepts: mailbox name
@@ -102,9 +103,8 @@ long map_port = IMAPTCPPORT;
 
 DRIVER *map_valid (name)
 	char *name;
-{				/* assume IMAP if starts with host delimiter */
-  return ((*name == '{') || (*name == '*' && name[1] == '{')) ?
-    &imapdriver : NIL;
+{
+  return mail_valid_net (name,&imapdriver,NIL,NIL);
 }
 
 
@@ -131,6 +131,10 @@ void *map_parameters (function,value)
     map_port = (long) value;
   case GET_PORT:
     return (void *) map_port;
+  case SET_PREFETCH:
+    map_prefetch = (long) value;
+  case GET_PREFETCH:
+    return (void *) map_prefetch;
   default:
     break;
   }
@@ -147,14 +151,25 @@ void map_find (stream,pat)
 	char *pat;
 {
   void *s = NIL;
-  char *t,tmp[MAILTMPLEN];
+  char *t,*bbd,*patx,tmp[MAILTMPLEN];
   if (stream) {			/* have a mailbox stream open? */
+				/* begin with a host specification? */
+    if (((*pat == '{') || ((*pat == '*') && (pat[1] == '{'))) &&
+	(t = strchr (pat,'}')) && *(patx = ++t)) {
+      if (*pat == '*') pat++;	/* yes, skip leading * (old Pine behavior) */
+      strcpy (tmp,pat);		/* copy host name */
+      tmp[patx-pat] = '\0';	/* tie off prefix */
+      LOCAL->prefix = cpystr (tmp);
+    }
+    else patx = pat;		/* use entire specification */
     if (LOCAL && LOCAL->use_find &&
-	!strcmp (imap_send (stream,"FIND MAILBOXES",pat,NIL)->key,"BAD"))
+	!strcmp (imap_send (stream,"FIND MAILBOXES",patx,NIL)->key,"BAD"))
       LOCAL->use_find = NIL;	/* note no finding with this server */
+    if (LOCAL->prefix) fs_give ((void **) &LOCAL->prefix);
   }
   else while (t = sm_read (&s))	/* read subscription database */
-    if (*t == '{' && pmatch (t,pat)) mm_mailbox (t);
+    if ((*t != '*') && mail_valid_net (t,&imapdriver,NIL,NIL) && pmatch(t,pat))
+      mm_mailbox (t);
 }
 
 /* Mail Access Protocol find list of bboards
@@ -166,13 +181,29 @@ void map_find_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
+  void *s = NIL;
+  char *t,*bbd,*patx,tmp[MAILTMPLEN];
+  if (stream) {			/* have a mailbox stream open? */
+				/* begin with a host specification? */
+    if (((*pat == '{') || ((*pat == '*') && (pat[1] == '{'))) &&
+	(t = strchr (pat,'}')) && *(patx = ++t)) {
+      if (*pat == '*') pat++;	/* yes, skip leading * (old Pine behavior) */
+      strcpy (tmp,pat);		/* copy host name */
+      tmp[patx-pat] = '\0';	/* tie off prefix */
+      LOCAL->prefix = cpystr (tmp);
+    }
+    else patx = pat;		/* use entire specification */
 				/* this is optional, so no complaint if fail */
-  if (stream && LOCAL && LOCAL->use_find && LOCAL->use_bboard &&
-      !strcmp (imap_send (stream,"FIND BBOARDS",pat,NIL)->key,"BAD"))
-    LOCAL->use_bboard = NIL;
+    if (stream && LOCAL && LOCAL->use_find && LOCAL->use_bboard &&
+	!strcmp (imap_send (stream,"FIND BBOARDS",patx,NIL)->key,"BAD"))
+      LOCAL->use_bboard = NIL;
+    if (LOCAL->prefix) fs_give ((void **) &LOCAL->prefix);
+  }
+  else while (t = sm_read (&s))	/* read subscription database */
+    if ((*t == '*') && mail_valid_net (++t,&imapdriver,NIL,NIL) &&
+	pmatch (t,pat)) mm_bboard (t);
 }
-
-
+
 /* Mail Access Protocol find list of all mailboxes
  * Accepts: mail stream
  *	    pattern to search
@@ -182,12 +213,25 @@ void map_find_all (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
+  char *t,*bbd,*patx,tmp[MAILTMPLEN];
+  if (stream) {			/* have a mailbox stream open? */
+				/* begin with a host specification? */
+    if (((*pat == '{') || ((*pat == '*') && (pat[1] == '{'))) &&
+	(t = strchr (pat,'}')) && *(patx = ++t)) {
+      if (*pat == '*') pat++;	/* yes, skip leading * (old Pine behavior) */
+      strcpy (tmp,pat);		/* copy host name */
+      tmp[patx-pat] = '\0';	/* tie off prefix */
+      LOCAL->prefix = cpystr (tmp);
+    }
+    else patx = pat;		/* use entire specification */
 				/* this is optional, so no complaint if fail */
-  if (stream && LOCAL && LOCAL->use_find &&
-      !strcmp (imap_send (stream,"FIND ALL.MAILBOXES",pat,NIL)->key,"BAD")) {
-    map_find (stream,pat);	/* perhaps older server */
-    sprintf (LOCAL->tmp,"{%s}INBOX",imap_host (stream));
-    mm_mailbox (LOCAL->tmp);	/* always include INBOX for consistency */
+    if (LOCAL && LOCAL->use_find &&
+	!strcmp (imap_send (stream,"FIND ALL.MAILBOXES",patx,NIL)->key,"BAD")){
+      map_find (stream,pat);	/* perhaps older server */
+				/* always include INBOX for consistency */
+      if (pmatch (pat,"INBOX")) mm_mailbox ("INBOX");
+    }
+    if (LOCAL->prefix) fs_give ((void **) &LOCAL->prefix);
   }
 }
 
@@ -201,10 +245,23 @@ void map_find_all_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
+  char *t,*bbd,*patx,tmp[MAILTMPLEN];
+  if (stream) {			/* have a mailbox stream open? */
+				/* begin with a host specification? */
+    if (((*pat == '{') || ((*pat == '*') && (pat[1] == '{'))) &&
+	(t = strchr (pat,'}')) && *(patx = ++t)) {
+      if (*pat == '*') pat++;	/* yes, skip leading * (old Pine behavior) */
+      strcpy (tmp,pat);		/* copy host name */
+      tmp[patx-pat] = '\0';	/* tie off prefix */
+      LOCAL->prefix = cpystr (tmp);
+    }
+    else patx = pat;		/* use entire specification */
 				/* this is optional, so no complaint if fail */
-  if (stream && LOCAL && LOCAL->use_find && LOCAL->use_bboard &&
-      !strcmp (imap_send (stream,"FIND ALL.BBOARDS",pat,NIL)->key,"BAD"))
-    map_find_bboards (stream,pat);
+    if (LOCAL && LOCAL->use_find &&
+	!strcmp (imap_send (stream,"FIND ALL.BBOARDS",patx,NIL)->key,"BAD"))
+      map_find_bboards (stream,pat);
+    if (LOCAL->prefix) fs_give ((void **) &LOCAL->prefix);
+  }
 }
 
 /* Mail Access Protocol subscribe to mailbox
@@ -320,8 +377,8 @@ long map_manage (stream,mailbox,command,arg2)
 	char *arg2;
 {
   MAILSTREAM *st = stream;
-  long ret = T;
-  char *s;
+  long ret;
+  char *s,tmp[MAILTMPLEN];
   IMAPPARSEDREPLY *reply;
   if (!(stream && LOCAL)) {	/* if a prototype stream requested */
     if (!(stream = mail_open (NIL,mailbox,OP_HALFOPEN))) {
@@ -329,19 +386,13 @@ long map_manage (stream,mailbox,command,arg2)
       return NIL;
     }
   }
-				/* nuke host name in second argument */
+				/* KLUDGE: nuke host name in second argument */
   if (arg2 && (*arg2 == '{') && (s = strchr (arg2,'}'))) arg2 = s + 1;
 				/* get mailbox name */
-  s = imap_mailboxfield (mailbox);
+  mail_valid_net (mailbox,&imapdriver,NIL,tmp);
 				/* send management command */
-  if (imap_OK (stream,reply = imap_send (stream,command,s,arg2)))
-    mm_log (reply->text,(long) NIL);
-  else {			/* failed */
-    sprintf (LOCAL->tmp,"%s rejected: %.80s",command,reply->text);
-    mm_log (LOCAL->tmp,ERROR);
-    ret = NIL;
-  }
-  fs_give ((void **) &s);	/* toss out mailbox name */
+  ret = imap_OK (stream,reply = imap_send (stream,command,tmp,arg2));
+  mm_log (reply->text, ret ? (long) NIL : ERROR);
 				/* toss out temporary stream */
   if (st != stream) mail_close (stream);
   return ret;
@@ -355,144 +406,130 @@ long map_manage (stream,mailbox,command,arg2)
 MAILSTREAM *map_open (stream)
 	MAILSTREAM *stream;
 {
-  long i,j,bboard,port = 0;
+  long i,j;
   char username[MAILTMPLEN],pwd[MAILTMPLEN],tmp[MAILTMPLEN];
-  char *s,*host,*mailbox,*base;
-  MESSAGECACHE *elt;
-  IMAPPARSEDREPLY *reply;
+  NETMBX mb;
+  char *s;
+  IMAPPARSEDREPLY *reply = NIL;
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &imapproto;
-  if (!(host = imap_hostfield (base = (bboard = *stream->mailbox == '*') ?
-			       stream->mailbox + 1 : stream->mailbox)))
-    mm_log ("Host not specified",ERROR);
-  else {
-    if (s = strchr (host,':')) {/* want to specify port number? */
-      *s++ = 0;			/* tie off host name */
-      if ((!((port = strtol (s,&s,10)) > 0)) || (s && *s)) {
-	fs_give ((void **) &host);
-	mm_log ("Invalid port specification",ERROR);
-      }
-    }
-    if (!(mailbox = imap_mailboxfield (base))) {
-      fs_give ((void **) &host);/* prevent storage leaks */
-      mm_log ("Mailbox not specified",ERROR);
-    }
-    else {
-      if (LOCAL) {		/* if stream opened earlier by us */
-	if (strcmp (ucase (strcpy (tmp,host)),
-		    ucase (strcpy (pwd,imap_host (stream))))) {
+  mail_valid_net_parse (stream->mailbox,&mb);
+				/* default mailbox name */
+  if (!*mb.mailbox) strcpy (mb.mailbox,mb.bbdflag ? "general" : "INBOX");
+  if (LOCAL) {			/* if stream opened earlier by us */
+    if (strcmp (ucase (strcpy (tmp,mb.host)),
+		ucase (strcpy (pwd,imap_host (stream))))) {
 				/* if hosts are different punt it */
-	  sprintf (tmp,"Closing connection to %s",imap_host (stream));
-	  if (!stream->silent) mm_log (tmp,(long) NIL);
-	  map_close (stream);
-	}
-	else {			/* else recycle if still alive */
-	  i = stream->silent;	/* temporarily mark silent */
-	  stream->silent = T;	/* don't give mm_exists() events */
-	  j = map_ping (stream);/* learn if stream still alive */
-	  stream->silent = i;	/* restore prior state */
-	  if (j) {		/* was stream still alive? */
-	    sprintf (tmp,"Reusing connection to %s",host);
-	    if (!stream->silent) mm_log (tmp,(long) NIL);
-	    map_do_gc (stream,GC_TEXTS);
-	  }
-	  else map_close (stream);
-	}
-	mail_free_cache (stream);
+      sprintf (tmp,"Closing connection to %s",imap_host (stream));
+      if (!stream->silent) mm_log (tmp,(long) NIL);
+      map_close (stream);
+    }
+    else {			/* else recycle if still alive */
+      i = stream->silent;	/* temporarily mark silent */
+      stream->silent = T;	/* don't give mm_exists() events */
+      j = map_ping (stream);	/* learn if stream still alive */
+      stream->silent = i;	/* restore prior state */
+      if (j) {			/* was stream still alive? */
+	sprintf (tmp,"Reusing connection to %s",mb.host);
+	if (!stream->silent) mm_log (tmp,(long) NIL);
+	map_do_gc (stream,GC_TEXTS);
       }
+      else map_close (stream);
+    }
+    mail_free_cache (stream);
+  }
 
-      if (!LOCAL) {		/* open new connection if no recycle */
-	stream->local = fs_get (sizeof (IMAPLOCAL));
-	LOCAL->reply.line = LOCAL->reply.tag = LOCAL->reply.key =
-	  LOCAL->reply.text = NIL;
-	LOCAL->use_body = LOCAL->use_find = LOCAL->use_bboard =
-	  LOCAL->use_purge = T;	/* assume maximal server */
+  if (!LOCAL) {			/* open new connection if no recycle */
+    stream->local = fs_get (sizeof (IMAPLOCAL));
+    LOCAL->reply.line = LOCAL->reply.tag = LOCAL->reply.key =
+      LOCAL->reply.text = LOCAL->prefix = NIL;
+    LOCAL->use_body = LOCAL->use_find = LOCAL->use_bboard =
+      LOCAL->use_purge = T;	/* assume maximal server */
 				/* try authenticated open */
-	if (LOCAL->tcpstream = port ? NIL : tcp_aopen (host,"/etc/rimapd")) {
-	  s = tcp_getline (LOCAL->tcpstream);
+    if (LOCAL->tcpstream = (stream->anonymous || mb.anoflag || mb.port) ? NIL :
+	tcp_aopen (mb.host,"/etc/rimapd")) {
 				/* if success, see if reasonable banner */
-	  if (s && (*s == '*') && (reply = imap_parse_reply (stream,s)) &&
-	      !strcmp (reply->tag,"*") && !strcmp (reply->key,"PREAUTH"))
-	    mm_notify (stream,reply->text,(long) NIL);
-				/* nuke the stream then */
-	  else if (LOCAL->tcpstream) {
-	    tcp_close (LOCAL->tcpstream);
-	    LOCAL->tcpstream = NIL;
-	  }
+      if ((s = tcp_getline (LOCAL->tcpstream)) && (*s == '*') &&
+	  (reply = imap_parse_reply (stream,s)) && !strcmp (reply->tag,"*"))
+	imap_parse_unsolicited (stream,reply);
+      else {			/* nuke the stream then */
+	if (s) fs_give ((void **) &s);
+	if (LOCAL->tcpstream) {
+	  tcp_close (LOCAL->tcpstream);
+	  LOCAL->tcpstream = NIL;
 	}
-	if (!LOCAL->tcpstream &&/* open ordinary connection */
-	    (LOCAL->tcpstream = tcp_open (host,port ? port : map_port))) {
-				/* get greeting */
-	  if (!imap_OK (stream,reply = imap_reply (stream,NIL))) {
-	    mm_log (reply->text,ERROR);
-	    map_close (stream);	/* clean up */
-	  }
-	  else {		/* only so many tries to login */
-	    if (!lhostn) lhostn = cpystr (tcp_localhost (LOCAL->tcpstream));
-	    for (i = 0; i < map_maxlogintrials; ++i) {
-	      *pwd = 0;		/* get password */
-	      mm_login (tcp_host (LOCAL->tcpstream),username,pwd,i);
-				/* abort if he refuses to give a password */
-	      if (*pwd == '\0') i = map_maxlogintrials;
-	      else {		/* send "LOGIN username pwd" */
-		if (imap_OK (stream,reply = imap_send (stream,"LOGIN",username,
-						       pwd))) break;
-				/* output failure and try again */
-		sprintf (tmp,"Login failed: %.80s",reply->text);
-		mm_log (tmp,WARN);
-				/* give up now if connection died */
-		if (!strcmp (reply->key,"BYE")) i = map_maxlogintrials;
-	      }
-	    }
-				/* give up if too many failures */
-	    if (i >=  map_maxlogintrials) {
-	      mm_log (*pwd ? "Too many login failures":"Login aborted",ERROR);
-	      map_close (stream);
-	    }
-	  }
-	}
-				/* failed utterly to open */
-	if (LOCAL && !LOCAL->tcpstream) map_close (stream);
-      }
-
-      if (LOCAL) {		/* have a connection now??? */
-	stream->sequence++;	/* bump sequence number */
-				/* prepare to update mailbox name */
-	fs_give ((void **) &stream->mailbox);
-				/* send "SELECT mailbox" */
-	if (stream->halfopen ||
-	    !imap_OK (stream,reply = imap_send (stream,bboard ? "BBOARD" :
-						"SELECT",mailbox,NIL))) {
-	  sprintf (tmp,"{%s}<no_mailbox>",imap_host (stream));
-	  stream->mailbox = cpystr (tmp);
-				/* output error message if didn't ask for it */
-	  if (!stream->halfopen) {
-	    sprintf (tmp,"Can't select mailbox: %.80s",reply->text);
-	    mm_log (tmp,ERROR);
-	    stream->halfopen = T;
-	  }
-				/* make sure dummy message counts */
-	  mail_exists (stream,(long) 0);
-	  mail_recent (stream,(long) 0);
-	}
-	else {			/* update mailbox name */
-	  sprintf (tmp,"%s{%s}%s",bboard ? "*" : "",imap_host(stream),mailbox);
-	  stream->mailbox = cpystr (tmp);
-				/* note if server said it was readonly */
-	  reply->text[11] = '\0';
-	  stream->readonly = !strcmp (ucase (reply->text),"[READ-ONLY]");
-	}
-	if (!(stream->nmsgs || stream->silent))
-	  mm_log ("Mailbox is empty",(long) NIL);
-	if (stream->scache && LOCAL->use_purge &&
-	    !strcmp (imap_send (stream,"PURGE ALWAYS",NIL,NIL)->key,"BAD"))
-	  LOCAL->use_purge = NIL;
-      }
-      else {			/* failed to open, prevent storage leaks */
-	fs_give ((void **) &host);
-	fs_give ((void **) &mailbox);
       }
     }
+    if (!LOCAL->tcpstream &&	/* try to open ordinary connection */
+	(LOCAL->tcpstream = tcp_open(mb.host,mb.port?(long)mb.port:map_port))&&
+	(!imap_OK (stream,reply = imap_reply (stream,NIL)))) {
+      mm_log (reply->text,ERROR);
+      map_close (stream);	/* failed, clean up */
+    }
+
+    if (LOCAL && LOCAL->tcpstream && !strcmp (reply->key,"OK")) {
+				/* only so many tries to login */
+      if (!lhostn) lhostn = cpystr (tcp_localhost (LOCAL->tcpstream));
+      for (i = 0; i < map_maxlogintrials; ++i) {
+	*pwd = 0;		/* get password */
+				/* if caller wanted anonymous access */
+	if ((mb.anoflag || stream->anonymous) && !i) {
+	  strcpy (username,"anonymous");
+	  strcpy (pwd,*lhostn ? lhostn : "foo");
+	}
+	else mm_login (tcp_host (LOCAL->tcpstream),username,pwd,i);
+				/* abort if he refuses to give a password */
+	if (*pwd == '\0') i = map_maxlogintrials;
+	else {			/* send "LOGIN username pwd" */
+	  if (imap_OK (stream,reply = imap_send (stream,"LOGIN",username,
+						 pwd))) break;
+				/* output failure and try again */
+	  mm_log (reply->text,WARN);
+				/* give up now if connection died */
+	  if (!strcmp (reply->key,"BYE")) i = map_maxlogintrials;
+	}
+      }
+				/* give up if too many failures */
+      if (i >=  map_maxlogintrials) {
+	mm_log (*pwd ? "Too many login failures":"Login aborted",ERROR);
+	map_close (stream);
+      }
+      else stream->anonymous = strcmp (username,"anonymous") ? NIL : T;
+    }
+				/* failed utterly to open */
+    if (LOCAL && !LOCAL->tcpstream) map_close (stream);
+  }
+
+  if (LOCAL) {			/* have a connection now??? */
+    stream->sequence++;		/* bump sequence number */
+				/* prepare to update mailbox name */
+    fs_give ((void **) &stream->mailbox);
+    if (stream->halfopen ||	/* send "SELECT/EXAMINE/BBOARD mailbox" */
+	!imap_OK (stream,reply = imap_send (stream,mb.bbdflag ? "BBOARD" :
+					    (stream->readonly ? "EXAMINE" :
+					     "SELECT"),mb.mailbox,NIL))) {
+      sprintf (tmp,"{%s}<no_mailbox>",imap_host (stream));
+      stream->mailbox = cpystr (tmp);
+      if (!stream->halfopen) {	/* output error message if didn't ask for it */
+	mm_log (reply->text,ERROR);
+	stream->halfopen = T;
+      }
+				/* make sure dummy message counts */
+      mail_exists (stream,(long) 0);
+      mail_recent (stream,(long) 0);
+    }
+    else {			/* update mailbox name */
+      sprintf (tmp,"%s{%s}%s",mb.bbdflag ? "*" : "",
+	       imap_host (stream),mb.mailbox);
+      stream->mailbox = cpystr (tmp);
+      reply->text[11] = '\0';	/* note if server said it was readonly */
+      stream->readonly = !strcmp (ucase (reply->text),"[READ-ONLY]");
+    }
+    if (!(stream->nmsgs || stream->silent))
+      mm_log ("Mailbox is empty",(long) NIL);
+    if (stream->scache && LOCAL->use_purge &&
+	!strcmp (imap_send (stream,"PURGE ALWAYS",NIL,NIL)->key,"BAD"))
+      LOCAL->use_purge = NIL;
   }
 				/* give up if nuked during startup */
   if (LOCAL && !LOCAL->tcpstream) map_close (stream);
@@ -506,15 +543,11 @@ MAILSTREAM *map_open (stream)
 void map_close (stream)
 	MAILSTREAM *stream;
 {
-  long i;
-  MESSAGECACHE *elt;
   IMAPPARSEDREPLY *reply;
   if (stream && LOCAL) {	/* send "LOGOUT" */
     if (LOCAL->tcpstream &&
-	!imap_OK (stream,reply = imap_send (stream,"LOGOUT",NIL,NIL))) {
-      sprintf (LOCAL->tmp,"Error in logout: %.80s",reply->text);
-      mm_log (LOCAL->tmp,WARN);
-    }
+	!imap_OK (stream,reply = imap_send (stream,"LOGOUT",NIL,NIL)))
+      mm_log (reply->text,WARN);
 				/* close TCP connection if still open */
     if (LOCAL->tcpstream) tcp_close (LOCAL->tcpstream);
     LOCAL->tcpstream = NIL;
@@ -539,10 +572,8 @@ void map_fetchfast (stream,sequence)
 	char *sequence;
 {				/* send "FETCH sequence FAST" */
   IMAPPARSEDREPLY *reply;
-  if (!imap_OK (stream,reply = imap_send (stream,"FETCH",sequence,"FAST"))) {
-    sprintf (LOCAL->tmp,"Fetch fast rejected: %.80s",reply->text);
-    mm_log (LOCAL->tmp,ERROR);
-  }
+  if (!imap_OK (stream,reply = imap_send (stream,"FETCH",sequence,"FAST")))
+    mm_log (reply->text,ERROR);
 }
 
 
@@ -556,10 +587,8 @@ void map_fetchflags (stream,sequence)
 	char *sequence;
 {				/* send "FETCH sequence FLAGS" */
   IMAPPARSEDREPLY *reply;
-  if (!imap_OK (stream,reply = imap_send (stream,"FETCH",sequence,"FLAGS"))){
-    sprintf (LOCAL->tmp,"Fetch flags rejected: %.80s",reply->text);
-    mm_log (LOCAL->tmp,ERROR);
-  }
+  if (!imap_OK (stream,reply = imap_send (stream,"FETCH",sequence,"FLAGS")))
+    mm_log (reply->text,ERROR);
 }
 
 /* Mail Access Protocol fetch structure
@@ -610,8 +639,7 @@ ENVELOPE *map_fetchstructure (stream,msgno,body)
 	   (strcmp ((reply = imap_send(stream,"FETCH",seq,"FULL"))->key,"BAD")?
 	    T : NIL)))) reply = imap_send (stream,"FETCH",seq,"ALL");
     if (!imap_OK (stream,reply)) {
-      sprintf (LOCAL->tmp,"Fetch envelope rejected: %.80s",reply->text);
-      mm_log (LOCAL->tmp,ERROR);
+      mm_log (reply->text,ERROR);
       return NIL;
     }
   }
@@ -638,10 +666,8 @@ char *map_fetchheader (stream,msgno)
     if (!imap_OK (stream,	/* send "FETCH msgno RFC822.HEADER" */
 		  reply = imap_send (stream,tmp,elt->data2 ?
 				     "RFC822.HEADER" :
-				     "(RFC822.HEADER RFC822.TEXT)",NIL))) {
-      sprintf (LOCAL->tmp,"Fetch header rejected: %.80s",reply->text);
-      mm_log (LOCAL->tmp,ERROR);
-    }
+				     "(RFC822.HEADER RFC822.TEXT)",NIL)))
+      mm_log (reply->text,ERROR);
   }
   return elt->data1 ? (char *) elt->data1 : "";
 }
@@ -664,10 +690,8 @@ char *map_fetchtext (stream,msgno)
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   if (!elt->data2) {		/* send "FETCH msgno RFC822.TEXT" */
     sprintf (seq,"%ld",msgno);
-    if (!imap_OK (stream,reply = imap_send(stream,"FETCH",seq,"RFC822.TEXT"))){
-      sprintf (LOCAL->tmp,"Fetch text rejected: %.80s",reply->text);
-      mm_log (LOCAL->tmp,ERROR);
-    }
+    if (!imap_OK (stream,reply = imap_send(stream,"FETCH",seq,"RFC822.TEXT")))
+      mm_log (reply->text,ERROR);
   }
   return elt->data2 ? (char *) elt->data2 : "";
 }
@@ -739,10 +763,8 @@ char *map_fetchbody (stream,m,sec,len)
   }
   if (!*ss) {			/* fetch data if don't have it yet */
     sprintf (seq,"%ld BODY[%s]",m,sec);
-    if (!imap_OK (stream,reply = imap_send (stream,"FETCH",seq,NIL))) {
-      sprintf (LOCAL->tmp,"Fetch body section rejected: %.80s",reply->text);
-      mm_log (LOCAL->tmp,ERROR);
-    }
+    if (!imap_OK (stream,reply = imap_send (stream,"FETCH",seq,NIL)))
+      mm_log (reply->text,ERROR);
   }
 				/* return data size if have data */
   if (s = *ss) *len = b->size.bytes;
@@ -764,10 +786,8 @@ void map_setflag (stream,sequence,flag)
   IMAPPARSEDREPLY *reply;
 				/* "STORE sequence +Flags flag" */
   sprintf (tmp,"STORE %s +Flags",sequence);
-  if (!imap_OK (stream,reply = imap_send (stream,tmp,flag,NIL))) {
-    sprintf (LOCAL->tmp,"Set flag rejected: %.80s",reply->text);
-    mm_log (LOCAL->tmp,ERROR);
-  }
+  if (!imap_OK (stream,reply = imap_send (stream,tmp,flag,NIL)))
+    mm_log (reply->text,ERROR);
   fs_give ((void **) &tmp);
 }
 
@@ -787,10 +807,8 @@ void map_clearflag (stream,sequence,flag)
   IMAPPARSEDREPLY *reply;
 				/* "STORE sequence -Flags flag" */
   sprintf (tmp,"STORE %s -Flags",sequence);
-  if (!imap_OK (stream,reply = imap_send (stream,tmp,flag,NIL))) {
-    sprintf (LOCAL->tmp,"Clear flag rejected: %.80s",reply->text);
-    mm_log (LOCAL->tmp,ERROR);
-  }
+  if (!imap_OK (stream,reply = imap_send (stream,tmp,flag,NIL)))
+    mm_log (reply->text,ERROR);
   fs_give ((void **) &tmp);
 }
 
@@ -807,10 +825,10 @@ void map_search (stream,criteria)
   char *s;
   IMAPPARSEDREPLY *reply;
   MESSAGECACHE *elt;
-				/* do implicit CHECK, then SEARCH */
-  if (imap_OK (stream,reply = imap_send (stream,"CHECK",NIL,NIL)) &&
-      imap_OK (stream,reply = imap_send (stream,"SEARCH",criteria,NIL))) {
-    if (stream->scache) return;	/* can never pre-fetch with a short cache */
+				/* do the SEARCH */
+  if (imap_OK (stream,reply = imap_send (stream,"SEARCH",criteria,NIL))) {
+				/* can never pre-fetch with a short cache */
+    if (!map_prefetch || stream->scache) return;
     s = LOCAL->tmp;		/* build sequence in temporary buffer */
     *s = '\0';			/* initially nothing */
 				/* search through mailbox */
@@ -832,17 +850,12 @@ void map_search (stream,criteria)
       }
     if (LOCAL->tmp[0]) {	/* anything to pre-fetch? */
       s = cpystr (LOCAL->tmp);	/* yes, copy sequence */
-      if (!imap_OK (stream,reply = imap_send (stream,"FETCH",s,"ALL"))) {
-	sprintf (LOCAL->tmp,"Search pre-fetch rejected: %.80s",reply->text);
-	mm_log (LOCAL->tmp,ERROR);
-      }
+      if (!imap_OK (stream,reply = imap_send (stream,"FETCH",s,"ALL")))
+	mm_log (reply->text,ERROR);
       fs_give ((void **) &s);	/* flush copy of sequence */
     }
   }
-  else {
-    sprintf (LOCAL->tmp,"Search rejected: %.80s",reply->text);
-    mm_log (LOCAL->tmp,ERROR);
-  }
+  else mm_log (reply->text,ERROR);
 }
 
 /* Mail Access Protocol ping mailbox
@@ -867,11 +880,7 @@ void map_check (stream)
 {
 				/* send "CHECK" */
   IMAPPARSEDREPLY *reply = imap_send (stream,"CHECK",NIL,NIL);
-  if (!imap_OK (stream,reply)) {
-    sprintf (LOCAL->tmp,"Check rejected: %.80s",reply->text);
-    mm_log (LOCAL->tmp,ERROR);
-  }
-  else mm_log (reply->text,(long) NIL);
+  mm_log (reply->text,imap_OK (stream,reply) ? (long) NIL : ERROR);
 }
 
 
@@ -884,11 +893,7 @@ void map_expunge (stream)
 {
 				/* send "EXPUNGE" */
   IMAPPARSEDREPLY *reply = imap_send (stream,"EXPUNGE",NIL,NIL);
-  if (!imap_OK (stream,reply)) {
-    sprintf (LOCAL->tmp,"Expunge rejected: %.80s",reply->text);
-    mm_log (LOCAL->tmp,ERROR);
-  }
-  else mm_log (reply->text,(long) NIL);
+  mm_log (reply->text,imap_OK (stream,reply) ? (long) NIL : ERROR);
 }
 
 /* Mail Access Protocol copy message(s)
@@ -911,8 +916,7 @@ long map_copy (stream,sequence,mailbox)
   }
 				/* send "COPY sequence mailbox" */
   if (!imap_OK (stream,reply = imap_send (stream,"COPY",sequence,mailbox))) {
-    sprintf (LOCAL->tmp,"Copy rejected: %.80s",reply->text);
-    mm_log (LOCAL->tmp,ERROR);
+    mm_log (reply->text,ERROR);
     return NIL;
   }
   map_setflag (stream,sequence,"\\Seen");
@@ -940,8 +944,7 @@ long map_move (stream,sequence,mailbox)
   }
 				/* send "COPY sequence mailbox" */
   if (!imap_OK (stream,reply = imap_send (stream,"COPY",sequence,mailbox))) {
-    sprintf (LOCAL->tmp,"Move rejected: %.80s",reply->text);
-    mm_log (LOCAL->tmp,ERROR);
+    mm_log (reply->text,ERROR);
     return NIL;
   }
   map_setflag (stream,sequence,"\\Deleted \\Seen");
@@ -960,49 +963,27 @@ long map_append (stream,mailbox,message)
 	char *mailbox;
 	STRING *message;
 {
-  long i;
-  char tag[7];
+  MAILSTREAM *st = stream;
+  long ret;
+  char tmp[MAILTMPLEN];
   IMAPPARSEDREPLY *reply;
-  long size = SIZE (message);
-  if (!LOCAL->tcpstream) {	/* not valid on dead stream */
-    mm_log ("Append rejected: connection to remote IMAP server closed",ERROR);
-    return NIL;
-  }
-  				/* gensym a new tag */
-  sprintf (tag,"A%05ld",stream->gensym++);
-  sprintf (LOCAL->tmp,"%s APPEND %s {%ld}",tag,mailbox,size);
-				/* output debugging telemetry */
-  if (stream->debug) mm_dlog (LOCAL->tmp);
-  strcat (LOCAL->tmp,"\015\012");
-  mail_lock (stream);		/* lock up the stream */
-				/* send the command */
-  if (i = tcp_soutr (LOCAL->tcpstream,LOCAL->tmp))
-    reply = imap_reply (stream,tag);
-				/* server requested additional data */
-  if (i && !strcmp (reply->tag,"+")) {
-				/* dump the message */
-    while (size && (i = tcp_sout (LOCAL->tcpstream,message->curpos,
-				  min (size,message->cursize)))) {
-      size -= message->cursize;	/* note that we wrote out this much */
-      message->curpos += message->cursize;
-      message->cursize = 0;
-      (message->dtb->next) (message);
+				/* in case useful stream not given */
+  if (!(stream && LOCAL && LOCAL->tcpstream)) {
+    if (!(stream = mail_open (NIL,mailbox,OP_HALFOPEN))) {
+      mm_log ("Can't access server for append",ERROR);
+      return NIL;
     }
-				/* get the response */
-    if (i) reply = imap_reply (stream,tag);
   }
-  mail_unlock (stream);		/* unlock stream */
-  if (!i) {			/* close TCP connection if it died */
-    tcp_close (LOCAL->tcpstream);
-    LOCAL->tcpstream = NIL;
-    reply = imap_fake (stream,tag,"BYE IMAP connection broken in send");
+				/* get mailbox name */
+  if ((ret = mail_valid_net (mailbox,&imapdriver,NIL,tmp) ? T : NIL) &&
+      (!imap_OK (stream,	/* report error if it choked */
+		 reply = imap_send_literal (stream,"APPEND",tmp,message)))) {
+    mm_log (reply->text,ERROR);
+    ret = NIL;
   }
-  if (!imap_OK (stream,reply)) {/* report error if it choked */
-    sprintf (LOCAL->tmp,"Append rejected: %.80s",reply->text);
-    mm_log (LOCAL->tmp,ERROR);
-    return NIL;
-  }
-  return T;			/* return success to caller */
+				/* toss out temporary stream */
+  if (st != stream) mail_close (stream);
+  return ret;			/* return */
 }
 
 /* Mail Access Protocol garbage collect stream
@@ -1043,21 +1024,23 @@ void map_do_gc (stream,gcflags)
   unsigned long i;
   MESSAGECACHE *elt;
   LONGCACHE *lelt;
-  for (i = 1; i <= stream->nmsgs; ++i) {
-    if (gcflags & GC_TEXTS) {	/* garbage collect texts? */
+				/* make sure the cache is large enough */
+  (*mailcache) (stream,stream->nmsgs,CH_SIZE);
+  if (gcflags & GC_TEXTS) {	/* garbage collect texts? */
+    for (i = 1; i <= stream->nmsgs; ++i)
       if (elt = (MESSAGECACHE *) (*mailcache) (stream,i,CH_ELT)) {
 	if (elt->data1) fs_give ((void **) &elt->data1);
 	if (elt->data2) fs_give ((void **) &elt->data2);
+	if (!stream->scache) map_gc_body ((lelt = mail_lelt (stream,i))->body);
       }
-      if (stream->scache) map_gc_body (stream->body);
-      else if (lelt = mail_lelt (stream,i)) map_gc_body (lelt->body);
-    }
-				/* garbage collect cache? */
-    if (gcflags & GC_ELT) (*mailcache) (stream,i,CH_FREE);
+    map_gc_body (stream->body);	/* free texts from short cache body */
   }
+				/* gc cache if requested and unlocked */
+  if (gcflags & GC_ELT) for (i = 1; i <= stream->nmsgs; ++i)
+    if ((elt = (MESSAGECACHE *) (*mailcache) (stream,i,CH_ELT)) &&
+	(elt->lockcount == 1)) (*mailcache) (stream,i,CH_FREE);
 }
-
-
+
 /* Mail Access Protocol garbage collect body texts
  * Accepts: body to GC
  */
@@ -1093,48 +1076,6 @@ void map_gc_body (body)
 /* Internal routines */
 
 
-/* Mail Access Protocol return host name field of "{host}mailbox"
- * Accepts: "{host}mailbox" format name
- * Returns: host name or NIL if error
- */
-
-char *imap_hostfield (string)
-	char *string;
-{
-  register char *start;
-  char c;
-  long i = 0;
-				/* string must begin with "{" */
-  if (*string != '{') return NIL;
-  start = ++string;		/* save pointer to first host char */
-				/* search for closing "}" */
-  while ((c = *string++) != '}') if (!c) return NIL;
-				/* must have at least one char */
-  if (!(i = string - start - 1)) return NIL;
-  string = (char *) fs_get (i + 1);
-  strncpy (string,start,i);	/* copy the string */
-  string[i] = '\0';		/* tie off with null */
-  return string;
-}
-
-
-/* Mail Access Protocol return mailbox field of "{host}mailbox"
- * Accepts: "{host}mailbox" format name
- * Returns: mailbox name or NIL if error
- */
-
-char *imap_mailboxfield (string)
-	char *string;
-{
-  char c;
-				/* string must begin with "{" */
-  if (*string != '{') return NIL;
-				/* search for closing "}" */
-  while ((c = *string++) != '}') if (!c) return NIL;
-  return cpystr (strlen (string) ? string : "INBOX");
-}
-
-
 /* Mail Access Protocol return host name
  * Accepts: MAIL stream
  * Returns: host name
@@ -1152,6 +1093,7 @@ char *imap_host (stream)
  * Accepts: MAIL stream
  *	    command
  *	    command argument
+ *	    second command argument
  * Returns: parsed reply
  */
 
@@ -1161,40 +1103,85 @@ IMAPPARSEDREPLY *imap_send (stream,cmd,arg,arg2)
 	char *arg;
 	char *arg2;
 {
-  long i;
+  IMAPPARSEDREPLY *reply = NIL;
+  if (arg2 && strpbrk (arg2,"\012\015\"%{\\")) {
+    STRING s;
+    INIT (&s,mail_string,(void *) arg2,(unsigned long) strlen (arg2));
+    reply = imap_send_literal (stream,cmd,arg,&s);
+  }
+  else {
+    char tag[7];
+  				/* gensym a new tag */
+    sprintf (tag,"A%05ld",stream->gensym++);
+    if (!LOCAL->tcpstream) return imap_fake(stream,tag,"OK No-op dead stream");
+				/* begin command */
+    sprintf (LOCAL->tmp,"%s %s",tag,cmd);
+    mail_lock (stream);		/* lock up the stream */
+    if (arg) {			/* argument present? */
+      sprintf (LOCAL->tmp + strlen (LOCAL->tmp)," %s",arg);
+				/* second argument present? */
+      if (arg2) sprintf (LOCAL->tmp + strlen (LOCAL->tmp),
+			 strchr (arg2,' ') ? " \"%s\"" : " %s",arg2);
+    }
+				/* output to debugging telemetry */
+    if (stream->debug) mm_dlog (LOCAL->tmp);
+    strcat (LOCAL->tmp,"\015\012");
+				/* send the command */
+    if (tcp_soutr (LOCAL->tcpstream,LOCAL->tmp))
+      reply = imap_reply (stream,tag);
+    mail_unlock (stream);	/* unlock stream */
+    if (!reply) {		/* close TCP connection if it died */
+      tcp_close (LOCAL->tcpstream);
+      LOCAL->tcpstream = NIL;
+      return imap_fake (stream,tag,"BYE IMAP connection broken in send");
+    }
+  }
+  return reply;			/* return reply to caller */
+}
+
+/* Mail Access Protocol send command with literal argument
+ * Accepts: MAIL stream
+ *	    command
+ *	    command argument
+ *	    second command argument
+ * Returns: parsed reply
+ */
+
+IMAPPARSEDREPLY *imap_send_literal (stream,cmd,arg,arg2)
+	MAILSTREAM *stream;
+	char *cmd;
+	char *arg;
+	STRING *arg2;
+{
   char tag[7];
   char *s = NIL;
-  IMAPPARSEDREPLY *reply;
+  unsigned long i = SIZE (arg2);
+  IMAPPARSEDREPLY *reply = NIL;
+  if (!LOCAL->tcpstream) return imap_fake (stream,tag,"OK No-op dead stream");
   				/* gensym a new tag */
   sprintf (tag,"A%05ld",stream->gensym++);
-  if (!LOCAL->tcpstream) return imap_fake (stream,tag,"OK No-op dead stream");
+				/* begin command */
+  sprintf (LOCAL->tmp,"%s %s %s {%ld}",tag,cmd,arg,i);
   mail_lock (stream);		/* lock up the stream */
-  if (arg2) {			/* second argument present? */
-				/* yes, need to use literal? */
-    if (strpbrk (arg2,"\012\015\"%{\\")) {
-      i = strlen (s = arg2);	/* portability madness -- don't ask */
-      sprintf (LOCAL->tmp,"%s %s %s {%ld}",tag,cmd,arg,i);
-    }
-    else if (strchr (arg2,' '))	/* need to use quoted string? */
-      sprintf (LOCAL->tmp,"%s %s %s \"%s\"",tag,cmd,arg,arg2);
-    else sprintf (LOCAL->tmp,"%s %s %s %s",tag,cmd,arg,arg2);
-  }
-  else if (arg) sprintf (LOCAL->tmp,"%s %s %s",tag,cmd,arg);
-  else sprintf (LOCAL->tmp,"%s %s",tag,cmd);
 				/* output debugging telemetry */
   if (stream->debug) mm_dlog (LOCAL->tmp);
   strcat (LOCAL->tmp,"\015\012");
 				/* send the command */
-  i = tcp_soutr (LOCAL->tcpstream,LOCAL->tmp);
-				/* get reply from server */
-  while (i && (!strcmp ((reply = imap_reply (stream,tag))->tag,"+")) && s) {
-				/* server requested additional data */
-    i = tcp_soutr (LOCAL->tcpstream,s) &&
-      tcp_soutr (LOCAL->tcpstream,"\015\012");
-    s = NIL;			/* don't do this again */
+  if (tcp_soutr (LOCAL->tcpstream,LOCAL->tmp) &&
+      !strcmp ((reply = imap_reply (stream,tag))->tag,"+")) {
+				/* dump the message */
+    while (i && tcp_sout (LOCAL->tcpstream,arg2->curpos,arg2->cursize)) {
+      i -= arg2->cursize;	/* note that we wrote out this much */
+      arg2->curpos += (arg2->cursize - 1);
+      arg2->cursize = 1;
+      SNX(arg2);		/* advance to next buffer's worth */
+    }
+    if ((!i) && tcp_soutr (LOCAL->tcpstream,"\015\012"))
+      reply = imap_reply (stream,tag);
+    else reply = NIL;
   }
   mail_unlock (stream);		/* unlock stream */
-  if (!i) {			/* close TCP connection if it died */
+  if (!reply) {			/* close TCP connection if it died */
     tcp_close (LOCAL->tcpstream);
     LOCAL->tcpstream = NIL;
     return imap_fake (stream,tag,"BYE IMAP connection broken in send");
@@ -1301,7 +1288,9 @@ long imap_OK (stream,reply)
 	IMAPPARSEDREPLY *reply;
 {
 				/* OK - operation succeeded */
-  if (!strcmp (reply->key,"OK")) return T;
+  if (!strcmp (reply->key,"OK") ||
+      (!strcmp (reply->tag,"*") && !strcmp (reply->key,"PREAUTH")))
+    return T;
 				/* NO - operation failed */
   else if (strcmp (reply->key,"NO")) {
 				/* BAD - operation rejected */
@@ -1325,32 +1314,36 @@ void imap_parse_unsolicited (stream,reply)
 	MAILSTREAM *stream;
 	IMAPPARSEDREPLY *reply;
 {
-  unsigned long i,j;
   long msgno;
-  char *endptr;
+  char *s;
   char *keyptr,*txtptr;
 				/* see if key is a number */
-  msgno = strtol (reply->key,&endptr,10);
-  if (*endptr) {		/* if non-numeric */
+  msgno = strtol (reply->key,&s,10);
+  if (*s) {			/* if non-numeric */
     if (!strcmp (reply->key,"FLAGS")) imap_parse_flaglst (stream,reply);
     else if (!strcmp (reply->key,"SEARCH")) imap_searched (stream,reply->text);
     else if (!strcmp (reply->key,"MAILBOX")) {
-      sprintf (LOCAL->tmp,"{%s}%s",imap_host (stream),reply->text);
-      mm_mailbox (((*reply->text != '{') ||
-		   (*(strchr (stream->mailbox,'}')+1) == '{')) ?
-		  LOCAL->tmp : reply->text);
+      sprintf (LOCAL->tmp,"%s%s",LOCAL->prefix ? LOCAL->prefix:"",reply->text);
+      mm_mailbox (LOCAL->tmp);
     }
     else if (!strcmp (reply->key,"BBOARD")) {
-      sprintf (LOCAL->tmp,"{%s}%s",imap_host (stream),reply->text);
-      mm_bboard (((*reply->text != '{') ||
-		  (*(strchr (stream->mailbox,'}')+1) == '{')) ?
-		 LOCAL->tmp : reply->text);
+      sprintf (LOCAL->tmp,"%s%s",LOCAL->prefix ? LOCAL->prefix:"",reply->text);
+      mm_bboard (LOCAL->tmp);
     }
     else if (!strcmp (reply->key,"BYE")) {
       if (!stream->silent) mm_log (reply->text,(long) NIL);
     }
-    else if (!strcmp (reply->key,"OK"))
-      mm_notify (stream,reply->text,(long) NIL);
+    else if (!strcmp (reply->key,"OK") || !strcmp (reply->key,"PREAUTH")) {
+				/* note if server said it was readonly */
+      strncpy (LOCAL->tmp,reply->text,11);
+      LOCAL->tmp[11] = '\0';	/* tie off text */
+      if (strcmp (ucase (LOCAL->tmp),"[READ-ONLY]")) s = reply->text;
+      else {
+	stream->readonly = T;	/* make readonly now */
+	s = reply->text + 12;	/* skip the cookie */
+      }
+      mm_notify (stream,s,(long) NIL);
+    }
     else if (!strcmp (reply->key,"NO")) {
       if (!stream->silent) mm_notify (stream,reply->text,WARN);
     }
@@ -1693,17 +1686,9 @@ ADDRESS *imap_parse_address (stream,txtptr,reply)
       c = **txtptr;		/* set up for while test */
 				/* ignore leading spaces in front of next */
       while (c == ' ') c = *++*txtptr;
-      if (adr->mailbox) {	/* make sure address has a mailbox */
-				/* if no host default to server */
-	if (!adr->host) adr->host = cpystr (imap_host (stream));
-	if (!ret) ret = adr;	/* if first time note first adr */
+      if (!ret) ret = adr;	/* if first time note first adr */
 				/* if previous link new block to it */
-	if (prev) prev->next = adr;
-      }
-      else {			/* server return sick address, flush it */
-	mail_free_address (&adr);
-	adr = NIL;		/* get a new one next time through the loop */
-      }
+      if (prev) prev->next = adr;
     }
     break;
 
@@ -1761,6 +1746,7 @@ void imap_parse_flags (stream,elt,txtptr)
     if (c == ')') break;	/* quit if end of list */
   }
   ++*txtptr;			/* bump past delimiter */
+  mm_flags (stream,elt->msgno);	/* make sure top level knows */
 }
 
 /* Mail Access Protocol parse user flag
@@ -1803,7 +1789,7 @@ char *imap_parse_string (stream,txtptr,reply,special)
 {
   char *st;
   char *string = NIL;
-  unsigned long i,j;
+  unsigned long i;
   char c = **txtptr;		/* sniff at first character */
 				/* ignore leading spaces */
   while (c == ' ') c = *++*txtptr;

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	2 March 1993
+ * Last Edited:	21 September 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -50,11 +50,12 @@
 #include <errno.h>
 extern int errno;		/* just in case */
 #include <signal.h>
+#include <sys/time.h>		/* must be before osdep.h */
 #include "mail.h"
 #include "osdep.h"
+#include <pwd.h>
 #include <sys/file.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include "bezerk.h"
 #include "rfc822.h"
 #include "misc.h"
@@ -102,6 +103,8 @@ DRIVER bezerkdriver = {
 
 				/* prototype stream */
 MAILSTREAM bezerkproto = {&bezerkdriver};
+				/* standard driver's prototype */
+MAILSTREAM *mailstd_proto = &bezerkproto;
 
 /* Berkeley mail validate mailbox
  * Accepts: mailbox name
@@ -122,7 +125,7 @@ DRIVER *bezerk_valid (char *name)
 
 int bezerk_isvalid (char *name,char *tmp)
 {
-  int fd,ti,zn;
+  int i,fd,ti,zn;
   int ret = NIL;
   char *s = tmp,*t;
   struct stat sbuf;
@@ -135,13 +138,15 @@ int bezerk_isvalid (char *name,char *tmp)
 				/* INBOX is always accepted */
   if (!strcmp (ucase (strcpy (tmp,name)),"INBOX")) return T;
 				/* if file, get its status */
-  if (*name != '{' && (stat (bezerk_file (tmp,name),&sbuf) == 0) &&
+  if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
+      (stat (bezerk_file (tmp,name),&sbuf) == 0) &&
       ((fd = open (tmp,O_RDONLY,NIL)) >= 0)) {
     if (sbuf.st_size == 0) { 	/* allow empty file if not .txt */
-      if (!strstr (name,".txt")) ret = T;
+      if ((i = strlen (tmp)) < 4 || strcmp (tmp + i - 4 ,".txt"))
+	return LONGT;
     }
     else if ((read (fd,tmp,MAILTMPLEN-1) >= 0) &&
-	     (tmp[0] == 'F') && VALID (ti,zn)) ret = T;
+	     (tmp[0] == 'F') && VALID (s,t,ti,zn)) ret = T;
     close (fd);			/* close the file */
   }
   return ret;			/* return what we should */
@@ -156,6 +161,7 @@ int bezerk_isvalid (char *name,char *tmp)
 void *bezerk_parameters (long function,void *value)
 {
   fatal ("Invalid bezerk_parameters function");
+  return NIL;
 }
 
 /* Berkeley mail find list of mailboxes
@@ -168,8 +174,9 @@ void bezerk_find (MAILSTREAM *stream,char *pat)
   void *s = NIL;
   char *t,tmp[MAILTMPLEN];
   while (t = sm_read (&s))	/* read subscription database */
-    if ((*t != '{') && strcmp (t,"INBOX") && pmatch (t,pat) &&
-	bezerk_isvalid (t,tmp)) mm_mailbox (t);
+    if ((*t != '{') && (*t != '*') &&
+	strcmp (t,"INBOX") && pmatch (t,pat) && bezerk_isvalid (t,tmp))
+      mm_mailbox (t);
 }
 
 
@@ -180,7 +187,12 @@ void bezerk_find (MAILSTREAM *stream,char *pat)
 
 void bezerk_find_bboards (MAILSTREAM *stream,char *pat)
 {
-  /* Always a no-op */
+  void *s = NIL;
+  char *t,tmp[MAILTMPLEN];
+  while (t = sm_read (&s))	/* read subscription database */
+    if ((*t == '*') && (t[1] != '{') &&
+	pmatch (t+1,pat) && bezerk_isvalid (t+1,tmp))
+      mm_bboard (t+1);
 }
 
 /* Berkeley mail find list of all mailboxes
@@ -193,43 +205,25 @@ void bezerk_find_all (MAILSTREAM *stream,char *pat)
   DIR *dirp;
   struct direct *d;
   char tmp[MAILTMPLEN],file[MAILTMPLEN];
+  int i = 0;
   char *s,*t;
   if (s = strrchr (pat,'/')) {	/* directory specified in pattern? */
-    switch (*(t = pat)) {	/* yes, what is first character? */
-    case '/':			/* absolute file path */
-      tmp[0] = '\0';		/* no prefix */
-      break;
-    case '~':			/* home directory */
-      t = strchr (pat,'/');	/* skip to first directory */
-      strcpy (tmp,myhomedir ());/* base is home directory */
-      break;
-    default:			/* relative path */
-      sprintf (tmp,"%s/",myhomedir ());
-      break;
-    }
-    if (s != t) strncat (tmp,t,s - t);
-    s++;			/* pattern to search */
-    t = tmp;			/* directory to search */
+    strncpy (file,pat,i = (++s) - pat);
+    file[i] = '\0';		/* tie off prefix */
+    t = bezerk_file (tmp,pat);	/* make fully-qualified file name */
+				/* tie off directory name */
+    if (s = strrchr (t,'/')) *s = '\0';
   }
-  else {			/* no directory specified */
-    s = pat;			/* use entire pattern for pmatch */
-    t = myhomedir ();		/* use home directory to search */
-  }
+  else t = myhomedir ();	/* use home directory to search */
   if (dirp = opendir (t)) {	/* now open that directory */
-    sprintf (file,"%s/",t);	/* build filename prefix */
-    t = file + strlen (file);	/* where we write the file name */
-				/* for each matching directory entry */
-    while (d = readdir (dirp)) if (pmatch (d->d_name,s)) {
-      strcpy (t,d->d_name);	/* write the file name */
-      if (bezerk_isvalid (file,tmp)) mm_mailbox (file);
+    while (d = readdir (dirp)) {/* for each directory entry */
+      strcpy (file + i,d->d_name);
+      if (pmatch (file,pat) && (bezerk_isvalid (file,tmp))) mm_mailbox (file);
     }
     closedir (dirp);		/* flush directory */
   }
-				/* always an INBOX for full wildcard */
-  if (!strcmp (pat,"*")) mm_mailbox ("INBOX");
 }
-
-
+
 /* Berkeley mail find list of all bboards
  * Accepts: mail stream
  *	    pattern to search
@@ -237,7 +231,26 @@ void bezerk_find_all (MAILSTREAM *stream,char *pat)
 
 void bezerk_find_all_bboards (MAILSTREAM *stream,char *pat)
 {
-  /* Always a no-op */
+  DIR *dirp;
+  struct direct *d;
+  struct passwd *pw;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN];
+  int i = 1;
+  char *s;
+  if (!((pw = getpwnam ("ftp")) && pw->pw_dir)) return;
+  file[0] = '*';		/* bboard designator */
+				/* directory specified in pattern? */
+  if (s = strrchr (pat,'/')) strncpy (file + 1,pat,i += (++s) - pat);
+  file[i] = '\0';		/* tie off prefix */
+  sprintf (tmp,"%s/%s",pw->pw_dir,(file[1] == '/') ? file + 2 : file + 1);
+  if (dirp = opendir (tmp)) {	/* now open that directory */
+    while (d = readdir (dirp)) {/* for each directory entry */
+      strcpy (file + i,d->d_name);
+      if (pmatch (file + 1,pat) && (bezerk_isvalid (file,tmp)))
+	mm_bboard (file + 1);
+    }
+    closedir (dirp);		/* flush directory */
+  }
 }
 
 /* Berkeley mail subscribe to mailbox
@@ -298,8 +311,13 @@ long bezerk_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox)
 long bezerk_create (MAILSTREAM *stream,char *mailbox)
 {
   char tmp[MAILTMPLEN];
-  int fd = open (bezerk_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600);
-  if (fd < 0) {			/* failed */
+  int i,fd;
+				/* must be a ".txt" file */
+  if ((i = strlen (mailbox)) > 4 && !strcmp (mailbox + i - 4 ,".txt")) {
+    mm_log ("Can't create mailbox: name must not end with .txt",ERROR);
+    return NIL;
+  }
+  if ((fd = open (bezerk_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600))<0) {
     sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -388,8 +406,12 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
   stream->local = fs_get (sizeof (BEZERKLOCAL));
 				/* canonicalize the stream mailbox name */
   bezerk_file (tmp,stream->mailbox);
-  fs_give ((void **) &stream->mailbox);
-  stream->mailbox = cpystr (tmp);
+				/* force readonly if bboard */
+  if (*stream->mailbox == '*') stream->readonly = T;
+  else {			/* canonicalize name */
+    fs_give ((void **) &stream->mailbox);
+    stream->mailbox = cpystr (tmp);
+  }
   /* You may wonder why LOCAL->name is needed.  It isn't at all obvious from
    * the code.  The problem is that when a stream is recycled with another
    * mailbox of the same type, the driver's close method isn't called because
@@ -401,7 +423,7 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
    */
   LOCAL->name = cpystr (tmp);	/* local copy for recycle case */
 				/* build name of our lock file */
-  LOCAL->lname = cpystr (lockname (tmp,stream->mailbox));
+  LOCAL->lname = cpystr (lockname (tmp,LOCAL->name));
   LOCAL->ld = NIL;		/* no state locking yet */
   LOCAL->filesize = 0;		/* initialize file information */
   LOCAL->filetime = 0;
@@ -424,7 +446,7 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
 	    (read (fd,tmp,i) == i) && (i = atol (tmp))) {
 	  kill (i,SIGUSR2);	/* send the Kiss Of Death */
 	  sprintf (tmp,"Trying to get mailbox lock from process %ld",i);
-	  mm_log (tmp,NIL);
+	  mm_log (tmp,WARN);
 	}
 	else retry = 0;		/* give up */
       }
@@ -438,7 +460,8 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
       chmod (LOCAL->lname,0666);/* make sure mode OK (don't use fchmod()) */
 				/* note our PID in the lock */
       sprintf (tmp,"%d",getpid ());
-      write (fd,tmp,strlen (tmp));
+      write (fd,tmp,(i = strlen (tmp))+1);
+      ftruncate (fd,i);		/* make sure tied off */
       fsync (fd);		/* make sure it's available */
       retry = 0;		/* no more need to try */
     }
@@ -456,7 +479,7 @@ MAILSTREAM *bezerk_open (MAILSTREAM *stream)
     fs_give ((void **) &LOCAL->lname);
   }
 				/* parse mailbox */
-  if ((fd = bezerk_parse (stream,tmp)) >= 0) {
+  if ((fd = bezerk_parse (stream,tmp,LOCK_SH)) >= 0) {
     bezerk_unlock (fd,stream,tmp);
     mail_unlock (stream);
   }
@@ -479,8 +502,7 @@ void bezerk_close (MAILSTREAM *stream)
   if (LOCAL && LOCAL->ld) {	/* is stream alive? */
     stream->silent = T;		/* note this stream is dying */
 				/* lock mailbox and parse new messages */
-    if (LOCAL->dirty && (fd = bezerk_parse (stream,lock)) >= 0) {
-      flock (fd,LOCK_EX);	/* upgrade the lock to exclusive access */
+    if (LOCAL->dirty && (fd = bezerk_parse (stream,lock,LOCK_EX)) >= 0) {
 				/* dump any changes not saved yet */
       if (bezerk_extend	(stream,fd,"Close failed to update mailbox"))
 	bezerk_save (stream,fd);
@@ -596,7 +618,8 @@ char *bezerk_fetchheader (MAILSTREAM *stream,long msgno)
 {
   FILECACHE *m = LOCAL->msgs[msgno - 1];
 				/* copy the string */
-  return strcrlfcpy (&LOCAL->buf,&LOCAL->buflen,m->header,m->headersize);
+  strcrlfcpy (&LOCAL->buf,&LOCAL->buflen,m->header,m->headersize);
+  return LOCAL->buf;
 }
 
 
@@ -616,7 +639,8 @@ char *bezerk_fetchtext (MAILSTREAM *stream,long msgno)
     bezerk_update_status (m->status,elt);
     LOCAL->dirty = T;		/* note stream is now dirty */
   }
-  return strcrlfcpy (&LOCAL->buf,&LOCAL->buflen,m->body,m->bodysize);
+  strcrlfcpy (&LOCAL->buf,&LOCAL->buflen,m->body,m->bodysize);
+  return LOCAL->buf;
 }
 
 /* Berkeley fetch message body as a structure
@@ -849,7 +873,7 @@ long bezerk_ping (MAILSTREAM *stream)
 				/* get current mailbox size */
     stat (LOCAL->name,&sbuf);	/* parse if mailbox changed */
     if ((sbuf.st_size != LOCAL->filesize) &&
-	((fd = bezerk_parse (stream,lock)) >= 0)) {
+	((fd = bezerk_parse (stream,lock,LOCK_SH)) >= 0)) {
 				/* unlock mailbox */
       bezerk_unlock (fd,stream,lock);
       mail_unlock (stream);	/* and stream */
@@ -868,13 +892,9 @@ void bezerk_check (MAILSTREAM *stream)
   char lock[MAILTMPLEN];
   int fd;
 				/* parse and lock mailbox */
-  if (LOCAL && LOCAL->ld && ((fd = bezerk_parse (stream,lock)) >= 0)) {
-    if (LOCAL->dirty) {		/* only if checkpoint needed */
-      flock (fd,LOCK_EX);	/* upgrade the lock to exclusive access */
-				/* dump a checkpoint */
-      if (bezerk_extend (stream,fd,"Unable to update mailbox"))
-	bezerk_save (stream,fd);
-    }
+  if (LOCAL && LOCAL->ld && ((fd = bezerk_parse (stream,lock,LOCK_EX)) >= 0)) {
+    if (LOCAL->dirty && bezerk_extend (stream,fd,"Unable to update mailbox"))
+      bezerk_save (stream,fd);	/* dump checkpoint if needed */
 				/* flush locks */
     bezerk_unlock (fd,stream,lock);
     mail_unlock (stream);
@@ -896,12 +916,11 @@ void bezerk_expunge (MAILSTREAM *stream)
   char *r = "No messages deleted, so no update needed";
   char lock[MAILTMPLEN];
   if (LOCAL && LOCAL->ld) {	/* parse and lock mailbox */
-    if ((fd = bezerk_parse (stream,lock)) >= 0) {
+    if ((fd = bezerk_parse (stream,lock,LOCK_EX)) >= 0) {
       recent = stream->recent;	/* get recent now that new ones parsed */
       while ((j = (i<=stream->nmsgs)) && !(elt = mail_elt (stream,i))->deleted)
 	i++;			/* find first deleted message */
       if (j) {			/* found one? */
-	flock (fd,LOCK_EX);	/* upgrade the lock to exclusive access */
 				/* make sure we can do the worst case thing */
 	if (bezerk_extend (stream,fd,"Unable to expunge mailbox")) {
 	  do {			/* flush deleted messages */
@@ -981,49 +1000,67 @@ long bezerk_move (MAILSTREAM *stream,char *sequence,char *mailbox)
  * Returns: T if append successful, else NIL
  */
 
+#define BUFLEN 8*MAILTMPLEN
+
 long bezerk_append (MAILSTREAM *stream,char *mailbox,STRING *message)
 {
   struct stat sbuf;
-  int fd;
-  char c,tmp[MAILTMPLEN],lock[MAILTMPLEN];
-  int i = 0;
-  char *s = tmp;
-  long t = time (0);
+  int fd,i;
+  char buf[BUFLEN],lock[MAILTMPLEN];
+  char c = '\n';
+  long ok = T;
+  unsigned long t = time (0);
   long size = SIZE (message);
-  if ((fd = bezerk_lock (bezerk_file (tmp,mailbox),O_WRONLY|O_APPEND|O_CREAT,
+  if ((fd = bezerk_lock (bezerk_file (buf,mailbox),O_WRONLY|O_APPEND|O_CREAT,
 			 S_IREAD|S_IWRITE,lock,LOCK_EX)) < 0) {
-    sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
-    mm_log (tmp,ERROR);
+    sprintf (buf,"Can't open append mailbox: %s",strerror (errno));
+    mm_log (buf,ERROR);
     return NIL;
   }
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
-  sprintf (tmp,"From %s@%s %s",myusername (),lhostn,ctime (&t));
-				/* write header */
-  if (write (fd,tmp,strlen (tmp)) < 0) {
-    sprintf (tmp,"Header write failed: %s",strerror (errno));
-    mm_log (tmp,ERROR);
-    ftruncate (fd,sbuf.st_size);
-  }  
-  else while (size--) {		/* copy text, tossing out CR's */
-    if ((c = SNX (message)) != '\015') s[i++] = c;
-				/* dump if filled buffer or no more data */
-    if ((!size) || (i == MAILTMPLEN)) {
-      if ((write (fd,tmp,i)) < 0) {
-	sprintf (tmp,"Message append failed: %s",strerror (errno));
-	mm_log (tmp,ERROR);
-	ftruncate (fd,sbuf.st_size);
-	break;
-      }
-      i = 0;			/* restart buffer */
-				/* write out final newline if at end */
-      if (!size) write (fd,"\n",1);
+  sprintf (buf,"From %s@%s %s",myusername (),lhostn,ctime (&t));
+  i = strlen (buf);		/* initial buffer space used */
+  while (ok && size--) {	/* copy text, tossing out CR's */
+    if (c == '\n') {		/* if at start of line */
+      t = GETPOS (message);	/* prepend a broket if needed */
+      if ((SNX (message) == 'F') && (SNX (message) == 'r') &&
+	  (SNX (message) == 'o') && (SNX (message) == 'm') &&
+	  (SNX (message) == ' ')) ok = bezerk_append_putc (fd,buf,&i,'>');
+      SETPOS (message,t);	/* restore position as needed */
     }
+				/* copy another character */
+    if ((c = SNX (message)) != '\015') ok = bezerk_append_putc (fd,buf,&i,c);
+  }
+				/* write trailing newline */
+  if (ok) ok = bezerk_append_putc (fd,buf,&i,'\n');
+  if (!(ok && (ok = (write (fd,buf,i) >= 0)))) {
+    sprintf (buf,"Message append failed: %s",strerror (errno));
+    mm_log (buf,ERROR);
+    ftruncate (fd,sbuf.st_size);
   }
   fsync (fd);			/* force out the update */
   bezerk_unlock (fd,NIL,lock);	/* unlock and close mailbox */
   mm_nocritical (stream);	/* release critical */
-  return T;			/* return success */
+  return ok;			/* return success */
+}
+
+/* Berkeley mail append character
+ * Accepts: file descriptor
+ *	    output buffer
+ *	    pointer to current size of output buffer
+ *	    character to append
+ * Returns: T if append successful, else NIL
+ */
+
+long bezerk_append_putc (int fd,char *s,int *i,char c)
+{
+  s[(*i)++] = c;
+  if (*i == BUFLEN) {		/* dump if buffer filled */
+    if (write (fd,s,*i) < 0) return NIL;
+    *i = 0;			/* reset */
+  }
+  return T;
 }
 
 /* Berkeley garbage collect stream
@@ -1065,8 +1102,7 @@ void bezerk_abort (MAILSTREAM *stream)
     stream->dtb = NIL;		/* log out the DTB */
   }
 }
-
-
+
 /* Berkeley mail generate file string
  * Accepts: temporary buffer to write into
  *	    mailbox name string
@@ -1076,13 +1112,24 @@ void bezerk_abort (MAILSTREAM *stream)
 
 char *bezerk_file (char *dst,char *name)
 {
-  char *s;
+  struct passwd *pw;
+  char *s,*t,tmp[MAILTMPLEN];
   switch (*name) {
+  case '*':			/* bboard? */
+    sprintf (tmp,"~ftp/%s",(name[1] == '/') ? name+2 : name+1);
+    dst = bezerk_file (dst,tmp);/* recurse to get result */
+    break;
   case '/':			/* absolute file path */
     strcpy (dst,name);		/* copy the mailbox name */
     break;
   case '~':			/* home directory */
-    sprintf (dst,"%s%s",myhomedir (),(s = strchr (name,'/')) ? s : "");
+    if (name[1] == '/') t = myhomedir ();
+    else {
+      strcpy (tmp,name + 1);	/* copy user name */
+      if (s = strchr (tmp,'/')) *s = '\0';
+      t = ((pw = getpwnam (tmp)) && pw->pw_dir) ? pw->pw_dir : "/NOSUCHUSER";
+    }
+    sprintf (dst,"%s%s",t,(s = strchr (name,'/')) ? s : "");
     break;
   default:			/* other name */
     if (strcmp (ucase (strcpy (dst,name)),"INBOX"))
@@ -1165,7 +1212,7 @@ int bezerk_lock (char *file,int flags,int mode,char *lock,int op)
       break;
     }
     if (ld >= 0) {		/* if made a lock file */
-      chmod (tmp,0666);		/* make sure others can break the lock */
+      chmod (lock,0666);	/* make sure others can break the lock */
       close (ld);		/* close the lock file */
     }
 #endif
@@ -1218,26 +1265,27 @@ void bezerk_unlock (int fd,MAILSTREAM *stream,char *lock)
 /* Berkeley mail parse and lock mailbox
  * Accepts: MAIL stream
  *	    space to write lock file name
+ *	    type of locking operation
  * Returns: file descriptor if parse OK, mailbox is locked shared
  *	    -1 if failure, stream aborted
  */
 
-int bezerk_parse (MAILSTREAM *stream,char *lock)
+int bezerk_parse (MAILSTREAM *stream,char *lock,int op)
 {
   int fd;
   long delta,i,j,is,is1;
-  char *s,*s1,*t,*e;
-  int ti,zn;
+  char *s,*s1,*t = NIL,*e;
+  int ti = 0,zn = 0;
   int first = T;
   long nmsgs = stream->nmsgs;
   long recent = stream->recent;
   struct stat sbuf;
   MESSAGECACHE *elt;
-  FILECACHE *m = NIL,*n;
+  FILECACHE *m = NIL,*n = NIL;
   mail_lock (stream);		/* guard against recursion or pingers */
 				/* open and lock mailbox (shared OK) */
   if ((fd = bezerk_lock (LOCAL->name,LOCAL->ld ? O_RDWR : O_RDONLY,NIL,
-			 lock,LOCK_SH)) < 0) {
+			 lock,op)) < 0) {
 				/* failed, OK for non-ex file? */
     if ((errno != ENOENT) || LOCAL->filesize) {
       sprintf (LOCAL->buf,"Mailbox open failed, aborted: %s",strerror (errno));
@@ -1293,7 +1341,7 @@ int bezerk_parse (MAILSTREAM *stream,char *lock)
       delta -= i;		/* account for data read in */
 				/* validate newly-appended data */
       if (first) {		/* only do this first time! */
-	if (!((*s =='F') && VALID (ti,zn))) {
+	if (!((*s =='F') && VALID (s,t,ti,zn))) {
 	  mm_log ("Mailbox format invalidated (consult an expert), aborted",
 		  ERROR);
 	  bezerk_unlock (fd,stream,lock);
@@ -1307,15 +1355,15 @@ int bezerk_parse (MAILSTREAM *stream,char *lock)
 				/* found end of message or end of data? */
       while ((e = bezerk_eom (s,s1,i)) || !delta) {
 	nmsgs++;		/* yes, have a new message */
-	if (e) j = (e - s) - 1;	/* calculate message length */
-	else j = strlen (s) - 1;/* otherwise is remainder of data */
+				/* calculate message length */
+	j = ((e ? e : s1 + i) - s) - 1;
 	if (m) {		/* new cache needed, have previous data? */
 	  n->header = (char *) fs_get (sizeof (FILECACHE) + j + 1);
 	  n = (FILECACHE *) n->header;
 	}
 	else m = n = (FILECACHE *) fs_get (sizeof (FILECACHE) + j + 1);
 				/* copy message data */
-	strncpy (n->internal,s,j);
+	memcpy (n->internal,s,j);
 	n->internal[j] = '\0';
 	n->header = NIL;	/* initially no link */
 	n->headersize = j;	/* stash away buffer length */
@@ -1361,10 +1409,12 @@ int bezerk_parse (MAILSTREAM *stream,char *lock)
      * if memory is corrupted.  Note that in the case of a totally empty
      * message, a newline is appended and counts adjusted.
      */
-    if ((!((s = m->internal) && VALID (ti,zn))) &&
-	!(s && !strchr (s,'\n') && strcat (s,"\n") && VALID (ti,zn) &&
-	  m->headersize++)) fatal ("Bogus entry in new cache list");
-    m->header = s = ++t;	/* pointer to message header */
+    if (!((s = m->internal) && VALID (s,t,ti,zn)))
+      if (!(s && !strchr (s,'\n') && strcat (s,"\n") && VALID (s,t,ti,zn) &&
+	    m->headersize++))
+	fatal ("Bogus entry in new cache list");
+				/* pointer to message header */
+    m->header = s = strchr (t++,'\n') + 1;
     m->headersize -= m->header - m->internal;
     m->body = NIL;		/* assume no body as yet */
     m->bodysize = 0;
@@ -1518,20 +1568,20 @@ char *bezerk_eom (char *som,char *sod,long i)
   strcpy (wdtest.ch,"AAAA1234");/* constant for word testing */
   while ((s > som) && *s-- != '\n');
   if (wdtest.wd != 0x41414141) {/* not a 32-bit word machine? */
-    while (s = strstr (s,"\nFrom ")) if (s++ && VALID (ti,zn)) return s;
+    while (s = strstr (s,"\nFrom ")) if (s++ && VALID (s,t,ti,zn)) return s;
   }
   else {			/* can do it faster this way */
     register Word m = 0x0a0a0a0a;
     while ((long) s & 3)	/* any characters before word boundary? */
-      if ((*s++ == '\n') && s[0] == 'F' && VALID (ti,zn)) return s;
+      if ((*s++ == '\n') && s[0] == 'F' && VALID (s,t,ti,zn)) return s;
     i = (sod + i) - s;		/* total number of tries */
     do {			/* fast search for newline */
       if (0x80808080 & (0x01010101 + (0x7f7f7f7f & ~(m ^ *(Word *) s)))) {
 				/* interesting word, check it closer */
-	if (*s++ == '\n' && s[0] == 'F' && VALID (ti,zn)) return s;
-	else if (*s++ == '\n' && s[0] == 'F' && VALID (ti,zn)) return s;
-	else if (*s++ == '\n' && s[0] == 'F' && VALID (ti,zn)) return s;
-	else if (*s++ == '\n' && s[0] == 'F' && VALID (ti,zn)) return s;
+	if (*s++ == '\n' && s[0] == 'F' && VALID (s,t,ti,zn)) return s;
+	else if (*s++ == '\n' && s[0] == 'F' && VALID (s,t,ti,zn)) return s;
+	else if (*s++ == '\n' && s[0] == 'F' && VALID (s,t,ti,zn)) return s;
+	else if (*s++ == '\n' && s[0] == 'F' && VALID (s,t,ti,zn)) return s;
       }
       else s += 4;		/* try next word */
       i -= 4;			/* count a word checked */
@@ -1659,8 +1709,12 @@ int bezerk_copy_messages (MAILSTREAM *stream,char *mailbox)
   int ok = T;
 				/* make sure valid mailbox */
   if (!bezerk_isvalid (mailbox,file)) {
-    sprintf (LOCAL->buf,"Not a Berkeley-format mailbox: %s",mailbox);
-    mm_log (LOCAL->buf,ERROR);
+    if (errno == ENOENT)	/* failed, was it no such file? */
+      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+    else {
+      sprintf (LOCAL->buf,"Not a Berkeley-format mailbox: %s",mailbox);
+      mm_log (LOCAL->buf,ERROR);
+    }
     return NIL;
   }
   if ((fd = bezerk_lock (bezerk_file (file,mailbox),O_WRONLY|O_APPEND|O_CREAT,
@@ -1901,7 +1955,7 @@ char bezerk_search_unseen (MAILSTREAM *stream,long msgno,char *d,long n)
 char bezerk_search_before (MAILSTREAM *stream,long msgno,char *d,long n)
 {
   MESSAGECACHE *elt = mail_elt (stream,msgno);
-  return (char) (((elt->year << 9) + (elt->month << 5) + elt->day) < n);
+  return (char) ((long) ((elt->year << 9) + (elt->month << 5) + elt->day) < n);
 }
 
 
@@ -1916,7 +1970,7 @@ char bezerk_search_since (MAILSTREAM *stream,long msgno,char *d,long n)
 {
 				/* everybody interprets "since" as .GE. */
   MESSAGECACHE *elt = mail_elt (stream,msgno);
-  return (char) (((elt->year << 9) + (elt->month << 5) + elt->day) >= n);
+  return (char)((long) ((elt->year << 9) + (elt->month << 5) + elt->day) >= n);
 }
 
 

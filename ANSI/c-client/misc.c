@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	13 September 1992
+ * Last Edited:	7 June 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -99,7 +99,7 @@ char *cpystr (char *string)
  * Bit is cleared in the word
  */
 
-long find_rightmost_bit (long *valptr)
+unsigned long find_rightmost_bit (unsigned long *valptr)
 {
   register long value= *valptr;
   register long clearbit;	/* bit to clear */
@@ -231,28 +231,20 @@ long ssrc (char **base,long *tries,char *pat,long multiword)
 
 long pmatch (char *s,char *pat)
 {
-  char tmp[MAILTMPLEN];
-  char c;
-  char *t = tmp;
-  *t++ = '^';			/* convert wildcard to regular expression */
-  while (c = *pat++) switch (c) {
-  case '*':
-    *t++ = '.';			/* wildcard characters */
-    *t++ = '*';
+  switch (*pat) {
+  case '*':			/* match 0 or more characters */
+    if (!pat[1]) return T;	/* pattern ends with * wildcard */
+				/* if still more, hunt through rest of base */
+    for (; *s; s++) if (pmatch (s,pat+1)) return T;
     break;
-  case '?':
-    *t++ = '.';			/* wildcard character */
-    break;
-  case '.':
-  case '[':
-  case '\\':
-    *t++ = '\\';		/* quote it and fall into default case */
-  default:
-    *t++ = c;			/* copy character */
-    break;
+  case '%':			/* match 1 character (RFC-1176) */
+  case '?':			/* match 1 character (common) */
+    return pmatch (s+1,pat+1);	/* continue matching remainder */
+  case '\0':			/* end of pattern */
+    return *s ? NIL : T;	/* success if also end of base */
+  default:			/* match this character */
+    return ((isupper (*pat) ? *pat + 'a'-'A' : *pat) ==
+	    (isupper (*s) ? *s + 'a'-'A' : *s)) ? pmatch (s+1,pat+1) : NIL;
   }
-  *t++ = '$';			/* constrained at both ends */
-  *t = '\0';			/* tie off regular expression */
-				/* do the match -- some systems lack recmp */
-  return (!re_comp (tmp)) && (re_exec (s) > 0);
+  return NIL;
 }

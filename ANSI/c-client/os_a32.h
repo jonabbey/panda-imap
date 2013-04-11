@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	4 December 1992
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -75,7 +75,8 @@ void *fs_get (size_t size);
 void fs_resize (void **block,size_t size);
 void fs_give (void **block);
 void fatal (char *string);
-char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl);
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl);
 unsigned long strcrlflen (STRING *s);
 long server_login (char *user,char *pass,char **home,int argc,char *argv[]);
 char *myusername ();

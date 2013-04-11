@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	4 February 1993
+ * Last Edited:	16 August 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -39,16 +39,15 @@
 #define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 #define NFSKLUDGE
 
-#define strstr Strstr		/* override system definition */
-
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
 
-extern char *strerror ();
-extern char *memmove ();
+
+#define strstr Strstr		/* override system definition */
+
 
 /* Dummy definition overridden by TCP routines */
 
@@ -63,7 +62,7 @@ void *fs_get  ();
 void fs_resize  ();
 void fs_give  ();
 void fatal  ();
-char *strcrlfcpy  ();
+unsigned long strcrlfcpy  ();
 unsigned long strcrlflen  ();
 long server_login  ();
 char *myusername ();
@@ -79,3 +78,6 @@ long tcp_sout  ();
 void tcp_close  ();
 char *tcp_host  ();
 char *tcp_localhost  ();
+char *memmove  ();
+char *Strstr  ();
+char *strerror  ();

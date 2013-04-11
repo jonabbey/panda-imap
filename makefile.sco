@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	14 July 1992
+# Last Edited:	4 August 1993
 #
 # Copyright 1992 by the University of Washington
 #

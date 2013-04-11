@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	4 December 1992
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -46,6 +46,7 @@
 #include <sys/fcntl.h>
 #include <unistd.h>
 #include <time.h>
+#include <dirent.h>
 
 
 /* Different names, equivalent things in BSD and SysV */
@@ -67,25 +68,15 @@
 
 /* For writev() emulation */
 
-struct	iovec {
-  caddr_t	iov_base;
-  int		iov_len;
+struct iovec {
+  caddr_t iov_base;
+  int iov_len;
 };
 
 
 /* For setitimer() emulation */
 
 #define ITIMER_REAL	0
-
-struct Timeval {
-  long tv_sec;
-  long tv_usec;
-};
-
-struct  itimerval {
-  struct Timeval it_interval;
-  struct Timeval it_value;
-};
 
 
 /* For geteuid emulation */
@@ -105,7 +96,8 @@ void *fs_get (size_t size);
 void fs_resize (void **block,size_t size);
 void fs_give (void **block);
 void fatal (char *string);
-char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl);
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl);
 unsigned long strcrlflen (STRING *s);
 long server_login (char *user,char *pass,char **home,int argc,char *argv[]);
 char *myusername ();
@@ -124,10 +116,9 @@ char *tcp_localhost (TCPSTREAM *stream);
 
 unsigned long gethostid (void);
 long random (void);
-char *re_comp (char *str);
-long re_exec (char *str);
 int scandir (char *dirname,struct direct ***namelist,int (*select)(),int (*compar)());
 int ftruncate (int fd,off_t length);
 int fsync (int fd);
 int writev (int fd,struct iovec *iov,int iovcnt);
 int setitimer (int which,struct itimerval *val,struct itimerval *oval);
+int Geteuid ();

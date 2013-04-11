@@ -8,10 +8,10 @@
 #		Seattle, WA  98195
 #		Internet: MRC@CAC.Washington.EDU
 #
-# Date:		11 May 1989
-# Last Edited:	10 January 1992
+# Date:		4 August 1993
+# Last Edited:	4 August 1993
 #
-# Copyright 1992 by the University of Washington
+# Copyright 1993 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -31,22 +31,13 @@
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
-C = ../c-client
+.IGNORE:
+.SILENT:
 
-CCMD = ../../../ccmd
-
-# Get local CFLAGS and LFLAGS definitions from c-client directory
-
-CFLAGS = -I$C -I$(CCMD) `cat $C/CFLAGS`
-LDFLAGS = $(CCMD)/ccmd.a $C/c-client.a -ltermlib `cat $C/LDFLAGS`
-
-ms: C-CLIENT ms.o $(CCMD)/ccmd.a
-	$(CC) $(CFLAGS) -o ms ms.o $(LDFLAGS)
-
-ms.o: $C/mail.h $C/smtp.h $C/rfc822.h $C/misc.h $C/osdep.h
-
-C-CLIENT:
-	cd $C;make
+all:
+	echo If CCMD library is not available, ms will not be made.
+	echo This is alright since ms is only a demonstration program.
+	./makeifexists ../../../ccmd make.ms
 
 clean:
 	rm -f *.o ms

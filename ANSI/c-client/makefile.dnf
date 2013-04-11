@@ -1,0 +1,78 @@
+# Program:	Portable C client makefile -- MS-DOS (PC-NFS) version
+#
+# Author:	Mike Seibel from Novell version by Mark Crispin
+#		Networks and Distributed Computing
+#		Computing & Communications
+#		University of Washington
+#		Administration Building, AG-44
+#		Seattle, WA  98195
+#		Internet: MikeS@CAC.Washington.EDU
+#
+# Date:		11 May 1989
+# Last Edited:	29 July 1993
+#
+# Copyright 1993 by the University of Washington
+#
+#  Permission to use, copy, modify, and distribute this software and its
+# documentation for any purpose and without fee is hereby granted, provided
+# that the above copyright notice appears in all copies and that both the
+# above copyright notice and this permission notice appear in supporting
+# documentation, and that the name of the University of Washington not be
+# used in advertising or publicity pertaining to distribution of the software
+# without specific, written prior permission.  This software is made
+# available "as is", and
+# THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
+# WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
+# NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
+# INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
+# (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+CFLAGS= -Os -AL -Gy -Gt2 -I\nfs\ptk40\include
+# for debugging
+#CFLAGS=	-Zi -Od -AL -Gy -Gt2
+
+all:	mtest.exe
+	
+.c.obj:
+	$(CC) -c $(CFLAGS) $*.c
+
+osdep.h: os_dnf.h
+	copy os_dnf.h osdep.h
+
+mtest.obj: mail.h smtp.h misc.h osdep.h mtest.c
+
+mail.obj: mail.h misc.h osdep.h mail.c
+
+imap2.obj: mail.h imap2.h misc.h osdep.h imap2.c
+
+dawz.obj: mail.h dawz.h misc.h osdep.h dawz.c
+
+nntpcdos.obj: mail.h nntpcdos.h misc.h osdep.h nntpcdos.c
+
+dummydos.obj: mail.h dummy.h misc.h osdep.h dummydos.c
+
+smtp.obj: mail.h smtp.h rfc822.h misc.h osdep.h smtp.c
+
+nntp.obj: mail.h nntp.h smtp.h rfc822.h misc.h osdep.h nntp.c
+
+rfc822.obj: mail.h rfc822.h misc.h rfc822.c
+
+misc.obj: mail.h misc.h misc.c
+
+sm_dos.obj: mail.h misc.h sm_dos.c
+
+osdep.obj: mail.h osdep.h os_dnf.c
+	erase osdep.obj
+	cl -c $(CFLAGS) os_dnf.c
+	rename os_dnf.obj osdep.obj
+
+cclient.lib: mail.obj imap2.obj dawz.obj nntpcdos.obj dummydos.obj smtp.obj \
+	nntp.obj misc.obj rfc822.obj sm_dos.obj osdep.obj
+	erase cclient.lib
+	lib cclient +mail+imap2+dawz+nntpcdos+dummydos+smtp+nntp+misc+rfc822+sm_dos+osdep;
+
+mtest.exe: mtest.obj cclient.lib
+	link /stack:32767 mtest.obj,mtest.exe,,cclient.lib ltklib.lib;

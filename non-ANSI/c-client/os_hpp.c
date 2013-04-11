@@ -8,7 +8,7 @@
  *		Internet: dmiller@beta.tricity.wsu.edu
  *
  * Date:	11 May 1989
- * Last Edited:	9 March 1993
+ * Last Edited:	16 August 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -151,9 +151,10 @@ void fatal (string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (dst,dstl,src,srcl)
+unsigned long strcrlfcpy (dst,dstl,src,srcl)
 	char **dst;
 	unsigned long *dstl;
 	char *src;
@@ -184,13 +185,13 @@ char *strcrlfcpy (dst,dstl,src,srcl)
     break;
   }
   *d = '\0';			/* tie off destination */
-  return *dst;			/* return destination */
+  return d - *dst;		/* return length */
 }
 
 
 /* Length of string after strcrlfcpy applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (s)
@@ -222,10 +223,12 @@ unsigned long strcrlflen (s)
  * Returns: T if password validated, NIL otherwise
  */
 
-long server_login (user,pass,home)
+long server_login (user,pass,home,argc,argv)
 	char *user;
 	char *pass;
 	char **home;
+	int argc;
+	char *argv[];
 {
   struct passwd *pw = getpwnam (lcase (user));
 				/* no entry for this user or root */
@@ -410,7 +413,7 @@ TCPSTREAM *tcp_aopen (host,service)
     dup2 (pipeo[0],0);		/* parent's output is my input */
     close (pipeo[0]); close (pipeo[1]);
 				/* now run it */
-    execl ("/usr/ucb/remsh","remsh",hostname,"exec",service,0);
+    execl ("/usr/bin/remsh","remsh",hostname,"exec",service,0);
     _exit (1);			/* spazzed */
   }
 
@@ -438,7 +441,6 @@ char *tcp_getline (stream)
 {
   int n,m;
   char *st,*ret,*stp;
-  char tmp[2];
   char c = '\0';
   char d;
 				/* make sure have data */
@@ -636,7 +638,7 @@ char *strstr (cs,ct)
 {
   char *s;
   char *t;
-  while (cs = index (cs,*ct)) {	/* for each occurance of the first character */
+  while (cs = strchr (cs,*ct)) {/* for each occurance of the first character */
 				/* see if remainder of string matches */
     for (s = cs + 1, t = ct + 1; *t && *s == *t; s++, t++);
     if (!*t) return cs;		/* if ran out of substring then have match */
@@ -760,33 +762,6 @@ long gethostid ()
 long random ()
 {
   return lrand48 ();
-}
-
-
-/* Emulator for BSD re_comp() call
- * Accepts: character string to compile
- * Returns: 0 if successful, else error message
- * Uses the regcomp(3C) libraries.
- */
-
-regex_t preg;
-
-char *re_comp(str)
-	char *str;
-{
-  return regcomp (&preg,str,0) ? 0 : "invalid string" ;
-}
-
-
-/* Emulator for BSD re_exec() call
- * Accepts : string to match
- * Returns: 1 if string matches, 0 if fails to match
- */
-
-long re_exec(str)
-	char *str;
-{
-  return (regexec (&preg,str,(size_t) 0,NIL)) ? 1 : 0;
 }
 
 /* Emulator for BSD flock() call

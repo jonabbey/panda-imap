@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	15 February 1993
+ * Last Edited:	21 September 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -44,14 +44,43 @@
  *
  */
 
-/* Build parameters */
+/* Validate line known to start with ``F''
+ * Accepts: pointer to candidate string to validate as a From header
+ *	    return pointer to end of date/time field
+ *	    return pointer to offset from t of time (hours of ``mmm dd hh:mm'')
+ *	    return pointer to offset from t of time zone (if non-zero)
+ * Returns: T if valid From string, t,ti,zn set; else NIL
+ */
 
-#define KODRETRY 15		/* kiss-of-death retry in seconds */
-#define LOCKTIMEOUT 5		/* lock timeout in minutes */
-#define CHUNK 8192		/* read-in chunk size */
+#define VALID(s,x,ti,zn) \
+  (s[1] == 'r') && (s[2] == 'o') && (s[3] == 'm') && (s[4] == ' ') && \
+  (x = strchr (s+5,'\n')) && \
+  ((x-s < 41) || ((ti = ((x[-2] == ' ') ? -14 : (x[-3] == ' ') ? -15 : \
+			 (x[-4] == ' ') ? -16 : (x[-5] == ' ') ? -17 : \
+			 (x[-6] == ' ') ? -18 : (x[-7] == ' ') ? -19 : \
+			 (x[-8] == ' ') ? -20 : (x[-9] == ' ') ? -21 : \
+			 (x[-10]== ' ') ? -22 : (x[-11]== ' ') ? -23 : 0)) && \
+		  (x[ti]   == ' ') && (x[ti+1] == 'r') && (x[ti+2] == 'e') && \
+		  (x[ti+3] == 'm') && (x[ti+4] == 'o') && (x[ti+5] == 't') && \
+		  (x[ti+6] == 'e') && (x[ti+7] == ' ') && (x[ti+8] == 'f') && \
+		  (x[ti+9] == 'r') && (x[ti+10]== 'o') && (x[ti+11]== 'm') && \
+		  (x += ti)) || T) && \
+  (x-s >= 27) && \
+  ((x[ti = -5] == ' ') ? ((x[-8] == ':') ? !(zn = 0) : \
+			  ((x[ti = zn = -9] == ' ') || \
+			   ((x[ti = zn = -11] == ' ') && \
+			    ((x[-10] == '+') || (x[-10] == '-'))))) : \
+   ((x[zn = -4] == ' ') ? (x[ti = -9] == ' ') : \
+    ((x[zn = -6] == ' ') && ((x[-5] == '+') || (x[-5] == '-')) && \
+     (x[ti = -11] == ' ')))) && \
+  (x[ti - 3] == ':') && (x[ti -= ((x[ti - 6] == ':') ? 9 : 6)] == ' ') && \
+  (x[ti - 3] == ' ') && (x[ti - 7] == ' ') && (x[ti - 11] == ' ')
 
 
-/* Test for valid header.  Valid formats are:
+/* You are not expected to understand this macro, but read the next page if
+ * you are not faint of heart.
+ *
+ * Known formats to the VALID macro are:
  * 		From user Wed Dec  2 05:53 1992
  * BSD		From user Wed Dec  2 05:53:22 1992
  * SysV		From user Wed Dec  2 05:53 PST 1992
@@ -61,29 +90,68 @@
  *		From user Wed Dec  2 05:53 1992 PST
  *		From user Wed Dec  2 05:53:22 1992 PST
  *		From user Wed Dec  2 05:53 1992 -0700
- * SUN-OS	From user Wed Dec  2 05:53:22 1992 -0700
+ * Solaris	From user Wed Dec  2 05:53:22 1992 -0700
  *
- * You are not expected to understand this macro.  It tries to validate all
- * From headers with all date formats known to be used (and several possible
- * others).  After validating the ``From '' part, it scans from the end of
- * the string trying different formats in the order shown above.  ti is left
- * as the offset from end of the string of the time, tz is the offset from the
- * end of the string of the timezone (if present, else zero).  Matters are
- * made hairier because there is no deterministic way to parse the ``user''
- * field, which may contain unquoted spaces!
+ * Plus all of the above with `` remote from xxx'' after it. Thank you very
+ * much, smail and Solaris, for making my life considerably more complicated.
  */
+
+/*
+ * What?  You want to understand the VALID macro anyway?  Alright, since you
+ * insist.  Actually, it isn't really all that difficult, provided that you
+ * take it step by step.
+ *
+ * Line 1	Validates that the 2-5th characters are ``rom ''.
+ * Line 2	Sets x to point to the end of the line.
+ * Lines 3-12	First checks to see if the line is at least 41 characters long.
+ *		If so, it scans backwards up to 10 characters (the UUCP system
+ *		name length limit due to old versions of UNIX) to find a space.
+ *		If one is found, it backs up 12 characters from that point, and
+ *		sees if the string from there is `` remote from''.  If so, it
+ *		sets x to that position.  The ``|| T'' is there so the parse
+ *		will still continue.
+ * Line 13	Makes sure that there are at least 27 characters in the line.
+ * Lines 14-17	Checks if the date/time ends with the year.  If so, It sees if
+ *		there is a colon 3 characters further back; this would mean
+ *		that there is no timezone field and zn is set to 0 and ti is
+ *		left in front of the year.  If not, then it expects there to
+ *		either to be a space four characters back for a three-letter
+ *		timezone, or a space six characters back followed by a + or -
+ *		for a numeric timezone.  If a timezone is found, both zn and
+ *		ti are the offset of the space immediately before it.
+ * Lines 18-20	Are the failure case for a date/time not ending with a year in
+ *		line 14.  If there is a space four characters back, it is a
+ *		three-letter timezone; there must be a space for the year nine
+ *		characters back.  Otherwise, there must be a space six
+ *		characters back and a + or - five characters back to indicate a
+ *		numeric timezone and a space eleven characters back to indicate
+ *		a year.  zn and ti are set appropriately.
+ * Line 21	Make sure that the string before ti is of the form hh:mm or
+ *		hh:mm:ss.  There must be a colon three characters back, and a
+ *		space six or nine characters back (depending upon whether or
+ *		not the character six characters back is a colon).  ti is set
+ *		to be the offset of the space immediately before the time.
+ * Line 22	Make sure the string before ti is of the form www mmm dd.
+ *		There must be a space three characters back (in front of the
+ *		day), one seven characters back (in front of the month), and
+ *		one eleven characters back (in front of the day of week).
+ *
+ * Why a macro?  It gets invoked a *lot* in a tight loop.  On some of the
+ * newer pipelined machines it is faster being open-coded than it would be if
+ * subroutines are called.
+ *
+ * Why does it scan backwards from the end of the line, instead of doing the
+ * much easier forward scan?  There is no deterministic way to parse the
+ * ``user'' field, because it may contain unquoted spaces!  Yes, I tested it to
+ * see if unquoted spaces were possible.  They are, and I've encountered enough
+ * evil mail to be totally unwilling to trust that ``it will never happen''.
+ */
+
+/* Build parameters */
 
-#define VALID(ti,zn) (s[1] == 'r') && (s[2] == 'o') && (s[3] == 'm') && \
-  (s[4] == ' ') && (t = strchr (s+5,'\n')) && (t-s >= 27) && \
-  ((t[ti = -5] == ' ') ? ((t[-8] == ':') ? !(zn = 0) : \
-			  ((t[ti = zn = -9] == ' ') || \
-			   ((t[ti = zn = -11] == ' ') && \
-			    ((t[-10] == '+') || (t[-10] == '-'))))) : \
-   ((t[zn = -4] == ' ') ? (t[ti = -9] == ' ') : \
-    ((t[zn = -6] == ' ') && ((t[-5] == '+') || (t[-5] == '-')) && \
-     (t[ti = -11] == ' ')))) && \
-  (t[ti - 3] == ':') && (t[ti -= ((t[ti - 6] == ':') ? 9 : 6)] == ' ') && \
-  (t[ti - 3] == ' ') && (t[ti - 7] == ' ') && (t[ti - 11] == ' ')
+#define KODRETRY 15		/* kiss-of-death retry in seconds */
+#define LOCKTIMEOUT 5		/* lock timeout in minutes */
+#define CHUNK 8192		/* read-in chunk size */
 
 
 /* Command bits from bezerk_getflags() */
@@ -164,13 +232,14 @@ void bezerk_expunge (MAILSTREAM *stream);
 long bezerk_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long bezerk_move (MAILSTREAM *stream,char *sequence,char *mailbox);
 long bezerk_append (MAILSTREAM *stream,char *mailbox,STRING *message);
+long bezerk_append_putc (int fd,char *s,int *i,char c);
 void bezerk_gc (MAILSTREAM *stream,long gcflags);
 
 void bezerk_abort (MAILSTREAM *stream);
 char *bezerk_file (char *dst,char *name);
 int bezerk_lock (char *file,int flags,int mode,char *lock,int op);
 void bezerk_unlock (int fd,MAILSTREAM *stream,char *lock);
-int bezerk_parse (MAILSTREAM *stream,char *lock);
+int bezerk_parse (MAILSTREAM *stream,char *lock,int op);
 char *bezerk_eom (char *som,char *sod,long i);
 int bezerk_extend (MAILSTREAM *stream,int fd,char *error);
 void bezerk_save (MAILSTREAM *stream,int fd);

@@ -8,9 +8,9 @@
  *		Internet: donn@cac.washington.edu
  *
  * Date:	11 May 1989
- * Last Edited:	4 December 1992
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -48,6 +48,7 @@
 #include <sys/utime.h>
 #include <dirent.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <stropts.h>		/* needed in daemons */
 
 
 /* Different names, equivalent things in BSD and SysV */
@@ -87,7 +88,7 @@ void *fs_get  ();
 void fs_resize  ();
 void fs_give  ();
 void fatal  ();
-char *strcrlfcpy  ();
+unsigned long strcrlfcpy  ();
 unsigned long strcrlflen  ();
 long server_login  ();
 char *myusername ();
@@ -107,8 +108,6 @@ char *tcp_localhost  ();
 long gethostid ();
 long random ();
 void *memmove ();
-char *re_comp ();
-long re_exec ();
 int scandir ();
 int flock ();
 int gettimeofday ();

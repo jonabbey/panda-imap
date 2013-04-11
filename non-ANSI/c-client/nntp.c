@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	13 September 1992
+ * Last Edited:	15 September 1993
  *
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -55,7 +55,6 @@ SMTPSTREAM *nntp_open (hostlist,debug)
 {
   SMTPSTREAM *stream = NIL;
   void *tcpstream;
-  char tmp[MAILTMPLEN];
   if (!(hostlist && *hostlist)) mm_log ("Missing NNTP service host",ERROR);
   else do {			/* try to open connection */
     if (tcpstream = tcp_open (*hostlist,NNTPTCPPORT)) {
@@ -83,12 +82,34 @@ long nntp_mail (stream,env,body)
 	ENVELOPE *env;
 	BODY *body;
 {
-  char tmp[8*MAILTMPLEN];
+  long ret;
+  char tmp[8*MAILTMPLEN],*s;
 				/* negotiate post command */
   if (!(smtp_send (stream,"POST",NIL) == NNTPREADY)) return NIL;
 				/* set up error in case failure */
   smtp_fake (stream,SMTPSOFTFATAL,"NNTP connection went away!");
+  /* Gabba gabba hey, we need some brain damage to send netnews!!!
+   *
+   * First, we give ourselves a frontal lobotomy, and put in some UUCP
+   *  syntax.  It doesn't matter that it's completely bogus UUCP, and
+   *  that UUCP has nothing to do with anything we're doing.
+   *
+   * Then, we bop ourselves on the head with a ball-peen hammer.  How
+   *  dare we be so presumptious as to insert a *comment* in a Date:
+   *  header line.  Why, we were actually trying to be nice to a human
+   *  by giving a symbolic timezone (such as PST) in addition to a
+   *  numeric timezone (such as -0800).  But the gods of news transport
+   *  will have none of this.  Unix weenies, tried and true, rule!!!
+   */
+				/* RFC-1036 requires this cretinism */
+  sprintf (tmp,"Path: %s!%s\015\012",tcp_localhost (stream->tcpstream),
+	   env->from ? env->from->mailbox : "foo");
+				/* here's another cretinism */
+  if (s = strstr (env->date," (")) *s = NIL;
 				/* output data, return success status */
-  return rfc822_output (tmp,env,body,smtp_soutr,stream->tcpstream) &&
-    (smtp_send (stream,".",NIL) == NNTPOK);
+  ret = tcp_soutr (stream->tcpstream,tmp) &&
+    rfc822_output (tmp,env,body,smtp_soutr,stream->tcpstream) &&
+      (smtp_send (stream,".",NIL) == NNTPOK);
+  if (s) *s = ' ';		/* put the comment in the date back */
+  return ret;
 }

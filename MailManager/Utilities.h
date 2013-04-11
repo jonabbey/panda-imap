@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1989
- * Last Edited:	6 July 1992
+ * Last Edited:	18 March 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -58,7 +58,6 @@ SEQUENCE {
 void headerline (char *text,MAILSTREAM *stream,MESSAGECACHE *elt);
 void selstr (char *str,char *name,const char *arg);
 ADDRESS *copy_adr (ADDRESS *adr,ADDRESS *ret);
-ADDRESS *remove_adr (ADDRESS *adr,char *text);
 DPSTimedEntryProc mm_wakeup (DPSTimedEntry teNumber,double now,void *userData);
 void putstreamprop (MAILSTREAM *stream,MBoxWindow *window);
 STREAMPROP *getstreamprop (MAILSTREAM *stream);
@@ -70,7 +69,7 @@ void wordcopy (unsigned char **wrd,unsigned char **dst,unsigned char **src,
 void append_msg (FILE *file,ADDRESS *s,MESSAGECACHE *elt,char *hdr,
 		 unsigned char *text);
 char *filtered_header (ENVELOPE *env);
-void write_address (char *dest,char *tag,ADDRESS *adr);
+void write_address (char **dest,char *tag,ADDRESS *adr);
 
 
 // Header geometry

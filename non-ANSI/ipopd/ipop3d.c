@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	13 September 1992
+ * Last Edited:	13 September 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -56,7 +56,7 @@
 
 /* Global storage */
 
-char *version = "3.2(8)";	/* server version */
+char *version = "3.2(12)";	/* server version */
 int state = AUTHORIZATION;	/* server state */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 long nmsgs = 0;			/* current number of messages */
@@ -70,7 +70,7 @@ long *msg = NIL;		/* message translation vector */
 
 /* Drivers we use */
 
-extern DRIVER imapdriver,bezerkdriver,tenexdriver;
+extern DRIVER imapdriver,tenexdriver,mhdriver,mboxdriver,bezerkdriver;
 
 
 /* Function prototypes */
@@ -78,8 +78,6 @@ extern DRIVER imapdriver,bezerkdriver,tenexdriver;
 void main  ();
 int login  ();
 void blat  ();
-
-extern char *crypt  ();
 
 /* Main program */
 
@@ -92,18 +90,22 @@ void main (argc,argv)
   char tmp[TMPLEN];
   mail_link (&imapdriver);	/* install the IMAP driver */
   mail_link (&tenexdriver);	/* install the Tenex mail driver */
+  mail_link (&mhdriver);	/* install the mh mail driver */
+  mail_link (&mboxdriver);	/* install the mbox mail driver */
   mail_link (&bezerkdriver);	/* install the Berkeley mail driver */
-  printf ("+OK POP3 %s w/IMAP2 client (Comments to MRC@CAC.Washington.EDU)\r\n"
-	  ,version);
+  rfc822_date (tmp);		/* get date/time now */
+  printf ("+OK POP3 %s w/IMAP2 client %s at %s\015\012",version,
+	  "(Comments to MRC@CAC.Washington.EDU)",tmp);
   fflush (stdout);		/* dump output buffer */
 				/* command processing loop */
   while ((state != UPDATE) && fgets (tmp,TMPLEN-1,stdin)) {
 				/* find end of line */
-    if (!strchr (tmp,'\n')) puts ("-ERR Command line too long\r");
-    else if (!(s = strtok (tmp," \r\n"))) puts ("-ERR Null command\r");
+    if (!strchr (tmp,'\012')) puts ("-ERR Command line too long\015");
+    else if (!(s = strtok (tmp," \015\012"))) puts ("-ERR Null command\015");
     else {			/* dispatch based on command */
       ucase (s);		/* canonicalize case */
-      t = strtok (NIL,"\r\n");	/* snarf argument */
+				/* snarf argument */
+      t = strtok (NIL,"\015\012");
 				/* QUIT command always valid */
       if (!strcmp (s,"QUIT")) state = UPDATE;
       else switch (state) {	/* else dispatch based on state */
@@ -120,15 +122,15 @@ void main (argc,argv)
 	    }
 				/* local user name */
 	    else user = cpystr (t);
-	    puts ("+OK User name accepted, password please\r");
+	    puts ("+OK User name accepted, password please\015");
 	  }
-	  else puts ("-ERR Missing username argument\r");
+	  else puts ("-ERR Missing username argument\015");
 	}
 	else if (user && *user && !strcmp (s,"PASS"))
 	  state = login (t,argc,argv);
 				/* (chuckle) */
-	else if (!strcmp (s,"RPOP")) puts ("-ERR Nice try, bunkie\r");
-	else puts ("-ERR Unknown command in AUTHORIZATION state\r");
+	else if (!strcmp (s,"RPOP")) puts ("-ERR Nice try, bunkie\015");
+	else puts ("-ERR Unknown command in AUTHORIZATION state\015");
 	break;
 
       case TRANSACTION:		/* logged in */
@@ -138,19 +140,20 @@ void main (argc,argv)
 	      j++;		/* count one more undeleted message */
 	      k += mail_elt (stream,msg[i])->rfc822_size;
 	    }
-	  printf ("+OK %d %d\r\n",j,k);
+	  printf ("+OK %d %d\015\012",j,k);
 	}
 	else if (!strcmp (s,"LIST")) {
 	  if (t && *t) {	/* argument do single message */
 	    if (((i = atoi (t)) > 0) && (i <= nmsgs) && (msg[i] >0))
-	      printf ("+OK %d %d\r\n",i,mail_elt(stream,msg[i])->rfc822_size);
-	    else puts ("-ERR No such message\r");
+	      printf ("+OK %d %d\015\012",i,
+		      mail_elt(stream,msg[i])->rfc822_size);
+	    else puts ("-ERR No such message\015");
 	  }
 	  else {		/* entire mailbox */
-	    puts ("+OK Mailbox scan listing follows\r");
+	    puts ("+OK Mailbox scan listing follows\015");
 	    for (i = 1,j = 0,k = 0; i <= nmsgs; i++) if (msg[i] > 0)
-	      printf ("%d %d\r\n",i,mail_elt (stream,msg[i])->rfc822_size);
-	    puts (".\r");	/* end of list */
+	      printf ("%d %d\015\012",i,mail_elt (stream,msg[i])->rfc822_size);
+	    puts (".\015");	/* end of list */
 	  }
 	}
 	else if (!strcmp (s,"RETR")) {
@@ -158,16 +161,16 @@ void main (argc,argv)
 	    if (((i = atoi (t)) > 0) && (i <= nmsgs) && (msg[i] > 0)) {
 				/* update highest message accessed */
 	      if (i > last) last = i;
-	      printf ("+OK %d octets\r\n",
+	      printf ("+OK %d octets\015\012",
 		      mail_elt (stream,msg[i])->rfc822_size);
 				/* output message */
 	      blat (mail_fetchheader (stream,msg[i]),-1);
 	      blat (mail_fetchtext (stream,msg[i]),-1);
-	      puts (".\r");	/* end of list */
+	      puts (".\015");	/* end of list */
 	    }
-	    else puts ("-ERR No such message\r");
+	    else puts ("-ERR No such message\015");
 	  }
-	  else puts ("-ERR Missing message number argument\r");
+	  else puts ("-ERR Missing message number argument\015");
 	}
 	else if (!strcmp (s,"DELE")) {
 	  if (t && *t) {	/* must have an argument */
@@ -178,15 +181,15 @@ void main (argc,argv)
 	      sprintf (tmp,"%d",msg[i]);
 	      mail_setflag (stream,tmp,"\\Deleted");
 	      msg[i] = -msg[i];	/* note that we deleted this message */
-	      puts ("+OK Message deleted\r");
+	      puts ("+OK Message deleted\015");
 	    }
-	    else puts ("-ERR No such message\r");
+	    else puts ("-ERR No such message\015");
 	  }
-	  else puts ("-ERR Missing message number argument\r");
+	  else puts ("-ERR Missing message number argument\015");
 	}
 
-	else if (!strcmp (s,"NOOP")) puts ("+OK No-op to you too!\r");
-	else if (!strcmp (s,"LAST")) printf ("+OK %d\r\n",last);
+	else if (!strcmp (s,"NOOP")) puts ("+OK No-op to you too!\015");
+	else if (!strcmp (s,"LAST")) printf ("+OK %d\015\012",last);
 	else if (!strcmp (s,"RSET")) {
 	  if (nmsgs) {		/* undelete and unmark all of our messages */
 	    for (i = 1; i <= nmsgs; i++) {
@@ -203,7 +206,7 @@ void main (argc,argv)
 	    }
 	    last = il;
 	  }
-	  puts ("+OK Reset state\r");
+	  puts ("+OK Reset state\015");
 	}
 	else if (!strcmp (s,"TOP")) {
 	  if (t && *t) {	/* must have an argument */
@@ -211,21 +214,21 @@ void main (argc,argv)
 		((j = atoi (t)) >= 0) && (msg[i] > 0)) {
 				/* update highest message accessed */
 	      if (i > last) last = i;
-	      puts ("+OK Top of message follows\r");
+	      puts ("+OK Top of message follows\015");
 				/* output message */
 	      blat (mail_fetchheader (stream,msg[i]),-1);
 	      blat (mail_fetchtext (stream,msg[i]),j);
-	      puts (".\r");	/* end of list */
+	      puts (".\015");	/* end of list */
 	    }
-	    else puts ("-ERR Bad argument or no such message\r");
+	    else puts ("-ERR Bad argument or no such message\015");
 	  }
-	  else puts ("-ERR Missing message number argument\r");
+	  else puts ("-ERR Missing message number argument\015");
 	}
-	else if (!strcmp (s,"XTND")) puts ("-ERR Sorry I can't do that\r");
-	else puts ("-ERR Unknown command in TRANSACTION state\r");
+	else if (!strcmp (s,"XTND")) puts ("-ERR Sorry I can't do that\015");
+	else puts ("-ERR Unknown command in TRANSACTION state\015");
 	break;
       default:
-        puts ("-ERR Server in unknown state\r");
+        puts ("-ERR Server in unknown state\015");
 	break;
       }
     }
@@ -235,7 +238,7 @@ void main (argc,argv)
   if (stream && nmsgs) mail_expunge (stream);
 				/* clean up the stream */
   if (stream) mail_close (stream);
-  puts ("+OK Sayonara\r");	/* "now it's time to say sayonara..." */
+  puts ("+OK Sayonara\015");	/* "now it's time to say sayonara..." */
   fflush (stdout);		/* make sure output finished */
   exit (0);			/* all done */
 }
@@ -256,7 +259,7 @@ int login (t,argc,argv)
   MESSAGECACHE *elt;
   fs_give ((void **) &pass);	/* flush old passowrd */
   if (!(t && *t)) {		/* if no password given */
-    puts ("-ERR Missing password argument\r");
+    puts ("-ERR Missing password argument\015");
     return AUTHORIZATION;
   }
   pass = cpystr (t);		/* copy password argument */
@@ -270,7 +273,7 @@ int login (t,argc,argv)
 				/* local; attempt login, select INBOX */
   else if (server_login (user,pass,NIL,argc,argv)) strcpy (tmp,"INBOX");
   else {
-    puts ("-ERR Bad login\r");	/* vague error message to confuse crackers */
+    puts ("-ERR Bad login\015");/* vague error message to confuse crackers */
     return AUTHORIZATION;
   }
   nmsgs = 0;			/* no messages yet */
@@ -279,13 +282,13 @@ int login (t,argc,argv)
   if ((stream = mail_open (stream,tmp,NIL)) && (j = stream->nmsgs)) {
     sprintf (tmp,"1:%d",j);	/* fetch fast information for all messages */
     mail_fetchfast (stream,tmp);
-    msg = (long *) fs_get ((nmsgs + 1) * sizeof (long));
+    msg = (long *) fs_get ((stream->nmsgs + 1) * sizeof (long));
     for (i = 1; i <= j; i++) if (!(elt = mail_elt (stream,i))->deleted) {
       msg[++nmsgs] = i;		/* note the presence of this message */
       if (elt->seen) il = last = nmsgs;
     }
   }
-  printf ("+OK Mailbox open, %d messages\r\n",nmsgs);
+  printf ("+OK Mailbox open, %d messages\015\012",nmsgs);
   return TRANSACTION;
 }
 
@@ -308,21 +311,21 @@ void blat (text,lines)
   if (c == '.') putchar ('.');	/* double string-leading dot if necessary */
   while (e = *text++) {		/* copy loop */
     putchar (c);		/* output character */
-    if (c == '\n') {		/* end of line? */
+    if (c == '\012') {		/* end of line? */
       if (!--lines) return;	/* count down another line, return if done */
 				/* double leading dot as necessary */
       if (d == '.') putchar ('.');
     }
     c = d; d = e;		/* move to next character */
   }
-  puts ("\r");			/* output newline instead of last 2 chars */
+  puts ("\015");		/* output newline instead of last 2 chars */
 }
 
 /* Co-routines from MAIL library */
 
 
 /* Message matches a search
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
@@ -336,7 +339,7 @@ void mm_searched (stream,msgno)
 
 /* Message exists (mailbox)
 	i.e. there are that many messages in the mailbox;
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
@@ -350,11 +353,24 @@ void mm_exists (stream,number)
 
 
 /* Message expunged
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
 void mm_expunged (stream,number)
+	MAILSTREAM *stream;
+	long number;
+{
+  /* This isn't used */
+}
+
+
+/* Message flag status change
+ * Accepts: MAIL stream
+ *	    message number
+ */
+
+void mm_flags (stream,number)
 	MAILSTREAM *stream;
 	long number;
 {
@@ -384,7 +400,7 @@ void mm_bboard (string)
 }
 
 /* Notification event
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    string to log
  *	    error flag
  */

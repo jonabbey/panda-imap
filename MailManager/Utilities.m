@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1989
- * Last Edited:	28 September 1992
+ * Last Edited:	8 September 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -164,11 +164,10 @@ ADDRESS *copy_adr (ADDRESS *adr,ADDRESS *ret)
   ucase (strcpy (mydom,domainname));
 				// run down previous list until the end
   if (prev = ret) while (prev->next) prev = prev->next;
-  do {
 				// don't copy if it matches me
-    if (strcmp (mymbx,ucase (strcpy (tmp,adr->mailbox))) ||
-	(strcmp (mydom,ucase (strcpy (tmp,adr->host))) &&
-	 (s = strchr (tmp,'.')) && strcmp (mydom,s+1))) {
+    do if (adr->host && (strcmp (mymbx,ucase (strcpy (tmp,adr->mailbox))) ||
+			 (strcmp (mydom,ucase (strcpy (tmp,adr->host))) &&
+			  (s = strchr (tmp,'.')) && strcmp (mydom,s+1)))) {
       dadr = mail_newaddr ();	// instantiate new address
       if (!ret) ret = dadr;	// set return if new address list
 				// tie on to the end of any previous
@@ -180,37 +179,8 @@ ADDRESS *copy_adr (ADDRESS *adr,ADDRESS *ret)
       dadr->error = NIL;	// initially no error
       dadr->next = NIL;		// no next pointer yet
       prev = dadr;		// this is now the previous
-    }
   } while (adr = adr->next);	// go to next address in list
   return (ret);			// return the MTP address list
-}
-
-// Remove recipient from an address list
-// Accepts: list
-//	    text of recipient
-// Returns: list (possibly zapped to NIL)
-
-ADDRESS *remove_adr (ADDRESS *adr,char *text)
-{
-  ADDRESS *ret = adr;
-  ADDRESS *prev = NIL;
-  while (adr) {			// run down the list looking for this guy
-				// is this one we want to punt?
-    if (!strcmp (adr->mailbox,text)) {
-				// yes, unlink this from the list
-      if (prev) prev->next = adr->next;
-      else ret = adr->next;
-      adr->next = NIL;		// unlink list from this
-      mail_free_address (&adr);	// now flush it
-				// get the next in line
-      adr = prev ? prev->next : ret;
-    }
-    else {
-      prev = adr;		// remember the previous
-      adr = adr->next;		// try the next in line
-    }
-  }
-  return (ret);			// all done
 }
 
 // C Client event notification
@@ -245,6 +215,15 @@ void mm_exists (MAILSTREAM *stream,long msgno)
 void mm_expunged (MAILSTREAM *stream,long msgno)
 {
   [(getstreamprop (stream))->window expunged:msgno];
+}
+
+
+// Message flag status change
+// Accepts: MAIL stream
+//	    message number
+
+void mm_flags (MAILSTREAM *stream,long msgno)
+{
 }
 
 
@@ -645,15 +624,21 @@ void append_msg (FILE *file,ADDRESS *s,MESSAGECACHE *elt,char *hdr,
 
 char *filtered_header (ENVELOPE *env)
 {
-  char tmp[16*MAILTMPLEN];
+  char tmp[64*MAILTMPLEN];
   char *s = tmp;
-  if (env->date) sprintf (s,"Date: %s\n",env->date);
+  if (env->date) {
+    sprintf (s,"Date: %s\n",env->date);
+    s += strlen (s);
+  }
   else *s = '\0';		// start with empty string
-  write_address (s,"From:",env->from);
-  if (env->subject) sprintf (s+strlen (s),"Subject: %s\n",env->subject);
-  write_address (s,"To:",env->to);
-  write_address (s,"cc:",env->cc);
-  write_address (s,"bcc:",env->bcc);
+  write_address (&s,"From",env->from);
+  if (env->subject) {
+    sprintf (s,"Subject: %s\n",env->subject);
+    s += strlen (s);
+  }
+  write_address (&s,"To",env->to);
+  write_address (&s,"cc",env->cc);
+  write_address (&s,"bcc",env->bcc);
   strcat (s,"\n");		// delimit with new line
   return cpystr (tmp);
 }
@@ -664,29 +649,13 @@ char *filtered_header (ENVELOPE *env)
 //	    name of this header
 //	    address list
 
-void write_address (char *dest,char *tag,ADDRESS *adr)
+void write_address (char **dest,char *tag,ADDRESS *adr)
 {
-  char tmp[TMPLEN];
-  int i;
-  int position = strlen (tag);
-  if (adr) {			// no-op if address empty
-    strcat (dest,tag);		// output tag
-    do {			// calculate length including space and comma
-      i = 2 + (adr->personal ? strlen (adr->personal) :
-	       strlen (adr->mailbox) + 1 + strlen (adr->host));
-				// line too long?
-      if ((position += i) > MAXLINELENGTH) {
-	strcat (dest,"\n ");	// yes, start new line
-	position = ++i;		// position is our length plus leading space
-      }
-				// write personal name and address
-      if (adr->personal) sprintf (tmp," %s <%s@%s>%s",adr->personal,
-				  adr->mailbox,adr->host,
-				  adr->next ? "," : "");
-      else sprintf (tmp," %s@%s%s",adr->mailbox,adr->host,
-		    adr->next ? "," : "");
-      strcat (dest,tmp);	// add to list
-    } while (adr = adr->next);	// for each address in the list
-  strcat (dest,"\n");		// tie off line at end
-  }
+  char c;
+  char *s = *dest;
+  char *t = *dest;
+  rfc822_address_line (dest,tag,NIL,adr);
+  do if ((c = *s++) != '\r') *t++ = c;
+  while (c);			// filter out newlines
+  *dest = --t;
 }

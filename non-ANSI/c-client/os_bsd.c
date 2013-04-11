@@ -9,9 +9,9 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	2 November 1992
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -148,9 +148,10 @@ void fatal (string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (dst,dstl,src,srcl)
+unsigned long strcrlfcpy (dst,dstl,src,srcl)
 	char **dst;
 	unsigned long *dstl;
 	char *src;
@@ -181,13 +182,13 @@ char *strcrlfcpy (dst,dstl,src,srcl)
     break;
   }
   *d = '\0';			/* tie off destination */
-  return *dst;			/* return destination */
+  return d - *dst;		/* return length */
 }
 
 
 /* Length of string after strcrlfcpy applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (s)
@@ -219,10 +220,12 @@ unsigned long strcrlflen (s)
  * Returns: T if password validated, NIL otherwise
  */
 
-long server_login (user,pass,home)
+long server_login (user,pass,home,argc,argv)
 	char *user;
 	char *pass;
 	char **home;
+	int argc;
+	char *argv[];
 {
   struct passwd *pw = getpwnam (lcase (user));
 				/* no entry for this user or root */
@@ -435,7 +438,6 @@ char *tcp_getline (stream)
 {
   int n,m;
   char *st,*ret,*stp;
-  char tmp[2];
   char c = '\0';
   char d;
 				/* make sure have data */
@@ -633,7 +635,7 @@ char *strstr (cs,ct)
 {
   char *s;
   char *t;
-  while (cs = index (cs,*ct)) {	/* for each occurance of the first character */
+  while (cs = strchr (cs,*ct)) {/* for each occurance of the first character */
 				/* see if remainder of string matches */
     for (s = cs + 1, t = ct + 1; *t && *s == *t; s++, t++);
     if (!*t) return cs;		/* if ran out of substring then have match */

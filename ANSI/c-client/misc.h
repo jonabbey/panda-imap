@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	21 February 1992
+ * Last Edited:	19 May 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -58,7 +58,7 @@
 char *ucase (char *string);
 char *lcase (char *string);
 char *cpystr (char *string);
-long find_rightmost_bit (long *valptr);
+unsigned long find_rightmost_bit (unsigned long *valptr);
 long min (long i,long j);
 long max (long i,long j);
 long search (char *s,long c,char *pat,long patc);

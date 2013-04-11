@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	29 October 1992
+ * Last Edited:	25 April 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,17 +42,7 @@
 #define fDELETED 2
 #define fFLAGGED 4
 #define fANSWERED 8
-
-
-/* TENEX per-message cache information */
-
-typedef struct file_cache {
-  unsigned long internal;	/* pointer to internal header */
-  unsigned long header;		/* pointer to RFC 822 header */
-  unsigned long headersize;	/* size of RFC 822 header */
-  unsigned long body;		/* pointer to message body */
-  unsigned long bodysize;	/* size of message body */
-} FILECACHE;
+#define fOLD 16			/* moby sigh */
 
 
 /* TENEX I/O stream local data */
@@ -61,11 +51,6 @@ typedef struct tenex_local {
   unsigned int inbox : 1;	/* if this is an INBOX or not */
   int fd;			/* file descriptor for I/O */
   off_t filesize;		/* file size parsed */
-  unsigned long cachesize;	/* size of local cache */
-  FILECACHE **msgs;		/* pointers to message-specific information */
-  char *text;			/* mailbox text buffer */
-  unsigned long textsize;	/* size of mailbox text buffer */
-  unsigned long textend;	/* end of text in mailbox text buffer */
   char *buf;			/* temporary buffer */
   unsigned long buflen;		/* current size of temporary buffer */
 } TENEXLOCAL;
@@ -78,7 +63,7 @@ typedef struct tenex_local {
 /* Function prototypes */
 
 DRIVER *tenex_valid (char *name);
-int tenex_isvalid (char *name,char *tmp);
+long tenex_isvalid (char *name,char *tmp);
 void *tenex_parameters (long function,void *value);
 void tenex_find (MAILSTREAM *stream,char *pat);
 void tenex_find_bboards (MAILSTREAM *stream,char *pat);
@@ -99,23 +84,28 @@ ENVELOPE *tenex_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body);
 char *tenex_fetchheader (MAILSTREAM *stream,long msgno);
 char *tenex_fetchtext (MAILSTREAM *stream,long msgno);
 char *tenex_fetchbody (MAILSTREAM *stream,long m,char *sec,unsigned long *len);
+unsigned long tenex_header (MAILSTREAM *stream,long msgno,unsigned long *size);
 void tenex_setflag (MAILSTREAM *stream,char *sequence,char *flag);
 void tenex_clearflag (MAILSTREAM *stream,char *sequence,char *flag);
 void tenex_search (MAILSTREAM *stream,char *criteria);
 long tenex_ping (MAILSTREAM *stream);
 void tenex_check (MAILSTREAM *stream);
+void tenex_snarf (MAILSTREAM *stream);
 void tenex_expunge (MAILSTREAM *stream);
 long tenex_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long tenex_move (MAILSTREAM *stream,char *sequence,char *mailbox);
 long tenex_append (MAILSTREAM *stream,char *mailbox,STRING *message);
 void tenex_gc (MAILSTREAM *stream,long gcflags);
 
+int tenex_lock (int fd,char *lock,int op);
+void tenex_unlock (int fd,char *lock);
+unsigned long tenex_size (MAILSTREAM *stream,long m);
 char *tenex_file (char *dst,char *name);
-int tenex_getflags (MAILSTREAM *stream,char *flag,long *uf);
-int tenex_parse (MAILSTREAM *stream);
-int tenex_copy_messages (MAILSTREAM *stream,char *mailbox);
+long tenex_getflags (MAILSTREAM *stream,char *flag,long *uf);
+long tenex_parse (MAILSTREAM *stream);
+long tenex_copy_messages (MAILSTREAM *stream,char *mailbox);
 MESSAGECACHE *tenex_elt (MAILSTREAM *stream,long msgno);
-void tenex_update_status (MAILSTREAM *stream,long msgno,int syncflag);
+void tenex_update_status (MAILSTREAM *stream,long msgno,long syncflag);
 char tenex_search_all (MAILSTREAM *stream,long msgno,char *d,long n);
 char tenex_search_answered (MAILSTREAM *stream,long msgno,char *d,long n);
 char tenex_search_deleted (MAILSTREAM *stream,long msgno,char *d,long n);

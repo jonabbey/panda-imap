@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	29 October 1992
+ * Last Edited:	25 April 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -42,17 +42,7 @@
 #define fDELETED 2
 #define fFLAGGED 4
 #define fANSWERED 8
-
-
-/* TENEX per-message cache information */
-
-typedef struct file_cache {
-  unsigned long internal;	/* pointer to internal header */
-  unsigned long header;		/* pointer to RFC 822 header */
-  unsigned long headersize;	/* size of RFC 822 header */
-  unsigned long body;		/* pointer to message body */
-  unsigned long bodysize;	/* size of message body */
-} FILECACHE;
+#define fOLD 16			/* moby sigh */
 
 
 /* TENEX I/O stream local data */
@@ -61,11 +51,6 @@ typedef struct tenex_local {
   unsigned int inbox : 1;	/* if this is an INBOX or not */
   int fd;			/* file descriptor for I/O */
   off_t filesize;		/* file size parsed */
-  unsigned long cachesize;	/* size of local cache */
-  FILECACHE **msgs;		/* pointers to message-specific information */
-  char *text;			/* mailbox text buffer */
-  unsigned long textsize;	/* size of mailbox text buffer */
-  unsigned long textend;	/* end of text in mailbox text buffer */
   char *buf;			/* temporary buffer */
   unsigned long buflen;		/* current size of temporary buffer */
 } TENEXLOCAL;
@@ -78,7 +63,7 @@ typedef struct tenex_local {
 /* Function prototypes */
 
 DRIVER *tenex_valid  ();
-int tenex_isvalid  ();
+long tenex_isvalid  ();
 void *tenex_parameters  ();
 void tenex_find  ();
 void tenex_find_bboards  ();
@@ -99,21 +84,26 @@ ENVELOPE *tenex_fetchstructure  ();
 char *tenex_fetchheader  ();
 char *tenex_fetchtext  ();
 char *tenex_fetchbody  ();
+unsigned long tenex_header  ();
 void tenex_setflag  ();
 void tenex_clearflag  ();
 void tenex_search  ();
 long tenex_ping  ();
 void tenex_check  ();
+void tenex_snarf  ();
 void tenex_expunge  ();
 long tenex_copy  ();
 long tenex_move  ();
 long tenex_append  ();
 void tenex_gc  ();
 
+int tenex_lock  ();
+void tenex_unlock  ();
+unsigned long tenex_size  ();
 char *tenex_file  ();
-int tenex_getflags  ();
-int tenex_parse  ();
-int tenex_copy_messages  ();
+long tenex_getflags  ();
+long tenex_parse  ();
+long tenex_copy_messages  ();
 MESSAGECACHE *tenex_elt  ();
 void tenex_update_status  ();
 char tenex_search_all  ();

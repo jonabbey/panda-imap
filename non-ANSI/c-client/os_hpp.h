@@ -8,9 +8,9 @@
  *		Internet: dmiller@beta.tricity.wsu.edu
  *
  * Date:	11 May 1989
- * Last Edited:	4 December 1992
+ * Last Edited:	8 September 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -70,7 +70,7 @@ void *fs_get  ();
 void fs_resize  ();
 void fs_give  ();
 void fatal  ();
-char *strcrlfcpy  ();
+unsigned long strcrlfcpy  ();
 unsigned long strcrlflen  ();
 long server_login  ();
 char *myusername ();
@@ -82,13 +82,12 @@ char *tcp_getline  ();
 long tcp_getbuffer  ();
 long tcp_getdata  ();
 long tcp_soutr  ();
+long tcp_sout  ();
 void tcp_close  ();
 char *tcp_host  ();
 char *tcp_localhost  ();
 
 long gethostid ();
 long random ();
-char *re_comp ();
-long re_exec ();
 int flock ();
 int utimes ();

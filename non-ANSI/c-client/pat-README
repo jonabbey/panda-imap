@@ -1,0 +1,9 @@
+The files with names beginning with "pat" are patch files which you should
+apply before building if your system has shadow passwords.
+
+On SUN-OS:
+	patch pat-os_sun.c os_sun.c
+
+On Ultrix:
+	patch pat-mkfl.ult makefile.ult
+	patch pat-os_ult.c os_ult.c

@@ -1,0 +1,19 @@
+*** makefile.ult	Mon Jul 12 19:46:00 1993
+--- /u/src/imap/secure/makefile.ult	Mon Aug  9 19:05:19 1993
+***************
+*** 32,38 ****
+  
+  
+  CFLAGS = -g3 -O2 -Olimit 800 -Dconst=
+! LDFLAGS =
+  
+  mtest: mtest.o c-client.a
+  	echo $(CFLAGS) > CFLAGS
+--- 32,38 ----
+  
+  
+  CFLAGS = -g3 -O2 -Olimit 800 -Dconst=
+! LDFLAGS = -lauth
+  
+  mtest: mtest.o c-client.a
+  	echo $(CFLAGS) > CFLAGS

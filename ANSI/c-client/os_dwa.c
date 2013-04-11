@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	29 October 1992
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -140,9 +140,11 @@ void fatal (char *string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl)
 {
   if (srcl > *dstl) {		/* resize if not enough space */
     fs_give ((void **) dst);	/* fs_resize does an unnecessary copy */
@@ -151,18 +153,37 @@ char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
 				/* copy strings */
   if (srcl) memcpy (*dst,src,(size_t) srcl);
   *(*dst + srcl) = '\0';	/* tie off destination */
-  return *dst;			/* return destination */
+  return srcl;			/* return length */
 }
 
 
 /* Length of string after strcrlfcpy applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (STRING *s)
 {
   return SIZE (s);		/* no-brainer on DOS! */
+}
+
+
+/* Return my home directory name
+ * Returns: my home directory name
+ */
+
+char *hdname = NIL;
+
+char *myhomedir ()
+{
+  int i;
+  char *s;
+  if (!hdname) {		/* get home directory name if not yet known */
+    hdname = cpystr ((s = getenv ("HOME")) ? s : "");
+    if ((i = strlen (hdname)) && ((hdname[i-1] == '\\') || (hdname[i-1]=='/')))
+      hdname[i-1] = '\0';	/* tie off trailing directory delimiter */
+  }
+  return hdname;
 }
 
 /* TCP/IP open
@@ -176,9 +197,7 @@ TCPSTREAM *TCP_open (char *host,long port)
   TCPSTREAM *stream = NIL;
   tcp_Socket *sock;
   long adr,i,j,k,l;
-  char *s;
-  char tmp[MAILTMPLEN];
-  char hostname[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN];
 				/* initialize if first time here */
   if (!sock_initted++) sock_init();
 				/* set default gets routine */
@@ -191,10 +210,8 @@ TCPSTREAM *TCP_open (char *host,long port)
     if (((i = strtol (s = host+1,&s,10)) <= 255) && *s++ == '.' &&
 	((j = strtol (s,&s,10)) <= 255) && *s++ == '.' &&
 	((k = strtol (s,&s,10)) <= 255) && *s++ == '.' &&
-	((l = strtol (s,&s,10)) <= 255) && *s++ == ']' && !*s) {
+	((l = strtol (s,&s,10)) <= 255) && *s++ == ']' && !*s)
       adr = (i << 24) + (j << 16) + (k << 8) + l;
-      sprintf (hostname,"[%ld.%ld.%ld.%ld]",i,j,k,l);
-    }
     else {
       sprintf (tmp,"Bad format domain-literal: %.80s",host);
       mm_log (tmp,ERROR);
@@ -207,22 +224,20 @@ TCPSTREAM *TCP_open (char *host,long port)
       mm_log (tmp,ERROR);
       return NIL;
     }
-    else strcpy (hostname, host);/* need way to do canonical host name */
   }
 
 				/* OK to instantiate socket now */
   sock = (tcp_Socket *) fs_get (sizeof (tcp_Socket));
 				/* open connection */
-  if (!tcp_open (sock,(word)0,adr,(word)port,NULL)) {
-    sprintf (tmp,"Can't connect to %.80s,%ld",hostname,port);
+  if (!tcp_open (sock,(word) 0,adr,(word) port,NULL)) {
+    sprintf (tmp,"Can't connect to %.80s,%ld",host,port);
     mm_log (tmp,ERROR);
     fs_give ((void **) &sock);
     return NIL;
   }
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
-				/* official host name */
-  stream->host = cpystr (hostname);
+  stream->host = cpystr (host);	/* official host name */
   adr = gethostid ();		/* get local IP address */
   i = adr >> 24; j = (adr >> 16) & 0xff; k = (adr >> 8) & 0xff; l = adr & 0xff;
   sprintf (tmp,"[%ld.%ld.%ld.%ld]",i,j,k,l);
@@ -252,7 +267,6 @@ char *tcp_getline (TCPSTREAM *stream)
 {
   int n,m;
   char *st,*ret,*stp;
-  char tmp[2];
   char c = '\0';
   char d;
 				/* make sure have data */
@@ -362,7 +376,7 @@ long tcp_soutr (TCPSTREAM *stream,char *string)
 
 long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 {
-  sock_fastwrite (stream->tcps,string,(int) size);
+  sock_write (stream->tcps,string,(int) size);
   return T;
 }
 
@@ -426,25 +440,4 @@ long random ()
 long getpid ()
 {
   return 1;
-}
-
-
-/* These two are used for pattern matching in misc.c, but are actually never
- * called in DOS.
- */
-
-
-/* Dummy re_comp -- always return NIL */
-
-char *re_comp (char *s)
-{
-  return NIL;
-}
-
-
-/* Dummy re_exec -- always return T */
-
-long re_exec (char *s)
-{
-  return T;
 }

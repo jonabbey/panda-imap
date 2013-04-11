@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	19 October 1992
+ * Last Edited:	18 May 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -66,3 +66,4 @@ long dummy_copy  ();
 long dummy_move  ();
 long dummy_append  ();
 void dummy_gc  ();
+char *dummy_file  ();

@@ -1,4 +1,4 @@
-		      C-Client Revision History
+.		      C-Client Revision History
 
 Note: Dates in this revision history indicate when the work was completed.
 
@@ -379,3 +379,413 @@ Note: Dates in this revision history indicate when the work was completed.
 9 March 1993	[nntpc*.c] Implement half-opens.
 
 15 March 1993	[news.c] Fix brain-damage in find bboards.
+
+15 March 1993	[makefile.bsi, os_bsi.c/h] Add BSDI port.
+
+18 March 1993	[rfc822.c, smtp.c, ms.c, ReplyWindow.m, Utilities.h/m]
+		Represent RFC-822 groups in address lists.  Start of 3.0 of the
+		IMAP toolkit.
+
+25 March 1993	[dawz.c/h, tenex.c/h, tenex2.c/h] Create memory-miser tenex2
+		driver, lots of code cleanups to dawz and tenex driver.
+
+27 March 1993	[makefile.sgi] Add -lsun to LDFLAGS so server_login() routine
+		works.
+
+27 March 1993	[makefile.*] Use tenex2 driver instead of tenex driver.
+
+28 March 1993	[tenex2.c] Make sure recent flag is set on new mail.
+
+28 March 1993	[imap2.c] Don't do CHECK in map_search() since most servers do
+		it implicitly and it adds RTT's.
+
+28 March 1993	[nntpclient.c] Fix text searching when string isn't loaded yet.
+
+28 March 1993	[mail.c/h, imap2.c/h, nntpc*.c] New remote access syntax.  Add
+		port number support to NNTP client.
+
+28 March 1993	[MailManager.m] Delete grotesque kludge call to the late
+		unlamented imap_hostfield() routine, use mail_valid_net() now.
+
+ 1 April 1993	[os_hpp.c] Yet another HP-UX remsh fix...
+
+ 3 April 1993	[tenex2.c/h] Fix value in elt->rfc822_size.
+
+ 5 April 1993	[nntpc*.c] Fix FIND for new remote access syntax.
+
+ 7 April 1993	[ipop?d.c] Fix malloc() bug in POP servers, use explicit codes
+		for CR/LF instead of trusting compiler to do the right thing.
+
+ 7 April 1993	[imap2.c/h] Fix totally brain-dead map_append() routine, add
+		new imap_send_literal() routine, rewrite imap_send().
+
+ 8 April 1993	[mail.c/h] Do something about defaults for mail_create().
+
+12 April 1993	[tenex2.c/h] Create append/parse locking separate for tmail
+		delivery project.
+
+12 April 1993	[imap2.c] Fix dead stream crash bug introduced on April 7.
+
+13 April 1993	[tenex2.c] Fix locking in tenex_ping().
+
+15 April 1993	[SendWindow.m, imap2.c, rfc822.c] Fix group syntax bugs.
+
+18 April 1993	[tenex2.c] Don't read message body (or allocate memory for it!)
+		in tenex_fetchstructure() if we're not going to MIME-parse it.
+
+20 April 1993	[dawz.c, tenex2.c] dawz.c never got taught about the change to
+		MIME body part offsets made last October and tenex2.c
+		inherited the bug.
+
+21 April 1993	[bezerk.c/h] Don't do flock upgrading.
+
+22 April 1993	[bezerk.c/h, mbox.c] Support `` remote from node'' in
+		``From '' lines, write some documentation for the infamous
+		VALID macro, make VALID no longer depend on magic symbols.
+
+23 April 1993	[tenex2.c/h] Redo locking strategy to work around flock()
+		cretinously releasing all locking when you upgrade or
+		downgrade a lock.
+
+25 April 1993	[tenex2.c/h] Make locking strategy even tighter, to lock out
+		theoretical timing races.
+
+ 2 May 1993	[tenex2.c] Fix smashed date bug in append code.  If old tenex
+		driver is revived have to fix it there too.
+
+ 3 May 1993	[tenex2.c] Yet more date/append code stuff.
+
+ 4 May 1993	[rfc822.c] Fix off-by-one error in calculating part sizes.
+
+ 5 May 1993	[dummy.c/h, mail.c] Better error reporting for open and append.
+
+ 6 May 1993	[os_sco.c/h] Try once again to get it to build on SCO.
+
+ 9 May 1993	[imapd.c] Remove 2 minute delay before KOD receptivity.
+
+ 9 May 1993	[dawz.c] Fix unquoted \ in printf.
+
+ 9 May 1993	[bezerk.c] Upgrade KOD notice to warning so Pine displays it.
+
+ 9 May 1993	[imap2.c] FIND gets host syntax.
+
+ 9 May 1993	[ms.c] Do FIND correctly for remote hosts.
+
+ 9 May 1993	[news.c, nntpc*.c] Fix malloc lossage in .newsrc handling.
+
+ 9 May 1993	[nntpc*.c] Return proper FIND results.
+
+10 May 1993	[dummy.c] mail_find() returns all files if the user does not
+		have a subscription database.  This is for the benefit of Pine
+		users; Pine doesn't presently use subscriptions and doing a
+		mail_find_all() is much too slow to be a default behavior.
+
+10 May 1993	[imap2.c] Fix looping in imap_send_literal.  (Thanx MikeS!)
+
+10 May 1993	[dawz.c] Fix non-NIL value being returned from dawz_valid()
+		when NIL is returned.  (Thanx MikeS!)
+
+10 May 1993	[imapd.c] Make long literals from client work.
+
+11 May 1993	[imap2.c, dawz.c] Gruesome amount of hackery to make an IMAP
+		APPEND work from a dawz stringstream.
+
+11 May 1993	[imapd.c] Fix malloc arena clobberage bug introduced yesterday.
+
+11 May 1993	[dawz.c/h, sm_dos.c, os_d??.c] Force use of .MTX extension for
+		DOS mailboxes.  Use home directory from HOME environment
+		variable.
+
+11 May 1993	[imap2.c, imapd.c] Make IMAP client go read-only when KOD
+		happens.
+
+11 May 1993	[tenex2.c] Make file validation check stricter.
+
+11 May 1993	[nntpcdos.c] Fix void return.
+
+11 May 1993	[os_sco.c/h, makefile.sco, sm_unix.c] Yet more SCO fixes.
+
+12 May 1993	[os_d??.c] myhomedir() deletes trailing directory delimiter.
+
+12 May 1993	[nntpcdos.c/h] NEWSRC is now put in home directory.
+
+15 May 1993	[mmdf.c/h] Add mmdf driver.  At present it is used in lieu of
+		the bezerk driver, and masquerades as it so we don't have to
+		change 69 different programs that do mail_link(&bezerkdriver).
+		Someone should figure out how to do the runtime test for the
+		case when /usr/spool/mail/$user is empty, so both drivers can
+		be lunk in.
+
+15 May 1993	[makefile.sco, os_sco.c/h] Teach SCO makefile to use MMDF
+		driver.  Try to fix some geteuid() stuff (does it?).
+
+15 May 1993	[tenex.c/h] Remove old tenex driver.  It has started to succumb
+		to software rot.  Tenex2 driver is now standard.
+
+18 May 1993	[imap2.c] Don't prepend ``mumble rejected:'' to errors.
+
+18 May 1993	[tenex2.c] Include byte position in mailbox format errors.
+
+18 May 1993	[dawz.c] Return names without the MTX extension in FIND.
+
+18 May 1993	[dummy.c/h] Yet more in the saga of better open/append error
+		reporting.
+
+18 May 1993	[nntpcdos.c] Remove some unused netdb stuff.
+
+18 May 1993	[tenex2.c] Fix some MIME fetching bugs.
+
+18 May 1993	[imap2.c, imapd.c] Change IMAP KOD message to be friendlier.
+
+18 May 1993	[rfc822.c] Fix handling of non-signficant line break at end of
+		data in quoted-printable decoder.
+
+18 May 1993	[tenex2.c] Parse mailbox before snarfing as well as after.
+
+19 May 1993	[bezerk.c, dummy.c, imap2.c, mail.c, mh.c, misc.c/h, mtest.c,
+		 news.c, nntp.c, nntpc*.c, os_???.c, os_aix.h, rfc822.c,
+		 tenex2.c] Fix problems that make the AIX compiler snarl.
+
+19 May 1993	[imapd.c] Support being invoked as user ``nobody'' (assumes
+		anonymous).
+
+19 May 1993	[imap2.c] Tolerate PREAUTH responses from ordinary (non-rimap)
+		IMAP server.
+
+19 May 1993	[dawz.c/h] Move DAWZLOCAL to .h file.
+
+19 May 1993	[os_dwa.c] Fix stupid buffer push bug caused by an even
+		stupider implementation.
+
+20 May 1993	[nntpcdos.c/h] Be more restrained in the use of memory, allow
+		unlimited size messages.
+
+20 May 1993	[nntpcdos.c] Use TEMP or TMP environment variable for scratch
+		file.
+
+23 May 1993	[dummy.c] Better error message for bogus net specification.
+
+23 May 1993	[imap2.c, nntpc*.c, mail.c/h] Implement new net specification
+		parsing.  mail_valid_net_parse() routine.
+
+24 May 1993	[dummydos.c, mtest.c] Add a dummy driver for DOS
+
+24 May 1993	[dawz.c, mail.c/h, nntpcdos.c] Fix mm_gets memory leak.
+
+26 May 1993	[imap2.c, mail.c] Fix memory leak in IMAP garbage collection.
+
+27 May 1993	[rfc822.c] Fix handing of encapsulated message in sending.
+
+28 May 1993	[os_sgi.c/h] Delete string routines since it is reported they
+		are unnecessary.
+
+ 3 June 1993	[news.c, nntpc*.c] Give ``[UNSEEN]'' mm_notify() event pointing
+		to the first unseen but not recent message if such exists.
+
+ 5 June 1993	[dawz.c] Fix for 1-digit days here too (from tenex2).
+
+ 6 June 1993	[ms.c] Reply no longer replies to Newsgroups: line.
+
+ 6 June 1993	[dawz.c] Also prevent 1-digit days from happening...
+
+ 7 June 1993	[misc.c, os_*.c/h] Implement wildcards using standalone
+		routine.  No regular expressions on DOS.
+
+ 7 June 1993	[bezerk.c, tenex2.c] Apply .txt rule consistantly (stopgap
+		until the rule is more thoroughly reviewed).
+
+ 7 June 1993	[makefile.dnv] Fix dummydos dependency.
+
+ 7 June 1993	[nntpcdos.c/h] Don't use lots of memory reading newsrc file.
+
+ 7 June 1993	[dawz.c] Use pmatch for wildcards since DOS isn't quite right.
+
+ 8 June 1993	[tenex2.c] Change all SEEK_SET to L_SET.
+
+ 8 June 1993	[dawz.c] Fix dawz_fetchbody handling of encapsulated messages
+		once again, damnit!
+
+ 8 June 1993	[rfc822.c] Fix empty BODY structure returned if zero bytes.
+
+ 9 June 1993	[os_dnv.c] Fix memory leak in tcp_open() due to hokey way that
+		rhost() works.
+
+ 9 June 1993	[imap2.c, imapd.c] Implement EXAMINE for read-only select.
+
+10 June 1993	[ipop2d.c] Tie off password properly.
+
+10 June 1993	[nntp.c] Write cretinous Path: line in header.
+
+12 June 1993	[bezerk.c] Make sure PID tied off in lock file.
+
+13 June 1993	[imapd.c] Remove the include of news.h from imapd.
+
+15 June 1993	[os_d*.c] Fix handling of bracketed decimal host address.
+
+15 June 1993	[nntpcdos.c] Provide error message in temp file handling.
+
+16 June 1993	[mh.c, news.c, nntpclient.c] Don't assume text is cached at the
+		start of fetchbody processing.
+
+16 June 1993	[rfc822.c] Update body part current pointer in more places so
+		accurate count of size is made.
+
+17 June 1993	[imap2.c] Anonymous flag is set if user logs in as anonymous.
+
+18 June 1993	[mh.c, news.c, nntpclient.c] Well, the fix of June 16 kept it
+		from crashing, but didn't guarantee the text was there.  Do it
+		for real now.
+
+19 June 1993	[imap2.c/h, mtest.c, news.c, nntpc*.c] Massive redesign of
+		FIND behavior for bboards, in the name of returning only
+		strings which match the pattern even if the context is absent.
+
+25 June 1993	[imapd.c] Remote find works in a saner fashion.  Minor code
+		cleanups.
+
+29 June 1993	[nntpc*.c] Work on cretinous NNTP servers that don't have the
+		LISTGROUP command.
+
+30 June 1993	[bezerk.c] bezerk_append() inserts the infamous widgit in front
+		of lines begining with ``From ''.
+
+30 June 1993	[bezerk.c, dawz.c, dummy*.c, mh.c, mmdf,c, tenex2.c] Massive
+		redesign of FIND behavior for local folders, in much the same
+		spirit of the bboards stuff on June 19.
+
+ 1 July 1993	[nntpc*.c] Reorganize the LISTGROUP edit, and fix a bug with
+		half-open handling.
+
+ 1 July 1993	[dawz.c] MTX extension is never accepted from or seen by users.
+
+ 4 July 1993	[nntpc*.c] More bug fixes to missing LISTGROUP handling.
+
+ 6 July 1993	[os_a32.c, os_aix.c, os_sco.c] Get numeric timezone right with
+		summer time...
+
+ 6 July 1993	[rfc822.c] Fix missing header delimiter when remailing.
+
+ 9 July 1993	[makefile.sgi] Increase the optimization size.
+
+11 July 1993	[bezerk.h, mmdf.h] Fix use of t in infamous VALID macro.
+
+12 July 1993	[makefile.ult] Increase the optimization size.
+
+12 July 1993	[ms.c] Default to NEW for READ on bboards.  Don't get confused
+		on secondary (e.g. subscribe) streams.
+
+12 July 1993	[nntpc*.c] Fix subscription handling to use correct syntax.
+
+13 July 1993	[imapd.c] Fix lost TRYCREATE event  when stream is null.
+
+15 July 1993	[bezerk.c, dummy.c mbox.c, tenex2.c] Implement first pass at
+		mailbox format bboards.
+
+15 July 1993	[imapd.c] Anonymous FIND bboards runs through drivers.
+
+20 July 1993	[bezerk.c] Simplify cache validity test to placate BSD cc.
+
+20 July 1993	[os_ptx.h] Add stropts.h to includes.
+
+26 July 1993	[nntpc*.c] nntp_ping() sends ``PING PONG'' at server to see if
+		it is still alive...
+
+27 July 1993	[os_mac.c] Work around MacTCP DNR bug.
+
+29 July 1993	[makefile.dnf, os_d*.c/h] Add PC-NFS DOS port (dnf), fix memory
+		smash bug in some DOS ports, clean up others.
+
+ 3 August 1993	[os_sun.c/h] Minor tweaks to strstr() replacement.
+
+ 4 August 1993	[various makefiles] Make of ms is now conditional on CCMD
+		being installed.
+
+ 5 August 1993	[os_sv4.c] Change int to time_t in rfc822_date().
+
+ 9 August 1993	[pat*] Supply patch files for shadow passwords on Ultrix and
+		SUN-OS.
+
+11 August 1993	[mail.c] Permit /imap as alternative service name to /imap2.
+
+16 August 1993	[bezerk.c, mmdf.c, os*, rfc822.c] First steps towards making
+		c-client null clean: don't clobber messages with embedded
+		nulls.
+
+17 August 1993	[makefile.osf, os_osf.c/h] Create OSF/1 port.
+
+24 August 1993	[makefile.ptx, os_ptx.c, ipop?d.c] Fix PTX port to do the
+		PTX server cruft automatically.  Small change to CFLAGS.
+
+25 August 1993	[phile.c/h] Start of file driver.
+
+26 August 1993	[tenex2.c] Fix missing cast in assign of fs_get to a string.
+
+30 August 1993	[makefile.pyr, os_pyr.c/h] Pyramid port, courtesy of F. Wancho.
+
+ 1 September 1993 [makefile.*, mtest.c, phile.c/h] Add file driver to makefiles
+		and mtest.
+
+ 2 September 1993 [nntpcdos.c/h] Warn when creating newsrc file, and clean up
+		temporary files.
+
+ 2 September 1993 [phile.c/h, imapd.c] Finish file driver, support in imapd.
+
+ 2 September 1993 [makefile.sol, os_sol.c/h] Make separate Solaris port -- they
+		call it rsh, not resh!!  Gabba gabba hey, let's be a cretin...
+
+ 7 September 1993 [phile.c] Minor changes to get it to compile under Ultrix.
+
+ 8 September 1993 [imap2.c/h, imapd.c, ipop?d.c, mail.h, ms.c, mtest.c,
+		tenex2.c, Utilities.m] Added new mm_flags() callback that
+		notifies main program when it appears that flags may have been
+		altered by some external process.
+
+ 8 September 1993 [imap2.c/h] Make it possible to turn off search pre-fetching.
+
+ 8 September 1993 [os_hpp.h, makefile.hpp] Corrected minor problems that kept
+		it from building under HP-UX.
+
+10 September 1993 [bezerk.c, mh.c, mmdf.c, news.c, nntpc*.c, phile.c, tenex2.c,
+		imapd.c] TRYCREATE given for mail_copy()/mail_move().
+
+10 September 1993 [makefile.lnx, os_lnx.c/h] Start Linux port.
+
+12 September 1993 [bezerk.c, mmdf.c, os_sv4.h] Accomodate cretin SVR4 systems
+		which have a gettimeofday() function but with a different
+		definition than BSDs!!
+
+12 September 1993 [makefile.lnx, os_lnx.c/h] More Linux stuff...
+
+13 September 1993 [makefile.lnx, os_lnx.h] Yet more Linux stuff...
+
+13 September 1993 [phile.c] Don't return anything from find if no subscription.
+
+13 September 1993 [tenex2.c] Preserve flags from /usr/spool/mail.
+
+13 September 1993 [imapd.c, ipop?d.c] Remove crypt() prototype.
+
+14 September 1993 [bezerk.c, dawz.c, imapd.c, mail.c/h, tenex2.c] imapd new
+		mailbox creation policy now governed by /etc/imapdrc and
+		~/.imaprc files.  New global mailstd_proto defined.
+
+15 September 1993 [rfc822.c] Once again, a reprise of the saga of the great
+		body part size calculation fiasco.  Maybe I've got it right
+		this time.
+
+15 September 1993 [nntp.c] Another cretinism (and monument) prior to posting
+		is needed.
+
+19 September 1993 [makefile.cvx, os_cvx.c] Submitted Convex port.
+
+19 September 1993 [rfc822.c] Defaulted charset parameter wasn't uppercase
+		even though everything else was.
+
+21 September 1993 [bezerk.c/h] Rewrite append code to be faster (I hope).
+
+21 September 1993 [imapd.c] Fix pbody to handle multipart with no parts (ugh).
+
+21 September 1993 [rfc822.c] Ignore comment in MIME-version.
+
+22 September 1993 [imapd.c] Default creation policy is system default.
+
+22 September 1993 [imapd.c] Change init file name to /etc/imapd.conf

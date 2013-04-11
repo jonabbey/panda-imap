@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	15 March 1993
+ * Last Edited:	10 September 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -139,6 +139,7 @@ void *news_parameters (function,value)
 	void *value;
 {
   fatal ("Invalid news_parameters function");
+  return NIL;
 }
 
 /* Netnews mail find list of mailboxes
@@ -179,9 +180,8 @@ void news_find_bboards (stream,pat)
       }
     }
   }
-  while (t = sm_read (&s))	/* try subscription manager list */
-    if (pmatch (lcase (t + 1),patx) &&
-	(news_valid (t) || ((*t == '*') && t[1] == '{'))) mm_bboard (t + 1);
+  while (t = sm_read (&s))	/* get data from subscription manager */
+    if ((*t == '*') && pmatch (t+1,pat)) mm_bboard (t+1);
 }
 
 /* Netnews mail find list of all mailboxes
@@ -207,7 +207,6 @@ void news_find_all_bboards (stream,pat)
 	char *pat;
 {
   int fd;
-  char tmp[MAILTMPLEN];
   char patx[MAILTMPLEN];
   char *s,*t,*u;
   struct stat sbuf;
@@ -271,7 +270,7 @@ long news_subscribe_bboard (stream,mailbox)
 				/* open .newsrc file */
   if ((fd = open (NEWSRC,O_RDWR|O_CREAT,0600)) < 0) {
     mm_log ("Can't update news state",ERROR);
-    return;
+    return NIL;
   }
   flock (fd,LOCK_EX);		/* wait for exclusive access */
   fstat (fd,&sbuf);		/* get size of data */
@@ -327,7 +326,7 @@ long news_unsubscribe_bboard (stream,mailbox)
 				/* open .newsrc file */
   if ((fd = open (NEWSRC,O_RDWR|O_CREAT,0600)) < 0) {
     mm_log ("Can't update news state",ERROR);
-    return;
+    return NIL;
   }
   flock (fd,LOCK_EX);		/* wait for exclusive access */
   fstat (fd,&sbuf);		/* get size of data */
@@ -407,15 +406,13 @@ long news_rename (stream,old,new)
 MAILSTREAM *news_open (stream)
 	MAILSTREAM *stream;
 {
-  int fd;
   long i,nmsgs,j,k;
-  long recent = 0;
-  char c,*s,*t,tmp[MAILTMPLEN];
+  long recent = 0,unseen = 0;
+  char c = NIL,*s,*t,tmp[MAILTMPLEN];
   void *sdb = NIL;
   struct hostent *host_name;
   struct direct **names;
-  struct stat sbuf;
-				/* return prototype for OP_PROTOTYPE call */
+  				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &newsproto;
   if (LOCAL) {			/* close old file if stream being recycled */
     news_close (stream);	/* dump and save the changes */
@@ -461,7 +458,6 @@ MAILSTREAM *news_open (stream)
 	if (strcmp (t,LOCAL->name)) s = NIL;
 	else break;		/* found it! */
       }
-      if (t) fs_give (&sdb);	/* free up database if necessary */
       if (s) {			/* newsgroup found? */
 	if (c == '!') mm_log ("Not subscribed to that newsgroup",WARN);
 	while (*s && i < nmsgs){/* process until run out of messages or list */
@@ -469,11 +465,14 @@ MAILSTREAM *news_open (stream)
 				/* other end of range */
 	  k = (*s == '-') ? strtol (++s,&s,10) : j;
 				/* skip messages before this range */
-	  while ((LOCAL->number[i] < j) && (i < nmsgs)) LOCAL->seen[i++] = NIL;
+	  while ((LOCAL->number[i] < j) && (i < nmsgs)) {
+	    if (!unseen) unseen = i + 1;
+	    LOCAL->seen[i++] = NIL;
+	  }
 	  while ((LOCAL->number[i] >= j) && (LOCAL->number[i] <= k) &&
 		 (i < nmsgs)) {	/* mark messages within the range as seen */
 	    LOCAL->seen[i++] = T;
-	    mail_elt (stream,i)->seen = T;
+	    mail_elt (stream,i)->deleted = T;
 	  }
 	  if (*s == ',') s++;	/* skip past comma */
 	  else if (*s) {	/* better not be anything else then */
@@ -483,6 +482,11 @@ MAILSTREAM *news_open (stream)
 	}
       }
       else mm_log ("No state for newsgroup found, reading as new",WARN);
+      if (t) fs_give (&sdb);	/* free up database if necessary */
+    }
+    if (unseen) {		/* report first unseen message */
+      sprintf (tmp,"[UNSEEN] %ld is first unseen message",unseen);
+      mm_notify (stream,tmp,(long) NIL);
     }
     while (i < nmsgs) {		/* mark all remaining messages as new */
       LOCAL->seen[i++] = NIL;
@@ -686,11 +690,7 @@ char *news_fetchtext (stream,msgno)
   MESSAGECACHE *elt = mail_elt (stream,msgno);
 				/* snarf message in case don't have it yet */
   news_fetchheader (stream,msgno);
-  if (!elt->seen) {		/* if message not seen before */
-    elt->seen = T;		/* mark as seen */
-    LOCAL->dirty = T;		/* and that stream is now dirty */
-  }
-  LOCAL->seen[i] = T;
+  elt->seen = T;		/* mark as seen */
   return LOCAL->body[i] ? LOCAL->body[i] : "";
 }
 
@@ -711,12 +711,13 @@ char *news_fetchbody (stream,m,s,len)
   BODY *b;
   PART *pt;
   unsigned long i;
-  char *base = LOCAL->body[m - 1];
+  char *base;
   unsigned long offset = 0;
   MESSAGECACHE *elt = mail_elt (stream,m);
 				/* make sure have a body */
   if (!(news_fetchstructure (stream,m,&b) && b && s && *s &&
-	((i = strtol (s,&s,10)) > 0))) return NIL;
+	((i = strtol (s,&s,10)) > 0) && (base = news_fetchtext (stream,m))))
+    return NIL;
   do {				/* until find desired body part */
 				/* multipart content? */
     if (b->type == TYPEMULTIPART) {
@@ -741,11 +742,7 @@ char *news_fetchbody (stream,m,s,len)
   } while (i);
 				/* lose if body bogus */
   if ((!b) || b->type == TYPEMULTIPART) return NIL;
-  if (!elt->seen) {		/* if message not seen before */
-    elt->seen = T;		/* mark as seen */
-    LOCAL->dirty = T;		/* and that stream is now dirty */
-  }
-  LOCAL->seen[m-1] = T;
+  elt->seen = T;		/* mark as seen */
   return rfc822_contents (&LOCAL->buf,&LOCAL->buflen,len,base + offset,
 			  b->size.ibytes,b->encoding);
 }
@@ -764,21 +761,19 @@ void news_setflag (stream,sequence,flag)
   MESSAGECACHE *elt;
   long i;
   short f = news_getflags (stream,flag);
-  short f1 = f & (fSEEN|fDELETED);
   if (!f) return;		/* no-op if no flags to modify */
 				/* get sequence and loop on it */
   if (mail_sequence (stream,sequence)) for (i = 0; i < stream->nmsgs; i++)
     if ((elt = mail_elt (stream,i + 1))->sequence) {
-				/* set all requested flags */
-      if (f&fSEEN) elt->seen = T;
+      if (f&fSEEN) elt->seen=T;	/* set all requested flags */
       if (f&fDELETED) {		/* deletion also purges the cache */
 	elt->deleted = T;	/* mark deleted */
 	if (LOCAL->header[i]) fs_give ((void **) &LOCAL->header[i]);
 	if (LOCAL->body[i]) fs_give ((void **) &LOCAL->body[i]);
+	if (!LOCAL->seen[i]) LOCAL->seen[i] = LOCAL->dirty = T;
       }
       if (f&fFLAGGED) elt->flagged = T;
       if (f&fANSWERED) elt->answered = T;
-      if (f1 && !LOCAL->seen[i]) LOCAL->seen[i] = LOCAL->dirty = T;
     }
 }
 
@@ -797,21 +792,21 @@ void news_clearflag (stream,sequence,flag)
   MESSAGECACHE *elt;
   long i;
   short f = news_getflags (stream,flag);
-  short f1 = f & (fSEEN|fDELETED);
   if (!f) return;		/* no-op if no flags to modify */
 				/* get sequence and loop on it */
   if (mail_sequence (stream,sequence)) for (i = 0; i < stream->nmsgs; i++)
     if ((elt = mail_elt (stream,i + 1))->sequence) {
 				/* clear all requested flags */
       if (f&fSEEN) elt->seen = NIL;
-      if (f&fDELETED) elt->deleted = NIL;
+      if (f&fDELETED) {
+	elt->deleted = NIL;	/* undelete */
+	if (LOCAL->seen[i]) {	/* if marked in newsrc */
+	  LOCAL->seen[i] = NIL;	/* unmark it now */
+	  LOCAL->dirty = T;	/* mark stream as dirty */
+	}
+      }
       if (f&fFLAGGED) elt->flagged = NIL;
       if (f&fANSWERED) elt->answered = NIL;
-				/* clearing either seen or deleted does this */
-      if (f1 && LOCAL->seen[i]) {
-	LOCAL->seen[i] = NIL;
-	LOCAL->dirty = T;	/* mark stream as dirty */
-      }
     }
 }
 
@@ -1046,77 +1041,11 @@ long news_copy (stream,sequence,mailbox)
 	char *sequence;
 	char *mailbox;
 {
-  char tmp[MAILTMPLEN];
-  char lock[MAILTMPLEN];
-  struct iovec iov[3];
-  struct stat ssbuf,dsbuf;
-  char *t,*v;
-  int sfd,dfd;
-  long i;
-  long r = NIL;
-				/* get sequence to do */
-  if (stream->anonymous || !mail_sequence (stream,sequence)) return NIL;
-				/* get destination mailbox */
-  if ((dfd = bezerk_lock (bezerk_file (tmp,mailbox),O_WRONLY|O_APPEND|O_CREAT,
-			  S_IREAD|S_IWRITE,lock,LOCK_EX)) < 0) {
-    sprintf (LOCAL->buf,"Can't open destination mailbox: %s",strerror (errno));
-    mm_log (LOCAL->buf,ERROR);
-    return NIL;
-  }
-  mm_critical (stream);		/* go critical */
-  fstat (dfd,&dsbuf);		/* get current file size */
-  iov[2].iov_base = "\n\n";	/* constant trailer */
-  iov[2].iov_len = 2;
-
-				/* write all requested messages to mailbox */
-  for (i = 1; i <= stream->nmsgs; i++) if (mail_elt (stream,i)->sequence) {
-				/* build message file name */
-    sprintf (tmp,"%s/%lu",LOCAL->dir,LOCAL->number[i - 1]);
-    if ((sfd = open (tmp,O_RDONLY,NIL)) >= 0) {
-      fstat (sfd,&ssbuf);	/* get size of message */
-				/* ensure enough room */
-      if (ssbuf.st_size > LOCAL->buflen) {
-				/* fs_resize does an unnecessary copy */
-	fs_give ((void **) &LOCAL->buf);
-	LOCAL->buf = (char *) fs_get ((LOCAL->buflen = ssbuf.st_size) + 1);
-      }
-				/* slurp the silly thing in */
-      read (sfd,iov[1].iov_base = LOCAL->buf,iov[1].iov_len = ssbuf.st_size);
-				/* tie off file */
-      iov[1].iov_base[ssbuf.st_size] = '\0';
-      close (sfd);		/* flush message file */
-				/* get Path: data */
-      if ((((t = iov[1].iov_base - 1) && t[1] == 'P' && t[2] == 'a' &&
-	    t[3] == 't' && t[4] == 'h' && t[5] == ':' && t[6] == ' ') ||
-	   (t = strstr (iov[1].iov_base,"\nPath: "))) &&
-	  (v = strchr (t += 7,'\n')) && (r = v - t)) {
-	strcpy (tmp,"From ");	/* start text */
-	strncpy (v = tmp+5,t,r);/* copy that many characters */
-	v[r++] = ' ';		/* delimiter */
-	v[r] = '\0';		/* tie it off */
-      }
-      else strcpy (tmp,"From somebody ");
-				/* add the time and a newline */
-      strcat (tmp,ctime (&ssbuf.st_mtime));
-				/* build rn-compatible header lines */
-      sprintf (tmp + strlen (tmp),"Article %lu of %s\n",
-	       LOCAL->number[i - 1],LOCAL->name);
-      iov[0].iov_len = strlen (iov[0].iov_base = tmp);
-				/* now do the write */
-      if (r = (writev (dfd,iov,3) < 0)) {
-	sprintf (LOCAL->buf,"Message copy %d failed: %s",i,strerror (errno));
-	mm_log (LOCAL->buf,ERROR);
-	ftruncate (dfd,dsbuf.st_size);
-	break;			/* give up */
-      }
-    }
-  }
-  fsync (dfd);			/* force out the update */
-  bezerk_unlock (dfd,NIL,lock);	/* unlock and close mailbox */
-  mm_nocritical (stream);	/* release critical */
-  return !r;			/* return whether or not succeeded */
+  mm_log ("Copy not valid for netnews",ERROR);
+  return NIL;
 }
-
+
+
 /* Netnews mail move message(s)
 	s;
  * Accepts: MAIL stream
@@ -1130,18 +1059,8 @@ long news_move (stream,sequence,mailbox)
 	char *sequence;
 	char *mailbox;
 {
-  long i;
-  MESSAGECACHE *elt;
-  if (stream->anonymous || !(mail_sequence (stream,sequence) &&
-			     news_copy (stream,sequence,mailbox))) return NIL;
-				/* delete all requested messages */
-  for (i = 1; i <= stream->nmsgs; i++)
-    if ((elt = mail_elt (stream,i))->sequence) {
-      elt->deleted = T;		/* mark message deleted */
-      LOCAL->dirty = T;		/* mark mailbox as dirty */
-      LOCAL->seen[i - 1] = T;	/* and seen for .newsrc update */
-    }
-  return T;
+  mm_log ("Move not valid for netnews",ERROR);
+  return NIL;
 }
 
 

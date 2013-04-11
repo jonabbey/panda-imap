@@ -13,9 +13,9 @@
  *		Internet: cohen@bucrf16.bu.edu
  *
  * Date:	23 February 1992
- * Last Edited:	4 December 1992
+ * Last Edited:	10 September 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,6 +44,7 @@ extern int errno;		/* just in case */
 #include <sys/types.h>
 #include "mail.h"
 #include "osdep.h"
+#include <pwd.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -107,11 +108,17 @@ DRIVER *mh_valid (char *name)
 }
 
 
+/* MH mail test for valid mailbox
+ * Accepts: mailbox name
+ * Returns: T if valid, NIL otherwise
+ */
+
 int mh_isvalid (char *name,char *tmp)
 {
   struct stat sbuf;
                                 /* if file, get its status */
-  return (*name != '{' && (stat (mh_file (tmp,name),&sbuf) == 0) &&
+  return (*name != '{' && *name != '.' &&
+	  (stat (mh_file (tmp,name),&sbuf) == 0) &&
 	  (sbuf.st_mode & S_IFMT) == S_IFDIR);
 }
 
@@ -124,18 +131,29 @@ int mh_isvalid (char *name,char *tmp)
 
 char *mh_file (char *dst,char *name)
 {
-  char *s;
+#if 0
+  struct passwd *pw;
+  char *s,*t,tmp[MAILTMPLEN];
   switch (*name) {
   case '/':			/* absolute file path */
     strcpy (dst,name);		/* copy the mailbox name */
     break;
   case '~':			/* home directory */
-    sprintf (dst,"%s%s",myhomedir (),(s = strchr (name,'/')) ? s : "");
+    if (name[1] == '/') t = myhomedir ();
+    else {
+      strcpy (tmp,name + 1);	/* copy user name */
+      if (s = strchr (tmp,'/')) *s = '\0';
+      t = ((pw = getpwnam (tmp)) && pw->pw_dir) ? pw->pw_dir : "/NOSUCHUSER";
+    }
+    sprintf (dst,"%s%s",t,(s = strchr (name,'/')) ? s : "");
     break;
   default:			/* relative path, goes in Mail folder */
     sprintf (dst,"%s/Mail/%s",myhomedir (),name);
     break;
   }
+#else
+  sprintf (dst,"%s/Mail/%s",myhomedir (),name);
+#endif
   return dst;
 }
 
@@ -149,6 +167,7 @@ char *mh_file (char *dst,char *name)
 void *mh_parameters (long function,void *value)
 {
   fatal ("Invalid mh_parameters function");
+  return NIL;
 }
 
 /* MH mail find list of mailboxes
@@ -183,26 +202,23 @@ void mh_find_bboards (MAILSTREAM *stream,char *pat)
 
 void mh_find_all (MAILSTREAM *stream,char *pat)
 {
-  char *s,*t;
-  char tmp[MAILTMPLEN],file[MAILTMPLEN];
   DIR *dirp;
   struct direct *d;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN];
+  int i = 0;
+  char *s,*t;
   if (s = strrchr (pat,'/')) {	/* directory specified in pattern? */
-    *s++ = '\0';		/* yes, tie off directory at that point */
-    if (*pat == '/') t = pat;	/* absolute directory reference? */
-    else sprintf (t = tmp,"%s/Mail/%s",myhomedir (),pat);
+    strncpy (file,pat,i = (++s) - pat);
+    file[i] = '\0';		/* tie off prefix */
+    t = mh_file (tmp,pat);	/* make fully-qualified file name */
+				/* tie off directory name */
+    if (s = strrchr (t,'/')) *s = '\0';
   }
-  else {			/* no directory stuff in pattern */
-    s = pat;			/* use the complete pattern */
-    sprintf (t = tmp,"%s/Mail",myhomedir ());
-  }
+  else t = myhomedir ();	/* use home directory to search */
   if (dirp = opendir (t)) {	/* now open that directory */
-    sprintf (file,"%s/",t);	/* build filename prefix */
-    t = file + strlen (file);	/* where we write the file name */
-				/* for each matching directory entry */
-    while (d = readdir (dirp)) if (pmatch (d->d_name,s)) {
-      strcpy (t,d->d_name);	/* write the file name */
-      if (mh_isvalid (file,tmp)) mm_mailbox (file);
+    while (d = readdir (dirp)) {/* for each directory entry */
+      strcpy (file + i,d->d_name);
+      if (pmatch (file,pat) && (mh_isvalid (file,tmp))) mm_mailbox (file);
     }
     closedir (dirp);		/* flush directory */
   }
@@ -310,13 +326,11 @@ long mh_rename (MAILSTREAM *stream,char *old,char *new)
 
 MAILSTREAM *mh_open (MAILSTREAM *stream)
 {
-  int fd;
-  long i,nmsgs,j,k;
+  long i,nmsgs;
   long recent = 0;
   char tmp[MAILTMPLEN];
   struct hostent *host_name;
   struct direct **names;
-  struct stat sbuf;
   if (!stream) return &mhproto;	/* return prototype for OP_PROTOTYPE call */
   if (LOCAL) {			/* close old file if stream being recycled */
     mh_close (stream);		/* dump and save the changes */
@@ -400,7 +414,6 @@ int mh_numsort (struct direct **d1,struct direct **d2)
 
 void mh_close (MAILSTREAM *stream)
 {
-  long i;
   if (LOCAL) {			/* only if a file is open */
     mh_check (stream);		/* dump final checkpoint */
     if (LOCAL->dir) fs_give ((void **) &LOCAL->dir);
@@ -563,12 +576,13 @@ char *mh_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
   BODY *b;
   PART *pt;
   unsigned long i;
-  char *base = LOCAL->body[m - 1];
+  char *base;
   unsigned long offset = 0;
   MESSAGECACHE *elt = mail_elt (stream,m);
 				/* make sure have a body */
   if (!(mh_fetchstructure (stream,m,&b) && b && s && *s &&
-	((i = strtol (s,&s,10)) > 0))) return NIL;
+	((i = strtol (s,&s,10)) > 0) && (base = mh_fetchtext (stream,m))))
+    return NIL;
   do {				/* until find desired body part */
 				/* multipart content? */
     if (b->type == TYPEMULTIPART) {
@@ -796,74 +810,11 @@ void mh_expunge (MAILSTREAM *stream)
 
 long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox)
 {
-  char tmp[MAILTMPLEN];
-  char lock[MAILTMPLEN];
-  struct iovec iov[3];
-  struct stat ssbuf,dsbuf;
-  char *t,*v;
-  int sfd,dfd;
-  long i;
-  long r = NIL;
-				/* get sequence to do */
-  if (!mail_sequence (stream,sequence)) return NIL;
-				/* get destination mailbox */
-  if ((dfd = bezerk_lock (bezerk_file (tmp,mailbox),O_WRONLY|O_APPEND|O_CREAT,
-			  S_IREAD|S_IWRITE,lock,LOCK_EX)) < 0) {
-    sprintf (LOCAL->buf,"Can't open destination mailbox: %s",strerror (errno));
-    mm_log (LOCAL->buf,ERROR);
-    return NIL;
-  }
-  mm_critical (stream);		/* go critical */
-  fstat (dfd,&dsbuf);		/* get current file size */
-  iov[2].iov_base = "\n\n";	/* constant trailer */
-  iov[2].iov_len = 2;
-
-				/* write all requested messages to mailbox */
-  for (i = 1; i <= stream->nmsgs; i++) if (mail_elt (stream,i)->sequence) {
-				/* build message file name */
-    sprintf (tmp,"%s/%lu",LOCAL->dir,LOCAL->number[i - 1]);
-    if ((sfd = open (tmp,O_RDONLY,NIL)) >= 0) {
-      fstat (sfd,&ssbuf);	/* get size of message */
-				/* ensure enough room */
-      if (ssbuf.st_size > LOCAL->buflen) {
-				/* fs_resize does an unnecessary copy */
-	fs_give ((void **) &LOCAL->buf);
-	LOCAL->buf = (char *) fs_get ((LOCAL->buflen = ssbuf.st_size) + 1);
-      }
-				/* slurp the silly thing in */
-      read (sfd,iov[1].iov_base = LOCAL->buf,iov[1].iov_len = ssbuf.st_size);
-				/* tie off file */
-      iov[1].iov_base[ssbuf.st_size] = '\0';
-      close (sfd);		/* flush message file */
-				/* get Path: data */
-      if ((((t = iov[1].iov_base - 1) && t[1] == 'P' && t[2] == 'a' &&
-	    t[3] == 't' && t[4] == 'h' && t[5] == ':' && t[6] == ' ') ||
-	   (t = strstr (iov[1].iov_base,"\nPath: "))) &&
-	  (v = strchr (t += 7,'\n')) && (r = v - t)) {
-	strcpy (tmp,"From ");	/* start text */
-	strncpy (v = tmp+5,t,r);/* copy that many characters */
-	v[r++] = ' ';		/* delimiter */
-	v[r] = '\0';		/* tie it off */
-      }
-      else strcpy (tmp,"From somebody ");
-				/* add the time and a newline */
-      strcat (tmp,ctime (&ssbuf.st_mtime));
-      iov[0].iov_len = strlen (iov[0].iov_base = tmp);
-				/* now do the write */
-      if (r = (writev (dfd,iov,3) < 0)) {
-	sprintf (LOCAL->buf,"Message copy %d failed: %s",i,strerror (errno));
-	mm_log (LOCAL->buf,ERROR);
-	ftruncate (dfd,dsbuf.st_size);
-	break;			/* give up */
-      }
-    }
-  }
-  fsync (dfd);			/* force out the update */
-  bezerk_unlock (dfd,NIL,lock);	/* unlock and close mailbox */
-  mm_nocritical (stream);	/* release critical */
-  return !r;			/* return whether or not succeeded */
+  mm_log ("Copy not valid for read-only mh mailbox",ERROR);
+  return NIL;
 }
-
+
+
 /* MH mail move message(s)
  * Accepts: MAIL stream
  *	    sequence
@@ -873,18 +824,8 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox)
 
 long mh_move (MAILSTREAM *stream,char *sequence,char *mailbox)
 {
-  long i;
-  MESSAGECACHE *elt;
-  if (!(mail_sequence (stream,sequence) &&
-	mh_copy (stream,sequence,mailbox))) return NIL;
-				/* delete all requested messages */
-  for (i = 1; i <= stream->nmsgs; i++)
-    if ((elt = mail_elt (stream,i))->sequence) {
-      elt->deleted = T;		/* mark message deleted */
-      LOCAL->dirty = T;		/* mark mailbox as dirty */
-      LOCAL->seen[i - 1] = T;	/* and seen for .mhrc update */
-    }
-  return T;
+  mm_log ("Move not valid for read-only mh mailbox",ERROR);
+  return NIL;
 }
 
 
@@ -900,8 +841,7 @@ long mh_append (MAILSTREAM *stream,char *mailbox,STRING *message)
   mm_log ("Append not valid for read-only mh mailbox",ERROR);
   return NIL;
 }
-
-
+
 /* MH garbage collect stream
  * Accepts: Mail stream
  *	    garbage collection flags

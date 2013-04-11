@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	2 March 1993
+ * Last Edited:	16 August 1993
  *
  * Copyright 1993 by the University of Washington.
  *
@@ -79,23 +79,24 @@ char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
 void rfc822_date (char *date)
 {
-  int zone;
+  int zone,dstflag;
   struct tm *t;
   struct timeval tv;
   struct timezone tz;
   gettimeofday (&tv,&tz);	/* get time and timezone poop */
   t = localtime (&tv.tv_sec);	/* convert to individual items */
   tzset ();			/* get timezone from TZ environment stuff */
-#if 0
-  zone = -timezone/60;		/* doesn't work for some reason */
+  dstflag = daylight ? t->tm_isdst : 0;
+#if 0				/* doesn't work for some reason */
+  zone = (dstflag * 60) - timezone/60;
 #else
-  zone = -tz.tz_minuteswest;	/* but this works fine */
+  zone = (dstflag * 60) - tz.tz_minuteswest;
 #endif
 				/* and output it */
   sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
 	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-	   tzname[daylight ? t->tm_isdst : 0]);
+	   tzname[dstflag]);
 }
 
 /* Get a block of free storage
@@ -149,9 +150,11 @@ void fatal (char *string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl)
 {
   long i,j;
   char *d = src;
@@ -178,13 +181,13 @@ char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
     break;
   }
   *d = '\0';			/* tie off destination */
-  return *dst;			/* return destination */
+  return d - *dst;		/* return length */
 }
 
 
 /* Length of string after strcrlfcpy applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (STRING *s)
@@ -438,7 +441,6 @@ char *tcp_getline (TCPSTREAM *stream)
 {
   int n,m;
   char *st,*ret,*stp;
-  char tmp[2];
   char c = '\0';
   char d;
 				/* make sure have data */

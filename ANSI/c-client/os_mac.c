@@ -7,9 +7,9 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	3 December 1992
+ * Last Edited:	14 September 1993
  *
- * Copyright 1992 by Mark Crispin
+ * Copyright 1993 by Mark Crispin
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -65,6 +65,9 @@ TCPSTREAM {
 
 short TCPdriver = 0;		/* MacTCP's reference number */
 short resolveropen = 0;		/* TCP's resolver open */
+
+				/* *** temporary *** */
+MAILSTREAM *mailstd_proto = NIL;/* standard driver's prototype */
 
 /* Write current time in RFC 822 format
  * Accepts: destination string
@@ -146,9 +149,11 @@ void fatal (char *string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl)
 {
   long i,j;
   char *d = src;
@@ -165,13 +170,13 @@ char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
     if ((*src == '\015') && (src[1] != '\012')) *d++ = '\012';
   }
   *d = '\0';			/* tie off destination */
-  return *dst;			/* return destination */
+  return d - *dst;		/* return length */
 }
 
 
 /* Length of string after strcrlfcpy applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (STRING *s)
@@ -225,6 +230,14 @@ TCPSTREAM *tcp_open (char *host,long port)
     resolveropen = T;		/* note resolver open now */
     if (StrToAddr (host,&hst,tcp_dns_result,NIL)) {
       while (hst.rtnCode == cacheFault && wait ());
+				/* kludge around MacTCP bug */
+      if (hst.rtnCode == outOfMemory) {
+	mm_log ("Re-initializing domain resolver",WARN);
+	CloseResolver ();	/* bop it on the head and try again */
+	OpenResolver (NIL);	/* note this will leak 12K */
+	StrToAddr (host,&hst,tcp_dns_result,NIL);
+	while (hst.rtnCode == cacheFault && wait ());
+      }
       if (hst.rtnCode) {	/* still have error status? */
 	switch (hst.rtnCode) {	/* analyze return */
 	case nameSyntaxErr:
@@ -353,7 +366,6 @@ char *tcp_getline (TCPSTREAM *stream)
 {
   int n,m;
   char *st,*ret,*stp;
-  char tmp[2];
   char c = '\0';
   char d;
 				/* make sure have data */
@@ -579,26 +591,6 @@ long random ()
 long getpid ()
 {
   return 1;
-}
-
-
-/* These two are used for pattern matching in misc.c, but are actually never
- * called in Mac.
- */
-
-/* Dummy re_comp -- always return NIL */
-
-char *re_comp (char *s)
-{
-  return NIL;
-}
-
-
-/* Dummy re_exec -- always return T */
-
-long re_exec (char *s)
-{
-  return T;
 }
 
 /* Block until event satisfied

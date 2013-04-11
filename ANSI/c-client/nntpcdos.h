@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 January 1993
- * Last Edited:	11 February 1993
+ * Last Edited:	2 September 1993
  *
  * Copyright 1993 by the University of Washington.
  *
@@ -35,8 +35,9 @@
 
 /* Build parameters */
 
-#define NEWSRC "C:\\MAIL\\NEWSRC"
-#define OLDNEWSRC "C:\\MAIL\\NEWSRC.OLD"
+#define NEWSRC(t) sprintf (t,"%s\\NEWSRC",myhomedir ())
+#define NEWNEWSRC(t) sprintf (t,"%s\\NEWSRC.NEW",myhomedir ())
+#define OLDNEWSRC(t) sprintf (t,"%s\\NEWSRC.OLD",myhomedir ())
 
 /* Constants */
 
@@ -59,10 +60,10 @@
 typedef struct nntp_local {
   SMTPSTREAM *nntpstream;	/* NNTP stream for I/O */
   unsigned int dirty : 1;	/* disk copy of .newsrc needs updating */
+  int fd;			/* temporary file */
+  char *tmp;			/* name of the temporary file */
   char *host;			/* local host name */
   char *name;			/* local bboard name */
-  char *buf;			/* temporary buffer */
-  unsigned long buflen;		/* current size of temporary buffer */
   unsigned long *number;	/* news message numbers */
   char *seen;			/* local seen status */
 } NNTPLOCAL;
@@ -94,9 +95,9 @@ void nntp_fetchflags (MAILSTREAM *stream,char *sequence);
 ENVELOPE *nntp_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body);
 char *nntp_fetchheader (MAILSTREAM *stream,long msgno);
 char *nntp_fetchtext (MAILSTREAM *stream,long msgno);
-char *nntp_fetchtext_work (MAILSTREAM *stream,long msgno);
 char *nntp_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len);
-char *nntp_slurp (MAILSTREAM *stream);
+void nntp_slurp (MAILSTREAM *stream,unsigned long *siz);
+long nntp_read (MAILSTREAM *stream,unsigned long count,char *buffer);
 void nntp_setflag (MAILSTREAM *stream,char *sequence,char *flag);
 void nntp_clearflag (MAILSTREAM *stream,char *sequence,char *flag);
 void nntp_search (MAILSTREAM *stream,char *criteria);
@@ -108,7 +109,8 @@ long nntp_move (MAILSTREAM *stream,char *sequence,char *mailbox);
 long nntp_append (MAILSTREAM *stream,char *mailbox,STRING *message);
 void nntp_gc (MAILSTREAM *stream,long gcflags);
 
-char *nntp_read (void **sdb);
+char *nntp_read_sdb (FILE **f);
+long nntp_update_sdb (char *name,char *data);
 short nntp_getflags (MAILSTREAM *stream,char *flag);
 char nntp_search_all (MAILSTREAM *stream,long msgno,char *d,long n);
 char nntp_search_answered (MAILSTREAM *stream,long msgno,char *d,long n);

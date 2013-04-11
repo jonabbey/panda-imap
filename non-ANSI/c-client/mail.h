@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	19 November 1992
+ * Last Edited:	14 September 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -285,11 +285,11 @@ STRINGDRIVER {
 /* Stringstruct access routines */
 
 #define INIT(s,d,data,size) ((*((s)->dtb = &d)->init) (s,data,size))
-#define SIZE(s) (s->size - GETPOS (s))
-#define CHR(s) (*s->curpos)
-#define SNX(s) (--s->cursize ? *s->curpos++ : (*s->dtb->next) (s))
-#define GETPOS(s) (s->offset + (s->curpos - s->chunk))
-#define SETPOS(s,i) (*s->dtb->setpos) (s,i)
+#define SIZE(s) ((s)->size - GETPOS (s))
+#define CHR(s) (*(s)->curpos)
+#define SNX(s) (--(s)->cursize ? *(s)->curpos++ : (*(s)->dtb->next) (s))
+#define GETPOS(s) ((s)->offset + ((s)->curpos - (s)->chunk))
+#define SETPOS(s,i) (*(s)->dtb->setpos) (s,i)
 
 /* Mail Access I/O stream */
 
@@ -328,6 +328,7 @@ typedef struct mail_stream {
   unsigned long msgno;		/* message number of `current' message */
   ENVELOPE *env;		/* pointer to `current' message envelope */
   BODY *body;			/* pointer to `current' message body */
+  char *text;			/* pointer to `current' text */
 } MAILSTREAM;
 
 
@@ -407,6 +408,19 @@ DRIVER {
 				/* garbage collect stream */
   void (*gc) ();
 };
+
+
+/* Parse results from mail_valid_net_parse */
+
+#define MAXSRV 20
+typedef struct net_mailbox {
+  char host[MAILTMPLEN];	/* host name */
+  char mailbox[MAILTMPLEN];	/* mailbox name */
+  char service[MAXSRV+1];	/* service name */
+  int port;			/* TCP port number */
+  unsigned int anoflag : 1;	/* anonymous */
+  unsigned int bbdflag : 1;	/* bboard flag */
+} NETMBX;
 
 /* Other symbols */
 
@@ -419,6 +433,7 @@ typedef long (*readfn_t) ();
 typedef char *(*mailgets_t) ();
 typedef void *(*mailcache_t) ();
 
+extern MAILSTREAM *mailstd_proto;
 extern char *lhostn;
 extern mailgets_t mailgets;
 extern mailcache_t mailcache;
@@ -431,6 +446,7 @@ extern mailcache_t mailcache;
 #define mm_searched mmsrhd
 #define mm_exists mmexst
 #define mm_expunged mmexpn
+#define mm_flags mmflag
 #define mm_notify mmntfy
 #define mm_mailbox mmmlbx
 #define mm_bboard mmbbrd
@@ -452,6 +468,8 @@ extern mailcache_t mailcache;
 #define mail_find_all mlfnam
 #define mail_find_all_bboard mlfalb
 #define mail_valid mlvali
+#define mail_valid_net mlvaln
+#define mail_valid_net_parse mlvlnp
 #define mail_subscribe mlsub
 #define mail_unsubscribe mlusub
 #define mail_subscribe_bboard mlsubb
@@ -518,6 +536,7 @@ extern mailcache_t mailcache;
 void mm_searched  ();
 void mm_exists  ();
 void mm_expunged  ();
+void mm_flags  ();
 void mm_notify  ();
 void mm_mailbox  ();
 void mm_bboard  ();
@@ -542,6 +561,8 @@ void mail_find_bboards  ();
 void mail_find_all  ();
 void mail_find_all_bboard  ();
 DRIVER *mail_valid  ();
+DRIVER *mail_valid_net  ();
+long mail_valid_net_parse  ();
 long mail_subscribe  ();
 long mail_unsubscribe  ();
 long mail_subscribe_bboard  ();

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	13 September 1992
+ * Last Edited:	13 September 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -59,7 +59,7 @@
 
 /* Global storage */
 
-char *version = "2.2(6)";	/* server version */
+char *version = "2.2(11)";	/* server version */
 short state = LISN;		/* server state */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 long nmsgs = 0;			/* number of messages */
@@ -72,7 +72,7 @@ short *msg = NIL;		/* message translation vector */
 
 /* Drivers we use */
 
-extern DRIVER imapdriver,bezerkdriver,tenexdriver;
+extern DRIVER imapdriver,tenexdriver,mhdriver,mboxdriver,bezerkdriver;
 
 
 /* Function prototypes */
@@ -85,8 +85,6 @@ short c_retr (char *t);
 short c_acks (char *t);
 short c_ackd (char *t);
 short c_nack (char *t);
-
-extern char *crypt (char *key,char *salt);
 
 /* Main program */
 
@@ -96,25 +94,29 @@ void main (int argc,char *argv[])
   char cmdbuf[TMPLEN];
   mail_link (&imapdriver);	/* install the IMAP driver */
   mail_link (&tenexdriver);	/* install the Tenex mail driver */
+  mail_link (&mhdriver);	/* install the mh mail driver */
+  mail_link (&mboxdriver);	/* install the mbox mail driver */
   mail_link (&bezerkdriver);	/* install the Berkeley mail driver */
-  printf ("+ POP2 %s w/IMAP2 client (Comments to MRC@CAC.Washington.EDU)\r\n",
-	  version);
+  rfc822_date (cmdbuf);		/* get date/time now */
+  printf ("+ POP2 %s w/IMAP2 client %s at %s\015\012",version,
+	  "(Comments to MRC@CAC.Washington.EDU)",cmdbuf);
   fflush (stdout);		/* dump output buffer */
   state = AUTH;			/* initial server state */
 				/* command processing loop */
   while ((state != DONE) && fgets (cmdbuf,TMPLEN-1,stdin)) {
 				/* find end of line */
-    if (!strchr (cmdbuf,'\n')) {
-      puts ("- Command line too long\r");
+    if (!strchr (cmdbuf,'\012')) {
+      puts ("- Command line too long\015");
       state = DONE;
     }
-    else if (!(s = strtok (cmdbuf," \r\n"))) {
-      puts ("- Missing or null command\r");
+    else if (!(s = strtok (cmdbuf," \015\012"))) {
+      puts ("- Missing or null command\015");
       state = DONE;
     }
     else {			/* dispatch based on command */
       ucase (s);		/* canonicalize case */
-      t = strtok (NIL,"\r\n");	/* snarf argument */
+				/* snarf argument */
+      t = strtok (NIL,"\015\012");
       if ((state == AUTH) && !strcmp (s,"HELO")) state = c_helo (t,argc,argv);
       else if ((state == MBOX || state == ITEM) && !strcmp (s,"FOLD"))
 	state = c_fold (t);
@@ -126,16 +128,16 @@ void main (int argc,char *argv[])
       else if ((state == NEXT) && !strcmp (s,"NACK")) state = c_nack (t);
       else if ((state == AUTH || state == MBOX || state == ITEM) &&
 	       !strcmp (s,"QUIT")) {
-	if (t) puts ("- Bogus argument given to QUIT\r");
+	if (t) puts ("- Bogus argument given to QUIT\015");
 	else {			/* valid sayonara */
 				/* expunge the stream */
 	  if (stream && nmsgs) mail_expunge (stream);
-	  puts ("+ Sayonara\r");/* acknowledge the command */
+	  puts ("+ Sayonara\015");/* acknowledge the command */
 	}
 	state = DONE;		/* done in either case */
       }
       else {			/* some other or inappropriate command */
-	printf ("- Bogus or out of sequence command - %s\r\n",s);
+	printf ("- Bogus or out of sequence command - %s\015\012",s);
 	state = DONE;
       }
     }
@@ -155,12 +157,13 @@ short c_helo (char *t,int argc,char *argv[])
   char *s,*u,*p;
   char tmp[TMPLEN];
   struct passwd *pwd = getpwnam ("nobody");
-  if (!(t && *t && (u = strtok (t," ")) && (p = strtok (NIL,"\r\n")))) {
-    puts ("- Missing user or password\r");
+  if (!(t && *t && (u = strtok (t," ")) && (p = strtok (NIL,"\015\012")))) {
+    puts ("- Missing user or password\015");
     return DONE;
   }
 				/* copy password, handle quoting */
   for (s = tmp; *p; p++) *s++ = (*p == '\\') ? *++p : *p;
+  *s = '\0';			/* tie off string */
   pass = cpystr (tmp);
   if (s = strchr (u,':')) {	/* want remote mailbox? */
     *s++ = '\0';		/* separate host name from user name */
@@ -174,7 +177,7 @@ short c_helo (char *t,int argc,char *argv[])
   else if (server_login (user = cpystr (u),pass,NIL,argc,argv))
     strcpy (tmp,"INBOX");	/* local; attempt login, select INBOX */
   else {
-    puts ("- Bad login\r");
+    puts ("- Bad login\015");
     return DONE;
   }
   return c_fold (tmp);		/* open default mailbox */
@@ -190,7 +193,7 @@ short c_fold (char *t)
   long i,j;
   char tmp[TMPLEN];
   if (!(t && *t)) {		/* make sure there's an argument */
-    puts ("- Missing mailbox name\r");
+    puts ("- Missing mailbox name\015");
     return DONE;
   }
 				/* expunge old stream */
@@ -201,11 +204,12 @@ short c_fold (char *t)
   if (j = (stream = mail_open (stream,t,NIL)) ? stream->nmsgs : 0) {
     sprintf (tmp,"1:%d",j);	/* fetch fast information for all messages */
     mail_fetchfast (stream,tmp);
-    msg = (short *) fs_get ((nmsgs + 1) * sizeof (short));
+    msg = (short *) fs_get ((stream->nmsgs + 1) * sizeof (short));
     for (i = 1; i <= j; i++)	/* find undeleted messages, add to vector */
       if (!mail_elt (stream,i)->deleted) msg[++nmsgs] = i;
   }
-  printf ("#%d messages in %s\r\n",nmsgs,stream ? stream->mailbox : "<none>");
+  printf ("#%d messages in %s\015\012",nmsgs,stream ? stream->mailbox :
+	  "<none>");
   return MBOX;
 }
 
@@ -224,7 +228,7 @@ short c_read (char *t)
 				/* set size if message valid and exists */
   size = msg[current] ? mail_elt (stream,msg[current])->rfc822_size : 0;
 				/* display results */
-  printf ("=%d characters in message %d\r\n",size,current);
+  printf ("=%d characters in message %d\015\012",size,current);
   return ITEM;
 }
 
@@ -237,7 +241,7 @@ short c_read (char *t)
 short c_retr (char *t)
 {
   if (t) {			/* disallow argument */
-    puts ("- Bogus argument given to RETR\r");
+    puts ("- Bogus argument given to RETR\015");
     return DONE;
   }
   if (size) {			/* message size valid? */
@@ -258,7 +262,7 @@ short c_acks (char *t)
 {
   char tmp[TMPLEN];
   if (t) {			/* disallow argument */
-    puts ("- Bogus argument given to ACKS\r");
+    puts ("- Bogus argument given to ACKS\015");
     return DONE;
   }
 				/* mark message as seen */
@@ -277,7 +281,7 @@ short c_ackd (char *t)
 {
   char tmp[TMPLEN];
   if (t) {			/* disallow argument */
-    puts ("- Bogus argument given to ACKD\r");
+    puts ("- Bogus argument given to ACKD\015");
     return DONE;
   }
 				/* mark message as seen and deleted */
@@ -296,7 +300,7 @@ short c_ackd (char *t)
 short c_nack (char *t)
 {
   if (t) {			/* disallow argument */
-    puts ("- Bogus argument given to NACK\r");
+    puts ("- Bogus argument given to NACK\015");
     return DONE;
   }
   return c_read (NIL);		/* end message reading transaction */
@@ -306,7 +310,7 @@ short c_nack (char *t)
 
 
 /* Message matches a search
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
@@ -317,7 +321,7 @@ void mm_searched (MAILSTREAM *stream,long msgno)
 
 
 /* Message exists (i.e. there are that many messages in the mailbox)
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
@@ -329,11 +333,22 @@ void mm_exists (MAILSTREAM *stream,long number)
 
 
 /* Message expunged
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    message number
  */
 
 void mm_expunged (MAILSTREAM *stream,long number)
+{
+  /* This isn't used */
+}
+
+
+/* Message status changed
+ * Accepts: MAIL stream
+ *	    message number
+ */
+
+void mm_flags (MAILSTREAM *stream,long number)
 {
   /* This isn't used */
 }
@@ -359,7 +374,7 @@ void mm_bboard (char *string)
 }
 
 /* Notification event
- * Accepts: IMAP2 stream
+ * Accepts: MAIL stream
  *	    string to log
  *	    error flag
  */

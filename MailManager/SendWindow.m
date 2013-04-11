@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 February 1989
- * Last Edited:	19 February 1993
+ * Last Edited:	15 April 1993
  *
  * Copyright 1993 by the University of Washington
  *
@@ -312,11 +312,12 @@
     tmp[i] = '\0';		// tie off string
 				// get new address list
     rfc822_parse_adrlist (list,(char *) [view stringValue],tmp);
-    if (*list) {		// if first address needs looking up
-      if ((*list)->host[0] == '@') [book lookup:list];
+    if (adr = *list) {		// if first address needs looking up
+      if (adr->host && adr->host[0] == '@') [book lookup:list];
       adr = *list;		// point at list here in case lookup: munged it
       while (adr->next) {	// lookup next address
-	if (adr->next->host[0] == '@') [book lookup:&adr->next];
+	if (adr->next->host && adr->next->host[0] == '@')
+	  [book lookup:&adr->next];
 	adr = adr->next;	// try address after this one
       }
     }

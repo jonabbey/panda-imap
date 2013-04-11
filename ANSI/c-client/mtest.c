@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	11 February 1993
+ * Last Edited:	8 September 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -64,7 +64,7 @@ char *curhst = NIL;		/* currently connected host */
 char *curusr = NIL;		/* current login user */
 char personalname[256];		/* user's personal name */
 extern DRIVER imapdriver,bezerkdriver,tenexdriver,mboxdriver,mhdriver,
- newsdriver,nntpdriver,dummydriver,dawzdriver;
+ newsdriver,nntpdriver,philedriver,dummydriver,dawzdriver;
 
 static char *hostlist[] = {	/* SMTP server host list */
   "mailhost",
@@ -127,6 +127,7 @@ void main ()
 #ifdef MSDOS
   mail_link (&dawzdriver);	/* link in dawz mail driver */
   mail_link (&nntpdriver);	/* link in NNTP driver */
+  mail_link (&dummydriver);	/* finally dummy driver at the end */
 #endif
 #if unix
   mail_link (&tenexdriver);	/* link in Tenex mail driver */
@@ -135,6 +136,7 @@ void main ()
   mail_link (&bezerkdriver);	/* link in Berkeley mail driver */
   mail_link (&newsdriver);	/* link in netnews mail driver */
   mail_link (&nntpdriver);	/* link in NNTP driver */
+  mail_link (&philedriver);	/* line in file driver */
   mail_link (&dummydriver);	/* finally dummy driver at the end */
 #endif
 				/* user wants protocol telemetry? */
@@ -220,7 +222,8 @@ void mm (MAILSTREAM *stream,long debug)
       mail_find_all (NIL,arg);
       puts ("Known bboards:");
       mail_find_all_bboard (NIL,arg);
-      if (*stream->mailbox == '{') {
+      if ((*stream->mailbox == '{') ||
+	  ((*stream->mailbox == '*') && (stream->mailbox[1] == '{'))) {
 	puts ("Remote Subscribed mailboxes:");
 	mail_find (stream,arg);
 	puts ("Remote Subscribed bboards:");
@@ -335,7 +338,7 @@ void mm (MAILSTREAM *stream,long debug)
 
 void header (MAILSTREAM *stream,long msgno)
 {
-  long i;
+  unsigned long i;
   char tmp[256];
   char *t;
   MESSAGECACHE *cache = mail_elt (stream,msgno);
@@ -462,6 +465,11 @@ void mm_exists (MAILSTREAM *stream,long number)
 
 
 void mm_expunged (MAILSTREAM *stream,long number)
+{
+}
+
+
+void mm_flags (MAILSTREAM *stream,long number)
 {
 }
 

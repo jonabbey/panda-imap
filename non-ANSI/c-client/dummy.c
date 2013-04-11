@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	10 November 1992
+ * Last Edited:	15 July 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,6 +40,7 @@
 extern int errno;		/* just in case */
 #include "mail.h"
 #include "osdep.h"
+#include <pwd.h>
 #include <sys/file.h>
 #include "dummy.h"
 #include "misc.h"
@@ -93,23 +94,7 @@ DRIVER dummydriver = {
 DRIVER *dummy_valid (name)
 	char *name;
 {
-  int fd;
-  char *s,tmp[MAILTMPLEN];
-  strcpy (tmp,name);		/* in case absolute */
-  switch (*name) {		/* what is it? */
-  case '*':			/* BBoard file name */
-  case '\0':			/* missing name? */
-    return &dummydriver;
-  case '~':			/* relative file name */
-    sprintf (tmp,"%s%s",myhomedir (),(s = strchr (name,'/')) ? s : "");
-  case '/':			/* absolute file name, can we open the file? */
-    if ((fd = open (tmp,O_RDONLY,NIL)) < 0) return &dummydriver;
-    close (fd);			/* must be bogus format file */
-    break;
-  default:			/* anything else is bogus */
-    break;
-  }
-  return NIL;
+  return (name && *name) ? &dummydriver : NIL;
 }
 
 
@@ -135,10 +120,33 @@ void dummy_find (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  /* Exit quietly */
+  void *sdb = NIL;
+  DIR *dirp;
+  struct direct *d;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN];
+  char *s,*t;
+  int i = 0;
+				/* no-op if have a subscription database */
+  if (sm_read (&sdb)) fs_give ((void **) &sdb);
+  else {			/* no subscriptions, do a directory */
+    if (s = strrchr (pat,'/')) {/* directory specified in pattern? */
+      strncpy (file,pat,i = (++s) - pat);
+      file[i] = '\0';		/* tie off prefix */
+      t = dummy_file (tmp,pat);	/* make fully-qualified file name */
+				/* tie off directory name */
+      if (s = strrchr (t,'/')) *s = '\0';
+    }
+    else t = myhomedir ();	/* use home directory to search */
+    if (dirp = opendir (t)) {	/* now open that directory */
+      while (d = readdir (dirp)) {/* for each directory entry */
+	strcpy (file + i,d->d_name);
+	if (pmatch (file,pat)) mm_mailbox (file);
+      }
+      closedir (dirp);		/* flush directory */
+    }
+  }
 }
-
-
+
 /* Dummy find list of subscribed bboards
  * Accepts: mail stream
  *	    pattern to search
@@ -148,10 +156,32 @@ void dummy_find_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  /* Exit quietly */
+  void *sdb = NIL;
+  DIR *dirp;
+  struct direct *d;
+  struct passwd *pw;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN];
+  int i = 1;
+  char *s;
+				/* no-op if have a subscription database */
+  if (sm_read (&sdb)) fs_give ((void **) &sdb);
+  else {
+    if (!((pw = getpwnam ("ftp")) && pw->pw_dir)) return;
+    file[0] = '*';		/* bboard designator */
+				/* directory specified in pattern? */
+    if (s = strrchr (pat,'/')) strncpy (file + 1,pat,i += (++s) - pat);
+    file[i] = '\0';		/* tie off prefix */
+    sprintf (tmp,"%s/%s",pw->pw_dir,(file[1] == '/') ? file + 2 : file + 1);
+    if (dirp = opendir (tmp)) {	/* now open that directory */
+      while (d = readdir (dirp)) {/* for each directory entry */
+	strcpy (file + i,d->d_name);
+	if (pmatch (file + 1,pat)) mm_bboard (file + 1);
+      }
+      closedir (dirp);		/* flush directory */
+    }
+  }
 }
-
-
+
 /* Dummy find list of all mailboxes
  * Accepts: mail stream
  *	    pattern to search
@@ -161,7 +191,8 @@ void dummy_find_all (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  /* Exit quietly */
+				/* always an INBOX */
+  if (pmatch ("INBOX",pat)) mm_mailbox ("INBOX");
 }
 
 
@@ -284,17 +315,22 @@ long dummy_rename (stream,old,new)
 MAILSTREAM *dummy_open (stream)
 	MAILSTREAM *stream;
 {
-  char c;
+  int fd;
   char tmp[MAILTMPLEN];
-  if (!stream) return NIL;	/* OP_PROTOTYPE call */
-  if (!stream->silent) {	/* silence please! */
-    if (c = *stream->mailbox) {	/* name specified */
-      if (c != '*') sprintf (tmp,"Can't open mailbox: %s",strerror (errno));
-      else sprintf (tmp,"Newsgroup %s does not exist",stream->mailbox + 1);
-      mm_log (tmp,ERROR);
-    }
-    else mm_log ("Mailbox name not specified",ERROR);
+				/* OP_PROTOTYPE call or silence */
+  if (!stream || stream->silent) return NIL;
+  if (*stream->mailbox == '*')	/* is it a bboard? */
+    sprintf (tmp,"No such bboard: %s",stream->mailbox+1);
+				/* remote specification? */
+  else if (*stream->mailbox == '{')
+    sprintf (tmp,"Invalid remote specification: %s",stream->mailbox);
+  else if ((fd = open (dummy_file (tmp,stream->mailbox),O_RDONLY,NIL)) < 0)
+    sprintf (tmp,"%s: %s",strerror (errno),stream->mailbox);
+  else {			/* must be bogus format file */
+    sprintf (tmp,"%s is not a mailbox",stream->mailbox);
+    close (fd);			/* toss out the fd */
   }
+  mm_log (tmp,ERROR);
   return NIL;			/* always fails */
 }
 
@@ -526,10 +562,21 @@ long dummy_append (stream,mailbox,message)
 	char *mailbox;
 	STRING *message;
 {
+  int fd = -1,e;
   char tmp[MAILTMPLEN];
-  sprintf (tmp,"Can't append to mailbox: %s",strerror (errno));
-  mm_log (tmp,ERROR);
-  return NIL;
+				/* see if such a file */
+  if ((*mailbox != '*') && (*mailbox != '{') &&
+      (fd = open (dummy_file (tmp,mailbox),O_RDONLY,NIL)) < 0) {
+    if ((e = errno) == ENOENT)	/* failed, was it no such file? */
+      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+    sprintf (tmp,"%s: %s",strerror (e),mailbox);
+  }
+  else {			/* must be bogus format file */
+    sprintf (tmp,"%s is not a valid mailbox",mailbox);
+    close (fd);			/* toss out the fd */
+  }
+  mm_log (tmp,ERROR);		/* pass up error */
+  return NIL;			/* always fails */
 }
 
 
@@ -543,4 +590,35 @@ void dummy_gc (stream,gcflags)
 	long gcflags;
 {
   fatal ("Impossible dummy_gc");
+}
+
+/* Dummy mail generate file string
+ * Accepts: temporary buffer to write into
+ *	    mailbox name string
+ * Returns: local file string
+ */
+
+char *dummy_file (dst,name)
+	char *dst;
+	char *name;
+{
+  struct passwd *pw;
+  char *s,*t,tmp[MAILTMPLEN];
+  switch (*name) {
+  case '/':			/* absolute file path */
+    strcpy (dst,name);		/* copy the mailbox name */
+    break;
+  case '~':			/* home directory */
+    if (name[1] == '/') t = myhomedir ();
+    else {
+      strcpy (tmp,name + 1);	/* copy user name */
+      if (s = strchr (tmp,'/')) *s = '\0';
+      t = ((pw = getpwnam (tmp)) && pw->pw_dir) ? pw->pw_dir : "/NOSUCHUSER";
+    }
+    sprintf (dst,"%s%s",t,(s = strchr (name,'/')) ? s : "");
+    break;
+  default:			/* any other name */
+    sprintf (dst,"%s/%s",myhomedir (),name);
+  }
+  return dst;
 }

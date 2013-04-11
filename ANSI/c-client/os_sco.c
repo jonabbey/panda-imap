@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1992
- * Last Edited:	2 November 1992
+ * Last Edited:	16 August 1993
  *
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -52,6 +52,7 @@ TCPSTREAM {
 };
 
 
+#include "mail.h"
 #include "osdep.h"
 #include <sys/time.h>
 #include <sys/socket.h>
@@ -62,9 +63,7 @@ extern int h_errno;		/* not defined in netdb.h */
 #include <ctype.h>
 #include <errno.h>
 #include <syslog.h>
-#include <dirent.h>
 #include <utime.h>
-#include "mail.h"
 #include "misc.h"
 #define SecureWare              /* protected subsystem */
 #include <sys/security.h>
@@ -76,15 +75,6 @@ extern char *crypt();
 static char *re;
 extern char *regcmp (char *str,char *z);
 extern char *regex (char *re,char *s);
-
-/* EUIDs don't work on SCO! */
-
-static struct passwd *pwd;
-int Geteuid()
-{
-  return (pwd->pw_uid);
-}
-
 
 /* Write current time in RFC 822 format
  * Accepts: destination string
@@ -94,19 +84,20 @@ char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
 void rfc822_date (char *date)
 {
-  int zone;
+  int zone,dstflag;
   struct tm *t;
   struct timeval tv;
   struct timezone tz;
   gettimeofday (&tv,&tz);	/* get time and timezone poop */
   t = localtime (&tv.tv_sec);	/* convert to individual items */
   tzset ();			/* get timezone from TZ environment stuff */
-  zone = -timezone/60;
+  dstflag = daylight ? t->tm_isdst : 0;
+  zone = (dstflag * 60) - timezone/60;
 				/* and output it */
   sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+02d%02d (%s)",
 	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
 	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-	   tzname[daylight ? t->tm_isdst : 0]);
+	   tzname[dstflag]);
 }
 
 /* Get a block of free storage
@@ -161,9 +152,11 @@ void fatal (char *string)
  *	    pointer to size of destination string
  *	    source string
  *	    length of source string
+ * Returns: length of copied string
  */
 
-char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
+unsigned long strcrlfcpy (char **dst,unsigned long *dstl,char *src,
+			  unsigned long srcl)
 {
   long i,j;
   char *d = src;
@@ -190,13 +183,13 @@ char *strcrlfcpy (char **dst,unsigned long *dstl,char *src,unsigned long srcl)
     break;
   }
   *d = '\0';			/* tie off destination */
-  return *dst;			/* return destination */
+  return d - *dst;		/* return length */
 }
 
 
 /* Length of string after strcrlfcpy applied
  * Accepts: source string
- *	    length of source string
+ * Returns: length of string
  */
 
 unsigned long strcrlflen (STRING *s)
@@ -227,6 +220,8 @@ unsigned long strcrlflen (STRING *s)
  * Returns: T if password validated, NIL otherwise
  */
 
+static struct passwd *pwd = NIL;/* used by Geteuid() */
+
 long server_login (char *user,char *pass,char **home,int argc,char *argv[])
 {
   struct pr_passwd *pw;
@@ -238,7 +233,6 @@ long server_login (char *user,char *pass,char **home,int argc,char *argv[])
     return NIL;
   pwd = getpwnam (user);	/* all OK, get the public information */
   setgid (pwd->pw_gid);		/* login in as that user */
-  initgroups (user,pw->pw_gid);	/* initialize groups */
   setuid (pwd->pw_uid);
 				/* note home directory */
   if (home) *home = cpystr (pwd->pw_dir);
@@ -249,11 +243,11 @@ long server_login (char *user,char *pass,char **home,int argc,char *argv[])
  * Returns: my user name
  */
 
-char *uname = NIL;
+char *myuname = NIL;
 
 char *myusername ()
 {
-  return uname ? uname : (uname = cpystr (getpwuid (geteuid ())->pw_name));
+  return myuname ? myuname : (myuname = cpystr(getpwuid(geteuid ())->pw_name));
 }
 
 
@@ -455,7 +449,6 @@ char *tcp_getline (TCPSTREAM *stream)
 {
   int n,m;
   char *st,*ret,*stp;
-  char tmp[2];
   char c = '\0';
   char d;
 				/* make sure have data */
@@ -670,28 +663,6 @@ long random ()
 }
 
 
-/* Emulator for BSD re_comp() call
- * Accepts: character string to compile
- * Returns: compiled expression if successful, else NULL
- */
-
-char *re_comp (char *str)
-{
-  re = regcmp (str, (char *)0);
-  return re;
-}
-
-
-/* Emulator for BSD re_exec() call
- * Accepts: string to match
- * Returns: 1 if string matches, 0 if fails to match
- */
-
-long re_exec (char *str)
-{
-  return (regex (re, str) != NULL ? 1 : 0);
-}
-
 /* Emulator for BSD ftruncate() call
  * Accepts: file descriptor
  *	    length
@@ -710,7 +681,7 @@ int ftruncate (int fd, off_t length)
  * Returns: number of elements in the array or -1 if error
  */
 
-#define DIRSIZ(d) d->d_reclen
+#define DIR_SIZE(d) d->d_reclen
 
 int scandir (char *dirname, struct dirent ***namelist, int (*select) (), int (*compar) ())
 {
@@ -727,7 +698,7 @@ int scandir (char *dirname, struct dirent ***namelist, int (*select) (), int (*c
 				/* matches select criterion? */
     if (select && !(*select) (d)) continue;
 				/* get size of dirent record for this file */
-    p = (struct dirent *) fs_get (DIRSIZ (d));
+    p = (struct dirent *) fs_get (DIR_SIZE (d));
     p->d_ino = d->d_ino;	/* copy the poop */
     p->d_off = d->d_off;
     p->d_reclen = d->d_reclen;
@@ -788,8 +759,7 @@ int utimes (char *file, struct timeval tvp[2])
   tb.modtime = tvp[1].tv_sec;	/* updated time */
   return utime (file,&tb);
 }
-
-
+
 /* Emulator for BSD writev() call
  * Accepts: file name
  *	    I/O vector structure
@@ -800,16 +770,13 @@ int utimes (char *file, struct timeval tvp[2])
 int writev (int fd, struct iovec *iov, int iovcnt)
 {
   int c, cnt;
-
   if (iovcnt <=0) return (-1);
-
   for (cnt=0; iovcnt != 0; iovcnt--, iov++)
   {
     c = write(fd, iov->iov_base, iov->iov_len);
     if (c < 0) return (-1);
     cnt += c;
   }
-
   return (cnt);
 }
 
@@ -824,8 +791,7 @@ int fsync (int fd)
   sync ();
   return (0);
 }
-
-
+
 /* Emulator for BSD setitimer() call
  * Accepts: which timer to set
  *	    new timer value
@@ -839,3 +805,18 @@ int setitimer(int which, struct itimerval *val, struct itimerval *oval)
   return (0);
 }
 
+
+/* Emulator for geteuid()
+ * I'm not quite sure why this is done; it was this way in the code Ken sent
+ * me.  It only had the comment ``EUIDs don't work on SCO!''.  I think it has
+ * something to do with the set_auth_parameters() stuff in server_login().
+ *
+ * Someone with expertise in SCO (and with an SCO system to hack) should look
+ * into this and figure out what's going on.
+ */
+
+int Geteuid ()
+{
+				/* if server_login called, use its UID */
+  return pwd ? (pwd->pw_uid) : getuid ();
+}

@@ -1,6 +1,6 @@
 		   Mailbox Naming Rules in c-client
 			     Mark Crispin
-			   27 February 1993
+			     23 May 1993
 
 
      Mailboxes are named in a manner that there always exists a name,
@@ -72,23 +72,31 @@ for new rules.
 	IMAP.
 
 	[MRC]
-	Names which begin with an ``{'' character refer to IMAP
-	mailboxes.  Note that the IMAP2 driver has additional
-	syntax rules.  An IMAP2 mailbox is of the form:
-	 ``{'' <host> [``:'' <port>] ``}'' [<remote mailbox>]
-	where the port defaults to 143 and the remote mailbox
-	defaults to INBOX.
-
-	[MRC]
-	Names which begin with an ``['' character refer to POP or
-	NNTP mailboxes.  Note that the NNTP driver has additional
-	syntax rules.  An NNTP mailbox is of the form:
-	``['' <host> ``]'' [<remote bboard>]
-	<<This rule is controversial and subject to deletion in
-	  favor of expanding the ``{'' rule>>
+	Names which begin with an ``{'' character refer to remote
+	mailboxes.  A remote mailbox is in the form
+	 ``{'' host [``/'' switch [``='' value] [``:'' port] ``}'' [mailbox]
+	where:
+	 host		remote host (name or bracketed IP address)
+	 switch		switch specifying various options
+	 value		value for switches which take values
+	 port		IP port number
+	 mailbox	local mailbox name at remote host
+	Switches may have be one of the following:
+	 anonymous	specifies anonymous remote login
+	 imap2		same as service=imap2
+	 nntp		same as service=nntp
+	 service	value specifies service to use
+	The default service is imap2, the default port is the normal
+	port for that service.
 
 	[LGL]
-	<<<%Carmel% or whatever defined here>>>
+	The Carmel mail format reserves all names begining with "#carmel"
+        where each of the letter can be upper or lower case. The format of 
+        the name is  #carmel<n>#<user>#<mailbox>.  If <n> is absent is is
+        Carmel version one, for other version <n> is "2", "3"... The <user>
+        and one "#" are optional and specify the user id of the owner
+        of <mailbox>.  When absent the owner of the mailbox is the user-id
+        under which the process opening the mailbox is authorized as. 
 
      Naming rules for new drivers should be added above this line.
 
@@ -96,3 +104,8 @@ for new rules.
 
 [LGL] Laurence Lundblade, LGL@CAC.Washington.EDU
 [MRC] Mark Crispin, MRC@CAC.Washington.EDU
+
+     Note that this document only defines names for c-client, and does
+not presume to define names at higher levels.  In particular, Pine uses
+and maintains a ``context'' layer between it and the user interface, and
+names are transformed by this context layer.
