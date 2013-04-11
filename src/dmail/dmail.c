@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 April 1993
- * Last Edited:	26 January 2007
+ * Last Edited:	26 March 2007
  */
 
 #include <stdio.h>
@@ -403,24 +403,23 @@ int delivery_unsafe (char *path,struct stat *sbuf,char *tmp)
   sprintf (tmp,"delivery to %.80s unsafe: ",path);
 				/* unsafe if can't get its status */
   if (lstat (path,sbuf)) strcat (tmp,strerror (errno));
-				/* unsafe if not a regular file */
-  else if (((type = sbuf->st_mode & (S_IFMT | S_ISUID | S_ISGID)) != S_IFREG)&&
-	   (type != S_IFDIR)) {
-    strcat (tmp,"can't deliver to ");
-				/* unsafe if setuid */
-    if (type & S_ISUID) strcat (tmp,"setuid file");
-				/* unsafe if setgid */
-    else if (type & S_ISGID) strcat (tmp,"setgid file");
-    else switch (type) {
-    case S_IFCHR: strcat (tmp,"character special"); break;
-    case S_IFBLK: strcat (tmp,"block special"); break;
-    case S_IFLNK: strcat (tmp,"symbolic link"); break;
-    case S_IFSOCK: strcat (tmp,"socket"); break;
-    default:
-      sprintf (tmp + strlen (tmp),"file type %07o",(unsigned int) type);
-    }
+				/* check file type */
+  else switch (sbuf->st_mode & S_IFMT) {
+  case S_IFDIR:			/* directory is always OK */
+    return NIL;
+  case S_IFREG:			/* file is unsafe if setuid */
+    if (sbuf->st_mode & S_ISUID) strcat (tmp,"setuid file");
+				/* or setgid */
+    else if (sbuf->st_mode & S_ISGID) strcat (tmp,"setgid file");
+    else return NIL;		/* otherwise safe */
+    break;
+  case S_IFCHR: strcat (tmp,"character special"); break;
+  case S_IFBLK: strcat (tmp,"block special"); break;
+  case S_IFLNK: strcat (tmp,"symbolic link"); break;
+  case S_IFSOCK: strcat (tmp,"socket"); break;
+  default:
+    sprintf (tmp + strlen (tmp),"file type %07o",(unsigned int) type);
   }
-  else return NIL;		/* OK to deliver */
   return fail (tmp,EX_CANTCREAT);
 }
 

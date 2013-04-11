@@ -23,6 +23,7 @@ Items marked with "*" are supported in this distribution:
  * rfc3516.txt	BINARY
    rfc4469.txt	CATENATE
    rfc3348.txt	CHILDREN
+   rfc4551.txt	CONDSTORE
    rfc4731.txt	ESEARCH
    rfc2971.txt	ID
  * rfc2177.txt	IDLE
@@ -35,28 +36,28 @@ Items marked with "*" are supported in this distribution:
  * rfc4315.txt	UIDPLUS
  * rfc3691.txt	UNSELECT
    rfc4467.txt	URLAUTH
-   rfc4551.txt	CONDSTORE
 
 
-The following documents describe SASL and SASL mechanisms supported in
-this distribution:
+The following documents describe SASL:
    rfc4422.txt	Simple Authentication and Security Layer (SASL)
-
+and the SASL mechanisms supported in this distribution:
    rfc4505.txt	ANONYMOUS
    rfc2195.txt	CRAM-MD5
-   rfc2222.txt	GSSAPI
+   rfc4752.txt	GSSAPI
    rfc4616.txt	PLAIN
 
 
-The following documents are primarily of historic interest:
+The following documents relate to internationalization issues:
+   rfc4789.txt	Internet Application Protocol Collation Registry
 
+
+The following documents are primarily of historic interest:
    rfc1732.txt	IMAP4 Compatibility with IMAP2 and IMAP2bis
    rfc2061.txt	IMAP4 Compatibility with IMAP2bis
    rfc2062.txt	Internet Message Access Protocol - Obsolete Syntax
 
 
 The following documents discuss matters which are related to IMAP:
-
    rfc2192.txt	IMAP URL Scheme
    rfc3503.txt	MDN Profile for IMAP
    rfc3656.txt	MUPDATE Distributed Mailbox Database Protocol

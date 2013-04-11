@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	14 December 2006
+# Last Edited:	29 March 2007
 
 
 # Normal command to build IMAP toolkit:
@@ -86,6 +86,7 @@
 #	 (see lnp, sl4, sl5, and slx)
 # lnp	Linux with Pluggable Authentication Modules (PAM)
 # lmd	Mandrake Linux
+# lr5	RedHat Enterprise 5 and later (same as lfd)
 # lrh	RedHat Linux 7.2 and later
 # lsu	SuSE Linux (same as lrh)
 # lyn	LynxOS
@@ -339,7 +340,7 @@ ldb:	an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
 
-lfd:	an	# yes, Fedora is different than RHE (at least today it is)
+lfd lr5: an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
 	EXTRACFLAGS="$(EXTRACFLAGS) -I/usr/kerberos/include" \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/pki/tls/certs SSLKEYS=/etc/pki/tls/private GSSDIR=/usr/kerberos LOCKPGM=/usr/sbin/mlock"
@@ -348,7 +349,32 @@ lmd:	an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/lib/ssl/certs SSLKEYS=/usr/lib/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
 
-lrh lsu:	an
+lrh:	lrhok an
+	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
+	EXTRACFLAGS="$(EXTRACFLAGS) -I/usr/kerberos/include" \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/share/ssl/certs SSLKEYS=/usr/share/ssl/private GSSDIR=/usr/kerberos LOCKPGM=/usr/sbin/mlock"
+
+lrhok:
+	@$(SH) -c '(test ! -d /etc/pki/tls ) || make lrhwarn'
+	@$(TOUCH) lrhok
+
+lrhwarn:
+	@echo You are building for OLD versions of RedHat Linux.  This build
+	@echo is NOT suitable for RedHat Enterprise 5, which stores SSL/TLS
+	@echo certificates and keys in /etc/pki/tls rather than /usr/share/ssl.
+	@echo If you want to build for modern RedHat Linux, you should use
+	@echo make lr5 instead.
+	@echo Do you want to continue this build?  Type y or n please:
+	@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
+	@echo OK, I will remember that you really want to build for old
+	@echo RedHat Linux.  You will not see this message again.
+	@echo If you realize that you really wanted to build for modern
+	@echo RedHat Linux, then do the following commands:
+	@echo % rm lrhok
+	@echo % make clean
+	@echo % make lr5
+
+lsu:	an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
 	EXTRACFLAGS="$(EXTRACFLAGS) -I/usr/kerberos/include" \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/share/ssl/certs SSLKEYS=/usr/share/ssl/private GSSDIR=/usr/kerberos LOCKPGM=/usr/sbin/mlock"
@@ -366,6 +392,10 @@ osx:	osxok an
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/System/Library/OpenSSL/certs SSLKEYS=/System/Library/OpenSSL/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
 
 osxok:
+	@$(SH) -c '(test ! -f /usr/include/pam/pam_appl.h ) || make osxwarn'
+	@$(TOUCH) osxok
+
+osxwarn:
 	@echo You are building for OLD versions of Mac OS X.  This build is
 	@echo NOT suitable for modern versions of Mac OS X, such as Tiger,
 	@echo which use PAM-based authentication.  If you want to build for
@@ -375,11 +405,10 @@ osxok:
 	@echo OK, I will remember that you really want to build for old
 	@echo Mac OS X.  You will not see this message again.
 	@echo If you realize that you really wanted to build for modern
-	@echo modern Mac OS X, then do the following commands:
+	@echo Mac OS X, then do the following commands:
 	@echo % rm osxok
 	@echo % make clean
 	@echo % make oxp
-	@$(TOUCH) osxok
 
 
 # Linux shadow password support doesn't build on traditional systems, but most

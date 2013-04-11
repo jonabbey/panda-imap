@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	1 March 2007
+ * Last Edited:	16 March 2007
  */
 
 /* UTF-8 size and conversion routines from UCS-2 values (thus in the BMP).
@@ -65,6 +65,8 @@
 #define U8G_NOTUTF8 U8G_ERROR+3	/* not a valid UTF-8 octet */
 #define U8G_ENDSTRG U8G_ERROR+4	/* end of string */
 #define U8G_ENDSTRI U8G_ERROR+5	/* end of string w/ incomplete UTF-8 char */
+#define U8G_SURROGA U8G_ERROR+6	/* surrogate codepoint */
+#define U8G_NOTUNIC U8G_ERROR+7	/* non-Unicode codepoint */
 
 
 /* ucs4_width() return values */
@@ -376,7 +378,7 @@
 #define UBOGON UCS2_BOGON
 #define NOCHAR 0xffff
 
-/* Non-Unicode codepoints */
+/* Codepoints in non-Unicode character sets */
 
 /* Codepoints in ISO 646 character sets */
 
@@ -530,6 +532,7 @@ long ucs4_rmaplen (unsigned long *ucs4,unsigned long len,unsigned short *rmap,
 long ucs4_rmapbuf (unsigned char *t,unsigned long *ucs4,unsigned long len,
 		   unsigned short *rmap,unsigned long errch);
 unsigned long utf8_get (unsigned char **s,unsigned long *i);
+unsigned long utf8_get_raw (unsigned char **s,unsigned long *i);
 unsigned long ucs4_cs_get (CHARSET *cs,unsigned char **s,unsigned long *i);
 const CHARSET *utf8_infercharset (SIZEDTEXT *src);
 long utf8_validate (unsigned char *s,unsigned long i);

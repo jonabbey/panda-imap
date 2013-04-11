@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	18 January 2007
+ * Last Edited:	19 March 2007
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -5165,9 +5165,19 @@ void imap_parse_body_structure (MAILSTREAM *stream,BODY *body,
       body->size.bytes = strtoul (*txtptr,(char **) txtptr,10);
       switch (body->type) {	/* possible extra stuff */
       case TYPEMESSAGE:		/* message envelope and body */
+				/* non MESSAGE/RFC822 is basic type */
 	if (strcmp (body->subtype,"RFC822")) break;
-	body->nested.msg = mail_newmsg ();
-	imap_parse_envelope (stream,&body->nested.msg->env,txtptr,reply);
+	{			/* make certain server sends an envelope */
+	  ENVELOPE *env = NIL;
+	  imap_parse_envelope (stream,&env,txtptr,reply);
+	  if (!env) {
+	    mm_notify (stream,"Missing body message envelope",WARN);
+	    stream->unhealthy = T;
+	    body->subtype = cpystr ("RFC822_MISSING_ENVELOPE");
+	    break;
+	  }
+	  (body->nested.msg = mail_newmsg ())->env = env;
+	}
 	body->nested.msg->body = mail_newbody ();
 	imap_parse_body_structure (stream,body->nested.msg->body,txtptr,reply);
 				/* drop into text case */
@@ -5177,6 +5187,7 @@ void imap_parse_body_structure (MAILSTREAM *stream,BODY *body,
       default:			/* otherwise nothing special */
 	break;
       }
+
       if (**txtptr == ' ') {	/* extension data - md5 */
 	body->md5 = imap_parse_string (stream,txtptr,reply,NIL,NIL,LONGT);
 	if (LOCAL->cap.extlevel < BODYEXTMD5) LOCAL->cap.extlevel = BODYEXTMD5;

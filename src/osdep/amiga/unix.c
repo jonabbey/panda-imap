@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	20 December 2006
+ * Last Edited:	23 March 2007
  */
 
 
@@ -60,6 +60,7 @@ typedef struct unix_local {
   unsigned int dirty : 1;	/* disk copy needs updating */
   unsigned int ddirty : 1;	/* double-dirty, ping becomes checkpoint */
   unsigned int pseudo : 1;	/* uses a pseudo message */
+  unsigned int appending : 1;	/* don't mark new messages as old */
   int fd;			/* mailbox file descriptor */
   int ld;			/* lock file descriptor */
   char *lname;			/* lock file name */
@@ -992,8 +993,11 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 	 sbuf.st_atime : tp[1];
   utime (file,tp);		/* set the times */
   unix_unlock (fd,NIL,&lock);	/* unlock and close mailbox */
-				/* update last UID if we can */
-  if (!tstream->rdonly) ((UNIXLOCAL *) tstream->local)->dirty = T;
+  if (!tstream->rdonly) {	/* update last UID if we can */
+    UNIXLOCAL *local = (UNIXLOCAL *) tstream->local;
+    local->dirty = T;		/* do a rewrite */
+    local->appending = T;	/* but not at the cost of marking as old */
+  }
   tstream = mail_close (tstream);
 				/* log the error */
   if (!ret) MM_LOG (LOCAL->buf,ERROR);
@@ -1158,8 +1162,11 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   else mail_free_searchset (&dst);
   unix_unlock (fd,NIL,&lock);	/* unlock and close mailbox */
   fclose (df);			/* note that unix_unlock() released the fd */
-				/* update last UID if we can */
-  if (!tstream->rdonly) ((UNIXLOCAL *) tstream->local)->dirty = T;
+  if (!tstream->rdonly) {	/* update last UID if we can */
+    UNIXLOCAL *local = (UNIXLOCAL *) tstream->local;
+    local->dirty = T;		/* do a rewrite */
+    local->appending = T;	/* but not at the cost of marking as old */
+  }
   tstream = mail_close (tstream);
   MM_NOCRITICAL (stream);	/* release critical */
   return ret;
@@ -1983,7 +1990,8 @@ unsigned long unix_xstatus (MAILSTREAM *stream,char *status,MESSAGECACHE *elt,
   *s++ = 'S'; *s++ = 't'; *s++ = 'a'; *s++ = 't'; *s++ = 'u'; *s++ = 's';
   *s++ = ':'; *s++ = ' ';
   if (elt->seen) *s++ = 'R';
-  if (flag) *s++ = 'O';		/* only write O if have a UID */
+				/* only write O if have a UID */
+  if (flag && (!elt->recent || !LOCAL->appending)) *s++ = 'O';
   *s++ = '\n';
   *s++ = 'X'; *s++ = '-'; *s++ = 'S'; *s++ = 't'; *s++ = 'a'; *s++ = 't';
   *s++ = 'u'; *s++ = 's'; *s++ = ':'; *s++ = ' ';

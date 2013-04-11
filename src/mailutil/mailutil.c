@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 February 1994
- * Last Edited:	26 January 2007
+ * Last Edited:	14 March 2007
  */
 
 
@@ -37,7 +37,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "2006f.6";	/* program version */
+char *version = "2006g.7";	/* program version */
 int debugp = NIL;		/* flag saying debug */
 int verbosep = NIL;		/* flag saying verbose */
 int rwcopyp = NIL;		/* flag saying readwrite copy (for POP) */
@@ -110,11 +110,12 @@ void ms_init (STRING *s,void *data,unsigned long size)
 {
   APPENDPACKAGE *md = (APPENDPACKAGE *) data;
   s->data = data;		/* note stream/msgno and header length */
-  mail_fetchheader_full (md->stream,md->msgno,NIL,&s->data1,FT_PREFETCHTEXT);
+  mail_fetch_header (md->stream,md->msgno,NIL,NIL,&s->data1,
+		     FT_PREFETCHTEXT|FT_PEEK);
 #if 0
   s->size = size;		/* message size */
 #else	/* This kludge is necessary because of broken IMAP servers (sigh!) */
-  mail_fetchtext_full (md->stream,md->msgno,&s->size,NIL);
+  mail_fetch_text (md->stream,md->msgno,NIL,&s->size,FT_PEEK);
   s->size += s->data1;		/* header + body size */
 #endif
   SETPOS (s,0);
@@ -143,12 +144,12 @@ void ms_setpos (STRING *s,unsigned long i)
 {
   APPENDPACKAGE *md = (APPENDPACKAGE *) s->data;
   if (i < s->data1) {		/* want header? */
-    s->chunk = mail_fetchheader (md->stream,md->msgno);
+    s->chunk = mail_fetch_header (md->stream,md->msgno,NIL,NIL,NIL,FT_PEEK);
     s->chunksize = s->data1;	/* header length */
     s->offset = 0;		/* offset is start of message */
   }
   else if (i < s->size) {	/* want body */
-    s->chunk = mail_fetchtext (md->stream,md->msgno);
+    s->chunk = mail_fetch_text (md->stream,md->msgno,NIL,NIL,FT_PEEK);
     s->chunksize = s->size - s->data1;
     s->offset = s->data1;	/* offset is end of header */
   }

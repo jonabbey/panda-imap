@@ -358,7 +358,7 @@ Internet-draft                                                March 2007
         ; i-default, this resp-text rule replaces the resp-text
         ; rule from [RFC3501].
 
-    UTF8-TEXT-CHAR  = %x20-%x5A / %x5C-%x7E / UTF8-2 / UTF8-3 / UTF8-4
+    UTF8-TEXT-CHAR  = %x20-5A / %x5C-7E / UTF8-2 / UTF8-3 / UTF8-4
         ; UTF-8 excluding 7-bit control characters and "["
 
 

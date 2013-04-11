@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	1 March 2007
+ * Last Edited:	16 March 2007
  */
 
 
@@ -867,7 +867,7 @@ long ucs4_rmapbuf (unsigned char *t,unsigned long *ucs4,unsigned long len,
   return LONGT;
 }
 
-/* Return UCS-4 character from UTF-8 string
+/* Return UCS-4 Unicode character from UTF-8 string
  * Accepts: pointer to string
  *	    remaining octets in string
  * Returns: UCS-4 character with pointer and count updated
@@ -876,12 +876,37 @@ long ucs4_rmapbuf (unsigned char *t,unsigned long *ucs4,unsigned long len,
 
 unsigned long utf8_get (unsigned char **s,unsigned long *i)
 {
+  unsigned char *t = *s;
+  unsigned long j = *i;
+				/* decode raw UTF-8 string */
+  unsigned long ret = utf8_get_raw (&t,&j);
+  if (ret & U8G_ERROR);		/* invalid raw UTF-8 decoding? */
+				/* no, is it surrogate? */
+  else if ((ret >= UTF16_SURR) && (ret <= UTF16_MAXSURR)) ret = U8G_SURROGA;
+				/* or in non-Unicode ISO 10646 space? */
+  else if (ret > UCS4_MAXUNICODE) ret = U8G_NOTUNIC;
+  else {
+    *s = t;			/* all is well, update pointer */
+    *i = j;			/* and counter */
+  }
+  return ret;			/* return value */
+}
+
+/* Return raw (including non-Unicode) UCS-4 character from UTF-8 string
+ * Accepts: pointer to string
+ *	    remaining octets in string
+ * Returns: UCS-4 character with pointer and count updated
+ *	    or error code with pointer and count unchanged
+ */
+
+unsigned long utf8_get_raw (unsigned char **s,unsigned long *i)
+{
   unsigned char c;
   unsigned char *t = *s;
   unsigned long j = *i;
   unsigned long ret = U8G_NOTUTF8;
   int more = 0;
-  do {				/* make sure have soure octets available */
+  do {				/* make sure have source octets available */
     if (!j--) return more ? U8G_ENDSTRI : U8G_ENDSTRG;
 				/* UTF-8 continuation? */
     else if (((c = *t++) > 0x7f) && (c < 0xc0)) {
@@ -895,21 +920,25 @@ unsigned long utf8_get (unsigned char **s,unsigned long *i)
     else if (more) return U8G_INCMPLT;
     else {			/* start of sequence */
       if (c < 0x80) ret = c;	/* U+0000 - U+007f */
+				/* multi-octet, make sure more to come */
+      else if (!j) return U8G_ENDSTRI;
+      else if (c < 0xc2);	/* c0 and c1 never valid */
       else if (c < 0xe0) {	/* U+0080 - U+07ff */
-	if (c &= 0x1f) more = 1;/* first 5 bits of 12 */
+	if (c &= 0x1f) more = 1;
       }
-      else if (c < 0xf0) {	/* U+1000 - U+ffff */
-	if (c &= 0x0f) more = 2;/* first 4 bits of 16 */
+      else if (c < 0xf0) {	/* U+0800 - U+ffff */
+	if ((c &= 0x0f) || (*t >= 0xa0)) more = 2;
       }
       else if (c < 0xf8) {	/* U+10000 - U+10ffff (and 110000 - 1fffff) */
-	if (c &= 0x07) more = 3;/* first 3 bits of 20.5 (21) */
+	if ((c &= 0x07) || (*t >= 0x90)) more = 3;
       }
-      else if (c < 0xfc) {	/* ISO 10646 200000 - 3fffffff */
-	if (c &= 0x03) more = 4;/* first 2 bits of 26 */
+      else if (c < 0xfc) {	/* ISO 10646 200000 - 3ffffff */
+	if ((c &= 0x03) || (*t >= 0x88)) more = 4;
       }
-      else if (c < 0xfe) {	/* ISO 10646 4000000 - 7fffffff*/
-	if (c &= 0x01) more = 5;/* first bit of 31 */
+      else if (c < 0xfe) {	/* ISO 10646 4000000 - 7fffffff */
+	if ((c &= 0x01) || (*t >= 0x84)) more = 5;
       }
+				/* fe and ff never valid */
       if (more) ret = c;	/* continuation needed, save start bits */
     }
   } while (more);

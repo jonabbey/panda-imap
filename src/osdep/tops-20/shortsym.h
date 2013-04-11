@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	21 September 2006
+ * Last Edited:	16 March 2007
  */
 
 #define auth_link a_link
@@ -568,6 +568,7 @@
 #define utf8_cstext u8_cst
 #define utf8_cstocstext u8_cct
 #define utf8_get u8_get
+#define utf8_get_raw u8_gtr
 #define utf8_iso2022text u8_i22
 #define utf8_mime2text u8_mi2
 #define utf8_put u8_put
