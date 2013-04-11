@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	17 February 1989
- * Last Edited:	28 September 1992
+ * Last Edited:	11 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -38,11 +38,6 @@
 #import "XTextPkg.h"	// mdd
 
 @implementation MailManager
-
-// Name of the mailbox list file
-
-char *boxfile = "/.mailboxlist";
-
 
 // Minimum sane check interval
 #define sane 30
@@ -100,8 +95,11 @@ id read_action;
   n = [self appName];
   mail_link (&imapdriver);	// get IMAP driver
   mail_link (&tenexdriver);	// get Tenex mail driver
+  mail_link (&mhdriver);	// get mh mail driver
+  mail_link (&mboxdriver);	// get mbox mail driver
   mail_link (&bezerkdriver);	// get Berkeley mail driver
-  mail_link (&newsdriver);	// get netnews driver
+  mail_link (&newsdriver);	// get news driver
+  mail_link (&nntpdriver);	// get NNTP driver
   mail_link (&dummydriver);	// get dummy mail driver
   gethostname (s,TMPLEN-1);	// get local host name
 				// get it in full form
@@ -243,8 +241,6 @@ id read_action;
 {
   const char *host;
   char tmp[TMPLEN];
-  int i,m;
-  NXStream *box;
   NXCoord x = 0;
   NXCoord y = 0;
   if (old) {			// window position is on top of old one
@@ -292,25 +288,8 @@ id read_action;
       [[(opener = [MBoxWindow new]) window] moveTo:x :y];
       [opener setStream:stream];// give it our stream
 				// add mailbox to browser unless local INBOX
-      if ((strcmp (ucase (tmp),"INBOX")) &&
-	[self addMailboxToBrowser:stream->mailbox]) {
-				// open the file for write
-	if (!(box = NXOpenMemory (NIL,0,NX_WRITEONLY)))
-	  mm_log ("Can't open memory stream to save mailbox list",ERROR);
-	else {			// get size of browser
-	  [browser getNumRows:&m numCols:&i];
-				// dump out list of mailboxes
-	  for (i = 0; i < m; i++)
-	    NXPrintf (box,"%s\n",[[browser cellAt:i :0] title]);
-	  NXFlush (box);	// spit the poop out
-				// make mailbox list file name
-	  strcat (strcpy (tmp,(char *) NXHomeDirectory ()),boxfile);
-				// write the file
-	  if (NXSaveToFile (box,tmp)) mm_log ("Can't save mailbox list",ERROR);
-				// flush the stream
-	  NXCloseMemory (box,NX_FREEBUFFER);
-	}
-      }
+      if (strcmp (ucase (tmp),"INBOX"))
+	[self addMailboxToBrowser:stream->mailbox];
     }
   }
   return self;
@@ -358,7 +337,6 @@ id read_action;
 {
   const char *repository = NXGetDefaultValue ([NXApp appName],"Repository");
   char tmp[TMPLEN];
-  NXStream *box;
   NXRect frame;
   NXSize size;
   id cell;
@@ -397,18 +375,6 @@ id read_action;
 				// done once a mailbox is moused
   [browser setAction:@selector(selectLoad:)];
   [[browser setDoubleAction:@selector(mailboxOK:)] setTarget:self];
-
-				// open mailbox list file for read
-  strcat (strcpy (tmp,(char *) NXHomeDirectory ()),boxfile);
-  if (box = NXMapFile (tmp,NX_READONLY)) {
-				// read and insert mailboxes
-    while (NXScanf (box,"%[^\n] ",tmp) == 1) [self addMailboxToBrowser:tmp];
-				// flush the stream
-    NXCloseMemory (box,NX_FREEBUFFER);
-  }
-//This mail_find() doesn't do anything now, but it may in the future.  I would
-//rather have startup be a little bit slower than to track down a wierd bug
-//later...  MRC 10/2/91
   mail_find (NIL,"*");		// find local mailboxes
   if (readbboards)		// find local bboards
     mail_find_bboards (NIL,"*");

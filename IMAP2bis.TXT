@@ -6,7 +6,7 @@
 
 Network Working Group                                         M. Crispin
 Request for Comments: ????                                    Washington
-Extends: RFC 1176                                         September 1992
+Extends: RFC 1176                                          December 1992
 
 
               IMAP2BIS -- EXTENSIONS TO THE IMAP2 PROTOCOL
@@ -20,17 +20,17 @@ Status of this Memo
    Mechanisms for Specifying and Describing the Format of Internet
    Message Bodies" by Borenstein and Freed.
 
-   This document also makes additional optional functional enhancements
-   to IMAP2.
+   This document also defines several additional optional functional
+   enhancements to IMAP2.
 
    [ ** Delete this note upon publication as an RFC **
     The extensions discussed in this document are experimental and
     subject to change.  It documents the state of these extensions
-    as of September 1992.  It is distributed for informational purposes
+    as of December 1992.  It is distributed for informational purposes
     only.
      In particular, additions may be made to IMAP2bis in subsequent
     versions of this draft of the IMAP2bis document.  Persons planning
-    on implementing these extensions are strongly urged to get in touch
+    on implementing these extensions are STRONGLY URGED to get in touch
     with the author before embarking on such a project.]
 
    The name of the resulting protocol is IMAP2bis.  IMAP2bis extends
@@ -434,14 +434,15 @@ IV.b. Mailbox Append Response Extensions
 
 V.a. Partial Text Fetching Command Extensions
 
-   tag PARTIAL sequence RFC822 start_byte byte_count
-   tag PARTIAL sequence RFC822.HEADER start_byte byte_count
-   tag PARTIAL sequence RFC822.TEXT start_byte byte_count
-   tag PARTIAL sequence BODY[section] start_byte byte_count
+   tag PARTIAL msgno RFC822 start_byte byte_count
+   tag PARTIAL msgno RFC822.HEADER start_byte byte_count
+   tag PARTIAL msgno RFC822.TEXT start_byte byte_count
+   tag PARTIAL msgno BODY[section] start_byte byte_count
 
       The PARTIAL command is equivalent to the associated FETCH command,
       with the added functionality that only the specified number of
       bytes, beginning at the specified starting byte, are returned.
+      Note as well that only a single message can be fetched at a time.
       The first byte of a message, and hence the minimum for the
       starting byte, is byte 1.
 
@@ -451,7 +452,7 @@ V.a. Partial Text Fetching Command Extensions
 
       The data is returned with the FETCH response.  There is no
       indication of the range of the partial data in this response; thus
-      it is not possible to assume of caching with PARTIAL data.  Any
+      it is not possible to assume caching with PARTIAL data.  Any
       knowledge of caching from a FETCH command of that data is
       invalidated as with a PURGE command.  It is also not possible
       to stream multiple PARTIAL commands of the same data item without
@@ -593,7 +594,7 @@ IX. COPY Command and the Unsolicited COPY Response
    RFC-1176 specifies that if the destination mailbox specified by a COPY
    command does not exist, the server should create it.  With the advent
    of the CREATE command, it is intended that this functionality will
-   eventually be depreciated.  Server implementations SHOULD continue to
+   eventually be deprecated.  Server implementations SHOULD continue to
    create new mailboxes as needed with a COPY command, but SHOULD also
    note to the user at the client, via an unsolicited OK response, that a
    new mailbox was created.
@@ -654,6 +655,18 @@ XII. Clarification of RFC822.HEADER
    delimits the header from the text in RFC-822.  In other words, all
    non-null RFC822.HEADER strings end with a sequence of four ASCII
    bytes: CR LF CR LF (0C 0A 0C 0A).
+
+
+XIII. SEARCH string extension
+
+   The BODY and TEXT qualifiers in the SEARCH are hereby extended to
+   permit an RFC-1342 format multinational character string.  Due to
+   compatibility constraints, RFC-1432 format strings must be quoted.
+   For example:
+     SEARCH TEXT "=?US-ASCII?Q?leaping lizards?="
+   and
+     SEARCH TEXT "leaping lizards"
+   are equivalent.
 
 
 Formal Syntax
@@ -731,6 +744,8 @@ Formal Syntax
    find_option     ::= "MAILBOXES" / "BBOARDS" / "ALL.MAILBOXES" /
                        "ALL.BBOARDS"
 
+   istring         ::= string / RFC-1342 format multinational string
+
    msg_copy        ::= "COPY" ;; obsolete
 
    msg_data        ::= msg_exists / msg_recent / msg_expunge /
@@ -747,10 +762,10 @@ Formal Syntax
    msg_store       ::= "STORE" SP "(" 1#("FLAGS" SP "(" 1#(recent_flag
                        flag_list) ")" ) ")" ;; obsolete
 
-   partial         ::= "PARTIAL" SP sequence SP fetch_att_text SP NUMBER SP
+   partial         ::= "PARTIAL" SP NUMBER SP fetch_att_text SP NUMBER SP
                        NUMBER
 
-   purge           ::= "PURGE" SP purge_option SP sequence
+   purge           ::= "PURGE" SP ("ALWAYS" / purge_option SP sequence)
 
    purge_option    ::= "STATUS" / "STRUCTURE" / "TEXTS" / token
 
@@ -758,10 +773,10 @@ Formal Syntax
 
    search          ::= "SEARCH" SP 1#("ALL" / "ANSWERED" /
                        "BCC" SP string / "BEFORE" SP day /
-                       "BODY" SP string / "CC" SP string / "DELETED" /
+                       "BODY" SP istring / "CC" SP string / "DELETED" /
                        "FLAGGED" / "KEYWORD" SP atom / "NEW" / "OLD" /
                        "ON" SP day / "RECENT" / "SEEN" /
-                       "SINCE" SP day / "TEXT" SP string /
+                       "SINCE" SP day / "TEXT" SP istring /
                        "TO" SP string / "UNANSWERED" / "UNDELETED" /
                        "UNFLAGGED" / "UNKEYWORD" / "UNSEEN")
 
@@ -827,9 +842,12 @@ Unresolved issues
    distributed mail configurations.  A separate specification, under
    development at CMU, addresses this.
 
-   The SEARCH command lacks multi-national character set support, MIME
-   awareness, regular expressions, complex logical qualifiers, etc.  This
-   should be addressed in IMAP2tres.
+   The SEARCH command lacks MIME awareness, regular expressions, complex
+   logical qualifiers, etc.  This should be addressed in future versions of
+   the IMAP2 specification.
+
+   It isn't clear that the RFC-1342 extensions to SEARCH are adequate for
+   the task.
 
    Message posting is orthogonal to the scope of a mail access protocol, and
    it is undesirable for a number of reasons to shoehorn the two into a
@@ -847,10 +865,10 @@ Unresolved issues
 
 Acknowledgements
 
-   Special thanks go to John Gardiner Myers, Chris Newman, Terry Gray,
-   Adam Treister, Laurence Lundblade, and Mike Seibel for their hard work
-   in reviewing the present status of IMAP2, and for reaching concensus and
-   closure on a number of issues in record time.
+   Special thanks go to John Gardiner Myers, Chris Newman, Karl Jacob, Hisao
+   Nojima, Terry Gray, Adam Treister, Laurence Lundblade, and Mike Seibel for
+   their hard work in reviewing the present status of IMAP2, and for reaching
+   concensus and closure on a number of issues in record time.
 
    My thanks to everyone in the IETF-822 group for their hard work in
    getting the Internet Message Bodies draft out the door, and

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	13 October 1992
+ * Last Edited:	10 November 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -50,10 +50,21 @@ extern int errno;		/* just in case */
 /* Driver dispatch used by MAIL */
 
 DRIVER dummydriver = {
+  "dummy",			/* driver name */
   (DRIVER *) NIL,		/* next driver */
   dummy_valid,			/* mailbox is valid for us */
+  dummy_parameters,		/* manipulate parameters */
   dummy_find,			/* find mailboxes */
   dummy_find_bboards,		/* find bboards */
+  dummy_find_all,		/* find all mailboxes */
+  dummy_find_all_bboards,	/* find all bboards */
+  dummy_subscribe,		/* subscribe to mailbox */
+  dummy_unsubscribe,		/* unsubscribe from mailbox */
+  dummy_subscribe_bboard,	/* subscribe to bboard */
+  dummy_unsubscribe_bboard,	/* unsubscribe from bboard */
+  dummy_create,			/* create mailbox */
+  dummy_delete,			/* delete mailbox */
+  dummy_rename,			/* rename mailbox */
   dummy_open,			/* open mailbox */
   dummy_close,			/* close mailbox */
   dummy_fetchfast,		/* fetch message "fast" attributes */
@@ -69,38 +80,53 @@ DRIVER dummydriver = {
   dummy_check,			/* check for new messages */
   dummy_expunge,		/* expunge deleted messages */
   dummy_copy,			/* copy messages to another mailbox */
-  dummy_move			/* move messages to another mailbox */
+  dummy_move,			/* move messages to another mailbox */
+  dummy_append,			/* append string message to mailbox */
+  dummy_gc			/* garbage collect stream */
 };
 
 /* Dummy validate mailbox
  * Accepts: mailbox name
- * Returns: our driver if name is valid, otherwise calls valid in next driver
+ * Returns: our driver if name is valid, NIL otherwise
  */
 
 DRIVER *dummy_valid (name)
 	char *name;
 {
   int fd;
-  char s[MAILTMPLEN];
-  strcpy (s,name);		/* in case absolute */
+  char *s,tmp[MAILTMPLEN];
+  strcpy (tmp,name);		/* in case absolute */
   switch (*name) {		/* what is it? */
-  case '{':			/* IMAP file name */
-    break;			/* never accept such */
   case '*':			/* BBoard file name */
   case '\0':			/* missing name? */
     return &dummydriver;
-  default:			/* relative file name */
-    sprintf (s,"%s/%s",myhomedir (),name);
+  case '~':			/* relative file name */
+    sprintf (tmp,"%s%s",myhomedir (),(s = strchr (name,'/')) ? s : "");
   case '/':			/* absolute file name, can we open the file? */
-    if ((fd = open (s,O_RDONLY,NIL)) < 0) return &dummydriver;
+    if ((fd = open (tmp,O_RDONLY,NIL)) < 0) return &dummydriver;
     close (fd);			/* must be bogus format file */
     break;
+  default:			/* anything else is bogus */
+    break;
   }
-				/* let next driver have at it */
-  return dummydriver.next ? (*dummydriver.next->valid) (name) : NIL;
+  return NIL;
+}
+
+
+/* Dummy manipulate driver parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *dummy_parameters (function,value)
+	long function;
+	void *value;
+{
+  return NIL;
 }
 
-/* Dummy find list of mailboxes
+/* Dummy find list of subscribed mailboxes
  * Accepts: mail stream
  *	    pattern to search
  */
@@ -113,7 +139,7 @@ void dummy_find (stream,pat)
 }
 
 
-/* Dummy find list of bboards
+/* Dummy find list of subscribed bboards
  * Accepts: mail stream
  *	    pattern to search
  */
@@ -126,6 +152,130 @@ void dummy_find_bboards (stream,pat)
 }
 
 
+/* Dummy find list of all mailboxes
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void dummy_find_all (stream,pat)
+	MAILSTREAM *stream;
+	char *pat;
+{
+  /* Exit quietly */
+}
+
+
+/* Dummy find list of all bboards
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void dummy_find_all_bboards (stream,pat)
+	MAILSTREAM *stream;
+	char *pat;
+{
+  /* Exit quietly */
+}
+
+/* Dummy subscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long dummy_subscribe (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* always fails */
+}
+
+
+/* Dummy unsubscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long dummy_unsubscribe (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* always fails */
+}
+
+
+/* Dummy subscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long dummy_subscribe_bboard (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* always fails */
+}
+
+
+/* Dummy unsubscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long dummy_unsubscribe_bboard (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* always fails */
+}
+
+/* Dummy create mailbox
+ * Accepts: mail stream
+ *	    mailbox name to create
+ *	    driver type to use
+ * Returns: T on success, NIL on failure
+ */
+
+long dummy_create (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* always fails */
+}
+
+
+/* Dummy delete mailbox
+ * Accepts: mail stream
+ *	    mailbox name to delete
+ * Returns: T on success, NIL on failure
+ */
+
+long dummy_delete (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* always fails */
+}
+
+
+/* Mail rename mailbox
+ * Accepts: mail stream
+ *	    old mailbox name
+ *	    new mailbox name
+ * Returns: T on success, NIL on failure
+ */
+
+long dummy_rename (stream,old,new)
+	MAILSTREAM *stream;
+	char *old;
+	char *new;
+{
+  return NIL;			/* always fails */
+}
+
 /* Dummy open
  * Accepts: stream to open
  * Returns: stream on success, NIL on failure
@@ -134,10 +284,11 @@ void dummy_find_bboards (stream,pat)
 MAILSTREAM *dummy_open (stream)
 	MAILSTREAM *stream;
 {
-  char c = *stream->mailbox;
+  char c;
   char tmp[MAILTMPLEN];
+  if (!stream) return NIL;	/* OP_PROTOTYPE call */
   if (!stream->silent) {	/* silence please! */
-    if (c) {			/* name specified */
+    if (c = *stream->mailbox) {	/* name specified */
       if (c != '*') sprintf (tmp,"Can't open mailbox: %s",strerror (errno));
       else sprintf (tmp,"Newsgroup %s does not exist",stream->mailbox + 1);
       mm_log (tmp,ERROR);
@@ -326,8 +477,7 @@ void dummy_expunge (stream)
 {
   fatal ("Impossible dummy_expunge");
 }
-
-
+
 /* Dummy copy message(s)
 	s;
  * Accepts: MAIL stream
@@ -361,4 +511,36 @@ long dummy_move (stream,sequence,mailbox)
 {
   fatal ("Impossible dummy_move");
   return NIL;
+}
+
+
+/* Dummy append message string
+ * Accepts: mail stream
+ *	    destination mailbox
+ *	    stringstruct of message to append
+ * Returns: T on success, NIL on failure
+ */
+
+long dummy_append (stream,mailbox,message)
+	MAILSTREAM *stream;
+	char *mailbox;
+	STRING *message;
+{
+  char tmp[MAILTMPLEN];
+  sprintf (tmp,"Can't append to mailbox: %s",strerror (errno));
+  mm_log (tmp,ERROR);
+  return NIL;
+}
+
+
+/* Dummy garbage collect stream
+ * Accepts: mail stream
+ *	    garbage collection flags
+ */
+
+void dummy_gc (stream,gcflags)
+	MAILSTREAM *stream;
+	long gcflags;
+{
+  fatal ("Impossible dummy_gc");
 }

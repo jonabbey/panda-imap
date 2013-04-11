@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	2 October 1992
+ * Last Edited:	11 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,7 +39,6 @@
 #include <errno.h>
 extern int errno;		/* just in case */
 #include <sys/types.h>
-#include <sys/dir.h>		/* must be before osdep */
 #include "mail.h"
 #include "osdep.h"
 #include <sys/file.h>
@@ -55,10 +54,21 @@ extern int errno;		/* just in case */
 /* Driver dispatch used by MAIL */
 
 DRIVER newsdriver = {
+  "news",			/* driver name */
   (DRIVER *) NIL,		/* next driver */
   news_valid,			/* mailbox is valid for us */
+  news_parameters,		/* manipulate parameters */
   news_find,			/* find mailboxes */
   news_find_bboards,		/* find bboards */
+  news_find_all,		/* find all mailboxes */
+  news_find_all_bboards,	/* find all bboards */
+  news_subscribe,		/* subscribe to mailbox */
+  news_unsubscribe,		/* unsubscribe from mailbox */
+  news_subscribe_bboard,	/* subscribe to bboard */
+  news_unsubscribe_bboard,	/* unsubscribe from bboard */
+  news_create,			/* create mailbox */
+  news_delete,			/* delete mailbox */
+  news_rename,			/* rename mailbox */
   news_open,			/* open mailbox */
   news_close,			/* close mailbox */
   news_fetchfast,		/* fetch message "fast" attributes */
@@ -75,12 +85,16 @@ DRIVER newsdriver = {
   news_expunge,			/* expunge deleted messages */
   news_copy,			/* copy messages to another mailbox */
   news_move,			/* move messages to another mailbox */
+  news_append,			/* append string message to mailbox */
   news_gc			/* garbage collect stream */
 };
+
+				/* prototype stream */
+MAILSTREAM newsproto = {&newsdriver};
 
 /* Netnews mail validate mailbox
  * Accepts: mailbox name
- * Returns: our driver if name is valid, otherwise calls valid in next driver
+ * Returns: our driver if name is valid, NIL otherwise
  */
 
 DRIVER *news_valid (name)
@@ -90,27 +104,41 @@ DRIVER *news_valid (name)
   char *s,*t,*u;
   char tmp[MAILTMPLEN];
   struct stat sbuf;
-  DRIVER *ret = newsdriver.next ? (*newsdriver.next->valid) (name) : NIL;
+  DRIVER *ret = NIL;
 				/* looks plausible and news installed? */
   if (name && (*name == '*') && !(strchr (name,'/')) &&
       ((fd = open (ACTIVEFILE,O_RDONLY,NIL)) >= 0)) {
     fstat (fd,&sbuf);		/* get size of active file */
 				/* slurp in active file */
-    read (fd,s = (char *) fs_get (sbuf.st_size+1),sbuf.st_size);
+    read (fd,t = s = (char *) fs_get (sbuf.st_size+1),sbuf.st_size);
     s[sbuf.st_size] = '\0';	/* tie off file */
     close (fd);			/* flush file */
     lcase (strcpy (tmp,name+1));/* make sure compare with lower case */
-    if (t = strtok (s,"\n"))	/* get first name */
-      do if (u = strchr (t,' ')) {
-	*u = '\0';		/* tie off at end of name */
-	if (!strcmp (tmp,t)) {	/* name matches? */
-	  ret = &newsdriver;	/* seems to be a valid name */
-	  break;
-	}
-      } while (t = strtok (NIL,"\n"));
+    while (*t && (u = strchr (t,' '))) {
+      *u++ = '\0';		/* tie off at end of name */
+      if (!strcmp (tmp,t)) {	/* name matches? */
+	ret = &newsdriver;	/* seems to be a valid name */
+	break;
+      }
+      t = 1 + strchr (u,'\n');	/* next line */
+    }
     fs_give ((void **) &s);	/* flush data */
  }
   return ret;			/* return status */
+}
+
+
+/* News manipulate driver parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *news_parameters (function,value)
+	long function;
+	void *value;
+{
+  fatal ("Invalid news_parameters function");
 }
 
 /* Netnews mail find list of mailboxes
@@ -135,41 +163,237 @@ void news_find_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
+  void *s = NIL;
+  char *t,*u,tmp[MAILTMPLEN],patx[MAILTMPLEN];
+  if (!(stream && stream->anonymous)) {
+    lcase (strcpy (patx,pat));	/* make sure compare with lower case */
+				/* check all newsgroups from .newsrc */
+    while (t = news_read (&s)) if (u = strchr (t,':')) {
+      *u = '\0';		/* tie off at end of name */
+      if (pmatch (lcase (t),patx)) {
+	sprintf (tmp,"*%s",t);
+	if (news_valid (tmp)) mm_bboard (t);
+      }
+    }
+  }
+  while (t = sm_read (&s))	/* try subscription manager list */
+    if (pmatch (lcase (t + 1),patx) &&
+	(news_valid (t) || ((*t == '*') && t[1] == '{'))) mm_bboard (t + 1);
+}
+
+/* Netnews mail find list of all mailboxes
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void news_find_all (stream,pat)
+	MAILSTREAM *stream;
+	char *pat;
+{
+  /* Always a no-op */
+}
+
+
+/* Netnews mail find list of all bboards
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void news_find_all_bboards (stream,pat)
+	MAILSTREAM *stream;
+	char *pat;
+{
   int fd;
   char tmp[MAILTMPLEN];
   char patx[MAILTMPLEN];
   char *s,*t,*u;
   struct stat sbuf;
   lcase (strcpy (patx,pat));	/* make sure compare with lower case */
-				/* make sure news exists on this system */
-  if (!(stat (NEWSSPOOL,&sbuf) || stat (ACTIVEFILE,&sbuf))) {
-				/* do .newsrc only if not anonymous */
-    if (!(stream && stream->anonymous) &&
-	((fd = open (NEWSRC,O_RDONLY,NIL)) >= 0)) {
-      fstat (fd,&sbuf);		/* get file size and read data */
-      read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
-      close (fd);		/* close file */
-      s[sbuf.st_size] = '\0';	/* tie off string */
-      if (t = strtok (s,"\n")) do if (u = strchr (t,':')) {
-	*u = '\0';		/* tie off at end of name */
-	if (pmatch (lcase (t),patx)) mm_bboard (t);
-      } while (t = strtok (NIL,"\n"));
-      fs_give ((void **) &s);
-    }
-  }
-				/* try local list */
-  if (!(stream && stream->anonymous) &&
-      (fd = open (strcat (strcpy (tmp,myhomedir ()),"/.mailboxlist"),
-		  O_RDONLY,NIL)) >= 0) {
+  if ((!stat (NEWSSPOOL,&sbuf)) &&
+      ((fd = open (ACTIVEFILE,O_RDONLY,NIL)) >= 0)) {
     fstat (fd,&sbuf);		/* get file size and read data */
     read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
     close (fd);			/* close file */
     s[sbuf.st_size] = '\0';	/* tie off string */
-    if (t = strtok (s,"\n"))	/* if have a first line */
-      do if ((*t++ == '*') && pmatch (lcase (t),patx)) mm_bboard (t);
-    while (t = strtok (NIL,"\n"));
+    if (t = strtok (s,"\n")) do if (u = strchr (t,' ')) {
+      *u = '\0';		/* tie off at end of name */
+      if (pmatch (lcase (t),patx)) mm_bboard (t);
+    } while (t = strtok (NIL,"\n"));
     fs_give ((void **) &s);
   }
+}
+
+/* Netnews mail subscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long news_subscribe (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* never valid for netnews */
+}
+
+
+/* Netnews mail unsubscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long news_unsubscribe (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* never valid for netnews */
+}
+
+/* Netnews mail subscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long news_subscribe_bboard (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  int fd,fdo;
+  char *s,*txt;
+  char tmp[MAILTMPLEN];
+  struct stat sbuf;
+  long ret = NIL;
+				/* open .newsrc file */
+  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,0600)) < 0) {
+    mm_log ("Can't update news state",ERROR);
+    return;
+  }
+  flock (fd,LOCK_EX);		/* wait for exclusive access */
+  fstat (fd,&sbuf);		/* get size of data */
+  read (fd,1 + (txt = (char *) fs_get (sbuf.st_size + 2)),sbuf.st_size);
+  txt[0] = '\n';		/* make searches easier */
+  txt[sbuf.st_size + 1] = '\0';	/* tie off string */
+				/* make backup file */
+  strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
+  if ((fdo = open (tmp,O_WRONLY|O_CREAT,0600)) >= 0) {
+    write (fdo,txt + 1,sbuf.st_size);
+    close (fdo);
+  }
+  sprintf (tmp,"\n%s:",mailbox);/* see if already subscribed */
+  if (strstr (txt,tmp)) {	/* well? */
+    sprintf (tmp,"Already subscribed to newsgroup %s",mailbox);
+    mm_log (tmp,ERROR);
+  }
+  else {
+    sprintf (tmp,"\n%s!",mailbox);
+    if (s = strstr (txt,tmp)) {	/* if unsubscribed, just change one byte */
+      lseek (fd,strchr (s,'!') - (txt + 1),L_SET);
+      write (fd,":",1);		/* now subscribed */
+    }
+    else {			/* write new entry at end of file */
+      lseek (fd,sbuf.st_size,L_SET);
+      sprintf (tmp,"%s:\n",mailbox);
+      write (fd,tmp,strlen (tmp));
+    }
+    fsync (fd);			/* drop changes */
+    ret = T;
+  }
+  flock (fd,LOCK_UN);		/* release lock */
+  close (fd);			/* close off file */
+  fs_give ((void **) &txt);	/* free database */
+  return ret;
+}
+
+/* Netnews mail unsubscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long news_unsubscribe_bboard (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  int fd,fdo;
+  char *s,*txt;
+  char tmp[MAILTMPLEN];
+  struct stat sbuf;
+  long ret = NIL;
+				/* open .newsrc file */
+  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,0600)) < 0) {
+    mm_log ("Can't update news state",ERROR);
+    return;
+  }
+  flock (fd,LOCK_EX);		/* wait for exclusive access */
+  fstat (fd,&sbuf);		/* get size of data */
+  read (fd,1 + (txt = (char *) fs_get (sbuf.st_size + 2)),sbuf.st_size);
+  txt[0] = '\n';		/* make searches easier */
+  txt[sbuf.st_size + 1] = '\0';	/* tie off string */
+				/* make backup file */
+  strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
+  if ((fdo = open (tmp,O_WRONLY|O_CREAT,0600)) >= 0) {
+    write (fdo,txt + 1,sbuf.st_size);
+    close (fdo);
+  }
+  sprintf (tmp,"\n%s:",mailbox);/* see if subscribed */
+  if (!(s = strstr (txt,tmp))) {/* well? */
+    sprintf (tmp,"Not subscribed to newsgroup %s",mailbox);
+    mm_log (tmp,ERROR);
+  }
+  else {			/* unsubscribe */
+    lseek (fd,strchr (s,':') - (txt + 1),L_SET);
+    write (fd,"!",1);		/* now unsubscribed */
+    fsync (fd);			/* drop changes */
+    ret = T;
+  }
+  flock (fd,LOCK_UN);		/* release lock */
+  close (fd);			/* close off file */
+  fs_give ((void **) &txt);	/* free database */
+  return ret;
+}
+
+/* Netnews mail create mailbox
+ * Accepts: mail stream
+ *	    mailbox name to create
+ * Returns: T on success, NIL on failure
+ */
+
+long news_create (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* never valid for netnews */
+}
+
+
+/* Netnews mail delete mailbox
+ *	    mailbox name to delete
+ * Returns: T on success, NIL on failure
+ */
+
+long news_delete (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* never valid for netnews */
+}
+
+
+/* Netnews mail rename mailbox
+ * Accepts: mail stream
+ *	    old mailbox name
+ *	    new mailbox name
+ * Returns: T on success, NIL on failure
+ */
+
+long news_rename (stream,old,new)
+	MAILSTREAM *stream;
+	char *old;
+	char *new;
+{
+  return NIL;			/* never valid for netnews */
 }
 
 /* Netnews mail open
@@ -183,11 +407,13 @@ MAILSTREAM *news_open (stream)
   int fd;
   long i,nmsgs,j,k;
   long recent = 0;
-  char *s;
-  char tmp[MAILTMPLEN];
+  char c,*s,*t,tmp[MAILTMPLEN];
+  void *sdb = NIL;
   struct hostent *host_name;
   struct direct **names;
   struct stat sbuf;
+				/* return prototype for OP_PROTOTYPE call */
+  if (!stream) return &newsproto;
   if (LOCAL) {			/* close old file if stream being recycled */
     news_close (stream);	/* dump and save the changes */
     stream->dtb = &newsdriver;	/* reattach this driver */
@@ -225,32 +451,17 @@ MAILSTREAM *news_open (stream)
     stream->readonly = T;	/* make sure higher level knows readonly */
     mail_exists (stream,nmsgs);	/* notify upper level that messages exist */
 
-    i = 0;			/* slurp .newsrc file */
+    i = 0;			/* nothing scanned yet */
     if (!stream->anonymous) {	/* not if anonymous you don't */
-      if ((fd = open (NEWSRC,O_RDONLY,NIL)) >= 0) {
-	fstat (fd,&sbuf);	/* get size of data */
-				/* ensure enough room */
-	if (sbuf.st_size >= (LOCAL->buflen + 1)) {
-				/* fs_resize does an unnecessary copy */
-	  fs_give ((void **) &LOCAL->buf);
-	  LOCAL->buf = (char *) fs_get ((LOCAL->buflen = sbuf.st_size+1)+1);
-	}
-	*LOCAL->buf = '\n';	/* slurp the silly thing in */
-	read (fd,LOCAL->buf + 1,sbuf.st_size);
-				/* tie off file */
-	LOCAL->buf[sbuf.st_size + 1] = '\0';
-	close (fd);		/* flush .newsrc file */
-				/* find as subscribed newsgroup */
-	sprintf (tmp,"\n%s:",LOCAL->name);
-	if (s = strstr (LOCAL->buf,tmp)) s += strlen (tmp);
-	else {			/* find as unsubscribed newsgroup */
-	  sprintf (tmp,"\n%s!",LOCAL->name);
-	  if ((s = strstr (LOCAL->buf,tmp)) && (s += strlen (tmp)))
-	    mm_log ("Not subscribed to that newsgroup",WARN);
-	  else mm_log ("No state for newsgroup found, reading as new",WARN);
-	}
-				/* process until run out of messages or list */
-	if (s) while (*s != '\n' && i < nmsgs) {
+      while ((t = news_read (&sdb)) && (s = strpbrk (t,":!")) && (c = *s)) {
+	*s++ = '\0';		/* tie off newsgroup name, point to data */
+	if (strcmp (t,LOCAL->name)) s = NIL;
+	else break;		/* found it! */
+      }
+      if (t) fs_give (&sdb);	/* free up database if necessary */
+      if (s) {			/* newsgroup found? */
+	if (c == '!') mm_log ("Not subscribed to that newsgroup",WARN);
+	while (*s && i < nmsgs){/* process until run out of messages or list */
 	  j = strtol (s,&s,10);	/* start of possible range */
 				/* other end of range */
 	  k = (*s == '-') ? strtol (++s,&s,10) : j;
@@ -262,13 +473,13 @@ MAILSTREAM *news_open (stream)
 	    mail_elt (stream,i)->seen = T;
 	  }
 	  if (*s == ',') s++;	/* skip past comma */
-	  else if (*s != '\n') {
+	  else if (*s) {	/* better not be anything else then */
 	    mm_log ("Bogus syntax in news state file",ERROR);
 	    break;		/* give up fast!! */
 	  }
 	}
       }
-      else mm_log ("No news state file exists -- one will be created",WARN);
+      else mm_log ("No state for newsgroup found, reading as new",WARN);
     }
     while (i < nmsgs) {		/* mark all remaining messages as new */
       LOCAL->seen[i++] = NIL;
@@ -802,8 +1013,8 @@ void news_check (stream)
   iov[1].iov_base = tmp;	/* this group text */
   iov[1].iov_len = s - tmp;	/* length of the text */
   lseek (fd,0,L_SET);		/* go to beginning of file */
+  writev (fd,iov,iov[2].iov_len ? 3 : 2);
   ftruncate (fd,iov[0].iov_len + iov[1].iov_len + iov[2].iov_len);
-  writev (fd,iov,3);		/* write the new contents */
   flock (fd,LOCK_UN);		/* unlock the file */
   close (fd);			/* flush .newsrc file */
 }
@@ -931,6 +1142,23 @@ long news_move (stream,sequence,mailbox)
 }
 
 
+/* Netnews mail append message from stringstruct
+ * Accepts: MAIL stream
+ *	    destination mailbox
+ *	    stringstruct of messages to append
+ * Returns: T if append successful, else NIL
+ */
+
+long news_append (stream,mailbox,message)
+	MAILSTREAM *stream;
+	char *mailbox;
+	STRING *message;
+{
+  mm_log ("Append not valid for netnews",ERROR);
+  return NIL;
+}
+
+
 /* Netnews garbage collect stream
  * Accepts: Mail stream
  *	    garbage collection flags
@@ -950,6 +1178,36 @@ void news_gc (stream,gcflags)
 }
 
 /* Internal routines */
+
+
+/* Read netnews database
+ * Accepts: pointer to netnews database handle (handle NIL if first time)
+ * Returns: character string for netnews database or NIL if done
+ * Note - uses strtok() mechanism
+ */
+
+char *news_read (sdb)
+	void **sdb;
+{
+  int fd;
+  char *s,*t,tmp[MAILTMPLEN];
+  struct stat sbuf;
+				/* make sure news exists on this system */
+  if (!(stat (NEWSSPOOL,&sbuf) || stat (ACTIVEFILE,&sbuf))) {
+    if (!*sdb) {		/* first time through? */
+      if ((fd = open (NEWSRC,O_RDONLY,NIL)) < 0) return NIL;
+      fstat (fd,&sbuf);		/* get file size and read data */
+      read (fd,s = (char *) (*sdb = fs_get (sbuf.st_size + 1)),sbuf.st_size);
+      close (fd);		/* close file */
+      s[sbuf.st_size] = '\0';	/* tie off string */
+      if (t = strtok (s,"\n")) return t;
+    }
+				/* subsequent times through database */
+    else if (t = strtok (NIL,"\n")) return t;
+    fs_give (sdb);		/* free database */
+  }
+  return NIL;			/* all done */
+}
 
 
 /* Parse flag list

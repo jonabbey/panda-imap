@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	15 July 1992
+ * Last Edited:	29 October 1992
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -40,18 +40,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
-
-
-/* Build parameters */
+
+/* Parameters */
 
 #define MAXLOGINTRIALS 3	/* maximum number of login trials */
+#define SET_MAXLOGINTRIALS 100
+#define GET_MAXLOGINTRIALS 101
 #define MAPLOOKAHEAD 20		/* fetch lookahead */
+#define SET_LOOKAHEAD 102
+#define GET_LOOKAHEAD 103
+#define IMAPTCPPORT 143		/* assigned TCP contact port */
+#define SET_PORT 104
+#define GET_PORT 105
 
 
-/* Constants */
-
-#define IMAPTCPPORT (long) 143	/* assigned TCP contact port */
-
 /* IMAP2 specific definitions */
 
 
@@ -75,6 +77,7 @@ typedef struct imap_local {
   unsigned int use_body : 1;	/* server supports structured bodies */
   unsigned int use_find : 1;	/* server supports FIND command */
   unsigned int use_bboard : 1;	/* server supports BBOARD command */
+  unsigned int use_purge : 1;	/* server supports PURGE command */
   char tmp[IMAPTMPLEN];		/* temporary buffer */
 } IMAPLOCAL;
 
@@ -87,8 +90,19 @@ typedef struct imap_local {
 
 #ifdef __COMPILER_KCC__
 #define map_valid ivalid
+#define map_parameters iparam
 #define map_find ifind
 #define map_find_bboards ifindb
+#define map_find_all ifnda
+#define map_find_all_bboards ifndab
+#define map_subscribe isubsc
+#define map_unsubscribe iunsub
+#define map_subscribe_bboard isubbb
+#define map_unsubscribe_bboard iusbbb
+#define map_create icreat
+#define map_delete idelet
+#define map_rename irenam
+#define map_manage imanag
 #define map_open iopen
 #define map_close iclose
 #define map_fetchfast iffast
@@ -105,7 +119,9 @@ typedef struct imap_local {
 #define map_expunge iexpun
 #define map_copy icopy
 #define map_move imove
+#define map_append iappnd
 #define map_gc igc
+#define map_do_gc idogc
 #define map_gc_body igcb
 
 #define imap_hostfield imhfld
@@ -140,8 +156,19 @@ typedef struct imap_local {
 /* Function prototypes */
 
 DRIVER *map_valid  ();
+void *map_parameters  ();
 void map_find  ();
 void map_find_bboards  ();
+void map_find_all  ();
+void map_find_all_bboards  ();
+long map_subscribe  ();
+long map_unsubscribe  ();
+long map_subscribe_bboard  ();
+long map_unsubscribe_bboard  ();
+long map_create  ();
+long map_delete  ();
+long map_rename  ();
+long map_manage  ();
 MAILSTREAM *map_open  ();
 void map_close  ();
 void map_fetchfast  ();
@@ -158,7 +185,9 @@ void map_check  ();
 void map_expunge  ();
 long map_copy  ();
 long map_move  ();
+long map_append  ();
 void map_gc  ();
+void map_do_gc  ();
 void map_gc_body  ();
 
 char *imap_hostfield  ();

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 November 1988
- * Last Edited:	1 October 1992
+ * Last Edited:	25 January 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -37,14 +37,14 @@
 
 static char *copyright = "\
  MS user interface is:\n\
-  Copyright 1992 University of Washington\n\
+  Copyright 1993 University of Washington\n\
  Electronic Mail C-Client is:\n\
-  Copyright 1992 University of Washington\n\
+  Copyright 1993 University of Washington\n\
   Original version Copyright 1988 The Leland Stanford Junior University\n\
  CCMD command interface is:\n\
   Copyright 1986, 1987 Columbia University in the City of New York";
 static char *author = "Mark Crispin";
-static char *version = "7.83";
+static char *version = "7.86";
 static char *bug_mailbox = "MRC";
 static char *bug_host = "CAC.Washington.EDU";
 static char *hostlist[] = {	/* SMTP server host list */
@@ -80,7 +80,7 @@ static char *newslist[] = {	/* News server host list */
 /* Drivers we use */
 
 extern DRIVER imapdriver,bezerkdriver,tenexdriver,mboxdriver,mhdriver,
- newsdriver,dummydriver,dawzdriver;
+ newsdriver,nntpdriver,dummydriver,dawzdriver;
 
 
 /* Size of temporary buffers */
@@ -109,6 +109,7 @@ void c_blank  ();
 void c_bug  ();
 void c_check  ();
 void c_copy  ();
+void c_create  ();
 void c_daytime  ();
 void c_debug  ();
 void c_delete  ();
@@ -131,8 +132,11 @@ void c_post  ();
 void c_previous  ();
 void c_read  ();
 void c_remail  ();
+void c_remove  ();
+void c_rename  ();
 void c_quit  ();
 void c_send  ();
+void c_subscribe  ();
 void c_status  ();
 void c_take  ();
 void takelevel  ();
@@ -142,6 +146,7 @@ void c_undelete  ();
 void c_unflag  ();
 void c_unkeyword  ();
 void c_unmark  ();
+void c_unsubscribe  ();
 void c_version  ();
 void r_answer  ();
 void r_copy  ();
@@ -235,19 +240,20 @@ static keywrd cmds[] = {
   {"BUG",	NIL,	(keyval) c_bug},
   {"CHECK",	NIL,	(keyval) c_check},
   {"COPY",	NIL,	(keyval) c_copy},
-  {"D",		KEY_INV|KEY_ABR,(keyval) 9},
+  {"CREATE",	NIL,	(keyval) c_create},
+  {"D",		KEY_INV|KEY_ABR,(keyval) 10},
   {"DAYTIME",	NIL,	(keyval) c_daytime},
   {"DEBUG",	NIL,	(keyval) c_debug},
   {"DELETE",	NIL,	(keyval) c_delete},
   {"ECHO",	NIL,	(keyval) c_echo},
-  {"EX",	KEY_INV|KEY_ABR,(keyval) 12},
+  {"EX",	KEY_INV|KEY_ABR,(keyval) 13},
   {"EXIT",	NIL,	(keyval) c_exit},
   {"EXPUNGE",	NIL,	(keyval) c_expunge},
   {"FIND",	NIL,	(keyval) c_find},
   {"FLAG",	NIL,	(keyval) c_flag},
   {"FORWARD",	NIL,	(keyval) c_forward},
   {"GET",	NIL,	(keyval) c_get},
-  {"H",		KEY_INV|KEY_ABR,(keyval) 19},
+  {"H",		KEY_INV|KEY_ABR,(keyval) 20},
   {"HEADERS",	NIL,	(keyval) c_headers},
   {"HELP",	NIL,	(keyval) c_help},
   {"KEYWORD",	NIL,	(keyval) c_keyword},
@@ -259,13 +265,16 @@ static keywrd cmds[] = {
   {"POST",	NIL,	(keyval) c_post},
   {"PREVIOUS",	NIL,	(keyval) c_previous},
   {"QUIT",	NIL,	(keyval) c_quit},
-  {"R",		KEY_INV|KEY_ABR,(keyval) 31},
+  {"R",		KEY_INV|KEY_ABR,(keyval) 32},
   {"READ",	NIL,	(keyval) c_read},
   {"REMAIL",	NIL,	(keyval) c_remail},
-  {"S",		KEY_INV|KEY_ABR,(keyval) 34},
+  {"REMOVE",	NIL,	(keyval) c_remove},
+  {"RENAME",	NIL,	(keyval) c_rename},
+  {"S",		KEY_INV|KEY_ABR,(keyval) 37},
   {"SEND",	NIL,	(keyval) c_send},
+  {"SUBSCRIBE",	NIL,	(keyval) c_subscribe},
   {"STATUS",	NIL,	(keyval) c_status},
-  {"T",		KEY_INV|KEY_ABR,(keyval) 38},
+  {"T",		KEY_INV|KEY_ABR,(keyval) 42},
   {"TAKE",	NIL,	(keyval) c_take},
   {"TYPE",	NIL,	(keyval) c_type},
   {"UNANSWER",	NIL,	(keyval) c_unanswer},
@@ -273,6 +282,7 @@ static keywrd cmds[] = {
   {"UNFLAG",	NIL,	(keyval) c_unflag},
   {"UNKEYWORD",	NIL,	(keyval) c_unkeyword},
   {"UNMARK",	NIL,	(keyval) c_unmark},
+  {"UNSUBSCRIBE",NIL,	(keyval) c_unsubscribe},
   {"VERSION",	NIL,	(keyval) c_version},
 };
 static keytab cmdtab = {(sizeof (cmds)/sizeof (keywrd)),cmds};
@@ -370,6 +380,7 @@ short ms_init ()
   mail_link (&mboxdriver);	/* link in mbox mail driver */
   mail_link (&bezerkdriver);	/* install the Berkeley mail driver */
   mail_link (&newsdriver);	/* install the news driver */
+  mail_link (&nntpdriver);	/* install the NNTP client driver */
   mail_link (&dummydriver);	/* install dummy driver */
 #endif
   mm_mailbox ("INBOX");		/* INBOX is always known!! */
@@ -635,6 +646,40 @@ The COPY command copies the specified messages into the specified mailbox.\n");
     else cmerr ("No mailbox is currently open");
   }
 }
+
+/* CREATE command
+ * Accepts: help flag
+ */
+
+void c_create (help)
+	short help;
+{
+  if (help) cmxprintf ("Creates a new mailbox.\n");
+  else {
+    char tmp[TMPLEN];
+    pval parseval;
+    fdb *used;
+    static brktab mbxbrk = {
+      {				/* 1st char break array */
+	0xff,0xff,0xff,0xff,0xff,0xfa,0x00,0x15,
+	0x80,0x00,0x00,0x1f,0x80,0x00,0x00,0x0b
+      },
+      {				/* subsequent char break array */
+				/* same as above, plus dots */
+	0xff,0xff,0xff,0xff,0xff,0xf8,0x00,0x15,
+	0x80,0x00,0x00,0x1f,0x80,0x00,0x00,0x0b
+      }
+    };
+    static fdb mbxfdb = {_CMFLD,CM_SDH,NIL,NIL,"mailbox","INBOX",&mbxbrk};
+    noise ("NEW MAILBOX NAMED");
+				/* parse the mailbox name */
+    parse (&mbxfdb,&parseval,&used);
+    strcpy (tmp,atmbuf);	/* note the mailbox name */
+    confirm ();
+    mail_create (mail_open (NIL,(tmp[0] == '{') ? tmp : "INBOX",OP_PROTOTYPE),
+		 tmp);
+  }
+}
 
 
 /* DAYTIME command
@@ -772,6 +817,7 @@ void c_find (help)
   else {
     int i;
     char tmp[TMPLEN];
+    char *s,lsthst[TMPLEN];
     pval parseval;
     fdb *used;
     static fdb findfdb = {_CMKEY,NIL,NIL,(pdat) &(findtab),"what to find, ",
@@ -785,6 +831,13 @@ void c_find (help)
     if (i && stream && *stream->mailbox == '*')
       for (i = 0; i < bbdtab._ktcnt;)
 	if (!strcmp (stream->mailbox + 1,bbd[i++]._kwkwd)) break;
+    if (stream && (s = (*stream->mailbox == '{') ? stream->mailbox :
+		   (((*stream->mailbox == '*')&&(stream->mailbox[1] == '{')) ?
+		    stream->mailbox + 1 : NIL))) {
+      strcpy (lsthst,s);	/* copy last host */
+      if (s = strchr (lsthst,'}')) s[1] = '\0';
+    }
+    else lsthst[0] = '\0';	/* no last host */
     sequence[current = 0] = '\0';
     flgtab._ktcnt = 0;		/* re-init keyword table */
     while (i < bbdtab._ktcnt) {	/* try this bboard */
@@ -805,8 +858,13 @@ void c_find (help)
 	flgtab._ktcnt = i;	/* update keyword count */
 	if (*stream->mailbox == '{' || ((*stream->mailbox == '*') &&
 					(stream->mailbox[1] == '{'))) {
-	  mail_find (stream,"*");
-	  mail_find_bboards (stream,"*");
+				/* avoid duplicating find if same host */
+	  strcpy (tmp,strchr (stream->mailbox,'{'));
+	  if (s = strchr (tmp,'}')) s[1] = '\0';
+	  if (strcmp (tmp,lsthst)) {
+	    mail_find (stream,"*");
+	    mail_find_bboards (stream,"*");
+	  }
 	}
 	return;			/* all done */
       }
@@ -1375,6 +1433,76 @@ void c_remail (help)
   }
 }
 
+/* REMOVE command
+ * Accepts: help flag
+ */
+
+void c_remove (help)
+	short help;
+{
+  if (help) cmxprintf ("Removes an existing mailbox.\n");
+  else {
+    char tmp[TMPLEN];
+    pval parseval;
+    fdb *used;
+    static brktab mbxbrk = {
+      {				/* 1st char break array */
+	0xff,0xff,0xff,0xff,0xff,0xfa,0x00,0x15,
+	0x80,0x00,0x00,0x1f,0x80,0x00,0x00,0x0b
+      },
+      {				/* subsequent char break array */
+				/* same as above, plus dots */
+	0xff,0xff,0xff,0xff,0xff,0xf8,0x00,0x15,
+	0x80,0x00,0x00,0x1f,0x80,0x00,0x00,0x0b
+      }
+    };
+    static fdb mbxfdb = {_CMFLD,CM_SDH,NIL,NIL,"mailbox",NIL,&mbxbrk};
+    noise ("MAILBOX NAMED");
+				/* parse the mailbox name */
+    parse (&mbxfdb,&parseval,&used);
+    strcpy (tmp,atmbuf);	/* note the mailbox name */
+    confirm ();
+    mail_delete (NIL,tmp);
+  }
+}
+
+/* RENAME command
+ * Accepts: help flag
+ */
+
+void c_rename (help)
+	short help;
+{
+  if (help) cmxprintf ("Renames an existing mailbox.\n");
+  else {
+    char tmp[TMPLEN],tmpx[TMPLEN];
+    pval parseval;
+    fdb *used;
+    static brktab mbxbrk = {
+      {				/* 1st char break array */
+	0xff,0xff,0xff,0xff,0xff,0xfa,0x00,0x15,
+	0x80,0x00,0x00,0x1f,0x80,0x00,0x00,0x0b
+      },
+      {				/* subsequent char break array */
+				/* same as above, plus dots */
+	0xff,0xff,0xff,0xff,0xff,0xf8,0x00,0x15,
+	0x80,0x00,0x00,0x1f,0x80,0x00,0x00,0x0b
+      }
+    };
+    static fdb mbxfdb = {_CMFLD,CM_SDH,NIL,NIL,"mailbox",NIL,&mbxbrk};
+    noise ("MAILBOX NAMED");
+				/* parse the mailbox name */
+    parse (&mbxfdb,&parseval,&used);
+    strcpy (tmp,atmbuf);	/* note the mailbox name */
+    noise ("TO");
+				/* parse the mailbox name */
+    parse (&mbxfdb,&parseval,&used);
+    strcpy (tmpx,atmbuf);	/* note the mailbox name */
+    confirm ();
+    mail_rename (NIL,tmp,tmpx);
+  }
+}
+
 /* SEND command
  * Accepts: help flag
  */
@@ -1459,8 +1587,53 @@ void c_status (help)
     else cmxprintf ("%%No mailbox is currently open\n");
   }
 }
+
+static keywrd subcmds[] = {
+  {"BBOARD",	NIL,	(keyval) NIL},
+  {"MAILBOX",	NIL,	(keyval) T},
+};
+static keytab subtab = {(sizeof (subcmds)/sizeof (keywrd)),subcmds};
 
 
+/* SUBSCRIBE command
+ * Accepts: help flag
+ */
+
+void c_subscribe (help)
+	short help;
+{
+  if (help) cmxprintf ("Subscribe to a mailbox or bboard.\n");
+  else {
+    int i;
+    char tmp[TMPLEN];
+    pval parseval;
+    fdb *used;
+    static brktab mbxbrk = {
+      {				/* 1st char break array */
+	0xff,0xff,0xff,0xff,0xff,0xfa,0x00,0x15,
+	0x80,0x00,0x00,0x1f,0x80,0x00,0x00,0x0b
+      },
+      {				/* subsequent char break array */
+				/* same as above, plus dots */
+	0xff,0xff,0xff,0xff,0xff,0xf8,0x00,0x15,
+	0x80,0x00,0x00,0x1f,0x80,0x00,0x00,0x0b
+      }
+    };
+    static fdb mbxfdb = {_CMFLD,CM_SDH,NIL,NIL,"mailbox",NIL,&mbxbrk};
+    static fdb subfdb = {_CMKEY,NIL,NIL,(pdat) &(subtab),
+			   "subscription object, ","BBOARD",NIL};
+    noise ("TO");
+    parse (&subfdb,&parseval,&used);
+    noise ((i = parseval._pvint) ? "MAILBOX NAMED" : "BBOARD NAMED");
+				/* parse the mailbox name */
+    parse (&mbxfdb,&parseval,&used);
+    strcpy (tmp,atmbuf);	/* note the mailbox name */
+    confirm ();
+    if (i) mail_subscribe (NIL,tmp);
+    else mail_subscribe_bboard (NIL,tmp);
+  }
+}
+
 /* TAKE command
  * Accepts: help flag
  */
@@ -1573,6 +1746,51 @@ void c_unmark (help)
 The UNMARK command makes the specified messages not be marked as seen.\n");
   else if (do_sequence (NIL)) mail_clearflag (stream,sequence,"\\Seen");
 }
+
+/* UNSUBSCRIBE command
+ * Accepts: help flag
+ */
+
+void c_unsubscribe (help)
+	short help;
+{
+  if (help) cmxprintf ("Subscribe to a mailbox or bboard.\n");
+  else {
+    int i;
+    char tmp[TMPLEN];
+    pval parseval;
+    fdb *used;
+    static brktab mbxbrk = {
+      {				/* 1st char break array */
+	0xff,0xff,0xff,0xff,0xff,0xfa,0x00,0x15,
+	0x80,0x00,0x00,0x1f,0x80,0x00,0x00,0x0b
+      },
+      {				/* subsequent char break array */
+				/* same as above, plus dots */
+	0xff,0xff,0xff,0xff,0xff,0xf8,0x00,0x15,
+	0x80,0x00,0x00,0x1f,0x80,0x00,0x00,0x0b
+      }
+    };
+    static fdb mb2fdb = {_CMFLD,CM_SDH,NIL,NIL,"mailbox name",NIL,&mbxbrk};
+    static fdb mbxfdb = {_CMKEY,NIL,&mb2fdb,(pdat)& (mbxtab),"known mailbox, ",
+			 NIL,&mbxbrk};
+    static fdb bb2fdb = {_CMFLD,CM_SDH,NIL,NIL,"bboard name",NIL,&mbxbrk};
+    static fdb bbdfdb = {_CMKEY,NIL,&bb2fdb,(pdat)& (bbdtab),"known bboard, ",
+			 NIL,&mbxbrk};
+    static fdb subfdb = {_CMKEY,NIL,NIL,(pdat) &(subtab),
+			   "subscription object, ","BBOARD",NIL};
+    noise ("FROM");
+    parse (&subfdb,&parseval,&used);
+    noise ((i = parseval._pvint) ? "MAILBOX NAMED" : "BBOARD NAMED");
+				/* parse the mailbox name */
+    parse (i ? &mbxfdb : &bbdfdb,&parseval,&used);
+    strcpy (tmp,atmbuf);	/* note the mailbox name */
+    confirm ();
+    if (i) mail_unsubscribe (NIL,tmp);
+    else mail_unsubscribe_bboard (NIL,tmp);
+  }
+}
+
 
 
 /* VERSION command
@@ -2872,8 +3090,16 @@ void do_get (mailbox)
 	char *mailbox;
 {
   register int i;
+  char *s,tmp[TMPLEN],lsthst[TMPLEN];
   nmsgs = 0;			/* init number of messages */
   flgtab._ktcnt = 0;		/* re-init keyword table */
+  if (stream && (s = (*stream->mailbox == '{') ? stream->mailbox :
+		 (((*stream->mailbox == '*')&&(stream->mailbox[1] == '{')) ?
+		  stream->mailbox + 1 : NIL))) {
+    strcpy (lsthst,s);		/* copy last host */
+    if (s = strchr (lsthst,'}')) s[1] = '\0';
+  }
+  else lsthst[0] = '\0';	/* no last host */
 				/* open new connection */
   if (stream = mail_open (stream,mailbox,debug ? OP_DEBUG : NIL)) {
     for (i = 1; i <= stream->nmsgs; i++) mail_elt (stream,i)->spare = NIL;
@@ -2889,8 +3115,12 @@ void do_get (mailbox)
     flgtab._ktcnt = i;		/* update keyword count */
     if (*stream->mailbox == '{' || ((*stream->mailbox == '*') &&
 				    (stream->mailbox[1] == '{'))) {
-      mail_find (stream,"*");	/* find possible remote mailboxes/bboards */
-      mail_find_bboards (stream,"*");
+      strcpy (tmp,strchr (stream->mailbox,'{'));
+      if (s = strchr (tmp,'}')) s[1] = '\0';
+      if (strcmp (tmp,lsthst)) {
+	mail_find (stream,"*");	/* find possible remote mailboxes/bboards */
+	mail_find_bboards (stream,"*");
+      }
     }
   }
 }
@@ -3449,13 +3679,13 @@ void mm_expunged (stream,number)
 void mm_mailbox (string)
 	char *string;
 {
-  int i;
-				/* see if string already present */
-  for (i = 0; i < mbxtab._ktcnt; i++)
-    if (!strcmp (mbx[i]._kwkwd,string)) return;
+  int i,j;
+  for (i = 0;i < mbxtab._ktcnt && (j = strcmp (mbx[i]._kwkwd,string)) <= 0;i++)
+    if (!j) return;		/* done if string already present */
   if (i == MAXMAILBOXES) cmxprintf ("%%Mailbox limit exceeded -- %s\n",string);
   else {			/* add new mailbox name */
-    mbx[i = mbxtab._ktcnt++]._kwkwd = cpystr (string);
+    for (j = mbxtab._ktcnt++; i < j; j--) mbx[j] = mbx[j - 1];
+    mbx[i]._kwkwd = cpystr (string);
     mbx[i]._kwflg = KEY_EMO;
     mbx[i]._kwval = NIL;
   }
@@ -3469,13 +3699,13 @@ void mm_mailbox (string)
 void mm_bboard (string)
 	char *string;
 {
-  int i;
-				/* see if string already present */
-  for (i = 0; i < bbdtab._ktcnt; i++)
-    if (!strcmp (bbd[i]._kwkwd,string)) return;
+  int i,j;
+  for (i = 0;i < bbdtab._ktcnt && (j = strcmp (bbd[i]._kwkwd,string)) <= 0;i++)
+    if (!j) return;		/* done if string already present */
   if (i == MAXMAILBOXES) cmxprintf ("%%Mailbox limit exceeded -- %s\n",string);
   else {			/* add new mailbox name */
-    bbd[i = bbdtab._ktcnt++]._kwkwd = cpystr (string);
+    for (j = bbdtab._ktcnt++; i < j; j--) bbd[j] = bbd[j - 1];
+    bbd[i]._kwkwd = cpystr (string);
     bbd[i]._kwflg = KEY_EMO;
     bbd[i]._kwval = NIL;
   }

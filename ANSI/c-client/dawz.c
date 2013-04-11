@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	2 October 1992
+ * Last Edited:	10 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -40,6 +40,7 @@
 #include <fcntl.h>
 #include "mail.h"
 #include "osdep.h"
+#include <time.h>
 #include <sys\stat.h>
 #include <dos.h>
 #include <io.h>
@@ -53,10 +54,21 @@
 /* Driver dispatch used by MAIL */
 
 DRIVER dawzdriver = {
+  "dawz",			/* driver name */
   (DRIVER *) NIL,		/* next driver */
   dawz_valid,			/* mailbox is valid for us */
+  dawz_parameters,		/* manipulate parameters */
   dawz_find,			/* find mailboxes */
   dawz_find_bboards,		/* find bboards */
+  dawz_find_all,		/* find all mailboxes */
+  dawz_find_bboards,		/* find all bboards */
+  dawz_subscribe,		/* subscribe to mailbox */
+  dawz_unsubscribe,		/* unsubscribe from mailbox */
+  dawz_subscribe_bboard,	/* subscribe to bboard */
+  dawz_subscribe_bboard,	/* unsubscribe (same as subscribe) */
+  dawz_create,			/* create mailbox */
+  dawz_delete,			/* delete mailbox */
+  dawz_rename,			/* rename mailbox */
   dawz_open,			/* open mailbox */
   dawz_close,			/* close mailbox */
   dawz_fetchfast,		/* fetch message "fast" attributes */
@@ -73,18 +85,21 @@ DRIVER dawzdriver = {
   dawz_expunge,			/* expunge deleted messages */
   dawz_copy,			/* copy messages to another mailbox */
   dawz_move,			/* move messages to another mailbox */
+  dawz_append,			/* append string message to mailbox */
   dawz_gc			/* garbage collect stream */
 };
+
+				/* prototype stream */
+MAILSTREAM dawzproto = {&dawzdriver};
 
 /* Dawz mail validate mailbox
  * Accepts: mailbox name
- * Returns: our driver if name is valid, otherwise calls valid in next driver
+ * Returns: our driver if name is valid, NIL otherwise
  */
 
 DRIVER *dawz_valid (char *name)
 {
-  return dawz_isvalid (name) ? &dawzdriver :
-    (dawzdriver.next ? (*dawzdriver.next->valid) (name) : NIL);
+  return dawz_isvalid (name) ? &dawzdriver : NIL;
 }
 
 
@@ -112,6 +127,18 @@ int dawz_isvalid (char *name)
   }
   return NIL;			/* failed miserably */
 }
+
+
+/* Dawz manipulate driver parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *dawz_parameters (long function,void *value)
+{
+  fatal ("Invalid dawz_parameters function");
+}
 
 /* Dawz mail find list of mailboxes
  * Accepts: mail stream
@@ -119,6 +146,32 @@ int dawz_isvalid (char *name)
  */
 
 void dawz_find (MAILSTREAM *stream,char *pat)
+{
+  void *s = NIL;
+  char *t;
+  while (t = sm_read (&s))	/* read subscription database */
+    if ((*t != '{') && strcmp (t,"INBOX") && pmatch (t,pat) &&
+	dawz_isvalid (t)) mm_mailbox (t);
+}
+
+
+/* Dawz mail find list of bboards
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void dawz_find_bboards (MAILSTREAM *stream,char *pat)
+{
+  /* Always a no-op */
+}
+
+
+/* Dawz mail find list of all mailboxes
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void dawz_find_all (MAILSTREAM *stream,char *pat)
 {
   struct find_t f;
   char tmp[MAILTMPLEN];
@@ -140,16 +193,96 @@ void dawz_find (MAILSTREAM *stream,char *pat)
     if (dawz_isvalid (tmp)) mm_mailbox (tmp);
   } while (!_dos_findnext (&f));/* until done */
 }
-
-
-/* Dawz mail find list of bboards
+
+/* Dawz mail subscribe to mailbox
  * Accepts: mail stream
- *	    pattern to search
+ *	    mailbox to add to subscription list
+ * Returns: T on success, NIL on failure
  */
 
-void dawz_find_bboards (MAILSTREAM *stream,char *pat)
+long dawz_subscribe (MAILSTREAM *stream,char *mailbox)
 {
-  /* no bboards in this format */
+  char tmp[MAILTMPLEN];
+  return sm_subscribe (dawz_file (tmp,mailbox));
+}
+
+
+/* Dawz mail unsubscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long dawz_unsubscribe (MAILSTREAM *stream,char *mailbox)
+{
+  char tmp[MAILTMPLEN];
+  return sm_unsubscribe (dawz_file (tmp,mailbox));
+}
+
+
+/* Dawz mail subscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long dawz_subscribe_bboard (MAILSTREAM *stream,char *mailbox)
+{
+  return NIL;			/* never valid for Dawz */
+}
+
+/* Dawz mail create mailbox
+ * Accepts: MAIL stream
+ *	    mailbox name to create
+ * Returns: T on success, NIL on failure
+ */
+
+long dawz_create (MAILSTREAM *stream,char *mailbox)
+{
+  char tmp[MAILTMPLEN];
+  int fd = open (dawz_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,
+		 S_IREAD|S_IWRITE);
+  if (fd < 0) {			/* failed */
+    sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  close (fd);			/* close the file */
+  return LONGT;			/* return success */
+}
+
+
+/* Dawz mail delete mailbox
+ * Accepts: MAIL stream
+ *	    mailbox name to delete
+ * Returns: T on success, NIL on failure
+ */
+
+long dawz_delete (MAILSTREAM *stream,char *mailbox)
+{
+  return dawz_rename (stream,mailbox,NIL);
+}
+
+
+/* Dawz mail rename mailbox
+ * Accepts: MAIL stream
+ *	    old mailbox name
+ *	    new mailbox name (or NIL for delete)
+ * Returns: T on success, NIL on failure
+ */
+
+long dawz_rename (MAILSTREAM *stream,char *old,char *new)
+{
+  char tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
+  dawz_file (file,old);		/* make file name */
+				/* do the rename or delete operation */
+  if (new ? rename (file,dawz_file (tmp,new)) : unlink (file)) {
+    sprintf (tmp,"Can't %s mailbox %s: %s",new ? "rename" : "delete",old,
+	     strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  return LONGT;			/* return success */
 }
 
 /* Dawz mail open
@@ -164,6 +297,8 @@ MAILSTREAM *dawz_open (MAILSTREAM *stream)
   char *s,*t,*k;
   char tmp[MAILTMPLEN];
   struct stat sbuf;
+				/* return prototype for OP_PROTOTYPE call */
+  if (!stream) return &dawzproto;
   if (LOCAL) {			/* close old file if stream being recycled */
     dawz_close (stream);	/* dump and save the changes */
     stream->dtb = &dawzdriver;	/* reattach this driver */
@@ -460,7 +595,7 @@ char *dawz_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
   elt->seen = T;		/* mark message as seen */
   dawz_update_status (stream,m);/* recalculate status */
   lseek (LOCAL->fd,hdrpos + base + offset,SEEK_SET);
-  return (*mailgets) (dawz_read,stream,b->size.bytes);
+  return (*mailgets) (dawz_read,stream,*len = b->size.bytes);
 }
 
 /* Dawz mail read
@@ -685,7 +820,6 @@ long dawz_ping (MAILSTREAM *stream)
   long i = 0;
   long r,j;
   struct stat sbuf;
-  MAILSTREAM *bezerk = NIL;
 				/* punt if stream no longer alive */
   if (!(stream && LOCAL)) return NIL;
 				/* parse mailbox, punt if parse dies */
@@ -799,6 +933,67 @@ long dawz_move (MAILSTREAM *stream,char *sequence,char *mailbox)
       dawz_update_status (stream,i);
     }
   return T;
+}
+
+/* Dawz mail append message from stringstruct
+ * Accepts: MAIL stream
+ *	    destination mailbox
+ *	    stringstruct of messages to append
+ * Returns: T if append successful, else NIL
+ */
+
+long dawz_append (MAILSTREAM *stream,char *mailbox,STRING *message)
+{
+  int fd;
+  struct stat sbuf;
+  char tmp[MAILTMPLEN];
+  time_t ti;
+  struct tm *t;
+  long i;
+  long size = SIZE (message);
+  tzset ();			/* initialize timezone stuff */
+				/* make sure valid mailbox */
+  if (!dawz_isvalid (mailbox)) {
+    sprintf (tmp,"Not a Dawz-format mailbox: %s",mailbox);
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+				/* open the destination */
+  if ((fd = open (dawz_file (tmp,mailbox),O_BINARY|O_WRONLY|O_APPEND|O_CREAT,
+		  S_IREAD|S_IWRITE)) < 0) {
+    sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  mm_critical (stream);		/* go critical */
+  fstat (fd,&sbuf);		/* get current file size */
+  ti = time (0);		/* get time now */
+  t = localtime (&ti);		/* output local time */
+  sprintf (tmp,"%d-%s-%d %02d:%02d:%02d-%s,%ld;000000000000\015\012",
+	   t->tm_mday,months[t->tm_mon],t->tm_year+1900,
+	   t->tm_hour,t->tm_min,t->tm_sec,tzname[t->tm_isdst],size);
+
+				/* write header */
+  if (write (fd,tmp,strlen (tmp)) < 0) {
+    sprintf (tmp,"Header write failed: %s",strerror (errno));
+    mm_log (tmp,ERROR);
+    chsize (fd,sbuf.st_size);
+  }  
+  else while (size) {		/* while there is more data to write */
+    if (write (fd,message->curpos,i = min (size,message->cursize)) < 0) {
+      sprintf (tmp,"Message append failed: %s",strerror (errno));
+      mm_log (tmp,ERROR);
+      chsize (fd,sbuf.st_size);
+      break;
+    }
+    size -= i;			/* note that we wrote out this much */
+    message->curpos += i;
+    message->cursize -= i;
+    (message->dtb->next) (message);
+  }
+  close (fd);			/* close the file */
+  mm_nocritical (stream);	/* release critical */
+  return T;			/* return success */
 }
 
 

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	13 October 1992
+ * Last Edited:	10 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -45,6 +45,7 @@
 /* c-client global data */
 
 DRIVER *maildrivers = NIL;	/* list of mail drivers */
+DRIVER *inboxdriver = NIL;	/* INBOX mail driver */
 char *lhostn = NIL;		/* local host name */
 mailgets_t mailgets = NIL;	/* pointer to alternate gets function */
 				/* mail cache manipulation function */
@@ -102,7 +103,8 @@ void *mm_cache (MAILSTREAM *stream,long msgno,long op)
   case CH_INIT:			/* initialize cache */
     if (stream->cachesize) {	/* flush old cache contents */
       while (stream->cachesize) mm_cache (stream,stream->cachesize--,CH_FREE);
-      fs_give ((void **) stream->cache.c);
+      fs_give ((void **) &stream->cache.c);
+      stream->nmsgs = 0;	/* can't have any messages now */
     }
     break;
   case CH_SIZE:			/* (re-)size the cache */
@@ -233,33 +235,215 @@ void mail_link (DRIVER *driver)
 }
 
 
-/* Mail find list of mailboxes
+/* Mail manipulate driver parameters
+ * Accepts: mail stream
+ *	    function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *mail_parameters (MAILSTREAM *stream,long function,void *value)
+{
+  return stream->dtb ? (stream->dtb->parameters) (function,value) : NIL;
+}
+
+/* Mail find list of subscribed mailboxes
  * Accepts: mail stream
  *	    pattern to search
  */
 
 void mail_find (MAILSTREAM *stream,char *pat)
 {
-  DRIVER **d = &maildrivers;
+  DRIVER *d = maildrivers;
 				/* if have a stream, do it for that stream */
   if (stream && stream->dtb) (*stream->dtb->find) (stream,pat);
 				/* otherwise do for all DTB's */
-  else do ((*d)->find) (NIL,pat);
-  while (*(d = &(*d)->next));	/* until at the end */
+  else do (d->find) (NIL,pat);
+  while (d = d->next);		/* until at the end */
 }
 
 
-/* Mail find list of bboards
+/* Mail find list of subscribed bboards
  * Accepts: mail stream
  *	    pattern to search
  */
 
 void mail_find_bboards (MAILSTREAM *stream,char *pat)
 {
-  DRIVER **d = &maildrivers;
+  DRIVER *d = maildrivers;
   if (stream && stream->dtb) (*stream->dtb->find_bboard) (stream,pat);
-  else do ((*d)->find_bboard) (NIL,pat);
-  while (*(d = &(*d)->next));	/* until at the end */
+  else do (d->find_bboard) (NIL,pat);
+  while (d = d->next);		/* until at the end */
+}
+
+/* Mail find list of all mailboxes
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void mail_find_all (MAILSTREAM *stream,char *pat)
+{
+  DRIVER *d = maildrivers;
+				/* if have a stream, do it for that stream */
+  if (stream && stream->dtb) (*stream->dtb->find_all) (stream,pat);
+				/* otherwise do for all DTB's */
+  else do (d->find_all) (NIL,pat);
+  while (d = d->next);		/* until at the end */
+}
+
+
+/* Mail find list of all bboards
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void mail_find_all_bboard (MAILSTREAM *stream,char *pat)
+{
+  DRIVER *d = maildrivers;
+				/* if have a stream, do it for that stream */
+  if (stream && stream->dtb) (*stream->dtb->find_all_bboard) (stream,pat);
+				/* otherwise do for all DTB's */
+  else do (d->find_all_bboard) (NIL,pat);
+  while (d = d->next);		/* until at the end */
+}
+
+/* Mail validate mailbox name
+ * Accepts: MAIL stream
+ *	    mailbox name
+ *	    purpose string for error message
+ * Return: driver factory on success, NIL on failure
+ */
+
+DRIVER *mail_valid (MAILSTREAM *stream,char *mailbox,char *purpose,long nopen)
+{
+  char tmp[MAILTMPLEN];
+  DRIVER *factory;
+  ucase (strcpy (tmp,mailbox));	/* make lowercase copy of name */
+				/* ambiguous, must be same type as INBOX */
+  if (strcmp (tmp,"INBOX") && isalnum (*mailbox)) 
+    factory = ((inboxdriver ? inboxdriver :
+		(inboxdriver = mail_valid (NIL,"INBOX",NIL,LONGT))) &&
+	       (*inboxdriver->valid) (mailbox)) ? inboxdriver : NIL;
+  else {			/* non-ambiguous name, find factory */
+    for (factory = maildrivers; factory && !(*factory->valid) (mailbox);
+	 factory = factory->next);
+				/* must match stream and not be dummy */
+    if (factory && ((stream && (stream->dtb != factory)) ||
+		    (nopen && !strcmp (factory->name,"dummy")))) factory = NIL;
+  }
+  if (!factory && purpose) {	/* if want an error message */
+    sprintf (tmp,"Can't %s %s: no such mailbox",purpose,mailbox);
+    mm_log (tmp,ERROR);
+  }
+  return factory;		/* return driver factory */
+}
+
+/* Mail subscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long mail_subscribe (MAILSTREAM *stream,char *mailbox)
+{
+  DRIVER *factory = mail_valid (stream,mailbox,"subscribe to mailbox",LONGT);
+  return factory ? (*factory->subscribe) (stream,mailbox) : NIL;
+}
+
+
+/* Mail unsubscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long mail_unsubscribe (MAILSTREAM *stream,char *mailbox)
+{
+ DRIVER *factory = mail_valid (stream,mailbox,"unsubscribe to mailbox",LONGT);
+  return factory ? (*factory->unsubscribe) (stream,mailbox) : NIL;
+}
+
+
+/* Mail subscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long mail_subscribe_bboard (MAILSTREAM *stream,char *mailbox)
+{
+  char tmp[MAILTMPLEN];
+  DRIVER *factory;
+  sprintf (tmp,"*%s",mailbox);
+  return (factory = mail_valid (stream,tmp,"subscribe to bboard",LONGT)) ?
+    (*factory->subscribe_bboard) (stream,mailbox) : NIL;
+}
+
+
+/* Mail unsubscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long mail_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox)
+{
+  char tmp[MAILTMPLEN];
+  DRIVER *factory;
+  sprintf (tmp,"*%s",mailbox);
+  return (factory = mail_valid (stream,tmp,"unsubscribe to bboard",LONGT)) ?
+    (*factory->unsubscribe_bboard) (stream,mailbox) : NIL;
+}
+
+/* Mail create mailbox
+ * Accepts: mail stream
+ *	    mailbox name to create
+ * Returns: T on success, NIL on failure
+ */
+
+long mail_create (MAILSTREAM *stream,char *mailbox)
+{
+  char tmp[MAILTMPLEN];
+  if (strcmp (stream->dtb->name,"imap2") &&
+      mail_valid (stream,mailbox,NIL,LONGT)) {
+    sprintf (tmp,"Can't create mailbox %s: mailbox already exists",mailbox);
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  return stream->dtb ? (*stream->dtb->create) (stream,mailbox) : NIL;
+}
+
+
+/* Mail delete mailbox
+ * Accepts: mail stream
+ *	    mailbox name to delete
+ * Returns: T on success, NIL on failure
+ */
+
+long mail_delete (MAILSTREAM *stream,char *mailbox)
+{
+  DRIVER *factory = mail_valid (stream,mailbox,"delete mailbox",LONGT);
+  return factory ? (*factory->delete) (stream,mailbox) : NIL;
+}
+
+
+/* Mail rename mailbox
+ * Accepts: mail stream
+ *	    old mailbox name
+ *	    new mailbox name
+ * Returns: T on success, NIL on failure
+ */
+
+long mail_rename (MAILSTREAM *stream,char *old,char *new)
+{
+  char tmp[MAILTMPLEN];
+  DRIVER *factory = mail_valid (stream,old,"rename mailbox",LONGT);
+  if ((*old != '{') && mail_valid (NIL,new,NIL,LONGT)) {
+    sprintf (tmp,"Can't rename to mailbox %s: mailbox already exists",new);
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  return factory ? (*factory->rename) (stream,old,new) : NIL;
 }
 
 /* Mail open
@@ -273,9 +457,11 @@ MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
 {
   long i;
   char tmp[MAILTMPLEN];
-  DRIVER *factory = maildrivers ? (*maildrivers->valid) (name) : NIL;
+  DRIVER *factory = mail_valid (NIL,name,(!(stream && stream->silent)) ?
+				"open mailbox" : NIL,(long) NIL);
   if (factory) {		/* must have a factory */
     if (!stream) {		/* instantiate stream if none to recycle */
+      if (options & OP_PROTOTYPE) return (*factory->open) (NIL);
       stream = (MAILSTREAM *) fs_get (sizeof (MAILSTREAM));
 				/* initialize stream */
       memset ((void *) stream,0,sizeof (MAILSTREAM));
@@ -302,13 +488,9 @@ MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
     stream->anonymous = (options & OP_ANONYMOUS) ? T : NIL;
     stream->scache = (options & OP_SHORTCACHE) ? T : NIL;
     stream->silent = (options & OP_SILENT) ? T : NIL;
+    stream->halfopen = (options & OP_HALFOPEN) ? T : NIL;
 				/* have driver open, flush if failed */
     if (!(*factory->open) (stream)) stream = mail_close (stream);
-  }
-				/* not from Tenex internal please */
-  else if (!(stream && stream->silent)) {
-    sprintf (tmp,"Unknown mailbox format: %.80s",name);
-    mm_log (tmp,ERROR);		/* give an error */
   }
   return stream;		/* return the stream */
 }
@@ -333,7 +515,7 @@ MAILSTREAM *mail_close (MAILSTREAM *stream)
 }
 
 /* Mail make handle
- * Accepts: Mail stream
+ * Accepts: mail stream
  * Returns: handle
  *
  *  Handles provide a way to have multiple pointers to a stream yet allow the
@@ -368,7 +550,7 @@ void mail_free_handle (MAILHANDLE **handle)
 
 /* Mail get stream handle
  * Accepts: Mail handle
- * Returns: Mail stream or NIL if stream gone
+ * Returns: mail stream or NIL if stream gone
  */
 
 MAILSTREAM *mail_stream (MAILHANDLE *handle)
@@ -378,7 +560,7 @@ MAILSTREAM *mail_stream (MAILHANDLE *handle)
 }
 
 /* Mail fetch long cache element
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    message # to fetch
  * Returns: long cache element of this message
  * Can also be used to create cache elements for new messages.
@@ -394,7 +576,7 @@ LONGCACHE *mail_lelt (MAILSTREAM *stream,long msgno)
 
 
 /* Mail fetch cache element
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    message # to fetch
  * Returns: cache element of this message
  * Can also be used to create cache elements for new messages.
@@ -410,7 +592,7 @@ MESSAGECACHE *mail_elt (MAILSTREAM *stream,long msgno)
 }
 
 /* Mail fetch fast information
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    sequence
  *
  * Generally, mail_fetchstructure is preferred
@@ -424,7 +606,7 @@ void mail_fetchfast (MAILSTREAM *stream,char *sequence)
 
 
 /* Mail fetch flags
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    sequence
  */
 
@@ -436,7 +618,7 @@ void mail_fetchflags (MAILSTREAM *stream,char *sequence)
 
 
 /* Mail fetch message structure
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    message # to fetch
  *	    pointer to return body
  * Returns: envelope of this message, body returned in body value
@@ -453,7 +635,7 @@ ENVELOPE *mail_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
 }
 
 /* Mail fetch message header
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    message # to fetch
  * Returns: message header in RFC822 format
  */
@@ -468,7 +650,7 @@ char *mail_fetchheader (MAILSTREAM *stream,long msgno)
 
 
 /* Mail fetch message text (body only)
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    message # to fetch
  * Returns: message text in RFC822 format
  */
@@ -483,7 +665,7 @@ char *mail_fetchtext (MAILSTREAM *stream,long msgno)
 
 
 /* Mail fetch message body part text
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    message # to fetch
  *	    section specifier (#.#.#...#)
  *	    pointer to returned length
@@ -499,7 +681,7 @@ char *mail_fetchbody (MAILSTREAM *stream,long m,char *sec,unsigned long *len)
 
 /* Mail fetch From string for menu
  * Accepts: destination string
- *	    Mail stream
+ *	    mail stream
  *	    message # to fetch
  *	    desired string length
  * Returns: string of requested length
@@ -523,7 +705,7 @@ void mail_fetchfrom (char *s,MAILSTREAM *stream,long msgno,long length)
 
 /* Mail fetch Subject string for menu
  * Accepts: destination string
- *	    Mail stream
+ *	    mail stream
  *	    message # to fetch
  *	    desired string length
  * Returns: string of no more than requested length
@@ -539,7 +721,7 @@ void mail_fetchsubject (char *s,MAILSTREAM *stream,long msgno,long length)
 }
 
 /* Mail set flag
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    sequence
  *	    flag(s)
  */
@@ -552,7 +734,7 @@ void mail_setflag (MAILSTREAM *stream,char *sequence,char *flag)
 
 
 /* Mail clear flag
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    sequence
  *	    flag(s)
  */
@@ -565,7 +747,7 @@ void mail_clearflag (MAILSTREAM *stream,char *sequence,char *flag)
 
 
 /* Mail search for messages
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    search criteria
  */
 
@@ -579,7 +761,7 @@ void mail_search (MAILSTREAM *stream,char *criteria)
 
 
 /* Mail ping mailbox
- * Accepts: Mail stream
+ * Accepts: mail stream
  * Returns: stream if still open else NIL
  */
 
@@ -590,7 +772,7 @@ long mail_ping (MAILSTREAM *stream)
 }
 
 /* Mail check mailbox
- * Accepts: Mail stream
+ * Accepts: mail stream
  */
 
 void mail_check (MAILSTREAM *stream)
@@ -601,7 +783,7 @@ void mail_check (MAILSTREAM *stream)
 
 
 /* Mail expunge mailbox
- * Accepts: Mail stream
+ * Accepts: mail stream
  */
 
 void mail_expunge (MAILSTREAM *stream)
@@ -609,10 +791,9 @@ void mail_expunge (MAILSTREAM *stream)
   				/* do the driver's action */
   if (stream->dtb) (*stream->dtb->expunge) (stream);
 }
-
-
+
 /* Mail copy message(s)
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    sequence
  *	    destination mailbox
  */
@@ -625,7 +806,7 @@ long mail_copy (MAILSTREAM *stream,char *sequence,char *mailbox)
 
 
 /* Mail move message(s)
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    sequence
  *	    destination mailbox
  */
@@ -635,9 +816,27 @@ long mail_move (MAILSTREAM *stream,char *sequence,char *mailbox)
   				/* do the driver's action */
   return stream->dtb ? (*stream->dtb->move) (stream,sequence,mailbox) : NIL;
 }
+
+
+/* Mail append message string
+ * Accepts: mail stream
+ *	    destination mailbox
+ *	    stringstruct of message to append
+ * Returns: T on success, NIL on failure
+ */
+
+long mail_append (MAILSTREAM *stream,char *mailbox,STRING *message)
+{
+  DRIVER *d = maildrivers;
+  DRIVER *factory = mail_valid (stream,mailbox,"append to mailbox",LONGT);
+				/* validate stream if given */
+  if (stream && stream->dtb && (factory != stream->dtb)) return NIL;
+				/* do the driver's action */
+  return factory ? (factory->append) (stream,mailbox,message) : NIL;
+}
 
 /* Mail garbage collect stream
- * Accepts: Mail stream
+ * Accepts: mail stream
  *	    garbage collection flags
  */
 
@@ -715,6 +914,8 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
   int ms;
   struct tm *t;
   time_t tn;
+				/* skip over possible day of week */
+  if (isalpha (*s) && s[3] == ',') s += 5;
 				/* parse first number (probable month) */
   if (!(s && (m = strtol ((const char *) s,&s,10)))) return NIL;
   switch (*s) {			/* different parse based on delimiter */
@@ -722,6 +923,7 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
     if (!((d = strtol ((const char *) ++s,&s,10)) && *s == '/' &&
 	  (y = strtol ((const char *) ++s,&s,10)) && *s == '\0')) return NIL;
     break;
+  case ' ':			/* dd mmm yy format */
   case '-':			/* dd-mmm-yy format */
     d = m;			/* so the number we got is a day */
 				/* make sure string is UC and long enough! */
@@ -744,9 +946,9 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
     case (('D'-'A') * 1024) + (('E'-'A') * 32) + ('C'-'A'): m = 12; break;
     default: return NIL;
     }
-				/* parse the year */
-    if (s[4] == '-' && (y = strtol ((const char *) s+5,&s,10)) &&
-	(*s == '\0' || *s == ' ')) break;
+    if (((s[4] == '-') || s[4] == ' ') &&
+	(y = strtol ((const char *) s+5,&s,10)) && (*s == '\0' || *s == ' '))
+      break;			/* parse the year */
   default: return NIL;		/* unknown date format */
   }
 				/* minimal validity check of date */
@@ -884,7 +1086,7 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
 }
 
 /* Mail messages have been searched out
- * Accepts: MAIL stream
+ * Accepts: mail stream
  *	    message number
  *
  * Calls external "mm_searched" function to notify main program
@@ -899,7 +1101,7 @@ void mail_searched (MAILSTREAM *stream,long msgno)
 
 
 /* Mail n messages exist
- * Accepts: MAIL stream
+ * Accepts: mail stream
  *	    number of messages
  *
  * Calls external "mm_exists" function that notifies main program prior
@@ -916,7 +1118,7 @@ void mail_exists (MAILSTREAM *stream,long nmsgs)
 }
 
 /* Mail n messages are recent
- * Accepts: MAIL stream
+ * Accepts: mail stream
  *	    number of recent messages
  */
 
@@ -927,7 +1129,7 @@ void mail_recent (MAILSTREAM *stream,long recent)
 
 
 /* Mail message n is expunged
- * Accepts: MAIL stream
+ * Accepts: mail stream
  *	    message #
  *
  * Calls external "mm_expunged" function that notifies main program prior
@@ -949,11 +1151,11 @@ void mail_expunged (MAILSTREAM *stream,long msgno)
   if (!stream->silent) mm_expunged (stream,msgno);
 }
 
-/* Mail stream status routines */
+/* mail stream status routines */
 
 
 /* Mail lock stream
- * Accepts: Mail stream
+ * Accepts: mail stream
  */
 
 void mail_lock (MAILSTREAM *stream)
@@ -964,7 +1166,7 @@ void mail_lock (MAILSTREAM *stream)
 
 
 /* Mail unlock stream
- * Accepts: Mail stream
+ * Accepts: mail stream
  */
  
 void mail_unlock (MAILSTREAM *stream)
@@ -975,7 +1177,7 @@ void mail_unlock (MAILSTREAM *stream)
 
 
 /* Mail turn on debugging telemetry
- * Accepts: Mail stream
+ * Accepts: mail stream
  */
 
 void mail_debug (MAILSTREAM *stream)
@@ -985,7 +1187,7 @@ void mail_debug (MAILSTREAM *stream)
 
 
 /* Mail turn off debugging telemetry
- * Accepts: Mail stream
+ * Accepts: mail stream
  */
 
 void mail_nodebug (MAILSTREAM *stream)
@@ -994,7 +1196,7 @@ void mail_nodebug (MAILSTREAM *stream)
 }
 
 /* Mail parse sequence
- * Accepts: MAIL stream
+ * Accepts: mail stream
  *	    sequence to parse
  * Returns: T if parse successful, else NIL
  */
@@ -1210,7 +1412,7 @@ void mail_free_body_part (PART **part)
 }
 
 /* Mail garbage collect message cache
- * Accepts: MAIL stream
+ * Accepts: mail stream
  *
  * The message cache is set to NIL when this function finishes.
  */

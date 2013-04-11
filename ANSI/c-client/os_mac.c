@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	27 October 1992
+ * Last Edited:	3 December 1992
  *
  * Copyright 1992 by Mark Crispin
  *
@@ -179,7 +179,7 @@ unsigned long strcrlflen (STRING *s)
   unsigned long pos = GETPOS (s);
   unsigned long i = SIZE (s);
   unsigned long j = i;
-  while (j--) if ((NXT (s) == '\015') && ((CHR (s) != '\012') || !j)) i++;
+  while (j--) if ((SNX (s) == '\015') && ((CHR (s) != '\012') || !j)) i++;
   SETPOS (s,pos);		/* restore old position */
   return i;
 }
@@ -653,4 +653,36 @@ long wait ()
     break;
   }
   return T;			/* try wait test again */
+}
+
+/* Subscribe to mailbox
+ * Accepts: mailbox name
+ * Returns: T on success, NIL on failure
+ */
+
+long sm_subscribe (char *mailbox)
+{
+  return NIL;			/* needs to be written */
+}
+
+
+/* Unsubscribe from mailbox
+ * Accepts: mailbox name
+ * Returns: T on success, NIL on failure
+ */
+
+long sm_unsubscribe (char *mailbox)
+{
+  return NIL;			/* needs to be written */
+}
+
+
+/* Read subscription database
+ * Accepts: pointer to subscription database handle (handle NIL if first time)
+ * Returns: character string for subscription database or NIL if done
+ */
+
+char *sm_read (void **sdb)
+{
+  return NIL;
 }

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	22 September 1992
+ * Last Edited:	8 December 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -35,7 +35,7 @@
 
 /* Build parameters */
 
-#define MAILBOXDIR "C:\\MAILBOXS\\%s"
+#define MAILBOXDIR "C:\\MAIL\\%s"
 #define INBOXNAME "MAIL.TXT"
 
 /* Command bits from dawz_getflags(), must correspond to mailbox bit values */
@@ -62,8 +62,16 @@ typedef struct dawz_local {
 
 DRIVER *dawz_valid (char *name);
 int dawz_isvalid (char *name);
+void *dawz_parameters (long function,void *value);
 void dawz_find (MAILSTREAM *stream,char *pat);
 void dawz_find_bboards (MAILSTREAM *stream,char *pat);
+void dawz_find_all (MAILSTREAM *stream,char *pat);
+long dawz_subscribe (MAILSTREAM *stream,char *mailbox);
+long dawz_unsubscribe (MAILSTREAM *stream,char *mailbox);
+long dawz_subscribe_bboard (MAILSTREAM *stream,char *mailbox);
+long dawz_create (MAILSTREAM *stream,char *mailbox);
+long dawz_delete (MAILSTREAM *stream,char *mailbox);
+long dawz_rename (MAILSTREAM *stream,char *old,char *new);
 MAILSTREAM *dawz_open (MAILSTREAM *stream);
 void dawz_close (MAILSTREAM *stream);
 void dawz_fetchfast (MAILSTREAM *stream,char *sequence);
@@ -86,6 +94,7 @@ void dawz_check (MAILSTREAM *stream);
 void dawz_expunge (MAILSTREAM *stream);
 long dawz_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long dawz_move (MAILSTREAM *stream,char *sequence,char *mailbox);
+long dawz_append (MAILSTREAM *stream,char *mailbox,STRING *message);
 void dawz_gc (MAILSTREAM *stream,long gcflags);
 char *dawz_file (char *dst,char *name);
 int dawz_getflags (MAILSTREAM *stream,char *flag);

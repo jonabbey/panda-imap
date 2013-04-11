@@ -227,6 +227,9 @@ Note: Dates in this revision history indicate when the work was completed.
 		status, to request (and indicate) half-open IMAP streams that
 		have connections but no mailbox selected.
 
+24 October 1992	[rfc822.c] Fix rfc822_binary() logic flaw caused by overly-
+		hairy size calculation.
+
 26 October 1992	[imap2.c] Properly implement "+" response from IMAP.
 
 26 October 1992 [imapd.c] Fix disasterous bug in IMAP server literals.
@@ -234,3 +237,115 @@ Note: Dates in this revision history indicate when the work was completed.
 27 October 1992	[os_ptx.c, os_sv4.c] Fix DST handling on SysV like systems.
 
 27 October 1992	[os*.c/h] Add tcp_sout() for IMAP APPEND support.
+
+29 October 1992	[os*.c] Fixed server_login() to set up group access properly.
+
+ 2 November 1992 [mail.c/h, bezerk.c/h, dawz.c/h, imap2.c/h, mbox.c/h, mh.c/h,
+		  news.c/h, tenex.c/h] First version with IMAP2bis mail
+		management support.
+
+ 2 November 1992 [mail.h, os*.c, rfc822.c] Change NXT macro to SNX.
+
+ 3 November 1992 [mail.c] [UN]SUBSCRIBE, DELETE, and RENAME now allow you to
+		point at a mailbox accessed by a different driver than the one
+		normally reached by that name.  This is to deal with the case
+		of identically-named mailboxes in two different driver's
+		namespaces.  I consider this an error, and CREATE won't let
+		you do it, but you need to have some way to bail out if it
+		happens.
+
+ 3 November 1992 [os_hpp.c] Add #include <sys/file.h> to get L_SET symbol.
+
+ 3 November 1992 [bezerk.c, tenex.c] Bugfixes to CREATE, DELETE, RENAME.
+
+ 5 November 1992 [os_a32.c/h] Updates to RS/6000 code.
+
+ 9 November 1992 [rfc822.c] Fix excessive generosity in accepting bogus header
+		lines as being the real thing.
+
+10 November 1992 [mail.c/h, bezerk.c, dawz.c, imap2.c, mbox.c, mh.c, news.c,
+		  tenex.c] Implement new mailbox naming rules.
+
+10 November 1992 [bezerk.c, tenex.c] Flush CR's in APPEND.
+
+12 November 1992 [bezerk.c, tenex.c] Fix FIND ALL behavior with directory
+		arguments.
+
+14 November 1992 [MailManager.c] Flush .mailboxlist hacking code
+
+16 November 1992 [imap2.c] Fix map_manage bug in error reporting.
+
+16 November 1992 [ms.c] Add management capabilities to ms.  Make it sort the
+		FIND results.
+
+16 November 1992 [imap2.c, mail.c] Fix a number of silly bugs with IMAP mail
+		management functions (CREATE, etc.)
+
+19 November 1992 [mail.h, bezerk.c, imap2.c, mh.c, news.c/h, tenex.c,
+		  sm_unix.c] Add concept of subscription manager for mailboxes
+		 and teach drivers about it.
+
+ 3 December 1992 [imapd.c] Fixed some bogon messages in IMAP server.
+
+ 3 December 1992 [bezerk.c, mh.c, tenex.c, sm_unix.c] First distribution
+		version of subscription manager stuff.
+
+ 3 December 1992 [imapd.c] Implement PARTIAL and PURGE commands, making imapd
+		a full IMAP2bis compliant server.
+
+ 3 December 1992 [news.c, mail.c] Implement subscription stuff for news too.
+
+ 4 December 1992 [bezerk.c, mh.c, news.c, tenex.c, os_???.h, os_sv4.c] Another
+		chapter in the sad story of <sys/dir.h> include order.
+
+ 8 December 1992 [news.c] Don't report non-existant newsgroups as subscribed.
+
+ 8 December 1992 [dawz.c/h, sm_dos.c] Finish IMAP2bis client stuff for DOS.
+
+ 8 December 1992 [imap2.c, mail.c] Fix compiler warnings when building on DOS.
+
+ 9 December 1992 [mbox.c] Fix bug in mbox_ping() which caused it to calculate
+		the wrong bezerk file name.
+
+ 9 December 1992 [news.c] Yesterday's edit broke IMAP netnews glue.
+
+10 December 1992 [news.c] December 8th's edit broke local news finding too!
+
+11 December 1992 [rfc822.c] Fix rejection of MIME parsing when MIME-Version
+		header line immediately follows Content header.
+
+23 December 1992 [bezerk.*, mbox.c] We now know about 10 different ``From ''
+		header date formats.
+
+ 5 January 1993 [os_sv4.c/h] Fix errors when building on SUN.
+
+ 5 January 1993	[mtest.c, makefile.*, nntpclient.c/h] Begin NNTP client work.
+
+19 January 1993 [news.c] Fix bad fs_give in news_read().
+
+20 January 1993	[mail.c] Fix memory leak in mm_cache CH_INIT function.
+
+22 January 1993	[rfc822.c] Yet another chapter in the rfc822_binary() saga.
+
+24 January 1993	[mail.c] Accept RFC-822 format dates in mail_parse_date().
+
+25 January 1993 [dawz.c, nntpcdos.c/h, nntpclient.c/h, mtest.c] Finish NNTP
+		 client, start DOS version.
+
+25 January 1993	[dawz.c] Fix dawz_append() dates and write loop.
+
+ 2 February 1993 [nntpclient.c] Don't fetch NNTP message texts unnecessarily.
+
+ 2 February 1993 [dawz.c] Fix missing open mode in dawz_create().
+
+ 3 February 1993 [dawz.c] Fix missing length return from dawz_fetchbody().
+
+ 4 February 1993 [os_sun.c/h] Substitute local strstr() for system one since
+		SUN's is abysmally slow!
+
+10 February 1993 [dawz.c] Clean up various January 25's edit somewhat.
+
+10 February 1993 [mail.c] Fix crash caused by recycle stream where new mailbox
+		is an IMAP mailbox that can't be opened for some reason.
+
+11 February 1993 [news.c] Fix bug with handling newsgroups not in .newsrc

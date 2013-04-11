@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	27 October 1992
+ * Last Edited:	5 January 1993
  *
  * Copyright 1992 by the University of Washington
  *
@@ -39,13 +39,14 @@
 #define NEWSRC strcat (strcpy (tmp,getpwuid (geteuid ())->pw_dir),"/.newsrc")
 
 #include <string.h>
-
 #include <stdlib.h>
+#include <sys/types.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
 #include <sys/utime.h>
+#include <sys/uio.h>		/* needed for writev() prototypes */
 
 
 /* Different names, equivalent things in BSD and SysV */
@@ -84,6 +85,9 @@ void fatal  ();
 char *strcrlfcpy  ();
 unsigned long strcrlflen  ();
 long server_login  ();
+char *myusername ();
+char *myhomedir ();
+char *lockname ();
 TCPSTREAM *tcp_open  ();
 TCPSTREAM *tcp_aopen  ();
 char *tcp_getline  ();

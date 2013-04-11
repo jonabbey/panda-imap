@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 February 1989
- * Last Edited:	30 September 1992
+ * Last Edited:	11 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -228,6 +228,8 @@
     [[messageView getFrame:&fr] setAutodisplay:NIL];
 				// initialize view
     [[messageView renewFont:defaultfont text:"" frame:&fr tag:0] setSel:0 :0];
+				// try getting body now if don't have it yet
+    if ((!lit) && !body) env = mail_fetchstructure (stream,m,&body);
 				// not literal, have body, body complex
     if ((!lit) && body && (body->type != TYPETEXT)) {
 				// yes, resize browser for # of attachments
@@ -243,11 +245,19 @@
     }
     else {			// simple message has no attachments
       [attachmentPanel orderOut:self];
-      [[messageView setSel:0 :0] replaceSel:s = lit ?
-	fixnl (cpystr (mail_fetchheader (stream,m))) : filtered_header (env)];
-      fs_give ((void **) &s);	// done with header string
-      [messageView replaceSel:s = fixnl (cpystr (mail_fetchtext (stream,m)))];
-      fs_give ((void **) &s);	// done with text string
+      if (lit || !body) {
+	[[messageView setSel:0 :0] replaceSel:s = lit ?
+	 fixnl (cpystr (mail_fetchheader (stream,m))) : filtered_header (env)];
+	fs_give ((void **) &s);	// done with header string
+	[messageView replaceSel:s = fixnl (cpystr (mail_fetchtext(stream,m)))];
+	fs_give ((void **) &s);	// done with text string
+      }
+      else {			// fake as if had attachments
+	unsigned long len;
+	s = mail_fetchbody (stream,m,"1",&len);
+	[self displayText:(unsigned char *) s length:len type:body->type
+	 subtype:body->subtype encoding:body->encoding];
+      }
     }      
 				// put cursor at start, display text
     [[[messageView setSel:0 :0] display] setAutodisplay:T];
@@ -287,7 +297,8 @@
   }
   // Should do something about RichText here...
 				// display the text
-  [messageView replaceSel:(char *) s];
+  [messageView replaceSel:s ? (char *) s :
+   "Undecodable text -- use literal to display it"];
   if (f) fs_give ((void **) &f);// flush temp
   return self;
 }

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	2 October 1992
+ * Last Edited:	19 November 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -63,8 +63,18 @@ typedef struct news_local {
 /* Function prototypes */
 
 DRIVER *news_valid  ();
+void *news_parameters  ();
 void news_find  ();
 void news_find_bboards  ();
+void news_find_all  ();
+void news_find_all_bboards  ();
+long news_subscribe  ();
+long news_unsubscribe  ();
+long news_subscribe_bboard  ();
+long news_unsubscribe_bboard  ();
+long news_create  ();
+long news_delete  ();
+long news_rename  ();
 MAILSTREAM *news_open  ();
 int news_select  ();
 int news_numsort  ();
@@ -83,7 +93,9 @@ void news_check  ();
 void news_expunge  ();
 long news_copy  ();
 long news_move  ();
+long news_append  ();
 void news_gc  ();
+char *news_read  ();
 short news_getflags  ();
 char news_search_all  ();
 char news_search_answered  ();

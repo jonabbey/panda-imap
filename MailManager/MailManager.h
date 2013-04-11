@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	17 February 1989
- * Last Edited:	19 June 1992/Mike Dixon, Xerox PARC
+ * Last Edited:	11 February 1993
  *
- * Copyright 1991 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -70,7 +70,8 @@
 
 // Linkages to MAIL drivers
 
-extern DRIVER imapdriver,bezerkdriver,tenexdriver,newsdriver,dummydriver;
+extern DRIVER imapdriver,bezerkdriver,tenexdriver,mboxdriver,mhdriver,
+	newsdriver,nntpdriver,dummydriver;
 
 
 // Prototypes of functions certain individuals would rather we not use

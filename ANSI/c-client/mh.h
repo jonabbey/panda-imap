@@ -13,7 +13,7 @@
  *		Internet: cohen@bucrf16.bu.edu
  *
  * Date:	23 February 1992
- * Last Edited:	2 October 1992
+ * Last Edited:	29 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -70,9 +70,20 @@ typedef struct mh_local {
 /* Function prototypes */
 
 DRIVER *mh_valid (char *name);
-void mh_find (MAILSTREAM *stream,char *pat);
+int mh_isvalid (char *name,char *tmp);
+void *mh_parameters (long function,void *value);
 char *mh_file (char *dst,char *name);
+void mh_find (MAILSTREAM *stream,char *pat);
 void mh_find_bboards (MAILSTREAM *stream,char *pat);
+void mh_find_all (MAILSTREAM *stream,char *pat);
+void mh_find_all_bboards (MAILSTREAM *stream,char *pat);
+long mh_subscribe (MAILSTREAM *stream,char *mailbox);
+long mh_unsubscribe (MAILSTREAM *stream,char *mailbox);
+long mh_subscribe_bboard (MAILSTREAM *stream,char *mailbox);
+long mh_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox);
+long mh_create (MAILSTREAM *stream,char *mailbox);
+long mh_delete (MAILSTREAM *stream,char *mailbox);
+long mh_rename (MAILSTREAM *stream,char *old,char *new);
 MAILSTREAM *mh_open (MAILSTREAM *stream);
 int mh_select (struct direct *name);
 int mh_numsort (struct direct **d1,struct direct **d2);
@@ -91,6 +102,7 @@ void mh_check (MAILSTREAM *stream);
 void mh_expunge (MAILSTREAM *stream);
 long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long mh_move (MAILSTREAM *stream,char *sequence,char *mailbox);
+long mh_append (MAILSTREAM *stream,char *mailbox,STRING *message);
 void mh_gc (MAILSTREAM *stream,long gcflags);
 short mh_getflags (MAILSTREAM *stream,char *flag);
 char mh_search_all (MAILSTREAM *stream,long msgno,char *d,long n);

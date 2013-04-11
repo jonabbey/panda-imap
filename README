@@ -1,5 +1,5 @@
 		     IMAP Development Environment
-			     25 June 1992
+			    9 December 1992
 			     Mark Crispin
 
 COPYRIGHT NOTICE:
@@ -85,8 +85,9 @@ Application Kit to build and execute.  MS and MTest will also run on the
 NeXT, albeit inside a terminal emulator window.
 
      The Unix clients ms and/or mtest may be installed on a system
-directory.  There is also a man page for ms.  A version of the Pine
-mailer with IMAP support will be released in the near future.
+directory.  There is also a man page for ms.  The Pine mailer has IMAP
+support, and is available separately on the FTP.CAC.Washington.EDU
+archives.
 
      The Unix servers ipop2d, ipop3d, and imapd should be installed in
 a system daemon directory, and invoked by your /etc/inetd.conf file
@@ -132,10 +133,11 @@ using a non-ANSI compiler, then modify them as necessary.  If you send the
 result back to us, we will make it available for others using your
 particular system type.
 
-     If you are building an MS-DOS client, you will need the NCSA TCP/IP
-parameter file in ..\NCSA\NCSA.H and the NCSA library in ..\NCSA\NCSA.LIB
-in order to build the MAIL.LIB library.  You will need to rename
-MAKEFILE.DOS to MAKEFILE.  MTest runs under MS-DOS.
+     If you are building an MS-DOS client, you will need a TCP/IP stack
+installed on your DOS system along with its development environment.  The
+current supported stacks are Novell, Beame & Whiteside, PC/IP, and
+Waterloo.  MTest runs under MS-DOS.  A DOS version of Pine is presently in
+beta test.
 
      If you are building a Macintosh client, you will need MacTCP installed
 on your system as well as the MacTCP C includes and libraries.  MTest runs

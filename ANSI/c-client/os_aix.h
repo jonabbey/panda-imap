@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	27 October 1992
+ * Last Edited:	4 December 1992
  *
  * Copyright 1992 by the University of Washington.
  *
@@ -44,6 +44,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <sys/dir.h>
 
 extern char *strerror ();
 extern char *memmove ();

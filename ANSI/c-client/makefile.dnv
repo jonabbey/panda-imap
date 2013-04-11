@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	22 July 1992
+# Last Edited:	10 January 1993
 #
-# Copyright 1992 by the University of Washington
+# Copyright 1993 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -46,6 +46,9 @@ imap2.obj: mail.h imap2.h misc.h osdep.h imap2.c
 dawz.obj: mail.h dawz.h misc.h osdep.h dawz.c
 	cl -c -AL dawz.c
 
+nntpcdos.obj: mail.h nntpcdos.h misc.h osdep.h nntpcdos.c
+	cl -c -AL nntpcdos.c
+
 smtp.obj: mail.h smtp.h rfc822.h misc.h osdep.h smtp.c
 	cl -c -AL smtp.c
 
@@ -55,18 +58,21 @@ nntp.obj: mail.h nntp.h smtp.h rfc822.h misc.h osdep.h nntp.c
 rfc822.obj: mail.h rfc822.h misc.h rfc822.c
 	cl -c -AL rfc822.c
 
-misc.obj: mail.h misc.h misc.h misc.c
+misc.obj: mail.h misc.h misc.c
 	cl -c -AL misc.c
+
+sm_dos.obj: mail.h misc.h sm_dos.c
+	cl -c -AL sm_dos.c
 
 osdep.obj: mail.h osdep.h os_dnv.c
 	erase osdep.obj
 	cl -c -AL os_dnv.c
 	rename os_dnv.obj osdep.obj
 
-cclient.lib: mail.obj imap2.obj dawz.obj smtp.obj nntp.obj misc.obj \
-	rfc822.obj osdep.obj
+cclient.lib: mail.obj imap2.obj dawz.obj nntpcdos.obj smtp.obj nntp.obj \
+	misc.obj rfc822.obj sm_dos.obj osdep.obj
 	erase cclient.lib
-	lib cclient +mail+imap2+dawz+smtp+nntp+misc+rfc822+osdep;
+	lib cclient +mail+imap2+dawz+nntpcdos+smtp+nntp+misc+rfc822+sm_dos+osdep;
 
 mtest.exe: mtest.obj cclient.lib
 	link /stack:32767 mtest.obj,mtest.exe,,cclient.lib llibsock.lib

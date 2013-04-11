@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	8 June 1992
+ * Last Edited:	19 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -33,35 +33,21 @@
  *
  */
 
-/* Coddle certain compilers' 6-character symbol limitation */
-
-#ifdef __COMPILER_KCC__
-#define dummy_valid dvalid
-#define dummy_find dfind
-#define dummy_find dfindb
-#define dummy_open dopen
-#define dummy_close dclose
-#define dummy_fetchfast dffast
-#define dummy_fetchflags dfflags
-#define dummy_fetchenvelope dfenv
-#define dummy_fetchheader dfhead
-#define dummy_fetchtext dftext
-#define dummy_fetchbody dfbody
-#define dummy_setflag dsflag
-#define dummy_clearflag dcflag
-#define dummy_search dsearch
-#define dummy_ping dping
-#define dummy_check dcheck
-#define dummy_expunge dexpun
-#define dummy_copy dcopy
-#define dummy_move dmove
-#endif
-
 /* Function prototypes */
 
 DRIVER *dummy_valid (char *name);
+void *dummy_parameters (long function,void *value);
 void dummy_find (MAILSTREAM *stream,char *pat);
 void dummy_find_bboards (MAILSTREAM *stream,char *pat);
+void dummy_find_all (MAILSTREAM *stream,char *pat);
+void dummy_find_all_bboards (MAILSTREAM *stream,char *pat);
+long dummy_subscribe (MAILSTREAM *stream,char *mailbox);
+long dummy_unsubscribe (MAILSTREAM *stream,char *mailbox);
+long dummy_subscribe_bboard (MAILSTREAM *stream,char *mailbox);
+long dummy_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox);
+long dummy_create (MAILSTREAM *stream,char *mailbox);
+long dummy_delete (MAILSTREAM *stream,char *mailbox);
+long dummy_rename (MAILSTREAM *stream,char *old,char *new);
 MAILSTREAM *dummy_open (MAILSTREAM *stream);
 void dummy_close (MAILSTREAM *stream);
 void dummy_fetchfast (MAILSTREAM *stream,char *sequence);
@@ -78,3 +64,5 @@ void dummy_check (MAILSTREAM *stream);
 void dummy_expunge (MAILSTREAM *stream);
 long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long dummy_move (MAILSTREAM *stream,char *sequence,char *mailbox);
+long dummy_append (MAILSTREAM *stream,char *mailbox,STRING *message);
+void dummy_gc (MAILSTREAM *stream,long gcflags);

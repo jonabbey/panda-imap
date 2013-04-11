@@ -9,9 +9,9 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	13 October 1992
+# Last Edited:	25 January 1993
 #
-# Copyright 1992 by the University of Washington
+# Copyright 1993 by the University of Washington
 #
 #  Permission to use, copy, modify, and distribute this software and its
 # documentation for any purpose and without fee is hereby granted, provided
@@ -43,11 +43,11 @@ clean:
 
 mtest.o: mail.h smtp.h nntp.h misc.h osdep.h
 
-c-client.a: $& mail.o bezerk.o tenex.o mbox.o mh.o imap2.o news.o dummy.o \
-	smtp.o nntp.o rfc822.o misc.o osdep.o
+c-client.a: $& mail.o bezerk.o tenex.o mbox.o mh.o imap2.o news.o nntpclient.o\
+	dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o sm_unix.o
 	rm -f c-client.a
 	ar rc c-client.a mail.o bezerk.o tenex.o mbox.o mh.o imap2.o news.o \
-	dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o
+	nntpclient.o dummy.o smtp.o nntp.o rfc822.o misc.o osdep.o sm_unix.o
 
 mail.o: mail.h misc.h osdep.h
 
@@ -63,6 +63,8 @@ imap2.o: mail.h imap2.h misc.h osdep.h
 
 news.o: mail.h news.h misc.h osdep.h
 
+nntpclient.o: mail.h nntp.h nntpclient.h misc.h rfc822.h news.h smtp.h osdep.h
+
 dummy.o: mail.h dummy.h misc.h osdep.h
 
 smtp.o: mail.h smtp.h rfc822.h misc.h osdep.h
@@ -72,6 +74,8 @@ nntp.o: mail.h nntp.h smtp.h rfc822.h misc.h osdep.h
 rfc822.o: mail.h rfc822.h misc.h
 
 misc.o: mail.h misc.h osdep.h
+
+sm_unix.o: mail.h misc.h osdep.h
 
 osdep.o: mail.h osdep.h os_sv4.c
 	$(CC) $(CFLAGS) -c os_sv4.c

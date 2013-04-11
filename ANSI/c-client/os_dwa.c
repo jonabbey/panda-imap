@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	22 October 1992
+ * Last Edited:	29 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -350,6 +350,20 @@ long tcp_soutr (TCPSTREAM *stream,char *string)
 				/* output the cruft */
   sock_puts (stream->tcps,string);
   return T;			/* all done */
+}
+
+
+/* TCP/IP send string
+ * Accepts: TCP/IP stream
+ *	    string pointer
+ *	    byte count
+ * Returns: T if success else NIL
+ */
+
+long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
+{
+  sock_fastwrite (stream->tcps,string,(int) size);
+  return T;
 }
 
 

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	8 June 1992
+ * Last Edited:	19 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -33,35 +33,21 @@
  *
  */
 
-/* Coddle certain compilers' 6-character symbol limitation */
-
-#ifdef __COMPILER_KCC__
-#define dummy_valid dvalid
-#define dummy_find dfind
-#define dummy_find dfindb
-#define dummy_open dopen
-#define dummy_close dclose
-#define dummy_fetchfast dffast
-#define dummy_fetchflags dfflags
-#define dummy_fetchenvelope dfenv
-#define dummy_fetchheader dfhead
-#define dummy_fetchtext dftext
-#define dummy_fetchbody dfbody
-#define dummy_setflag dsflag
-#define dummy_clearflag dcflag
-#define dummy_search dsearch
-#define dummy_ping dping
-#define dummy_check dcheck
-#define dummy_expunge dexpun
-#define dummy_copy dcopy
-#define dummy_move dmove
-#endif
-
 /* Function prototypes */
 
 DRIVER *dummy_valid  ();
+void *dummy_parameters  ();
 void dummy_find  ();
 void dummy_find_bboards  ();
+void dummy_find_all  ();
+void dummy_find_all_bboards  ();
+long dummy_subscribe  ();
+long dummy_unsubscribe  ();
+long dummy_subscribe_bboard  ();
+long dummy_unsubscribe_bboard  ();
+long dummy_create  ();
+long dummy_delete  ();
+long dummy_rename  ();
 MAILSTREAM *dummy_open  ();
 void dummy_close  ();
 void dummy_fetchfast  ();
@@ -78,3 +64,5 @@ void dummy_check  ();
 void dummy_expunge  ();
 long dummy_copy  ();
 long dummy_move  ();
+long dummy_append  ();
+void dummy_gc  ();

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	2 October 1992
+ * Last Edited:	23 December 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -50,14 +50,39 @@
 #define CHUNK 8192		/* read-in chunk size */
 
 
-/* Test for valid header */
+/* Test for valid header.  Valid formats are:
+ * 		From user Wed Dec  2 05:53 1992
+ * BSD		From user Wed Dec  2 05:53:22 1992
+ * SysV		From user Wed Dec  2 05:53 PST 1992
+ * rn		From user Wed Dec  2 05:53:22 PST 1992
+ *		From user Wed Dec  2 05:53 -0700 1992
+ *		From user Wed Dec  2 05:53:22 -0700 1992
+ *		From user Wed Dec  2 05:53 1992 PST
+ *		From user Wed Dec  2 05:53:22 1992 PST
+ *		From user Wed Dec  2 05:53 1992 -0700
+ * SUN-OS	From user Wed Dec  2 05:53:22 1992 -0700
+ *
+ * You are not expected to understand this macro.  It tries to validate all
+ * From headers with all date formats known to be used (and several possible
+ * others).  After validating the ``From '' part, it scans from the end of
+ * the string trying different formats in the order shown above.  ti is left
+ * as the offset from end of the string of the time, tz is the offset from the
+ * end of the string of the timezone (if present, else zero).  Matters are
+ * made hairier because there is no deterministic way to parse the ``user''
+ * field, which may contain unquoted spaces!
+ */
 
-#define VALID (s[1] == 'r') && (s[2] == 'o') && (s[3] == 'm') && \
-  (s[4] == ' ') && (t = strchr (s+5,'\n')) && (t-s >= 27) && (t[-5] == ' ') &&\
-  (t[(rn = -4 * (t[-9] == ' '))-8] == ':') && \
-  ((sysv = 3 * (t[rn-11] == ' ')) || t[rn-11] == ':') && \
-  (t[rn+sysv-14] == ' ') && (t[rn+sysv-17] == ' ') && \
-  (t[rn+sysv-21] == ' ')
+#define VALID(ti,zn) (s[1] == 'r') && (s[2] == 'o') && (s[3] == 'm') && \
+  (s[4] == ' ') && (t = strchr (s+5,'\n')) && (t-s >= 27) && \
+  ((t[ti = -5] == ' ') ? ((t[-8] == ':') ? !(zn = 0) : \
+			  ((t[ti = zn = -9] == ' ') || \
+			   ((t[ti = zn = -11] == ' ') && \
+			    ((t[-10] == '+') || (t[-10] == '-'))))) : \
+   ((t[zn = -4] == ' ') ? (t[ti = -9] == ' ') : \
+    ((t[zn = -6] == ' ') && ((t[-5] == '+') || (t[-5] == '-')) && \
+     (t[ti = -11] == ' ')))) && \
+  (t[ti - 3] == ':') && (t[ti -= ((t[ti - 6] == ':') ? 9 : 6)] == ' ') && \
+  (t[ti - 3] == ' ') && (t[ti - 7] == ' ') && (t[ti - 11] == ' ')
 
 
 /* Command bits from bezerk_getflags() */
@@ -108,8 +133,18 @@ typedef struct bezerk_local {
 
 DRIVER *bezerk_valid  ();
 int bezerk_isvalid  ();
+void *bezerk_parameters  ();
 void bezerk_find  ();
 void bezerk_find_bboards  ();
+void bezerk_find_all  ();
+void bezerk_find_all_bboards  ();
+long bezerk_subscribe  ();
+long bezerk_unsubscribe  ();
+long bezerk_subscribe_bboard  ();
+long bezerk_unsubscribe_bboard  ();
+long bezerk_create  ();
+long bezerk_delete  ();
+long bezerk_rename  ();
 MAILSTREAM *bezerk_open  ();
 void bezerk_close  ();
 void bezerk_fetchfast  ();
@@ -127,6 +162,7 @@ void bezerk_check  ();
 void bezerk_expunge  ();
 long bezerk_copy  ();
 long bezerk_move  ();
+long bezerk_append  ();
 void bezerk_gc  ();
 
 void bezerk_abort  ();

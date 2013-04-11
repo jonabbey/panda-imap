@@ -8,7 +8,7 @@
  *		Internet: donn@cac.washington.edu
  *
  * Date:	11 May 1989
- * Last Edited:	27 October 1992
+ * Last Edited:	4 December 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -40,6 +40,7 @@
 #include <string.h>
 
 #include <sys/types.h>
+#include <sys/dir.h>
 #include <stdlib.h>
 #include <sys/fcntl.h>
 #include <unistd.h>
@@ -89,6 +90,8 @@ void fatal  ();
 char *strcrlfcpy  ();
 unsigned long strcrlflen  ();
 long server_login  ();
+char *myusername ();
+char *myhomedir ();
 char *lockname  ();
 TCPSTREAM *tcp_open  ();
 TCPSTREAM *tcp_aopen  ();

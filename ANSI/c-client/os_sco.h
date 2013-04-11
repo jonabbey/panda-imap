@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	27 October 1992
+ * Last Edited:	4 December 1992
  *
  * Copyright 1992 by the University of Washington.
  *
@@ -42,6 +42,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/dir.h>
 #include <sys/fcntl.h>
 #include <unistd.h>
 #include <time.h>

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	2 October 1992
+ * Last Edited:	19 November 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -63,8 +63,18 @@ typedef struct news_local {
 /* Function prototypes */
 
 DRIVER *news_valid (char *name);
+void *news_parameters (long function,void *value);
 void news_find (MAILSTREAM *stream,char *pat);
 void news_find_bboards (MAILSTREAM *stream,char *pat);
+void news_find_all (MAILSTREAM *stream,char *pat);
+void news_find_all_bboards (MAILSTREAM *stream,char *pat);
+long news_subscribe (MAILSTREAM *stream,char *mailbox);
+long news_unsubscribe (MAILSTREAM *stream,char *mailbox);
+long news_subscribe_bboard (MAILSTREAM *stream,char *mailbox);
+long news_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox);
+long news_create (MAILSTREAM *stream,char *mailbox);
+long news_delete (MAILSTREAM *stream,char *mailbox);
+long news_rename (MAILSTREAM *stream,char *old,char *new);
 MAILSTREAM *news_open (MAILSTREAM *stream);
 int news_select (struct direct *name);
 int news_numsort (struct direct **d1,struct direct **d2);
@@ -83,7 +93,9 @@ void news_check (MAILSTREAM *stream);
 void news_expunge (MAILSTREAM *stream);
 long news_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long news_move (MAILSTREAM *stream,char *sequence,char *mailbox);
+long news_append (MAILSTREAM *stream,char *mailbox,STRING *message);
 void news_gc (MAILSTREAM *stream,long gcflags);
+char *news_read (void **sdb);
 short news_getflags (MAILSTREAM *stream,char *flag);
 char news_search_all (MAILSTREAM *stream,long msgno,char *d,long n);
 char news_search_answered (MAILSTREAM *stream,long msgno,char *d,long n);

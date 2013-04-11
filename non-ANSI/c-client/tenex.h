@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	2 October 1992
+ * Last Edited:	29 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -79,8 +79,18 @@ typedef struct tenex_local {
 
 DRIVER *tenex_valid  ();
 int tenex_isvalid  ();
+void *tenex_parameters  ();
 void tenex_find  ();
 void tenex_find_bboards  ();
+void tenex_find_all  ();
+void tenex_find_all_bboards  ();
+long tenex_subscribe  ();
+long tenex_unsubscribe  ();
+long tenex_subscribe_bboard  ();
+long tenex_unsubscribe_bboard  ();
+long tenex_create  ();
+long tenex_delete  ();
+long tenex_rename  ();
 MAILSTREAM *tenex_open  ();
 void tenex_close  ();
 void tenex_fetchfast  ();
@@ -97,6 +107,7 @@ void tenex_check  ();
 void tenex_expunge  ();
 long tenex_copy  ();
 long tenex_move  ();
+long tenex_append  ();
 void tenex_gc  ();
 
 char *tenex_file  ();

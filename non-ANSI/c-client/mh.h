@@ -13,7 +13,7 @@
  *		Internet: cohen@bucrf16.bu.edu
  *
  * Date:	23 February 1992
- * Last Edited:	2 October 1992
+ * Last Edited:	29 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -70,9 +70,20 @@ typedef struct mh_local {
 /* Function prototypes */
 
 DRIVER *mh_valid  ();
-void mh_find  ();
+int mh_isvalid  ();
+void *mh_parameters  ();
 char *mh_file  ();
+void mh_find  ();
 void mh_find_bboards  ();
+void mh_find_all  ();
+void mh_find_all_bboards  ();
+long mh_subscribe  ();
+long mh_unsubscribe  ();
+long mh_subscribe_bboard  ();
+long mh_unsubscribe_bboard  ();
+long mh_create  ();
+long mh_delete  ();
+long mh_rename  ();
 MAILSTREAM *mh_open  ();
 int mh_select  ();
 int mh_numsort  ();
@@ -91,6 +102,7 @@ void mh_check  ();
 void mh_expunge  ();
 long mh_copy  ();
 long mh_move  ();
+long mh_append  ();
 void mh_gc  ();
 short mh_getflags  ();
 char mh_search_all  ();

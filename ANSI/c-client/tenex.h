@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	2 October 1992
+ * Last Edited:	29 October 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -78,9 +78,19 @@ typedef struct tenex_local {
 /* Function prototypes */
 
 DRIVER *tenex_valid (char *name);
-int tenex_isvalid (char *name);
+int tenex_isvalid (char *name,char *tmp);
+void *tenex_parameters (long function,void *value);
 void tenex_find (MAILSTREAM *stream,char *pat);
 void tenex_find_bboards (MAILSTREAM *stream,char *pat);
+void tenex_find_all (MAILSTREAM *stream,char *pat);
+void tenex_find_all_bboards (MAILSTREAM *stream,char *pat);
+long tenex_subscribe (MAILSTREAM *stream,char *mailbox);
+long tenex_unsubscribe (MAILSTREAM *stream,char *mailbox);
+long tenex_subscribe_bboard (MAILSTREAM *stream,char *mailbox);
+long tenex_unsubscribe_bboard (MAILSTREAM *stream,char *mailbox);
+long tenex_create (MAILSTREAM *stream,char *mailbox);
+long tenex_delete (MAILSTREAM *stream,char *mailbox);
+long tenex_rename (MAILSTREAM *stream,char *old,char *new);
 MAILSTREAM *tenex_open (MAILSTREAM *stream);
 void tenex_close (MAILSTREAM *stream);
 void tenex_fetchfast (MAILSTREAM *stream,char *sequence);
@@ -97,6 +107,7 @@ void tenex_check (MAILSTREAM *stream);
 void tenex_expunge (MAILSTREAM *stream);
 long tenex_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
 long tenex_move (MAILSTREAM *stream,char *sequence,char *mailbox);
+long tenex_append (MAILSTREAM *stream,char *mailbox,STRING *message);
 void tenex_gc (MAILSTREAM *stream,long gcflags);
 
 char *tenex_file (char *dst,char *name);

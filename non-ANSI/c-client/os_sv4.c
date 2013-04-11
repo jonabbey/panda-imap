@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	27 October 1992
+ * Last Edited:	5 January 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -52,9 +52,8 @@ TCPSTREAM {
 };
 
 
+#include "osdep.h"
 #include <ctype.h>
-#include <sys/types.h>
-#include <sys/time.h>
 #include <sys/tiuser.h>
 #include <sys/stropts.h>
 #include <sys/poll.h>
@@ -68,9 +67,7 @@ TCPSTREAM {
 #include <syslog.h>
 #include <sys/file.h>
 #include <sys/stat.h>
-#include <dirent.h>
 #include <sys/socket.h>
-#include "osdep.h"
 #include "mail.h"
 #include "misc.h"
 
@@ -85,8 +82,6 @@ extern char *sys_errlist[];
  */
 
 char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 void rfc822_date (date)
 	char *date;
@@ -211,10 +206,10 @@ unsigned long strcrlflen (s)
   unsigned long pos = GETPOS (s);
   unsigned long i = SIZE (s);
   unsigned long j = i;
-  while (j--) switch (NXT (s)) {/* search for newlines */
+  while (j--) switch (SNX (s)) {/* search for newlines */
   case '\015':			/* unlikely carriage return */
     if (j && (CHR (s) == '\012')) {
-      NXT (s);			/* eat the line feed */
+      SNX (s);			/* eat the line feed */
       j--;
     }
     break;
@@ -250,6 +245,7 @@ int server_login (user,pass,home)
 	   ((sp->sp_lstchg + sp->sp_max) < (time (0) / (60*60*24))))
     return NIL;
   setgid (pw->pw_gid);		/* all OK, login in as that user */
+  initgroups (user,pw->pw_gid);	/* initialize groups */
   setuid (pw->pw_uid);
 				/* note home directory */
   if (home) *home = cpystr (pw->pw_dir);
@@ -260,11 +256,11 @@ int server_login (user,pass,home)
  * Returns: my user name
  */
 
-char *uname = NIL;
+char *myuname = NIL;
 
 char *myusername ()
 {
-  return uname ? uname : (uname = cpystr (getpwuid (geteuid ())->pw_name));
+  return myuname ? myuname : (myuname = cpystr(getpwuid(geteuid ())->pw_name));
 }
 
 

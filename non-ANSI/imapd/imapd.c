@@ -1,5 +1,5 @@
 /*
- * Program:	IMAP2 server
+ * Program:	IMAP2bis server
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	26 October 1992
+ * Last Edited:	3 December 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -68,7 +68,7 @@
 
 /* Global storage */
 
-char *version = "6.7(49)";	/* version number of this server */
+char *version = "7.0(52)";	/* version number of this server */
 struct itimerval timer;		/* timeout state */
 int state = LOGIN;		/* server state */
 int mackludge = 0;		/* MacMS kludge */
@@ -93,10 +93,9 @@ char *response = NIL;		/* command response */
 
 char *win = "%s OK %s completed\015\012";
 char *altwin = "%s OK %s\015\012";
-char *rowin = "%s OK [READ-ONLY] %s completed\015\012";
-char *rwwin = "%s OK [READ-WRITE] %s completed\015\012";
 char *lose = "%s NO %s failed: %s\015\012";
 char *misarg = "%s BAD Missing required argument to %s\015\012";
+char *badfnd = "%s BAD FIND option unrecognized: %s\015\012";
 char *badarg = "%s BAD Argument given to %s when none expected\015\012";
 char *badseq = "%s BAD Bogus sequence in %s\015\012";
 char *badatt = "%s BAD Bogus attribute list in %s\015\012";
@@ -242,14 +241,59 @@ void main (argc,argv)
       case OPEN:		/* valid only when mailbox open */
 				/* fetch mailbox attributes */
 	if (!strcmp (cmd,"FETCH")) {
-	  if (!((s = strtok (arg," ")) && (t = strtok (NIL,"\015\012"))))
+	  if (!(arg && (s = strtok (arg," ")) && (t = strtok(NIL,"\015\012"))))
 	    response = misarg;
 	  else fetch (s,t);	/* do the fetch */
 	}
+				/* fetch partial mailbox attributes */
+	else if (!strcmp (cmd,"PARTIAL")) {
+	  unsigned long msgno,start,count,size;
+	  if (!(arg && (msgno = strtol (arg,&s,10)) && (t = strtok (s," ")) &&
+		(s = strtok (NIL,"\015\012")) && (start = strtol (s,&s,10)) &&
+		(count = strtol (s,&s,10)))) response = misarg;
+	  else if (s && *s) response = badarg;
+	  else if (msgno > stream->nmsgs) response = badseq;
+	  else {		/* looks good */
+	    u = s = NIL;	/* no strings yet */
+	    if (!strcmp (ucase (t),"RFC822")) {
+				/* have to make a temporary buffer for this */
+	      size = mail_elt (stream,msgno)->rfc822_size;
+	      s = u = (char *) fs_get (size + 1);
+	      strcpy (u,mail_fetchheader (stream,msgno));
+	      strcat (u,mail_fetchtext (stream,msgno));
+	      u[size] = '\0';	/* tie off string */
+	    }
+	    else if (!strcmp (t,"RFC822.HEADER"))
+	      size = strlen (s = mail_fetchheader (stream,msgno));
+	    else if (!strcmp (t,"RFC822.TEXT"))
+	      size = strlen (s = mail_fetchtext (stream,msgno));
+	    else if (*t == 'B' && t[1] == 'O' && t[2] == 'D' && t[3] == 'Y' &&
+		     t[4] == '[' && *(t += 5)) {
+	      if ((v = strchr (t,']')) && !v[1]) {
+		*v = '\0';	/* tie off body part */
+		s = mail_fetchbody (stream,msgno,t,&size);
+	      }
+	    }
+	    if (s) {		/* got a string back? */
+	      if (size <= --start) s = NIL;
+	      else {		/* have string we can make smaller */
+		s += start;	/* this is the first byte */
+				/* tie off as appropriate */
+		if (count < (size - start)) s[count] = '\0';
+	      }
+	      printf ("* %ld FETCH %s (",msgno,t);
+	      pstring (s);	/* write the string */
+	      fputs (")\015\012",stdout);
+	      if (u) fs_give ((void **) &u);
+	    }
+	    else response = badatt;
+	  }
+	}
+
 				/* store mailbox attributes */
 	else if (!strcmp (cmd,"STORE")) {
 				/* must have three arguments */
-	  if (!((s = strtok (arg," ")) && (cmd = strtok (NIL," ")) &&
+	  if (!(arg && (s = strtok (arg," ")) && (cmd = strtok (NIL," ")) &&
 		(t = strtok (NIL,"\015\012")))) response = misarg;
 	  else if (!strcmp (ucase (cmd),"+FLAGS")) f = mail_setflag;
 	  else if (!strcmp (cmd,"-FLAGS")) f = mail_clearflag;
@@ -357,7 +401,9 @@ void main (argc,argv)
 	      printf ("* FLAGS %s\015\012",(flags = cpystr (s)));
 	      state = OPEN;
 				/* note readonly/readwrite */
-	      response = stream->readonly ? rowin : rwwin;
+	      response = stream->readonly ?
+		"%s OK [READ-ONLY] %s completed\015\012" :
+		  "%s OK [READ-WRITE] %s completed\015\012";
 	    }
 	    else {		/* nuke if still open */
 	      if (stream) mail_close (stream);
@@ -367,46 +413,136 @@ void main (argc,argv)
 	    }
 	  }
 	}
+				/* APPEND message to mailbox */
+	else if (!(anonymous || strcmp (cmd,"APPEND"))) {
+	  if (!((s = snarf (&arg)) && (t = snarf (&arg)))) response = misarg;
+	  else if (arg) response = badarg;
+	  else {		/* append the data */
+	    STRING st;
+	    INIT (&st,mail_string,(void *) t,strlen (t));
+	    mail_append (NIL,s,&st);
+	  }
+	}
 
 				/* find mailboxes or bboards */
 	else if (!strcmp (cmd,"FIND")) {
+	  response = "%s OK FIND %s completed\015\012";
 				/* get subcommand and true argument */
-	  if (!((s = strtok (arg," \015\012")) && (cmd = ucase (s)) &&
+	  if (!(arg && (s = strtok (arg," \015\012")) && (cmd = ucase (s)) &&
 		(arg = strtok (NIL,"\015\012")) && (s = snarf (&arg))))
 	    response = misarg;	/* missing required argument */
 	  else if (arg) response = badarg;
-	  else {		/* dispatch */
-	    if (!(anonymous || strcmp (cmd,"MAILBOXES"))) {
-	      mail_find (NIL,s);/* default find action */
+	  else if (anonymous) {	/* special version for anonymous users */
+	    if (!strcmp (cmd,"BBOARDS") || !strcmp (cmd,"ALL.BBOARDS")) {
+	      struct stat sbuf;
+	      if (!(stat (NEWSSPOOL,&sbuf) || stat (ACTIVEFILE,&sbuf)) &&
+		  ((i = open (ACTIVEFILE,O_RDONLY,NIL)) >= 0)) {
+				/* get file size and read data */
+		fstat (i,&sbuf);
+		read (i,v = (char *) fs_get (sbuf.st_size+1),sbuf.st_size);
+		close (i);	/* close file */
+				/* tie off string */
+		v[sbuf.st_size] = '\0';
+		if (t = strtok (v,"\n")) do if (u = strchr (t,' ')) {
+		  *u = '\0';	/* tie off at end of name */
+		  if (pmatch (lcase (t),s)) mm_bboard (t);
+		} while (t = strtok (NIL,"\n"));
+		fs_give ((void **) &v);
+	      }
+	    }
+				/* bboards not supported here */
+    	    else response = badfnd;
+	  }
+	  else {		/* dispatch based on type */
+	    if (!strcmp (cmd,"MAILBOXES")) {
+	      mail_find (NIL,s);
 	      if (stream && *stream->mailbox == '{') mail_find (stream,s);
 	    }
-				/* find bulletin boards */
-	    else if (!strcmp (cmd,"BBOARDS")) {
-	      if (anonymous) {	/* special version for anonymous users */
-		struct stat sbuf;
-		if (!(stat (NEWSSPOOL,&sbuf) || stat (ACTIVEFILE,&sbuf)) &&
-		    ((i = open (ACTIVEFILE,O_RDONLY,NIL)) >= 0)) {
-				/* get file size and read data */
-		  fstat (i,&sbuf);
-		  read (i,v = (char *) fs_get (sbuf.st_size+1),sbuf.st_size);
-		  close (i);	/* close file */
-				/* tie off string */
-		  v[sbuf.st_size] = '\0';
-		  if (t = strtok (v,"\n")) do if (u = strchr (t,' ')) {
-		    *u = '\0';	/* tie off at end of name */
-		    if (pmatch (lcase (t),s)) mm_bboard (t);
-		  } while (t = strtok (NIL,"\n"));
-		  fs_give ((void **) &v);
-		}
-	      }
-	      else {		/* allow the ordinary driver version */
-		mail_find_bboards (NIL,s);
-		if (stream && *stream->mailbox == '{')
-		  mail_find_bboards (stream,s);
-	      }
+	    else if (!strcmp (cmd,"ALL.MAILBOXES")) {
+	      mail_find_all (NIL,s);
+	      if (stream && *stream->mailbox == '{') mail_find (stream,s);
 	    }
-	    else response = "%s BAD Command unrecognized: FIND %s\015\012";
+	    else if (!strcmp (cmd,"BBOARDS")) {
+	      mail_find_bboards (NIL,s);
+	      if (stream && *stream->mailbox == '{')
+		mail_find_bboards (stream,s);
+	    }
+	    else if (!strcmp (cmd,"ALL.BBOARDS")) {
+	      mail_find_all_bboard (NIL,s);
+	      if (stream && *stream->mailbox == '{')
+		mail_find_all_bboard (stream,s);
+	    }
+	    else response = badfnd;
 	  }
+	}
+
+				/* subscribe to mailbox or bboard */
+	else if (!(anonymous || strcmp (cmd,"SUBSCRIBE"))) {
+	  response = "%s OK SUBSCRIBE %s completed\015\012";
+				/* get subcommand and true argument */
+	  if (!(arg && (s = strtok (arg," \015\012")) && (cmd = ucase (s)) &&
+		(arg = strtok (NIL,"\015\012")) && (s = snarf (&arg))))
+	    response = misarg;	/* missing required argument */
+	  else if (arg) response = badarg;
+	  else {		/* dispatch based on type */
+	    if (!strcmp (cmd,"MAILBOX")) mail_subscribe (NIL,s);
+	    else if (!strcmp (cmd,"BBOARD")) mail_subscribe_bboard (NIL,s);
+	    else response = "%s BAD SUBSCRIBE option unrecognized: %s\015\012";
+	  }
+	}
+				/* unsubscribe to mailbox or bboard */
+	else if (!(anonymous || strcmp (cmd,"UNSUBSCRIBE"))) {
+	  response = "%s OK UNSUBSCRIBE %s completed\015\012";
+				/* get subcommand and true argument */
+	  if (!(arg && (s = strtok (arg," \015\012")) && (cmd = ucase (s)) &&
+		(arg = strtok (NIL,"\015\012")) && (s = snarf (&arg))))
+	    response = misarg;	/* missing required argument */
+	  else if (arg) response = badarg;
+	  else {		/* dispatch based on type */
+	    if (!strcmp (cmd,"MAILBOX")) mail_unsubscribe (NIL,s);
+	    else if (!strcmp (cmd,"BBOARD")) mail_unsubscribe_bboard (NIL,s);
+	    else response="%s BAD UNSUBSCRIBE option unrecognized: %s\015\012";
+	  }
+	}
+				/* create mailbox */
+	else if (!(anonymous || strcmp (cmd,"CREATE"))) {
+	  if (!(s = snarf (&arg))) response = misarg;
+	  else if (arg) response = badarg;
+	  else if (state == OPEN) mail_create (stream,s);
+	  else {		/* use the same driver as INBOX */
+	    MAILSTREAM *st = mail_open (NIL,"INBOX",OP_PROTOTYPE);
+	    if (st) mail_create (st,s);
+	    else response = "%s NO Can't %s without an INBOX";
+	  }
+	}
+				/* delete mailbox */
+	else if (!(anonymous || strcmp (cmd,"DELETE"))) {
+	  if (!(s = snarf (&arg))) response = misarg;
+	  else if (arg) response = badarg;
+	  else mail_delete (NIL,s);
+	}
+				/* rename mailbox */
+	else if (!(anonymous || strcmp (cmd,"RENAME"))) {
+	  if (!((s = snarf (&arg)) && (t = snarf (&arg)))) response = misarg;
+	  else if (arg) response = badarg;
+	  else mail_rename (NIL,s,t);
+	}
+
+				/* purge cache */
+	else if (!strcmp (cmd,"PURGE")) {
+	  response = "%s OK PURGE %s is unnecessary with this server\015\012";
+				/* get subcommand */
+	  if (!(arg && (s = strtok (arg," \015\012")) && (cmd = ucase (s))))
+	    response = misarg;	/* missing subcommand */
+	  arg = strtok (NIL,"\015\012");
+	  if (strcmp (cmd,"ALWAYS")) {
+	    if (!(arg && (s = snarf (&arg)))) response = misarg;
+	    else if (arg) response = badarg;
+	    if (strcmp (cmd,"STATUS") && strcmp (cmd,"STRUCTURE") &&
+		strcmp (cmd,"TEXTS"))
+	      response = "%s NO PURGE %s is unknown to this server\015\012";
+	  }
+	  else if (arg) response = badarg;
 	}
 
 	else response = "%s BAD Command unrecognized: %s\015\012";

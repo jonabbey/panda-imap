@@ -9,9 +9,9 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	27 October 1992
+ * Last Edited:	4 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -195,10 +195,10 @@ unsigned long strcrlflen (s)
   unsigned long pos = GETPOS (s);
   unsigned long i = SIZE (s);
   unsigned long j = i;
-  while (j--) switch (NXT (s)) {/* search for newlines */
+  while (j--) switch (SNX (s)) {/* search for newlines */
   case '\015':			/* unlikely carriage return */
     if (j && (CHR (s) == '\012')) {
-      NXT (s);			/* eat the line feed */
+      SNX (s);			/* eat the line feed */
       j--;
     }
     break;
@@ -229,6 +229,7 @@ long server_login (user,pass,home)
 				/* validate password */
   if (strcmp (pw->pw_passwd,(char *) crypt (pass,pw->pw_passwd))) return NIL;
   setgid (pw->pw_gid);		/* all OK, login in as that user */
+  initgroups (user,pw->pw_gid);	/* initialize groups */
   setuid (pw->pw_uid);
 				/* note home directory */
   if (home) *home = cpystr (pw->pw_dir);
@@ -631,6 +632,28 @@ char *memmove (s,ct,n)
 {
   bcopy (ct,s,n);		/* they should have this one */
   return ct;
+}
+
+
+/* Return pointer to first occurance in string of a substring
+ * Accepts: source pointer
+ *	    substring pointer
+ * Returns: pointer to substring in source or NIL if not found
+ */
+
+char *strstr (cs,ct)
+     char *cs;
+     char *ct;
+{
+  char *s;
+  char *t;
+  while (cs = index (cs,*ct)) {	/* for each occurance of the first character */
+				/* see if remainder of string matches */
+    for (s = cs + 1, t = ct + 1; *t && *s == *t; s++, t++);
+    if (!*t) return cs;		/* if ran out of substring then have match */
+    cs++;			/* try from next character */
+  }
+  return NIL;			/* not found */
 }
 
 

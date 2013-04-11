@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	24 October 1992
+ * Last Edited:	22 January 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -358,10 +358,11 @@ void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
       else *t++ = c = '\0';	/* end of header */
     }
 
-    if (d = strchr (tmp,':')) {	/* find header item type */
+				/* find header item type */
+    if (t = d = strchr (tmp,':')) {
       *d++ = '\0';		/* tie off header item, point at its data */
       while (*d == ' ') d++;	/* flush whitespace */
-      if (t = strchr (tmp,' ')) *t = '\0';
+      while ((tmp < t--) && (*t == ' ')) *t = '\0';
       switch (*ucase (tmp)) {	/* dispatch based on first character */
       case '>':			/* possible >From: */
 	if (!strcmp (tmp+1,"FROM")) rfc822_parse_adrlist (&env->from,d,host);
@@ -374,7 +375,7 @@ void rfc822_parse_msg (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
 	else if ((tmp[1] == 'O') && (tmp[2] == 'N') && (tmp[3] == 'T') &&
 		 (tmp[4] == 'E') && (tmp[5] == 'N') && (tmp[6] == 'T') &&
 		 (tmp[7] == '-') && body &&
-		 (MIMEp || (search (s,i,"\012MIME-Version",(long) 13))))
+		 (MIMEp || (search (s-1,i,"\012MIME-Version",(long) 13))))
 	  rfc822_parse_content_header (body,tmp+8,d);
 	break;
       case 'D':			/* possible Date: */
@@ -461,7 +462,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t)
       body->parameter->value = cpystr ("US-ASCII");
     }
 				/* count number of lines */
-    while (i--) if ((NXT (bs)) == '\n') body->size.lines++;
+    while (i--) if ((SNX (bs)) == '\n') body->size.lines++;
     break;
 
   case TYPEMESSAGE:		/* encapsulated message */
@@ -479,13 +480,13 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t)
       }
 				/* hunt for blank line */
       for (c = '\012',j = 0; (i > j) && ((c != '\012') || (CHR(bs) != '\012'));
-	   NXT (bs),j++) if (CHR (bs) != '\015') c = CHR (bs);
-      if (i > j) NXT (bs);	/* unless no more text, body starts here */
+	   SNX (bs),j++) if (CHR (bs) != '\015') c = CHR (bs);
+      if (i > j) SNX (bs);	/* unless no more text, body starts here */
 				/* note body text offset and header size */
       j = (body->contents.msg.offset = GETPOS (bs)) - pos;
       SETPOS (bs,pos);		/* copy header string */
       s = (char *) fs_get (j + 1);
-      for (s1 = s,k = j; k--; *s1++ = NXT (bs));
+      for (s1 = s,k = j; k--; *s1++ = SNX (bs));
       s[j] = '\0';		/* tie off string (not really necessary) */
 				/* now parse the body */
       rfc822_parse_msg (&body->contents.msg.env,&body->contents.msg.body,s,j,
@@ -494,7 +495,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t)
       SETPOS (bs,pos);		/* restore position */
     }
 				/* count number of lines */
-    while (i--) if (NXT (bs) == '\n') body->size.lines++;
+    while (i--) if (SNX (bs) == '\n') body->size.lines++;
     break;
 
   case TYPEMULTIPART:		/* multiple parts */
@@ -511,19 +512,19 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t)
     while (i > j) switch (c) {	/* examine each line */
     case '\015':		/* handle CRLF form */
       if (CHR (bs) == '\012') {	/* following LF? */
-	c = NXT (bs); i--;	/* yes, slurp it */
+	c = SNX (bs); i--;	/* yes, slurp it */
       }
     case '\012':		/* at start of a line, start with -- ? */
       m = GETPOS (bs);		/* note the position at this point */
-      if (--i && ((c = NXT (bs)) == '-') && --i && ((c = NXT (bs)) == '-')) {
+      if (--i && ((c = SNX (bs)) == '-') && --i && ((c = SNX (bs)) == '-')) {
 				/* see if cookie matches */
-	for (k = j,s = t; --i && *s++ == (c = NXT (bs)) && --k;);
+	for (k = j,s = t; --i && *s++ == (c = SNX (bs)) && --k;);
 	if (k) break;		/* strings didn't match if non-zero */
 				/* look at what follows cookie */
-	if (--i) switch (c = NXT (bs)) {
+	if (--i) switch (c = SNX (bs)) {
 	case '-':		/* at end if two dashes */
-	  if (--i && ((c = NXT (bs)) == '-') &&
-	      (--i ? (((c = NXT (bs)) == '\015') || (c == '\012')) : T)) {
+	  if (--i && ((c = SNX (bs)) == '-') &&
+	      (--i ? (((c = SNX (bs)) == '\015') || (c == '\012')) : T)) {
 				/* if have a final part calculate its size */
 	    if (part) part->body.size.bytes = m - part->offset;
 	    part = NIL; i = 1;	/* terminate scan */
@@ -531,7 +532,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t)
 	  break;
 	case '\015':		/* handle CRLF form */
 	  if (i && CHR (bs) == '\012') {
-	    c = NXT (bs); i--;	/* yes, slurp it */
+	    c = SNX (bs); i--;	/* yes, slurp it */
 	  }
 	case '\012':		/* new line */
 	  if (part) {		/* calculate size of previous */
@@ -548,7 +549,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t)
       }
       break;
     default:			/* not at a line */
-      c = NXT (bs); i--;	/* get next character */
+      c = SNX (bs); i--;	/* get next character */
       break;
     }				/* calculate size of any final part */
     if (part) part->body.size.bytes = GETPOS (bs) - part->offset;
@@ -563,10 +564,10 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t)
 	  s1 = t;		/* initialize buffer pointer */
 	  c = ' ';		/* and previous character */
 	  while (c) {		/* collect text until logical end of line */
-	    switch (c1 = NXT (bs)) {
+	    switch (c1 = SNX (bs)) {
 	    case '\012':	/* newline, possible end of logical line */
 	      if ((i > 0) && (CHR (bs) == '\015')) {
-		NXT (bs); i--;	/* eat any CR following */
+		SNX (bs); i--;	/* eat any CR following */
 	      }
 				/* tie off unless next line starts with WS */
 	      if (!i || ((CHR (bs) != ' ') && (CHR(bs) != '\t')))
@@ -596,8 +597,8 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t)
 	      rfc822_parse_content_header (&part->body,t+8,s);
 	  }
 	}			/* skip trailing (CR)LF */
-	if ((i > 0) && (CHR (bs) =='\015')) {i--; NXT (bs);}
-	if ((i > 0) && (CHR (bs) =='\012')) {i--; NXT (bs);}
+	if ((i > 0) && (CHR (bs) =='\015')) {i--; SNX (bs);}
+	if ((i > 0) && (CHR (bs) =='\012')) {i--; SNX (bs);}
 	j = bs->size;		/* save upper level size */
 				/* set size and offset for next level */
 	bs->size = (part->offset = GETPOS (bs)) + i;
@@ -906,12 +907,13 @@ ADDRESS *rfc822_parse_addrspec (char *string,char **ret,char *defaulthost)
       adr->host = rfc822_cpy (string);
       *end = c;			/* restore delimiter */
     }
-    else mm_log ("Missing host name after @",PARSE);
+    else mm_log ("Missing or invalid host name after @",PARSE);
   }
   else end = t;			/* make person name default start after mbx */
+
 				/* default host if missing */
   if (!adr->host) adr->host = cpystr (defaulthost);
-  if (!adr->personal) {		/* try person name in comments if missing */
+  if (end && !adr->personal) {	/* try person name in comments if missing */
     while (*end == ' ') ++end;	/* see if we can find a person name here */
 				/* found something that may be a name? */
     if ((*end == '(') && (t = s = rfc822_parse_phrase (end + 1))) {
@@ -926,8 +928,8 @@ ADDRESS *rfc822_parse_addrspec (char *string,char **ret,char *defaulthost)
     }
     rfc822_skipws (&end);	/* skip any other WS in the normal way */
   }
-  *ret = end;			/* set new end pointer */
-  if (**ret == '\0') *ret = NIL;/* wipe pointer if at end of string */
+				/* set return to end pointer */
+  *ret = (end && *end) ? end : NIL;
   return adr;			/* return the address we got */
 }
 
@@ -1311,41 +1313,25 @@ void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
 
 unsigned char *rfc822_binary (void *src,unsigned long srcl,unsigned long *len)
 {
-  unsigned char *ret,*d;
+  unsigned char c,*ret,*d;
   unsigned char *s = (unsigned char *) src;
   char *v = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   unsigned long i = ((srcl + 2) / 3) * 4;
   *len = i += 2 * ((i / 60) + 1);
   d = ret = (unsigned char *) fs_get (++i);
-				/* process tuplets */
-  for (i = 0; srcl > 2; s += 3, srcl -= 3) {
+  for (i = 0; srcl; s += 3) {	/* process tuplets */
     *d++ = v[s[0] >> 2];	/* byte 1: high 6 bits (1) */
 				/* byte 2: low 2 bits (1), high 4 bits (2) */
-    *d++ = v[((s[0] << 4) + (s[1] >> 4)) & 0x3f];
+    *d++ = v[((s[0] << 4) + (--srcl ? (s[1] >> 4) : 0)) & 0x3f];
 				/* byte 3: low 4 bits (2), high 2 bits (3) */
-    *d++ = v[((s[1] << 2) + (s[2] >> 6)) & 0x3f];
-    *d++ = v[s[2] & 0x3f];	/* byte 4: low 6 bits (3) */
+    *d++ = srcl ? v[((s[1] << 2) + (--srcl ? (s[2] >> 6) : 0)) & 0x3f] : '=';
+				/* byte 4: low 6 bits (3) */
+    *d++ = srcl ? v[s[2] & 0x3f] : '=';
+    if (srcl) srcl--;		/* count third character if processed */
     if ((++i) == 15) {		/* output 60 characters? */
       i = 0;			/* restart line break count, insert CRLF */
       *d++ = '\015'; *d++ = '\012';
     }
-  }
-  switch ((short) srcl) {	/* handle trailing bytes */
-  case 0:			/* no trailing bytes */
-    break;
-  case 1:			/* need two trailing bytes */
-    *d++ = v[s[0] >> 2];	/* byte 1: high 6 bits */
-    *d++ = v[(s[0] << 4)& 0x3f];/* byte 2: low 2 bits */
-    *d++ = '=';			/* byte 3 */
-    *d++ = '=';			/* byte 4 */
-    break;
-  case 2:			/* need one trailing byte */
-    *d++ = v[s[0] >> 2];	/* byte 1: high 6 bits */
-				/* byte 2: low 2 bits, high 4 bits */
-    *d++ = v[((s[0] << 4) + (s[1] >> 4)) & 0x3f];
-    *d++ = v[(s[1] << 2)& 0x3f];/* byte 3: low 4 bits */
-    *d++ = '=';			/* byte 4 */
-    break;
   }
   *d++ = '\015'; *d++ = '\012';	/* insert final CRLF */
   *d = '\0';			/* tie off string */

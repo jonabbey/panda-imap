@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1992
- * Last Edited:	27 October 1992
+ * Last Edited:	2 November 1992
  *
  * Copyright 1992 by the University of Washington.
  *
@@ -204,10 +204,10 @@ unsigned long strcrlflen (STRING *s)
   unsigned long pos = GETPOS (s);
   unsigned long i = SIZE (s);
   unsigned long j = i;
-  while (j--) switch (NXT (s)) {/* search for newlines */
+  while (j--) switch (SNX (s)) {/* search for newlines */
   case '\015':			/* unlikely carriage return */
     if (j && (CHR (s) == '\012')) {
-      NXT (s);			/* eat the line feed */
+      SNX (s);			/* eat the line feed */
       j--;
     }
     break;
@@ -238,6 +238,7 @@ long server_login (char *user,char *pass,char **home,int argc,char *argv[])
     return NIL;
   pwd = getpwnam (user);	/* all OK, get the public information */
   setgid (pwd->pw_gid);		/* login in as that user */
+  initgroups (user,pw->pw_gid);	/* initialize groups */
   setuid (pwd->pw_uid);
 				/* note home directory */
   if (home) *home = cpystr (pwd->pw_dir);

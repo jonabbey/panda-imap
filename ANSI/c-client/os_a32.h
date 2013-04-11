@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	27 October 1992
+ * Last Edited:	4 December 1992
  *
  * Copyright 1992 by the University of Washington.
  *
@@ -41,10 +41,13 @@
 #define NFSKLUDGE
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/dir.h>
 #include <time.h>		/* for struct tm */
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <dirent.h>
 
 #define const			/* AIX dosen't like const */
 
@@ -88,3 +91,4 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
 void tcp_close (TCPSTREAM *stream);
 char *tcp_host (TCPSTREAM *stream);
 char *tcp_localhost (TCPSTREAM *stream);
+

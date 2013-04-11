@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	27 October 1992
+ * Last Edited:	5 November 1992
  *
  * Copyright 1992 by the University of Washington.
  *
@@ -194,10 +194,10 @@ unsigned long strcrlflen (STRING *s)
   unsigned long pos = GETPOS (s);
   unsigned long i = SIZE (s);
   unsigned long j = i;
-  while (j--) switch (NXT (s)) {/* search for newlines */
+  while (j--) switch (SNX (s)) {/* search for newlines */
   case '\015':			/* unlikely carriage return */
     if (j && (CHR (s) == '\012')) {
-      NXT (s);			/* eat the line feed */
+      SNX (s);			/* eat the line feed */
       j--;
     }
     break;
@@ -225,6 +225,7 @@ long server_login (char *user,char *pass,char **home,int argc,char *argv[])
 				/* validate password */
   if (strcmp (pw->pw_passwd,(char *) crypt (pass,pw->pw_passwd))) return NIL;
   setgid (pw->pw_gid);		/* all OK, login in as that user */
+  initgroups (user,pw->pw_gid);	/* initialize groups */
   setuid (pw->pw_uid);
 				/* note home directory */
   if (home) *home = cpystr (pw->pw_dir);
@@ -634,7 +635,7 @@ char *strerror (int n)
 int flock (int fd,int operation)
 {
   int func;
-  off_t offset = lseek (fd,0,L_INCR);
+  off_t offset = lseek (fd,0,SEEK_CUR);
   switch (operation & ~LOCK_NB){/* translate to lockf() operation */
   case LOCK_EX:			/* exclusive */
   case LOCK_SH:			/* shared */
@@ -647,9 +648,8 @@ int flock (int fd,int operation)
     errno = EINVAL;
     return -1;
   }
-  lseek (fd,0,L_SET);		/* position to start of the file */
+  lseek (fd,0,SEEK_SET);	/* position to start of the file */
   func = lockf (fd,func,0);	/* do the lockf() */
-  lseek (fd,offset,L_SET);	/* restore prior position */
+  lseek (fd,offset,SEEK_SET);	/* restore prior position */
   return func;
 }
-

@@ -13,7 +13,7 @@
  *		Internet: cohen@bucrf16.bu.edu
  *
  * Date:	23 February 1992
- * Last Edited:	2 October 1992
+ * Last Edited:	4 December 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -42,7 +42,6 @@
 #include <errno.h>
 extern int errno;		/* just in case */
 #include <sys/types.h>
-#include <sys/dir.h>		/* must be before osdep */
 #include "mail.h"
 #include "osdep.h"
 #include <sys/file.h>
@@ -52,16 +51,27 @@ extern int errno;		/* just in case */
 #include "rfc822.h"
 #include "misc.h"
 
-/* Netmh mail routines */
+/* MH mail routines */
 
 
 /* Driver dispatch used by MAIL */
 
 DRIVER mhdriver = {
+  "mh",				/* driver name */
   (DRIVER *) NIL,		/* next driver */
   mh_valid,			/* mailbox is valid for us */
+  mh_parameters,		/* manipulate parameters */
   mh_find,			/* find mailboxes */
   mh_find_bboards,		/* find bboards */
+  mh_find_all,			/* find all mailboxes */
+  mh_find_all_bboards,		/* find all bboards */
+  mh_subscribe,			/* subscribe to mailbox */
+  mh_unsubscribe,		/* unsubscribe from mailbox */
+  mh_subscribe_bboard,		/* subscribe to bboard */
+  mh_unsubscribe_bboard,	/* unsubscribe from bboard */
+  mh_create,			/* create mailbox */
+  mh_delete,			/* delete mailbox */
+  mh_rename,			/* rename mailbox */
   mh_open,			/* open mailbox */
   mh_close,			/* close mailbox */
   mh_fetchfast,			/* fetch message "fast" attributes */
@@ -78,48 +88,76 @@ DRIVER mhdriver = {
   mh_expunge,			/* expunge deleted messages */
   mh_copy,			/* copy messages to another mailbox */
   mh_move,			/* move messages to another mailbox */
+  mh_append,			/* append string message to mailbox */
   mh_gc				/* garbage collect stream */
 };
+
+				/* prototype stream */
+MAILSTREAM mhproto = {&mhdriver};
 
 /* MH mail validate mailbox
  * Accepts: mailbox name
- * Returns: our driver if name is valid, otherwise calls valid in next driver
+ * Returns: our driver if name is valid, NIL otherwise
  */
 
 DRIVER *mh_valid (name)
 	char *name;
 {
-  return mh_isvalid (name) ? &mhdriver :
-    (mhdriver.next ? (*mhdriver.next->valid) (name) : NIL);
+  char tmp[MAILTMPLEN];
+  return mh_isvalid (name,tmp) ? &mhdriver : NIL;
 }
 
 
-int mh_isvalid (name)
+int mh_isvalid (name,tmp)
 	char *name;
+	char *tmp;
 {
-  char tmp[MAILTMPLEN];
   struct stat sbuf;
                                 /* if file, get its status */
   return (*name != '{' && (stat (mh_file (tmp,name),&sbuf) == 0) &&
 	  (sbuf.st_mode & S_IFMT) == S_IFDIR);
 }
-
+
+
 /* MH mail build file name
  * Accepts: destination string
  *          source
+ * Returns: destination
  */
 
 char *mh_file (dst,name)
 	char *dst;
 	char *name;
-{				/* absolute path? */
-  if (*name == '/') strcpy (dst,name);
-				/* relative path, goes in Mail folder */
-  else sprintf (dst,"%s/Mail/%s",myhomedir (),name);
+{
+  char *s;
+  switch (*name) {
+  case '/':			/* absolute file path */
+    strcpy (dst,name);		/* copy the mailbox name */
+    break;
+  case '~':			/* home directory */
+    sprintf (dst,"%s%s",myhomedir (),(s = strchr (name,'/')) ? s : "");
+    break;
+  default:			/* relative path, goes in Mail folder */
+    sprintf (dst,"%s/Mail/%s",myhomedir (),name);
+    break;
+  }
   return dst;
 }
 
 
+/* MH manipulate driver parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *mh_parameters (function,value)
+	long function;
+	void *value;
+{
+  fatal ("Invalid mh_parameters function");
+}
+
 /* MH mail find list of mailboxes
  * Accepts: mail stream
  *	    pattern to search
@@ -129,23 +167,11 @@ void mh_find (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  int fd;
-  char tmp[MAILTMPLEN];
-  char *s,*t;
-  struct stat sbuf;
-                                /* make file name */
-  sprintf (tmp,"%s/.mailboxlist",myhomedir ());
-  if ((fd = open (tmp,O_RDONLY,NIL)) >= 0) {
-    fstat (fd,&sbuf);           /* get file size and read data */
-    read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
-    close (fd);                 /* close file */
-    s[sbuf.st_size] = '\0';     /* tie off string */
-    if (t = strtok (s,"\n"))    /* get first mailbox name */
-      do if ((*t != '{') && strcmp (t,"INBOX") && pmatch (t,pat) &&
-             mh_isvalid (t)) mm_mailbox (t);
-                                /* for each mailbox */
-    while (t = strtok (NIL,"\n"));
-  }
+  void *s = NIL;
+  char *t,tmp[MAILTMPLEN];
+  while (t = sm_read (&s))	/* read subscription database */
+    if ((*t != '{') && strcmp (t,"INBOX") && pmatch (t,pat) &&
+	mh_isvalid (t,tmp)) mm_mailbox (t);
 }
 
 
@@ -159,6 +185,152 @@ void mh_find_bboards (stream,pat)
 	char *pat;
 {
   /* Always a no-op */
+}
+
+/* MH mail find list of all mailboxes
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void mh_find_all (stream,pat)
+	MAILSTREAM *stream;
+	char *pat;
+{
+  char *s,*t;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN];
+  DIR *dirp;
+  struct direct *d;
+  if (s = strrchr (pat,'/')) {	/* directory specified in pattern? */
+    *s++ = '\0';		/* yes, tie off directory at that point */
+    if (*pat == '/') t = pat;	/* absolute directory reference? */
+    else sprintf (t = tmp,"%s/Mail/%s",myhomedir (),pat);
+  }
+  else {			/* no directory stuff in pattern */
+    s = pat;			/* use the complete pattern */
+    sprintf (t = tmp,"%s/Mail",myhomedir ());
+  }
+  if (dirp = opendir (t)) {	/* now open that directory */
+    sprintf (file,"%s/",t);	/* build filename prefix */
+    t = file + strlen (file);	/* where we write the file name */
+				/* for each matching directory entry */
+    while (d = readdir (dirp)) if (pmatch (d->d_name,s)) {
+      strcpy (t,d->d_name);	/* write the file name */
+      if (mh_isvalid (file,tmp)) mm_mailbox (file);
+    }
+    closedir (dirp);		/* flush directory */
+  }
+}
+
+
+/* MH mail find list of all bboards
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void mh_find_all_bboards (stream,pat)
+	MAILSTREAM *stream;
+	char *pat;
+{
+  /* Always a no-op */
+}
+
+/* MH mail subscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long mh_subscribe (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  char tmp[MAILTMPLEN];
+  return sm_subscribe (mh_file (tmp,mailbox));
+}
+
+
+/* MH mail unsubscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long mh_unsubscribe (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  char tmp[MAILTMPLEN];
+  return sm_unsubscribe (mh_file (tmp,mailbox));
+}
+
+
+/* MH mail subscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long mh_subscribe_bboard (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* never valid for MH */
+}
+
+
+/* MH mail unsubscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long mh_unsubscribe_bboard (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* never valid for MH */
+}
+
+/* MH mail create mailbox
+ * Accepts: mail stream
+ *	    mailbox name to create
+ * Returns: T on success, NIL on failure
+ */
+
+long mh_create (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* this driver is read-only */
+}
+
+
+/* MH mail delete mailbox
+ *	    mailbox name to delete
+ * Returns: T on success, NIL on failure
+ */
+
+long mh_delete (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* this driver is read-only */
+}
+
+
+/* MH mail rename mailbox
+ * Accepts: MH mail stream
+ *	    old mailbox name
+ *	    new mailbox name
+ * Returns: T on success, NIL on failure
+ */
+
+long mh_rename (stream,old,new)
+	MAILSTREAM *stream;
+	char *old;
+	char *new;
+{
+  return NIL;			/* this driver is read-only */
 }
 
 /* MH mail open
@@ -176,6 +348,7 @@ MAILSTREAM *mh_open (stream)
   struct hostent *host_name;
   struct direct **names;
   struct stat sbuf;
+  if (!stream) return &mhproto;	/* return prototype for OP_PROTOTYPE call */
   if (LOCAL) {			/* close old file if stream being recycled */
     mh_close (stream);		/* dump and save the changes */
     stream->dtb = &mhdriver;	/* reattach this driver */
@@ -782,6 +955,23 @@ long mh_move (stream,sequence,mailbox)
       LOCAL->seen[i - 1] = T;	/* and seen for .mhrc update */
     }
   return T;
+}
+
+
+/* MH mail append message from stringstruct
+ * Accepts: MAIL stream
+ *	    destination mailbox
+ *	    stringstruct of messages to append
+ * Returns: T if append successful, else NIL
+ */
+
+long mh_append (stream,mailbox,message)
+	MAILSTREAM *stream;
+	char *mailbox;
+	STRING *message;
+{
+  mm_log ("Append not valid for read-only mh mailbox",ERROR);
+  return NIL;
 }
 
 

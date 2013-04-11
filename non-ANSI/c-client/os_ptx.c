@@ -8,7 +8,7 @@
  *		Internet: donn@cac.washington.edu
  *
  * Date:	11 May 1989
- * Last Edited:	27 October 1992
+ * Last Edited:	2 November 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -204,10 +204,10 @@ unsigned long strcrlflen (s)
   unsigned long pos = GETPOS (s);
   unsigned long i = SIZE (s);
   unsigned long j = i;
-  while (j--) switch (NXT (s)) {/* search for newlines */
+  while (j--) switch (SNX (s)) {/* search for newlines */
   case '\015':			/* unlikely carriage return */
     if (j && (CHR (s) == '\012')) {
-      NXT (s);			/* eat the line feed */
+      SNX (s);			/* eat the line feed */
       j--;
     }
     break;
@@ -243,6 +243,7 @@ int server_login (user,pass,home)
 	   ((sp->sp_lstchg + sp->sp_max) < (time (0) / (60*60*24))))
 	return NIL;
   setgid (pw->pw_gid);		/* all OK, login in as that user */
+  initgroups (user);		/* initialize groups */
   setuid (pw->pw_uid);
 				/* note home directory */
   if (home) *home = cpystr (pw->pw_dir);

@@ -5,12 +5,12 @@ FirstResponder = {
 };
 MailManager = {
     ACTIONS = {
-	composeReply:;
-	info:;
+	closeFinalKill:;
 	addressBook:;
-	open:;
+	info:;
 	literalDisplay:;
 	mailboxOK:;
+	open:;
 	debug:;
 	mailboxCancel:;
 	checkInterval:;
@@ -32,10 +32,10 @@ MailManager = {
 	savePreferences:;
 	automaticZoom:;
 	help:;
-	closeFinalKill:;
+	composeReply:;
     };
     OUTLETS = {
-	prefRepository;
+	prefDomainName;
 	mailboxResponder;
 	debugging;
 	mailboxes;
@@ -70,8 +70,8 @@ MailManager = {
 	automaticZoom;
 	preferencesHelp;
 	browser;
+	prefRepository;
 	automaticRead;
-	prefDomainName;
     };
     SUPERCLASS = Application;
 };

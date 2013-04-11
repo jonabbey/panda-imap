@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	13 October 1992
+ * Last Edited:	19 November 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -47,6 +47,7 @@
 
 #define NIL 0			/* convenient name */
 #define T 1			/* opposite of NIL */
+#define LONGT (long) 1		/* long T */
 
 #define WARN (long) 1		/* mm_log warning type */
 #define ERROR (long) 2		/* mm_log error type */
@@ -60,6 +61,8 @@
 #define OP_ANONYMOUS (long) 4	/* anonymous open of newsgroup */
 #define OP_SHORTCACHE (long) 8	/* short (elt-only) caching */
 #define OP_SILENT (long) 16	/* don't pass up events (internal use) */
+#define OP_PROTOTYPE (long) 32	/* return driver prototype */
+#define OP_HALFOPEN (long) 64	/* half-open (IMAP connect but no select) */
 
 
 /* Cache management function codes */
@@ -250,98 +253,6 @@ typedef struct long_cache {
   BODY *body;			/* pointer to message body */
 } LONGCACHE;
 
-/* Mail Access I/O stream */
-
-
-/* Structure for mail driver dispatch */
-
-#define DRIVER struct driver	
-
-
-/* Mail I/O stream */
-
-typedef struct mail_stream {
-  DRIVER *dtb;			/* dispatch table for this driver */
-  void *local;			/* pointer to driver local data */
-  char *mailbox;		/* mailbox name */
-  unsigned int lock : 1;	/* stream lock flag */
-  unsigned int debug : 1;	/* stream debug flag */
-  unsigned int silent : 1;	/* silent stream from Tenex */
-  unsigned int readonly : 1;	/* stream read-only flag */
-  unsigned int anonymous : 1;	/* stream anonymous access flag */
-  unsigned int scache : 1;	/* stream short cache flag */
-  unsigned short use;		/* stream use count */
-  unsigned short sequence;	/* stream sequence */
-  unsigned long gensym;		/* generated tag */
-  unsigned long nmsgs;		/* # of associated msgs */
-  unsigned long recent;		/* # of recent msgs */
-  char *flagstring;		/* buffer of user keyflags */
-  char *user_flags[NUSERFLAGS];	/* pointers to user flags in bit order */
-  unsigned long cachesize;	/* size of message cache */
-  union {
-    void **c;			/* to get at the cache in general */
-    MESSAGECACHE **s;		/* message cache array */
-    LONGCACHE **l;		/* long cache array */
-  } cache;
-  unsigned long msgno;		/* message number of `current' message */
-  ENVELOPE *env;		/* pointer to `current' message envelope */
-  BODY *body;			/* pointer to `current' message body */
-} MAILSTREAM;
-
-
-/* Mail I/O stream handle */
-
-typedef struct mail_stream_handle {
-  MAILSTREAM *stream;		/* pointer to mail stream */
-  unsigned short sequence;	/* sequence of what we expect stream to be */
-} MAILHANDLE;
-
-/* Mail driver dispatch */
-
-DRIVER {
-  DRIVER *next;			/* next driver */
-				/* mailbox is valid for us */
-  DRIVER *(*valid) ();
-				/* find mailboxes */
-  void (*find) ();
-				/* find bboards */
-  void (*find_bboard) ();
-				/* open mailbox */
-  MAILSTREAM *(*open) ();
-				/* close mailbox */
-  void (*close) ();
-				/* fetch message "fast" attributes */
-  void (*fetchfast) ();
-				/* fetch message flags */
-  void (*fetchflags) ();
-				/* fetch message envelopes */
-  ENVELOPE *(*fetchstructure) ();
-				/* fetch message header only */
-  char *(*fetchheader) ();
-				/* fetch message body only */
-  char *(*fetchtext) ();
-				/* fetch message body section */
-  char *(*fetchbody) ();
-				/* set message flag */
-  void (*setflag) ();
-				/* clear message flag */
-  void (*clearflag) ();
-				/* search for message based on criteria */
-  void (*search) ();
-				/* ping mailbox to see if still alive */
-  long (*ping) ();
-				/* check for new messages */
-  void (*check) ();
-				/* expunge deleted messages */
-  void (*expunge) ();
-				/* copy messages to another mailbox */
-  long (*copy) ();
-				/* move messages to another mailbox */
-  long (*move) ();
-				/* garbage collect stream */
-  void (*gc) ();
-};
-
 /* String structure */
 
 #define STRINGDRIVER struct string_driver
@@ -376,11 +287,127 @@ STRINGDRIVER {
 #define INIT(s,d,data,size) ((*((s)->dtb = &d)->init) (s,data,size))
 #define SIZE(s) (s->size - GETPOS (s))
 #define CHR(s) (*s->curpos)
-#define NXT(s) (--s->cursize ? *s->curpos++ : (*s->dtb->next) (s))
+#define SNX(s) (--s->cursize ? *s->curpos++ : (*s->dtb->next) (s))
 #define GETPOS(s) (s->offset + (s->curpos - s->chunk))
 #define SETPOS(s,i) (*s->dtb->setpos) (s,i)
+
+/* Mail Access I/O stream */
 
 
+/* Structure for mail driver dispatch */
+
+#define DRIVER struct driver	
+
+
+/* Mail I/O stream */
+
+typedef struct mail_stream {
+  DRIVER *dtb;			/* dispatch table for this driver */
+  void *local;			/* pointer to driver local data */
+  char *mailbox;		/* mailbox name */
+  unsigned int lock : 1;	/* stream lock flag */
+  unsigned int debug : 1;	/* stream debug flag */
+  unsigned int silent : 1;	/* silent stream from Tenex */
+  unsigned int readonly : 1;	/* stream read-only flag */
+  unsigned int anonymous : 1;	/* stream anonymous access flag */
+  unsigned int scache : 1;	/* stream short cache flag */
+  unsigned int halfopen : 1;	/* stream half-open flag */
+  unsigned short use;		/* stream use count */
+  unsigned short sequence;	/* stream sequence */
+  unsigned long gensym;		/* generated tag */
+  unsigned long nmsgs;		/* # of associated msgs */
+  unsigned long recent;		/* # of recent msgs */
+  char *flagstring;		/* buffer of user keyflags */
+  char *user_flags[NUSERFLAGS];	/* pointers to user flags in bit order */
+  unsigned long cachesize;	/* size of message cache */
+  union {
+    void **c;			/* to get at the cache in general */
+    MESSAGECACHE **s;		/* message cache array */
+    LONGCACHE **l;		/* long cache array */
+  } cache;
+  unsigned long msgno;		/* message number of `current' message */
+  ENVELOPE *env;		/* pointer to `current' message envelope */
+  BODY *body;			/* pointer to `current' message body */
+} MAILSTREAM;
+
+
+/* Mail I/O stream handle */
+
+typedef struct mail_stream_handle {
+  MAILSTREAM *stream;		/* pointer to mail stream */
+  unsigned short sequence;	/* sequence of what we expect stream to be */
+} MAILHANDLE;
+
+/* Mail driver dispatch */
+
+DRIVER {
+  char *name;			/* driver name */
+  DRIVER *next;			/* next driver */
+				/* mailbox is valid for us */
+  DRIVER *(*valid) ();
+				/* manipulate driver parameters */
+  void *(*parameters) ();
+				/* find mailboxes */
+  void (*find) ();
+				/* find bboards */
+  void (*find_bboard) ();
+				/* find all mailboxes */
+  void (*find_all) ();
+				/* find all bboards */
+  void (*find_all_bboard) ();
+				/* subscribe to mailbox */
+  long (*subscribe) ();
+				/* unsubscribe from mailbox */
+  long (*unsubscribe) ();
+				/* subscribe to bboard */
+  long (*subscribe_bboard) ();
+				/* unsubscribe to bboard */
+  long (*unsubscribe_bboard) ();
+				/* create mailbox */
+  long (*create) ();
+				/* delete mailbox */
+  long (*delete) ();
+				/* rename mailbox */
+  long (*rename) ();
+
+				/* open mailbox */
+  MAILSTREAM *(*open) ();
+				/* close mailbox */
+  void (*close) ();
+				/* fetch message "fast" attributes */
+  void (*fetchfast) ();
+				/* fetch message flags */
+  void (*fetchflags) ();
+				/* fetch message envelopes */
+  ENVELOPE *(*fetchstructure) ();
+				/* fetch message header only */
+  char *(*fetchheader) ();
+				/* fetch message body only */
+  char *(*fetchtext) ();
+				/* fetch message body section */
+  char *(*fetchbody) ();
+				/* set message flag */
+  void (*setflag) ();
+				/* clear message flag */
+  void (*clearflag) ();
+				/* search for message based on criteria */
+  void (*search) ();
+				/* ping mailbox to see if still alive */
+  long (*ping) ();
+				/* check for new messages */
+  void (*check) ();
+				/* expunge deleted messages */
+  void (*expunge) ();
+				/* copy messages to another mailbox */
+  long (*copy) ();
+				/* move messages to another mailbox */
+  long (*move) ();
+				/* append string message to mailbox */
+  long (*append) ();
+				/* garbage collect stream */
+  void (*gc) ();
+};
+
 /* Other symbols */
 
 extern const char *months[];	/* month name strings */
@@ -419,8 +446,19 @@ extern mailcache_t mailcache;
 #define mail_string_next mstrnx
 #define mail_string_setpos mstrsp
 #define mail_link mllink
+#define mail_parameters mlparm
 #define mail_find mlfind
 #define mail_find_bboards mlfndb
+#define mail_find_all mlfnam
+#define mail_find_all_bboard mlfalb
+#define mail_valid mlvali
+#define mail_subscribe mlsub
+#define mail_unsubscribe mlusub
+#define mail_subscribe_bboard mlsubb
+#define mail_unsubscribe_bboard mlusbb
+#define mail_create mlcret
+#define mail_delete mldele
+#define mail_rename mlrena
 #define mail_open mlopen
 #define mail_close mlclse
 #define mail_makehandle mlmkha
@@ -434,6 +472,7 @@ extern mailcache_t mailcache;
 #define mail_fetchbody mlfbdy
 #define mail_fetchfrom mlffrm
 #define mail_fetchsubject mlfsub
+
 #define mail_lelt mllelt
 #define mail_elt mlelt
 #define mail_setflag mlsflg
@@ -444,6 +483,7 @@ extern mailcache_t mailcache;
 #define mail_expunge mlexpn
 #define mail_copy mlcopy
 #define mail_move mlmove
+#define mail_append mlappd
 #define mail_gc mailgc
 #define mail_date mldate
 #define mail_cdate mlcdat
@@ -496,8 +536,19 @@ void mail_string_init  ();
 char mail_string_next  ();
 void mail_string_setpos  ();
 void mail_link  ();
+void *mail_parameters  ();
 void mail_find  ();
 void mail_find_bboards  ();
+void mail_find_all  ();
+void mail_find_all_bboard  ();
+DRIVER *mail_valid  ();
+long mail_subscribe  ();
+long mail_unsubscribe  ();
+long mail_subscribe_bboard  ();
+long mail_unsubscribe_bboard  ();
+long mail_create  ();
+long mail_delete  ();
+long mail_rename  ();
 MAILSTREAM *mail_open  ();
 MAILSTREAM *mail_close  ();
 MAILHANDLE *mail_makehandle  ();
@@ -522,6 +573,7 @@ void mail_check  ();
 void mail_expunge  ();
 long mail_copy  ();
 long mail_move  ();
+long mail_append  ();
 void mail_gc  ();
 char *mail_date  ();
 char *mail_cdate  ();
@@ -550,3 +602,7 @@ void mail_free_elt  ();
 void mail_free_lelt  ();
 void mail_free_envelope  ();
 void mail_free_address  ();
+
+long sm_subscribe  ();
+long sm_unsubscribe  ();
+char *sm_read  ();

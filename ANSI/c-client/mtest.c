@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	1 October 1992
+ * Last Edited:	11 February 1993
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -19,7 +19,7 @@
  *		Institutes of Health under grant number RR-00785.
  *
  * Original version Copyright 1988 by The Leland Stanford Junior University.
- * Copyright 1992 by the University of Washington.
+ * Copyright 1993 by the University of Washington.
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -64,7 +64,7 @@ char *curhst = NIL;		/* currently connected host */
 char *curusr = NIL;		/* current login user */
 char personalname[256];		/* user's personal name */
 extern DRIVER imapdriver,bezerkdriver,tenexdriver,mboxdriver,mhdriver,
- newsdriver,dummydriver,dawzdriver;
+ newsdriver,nntpdriver,dummydriver,dawzdriver;
 
 static char *hostlist[] = {	/* SMTP server host list */
   "mailhost",
@@ -119,11 +119,14 @@ void main ()
   strcpy (personalname,tmp);	/* make a permanent copy of it */
 #else
   prompt ("Personal name: ",personalname);
+  curusr = cpystr ("somebody");
+  curhst = cpystr ("someplace");
 #endif
   puts ("MTest -- C client test program");
   mail_link (&imapdriver);	/* link in IMAP driver */
 #ifdef MSDOS
   mail_link (&dawzdriver);	/* link in dawz mail driver */
+  mail_link (&nntpdriver);	/* link in NNTP driver */
 #endif
 #if unix
   mail_link (&tenexdriver);	/* link in Tenex mail driver */
@@ -131,6 +134,7 @@ void main ()
   mail_link (&mboxdriver);	/* link in mbox mail driver */
   mail_link (&bezerkdriver);	/* link in Berkeley mail driver */
   mail_link (&newsdriver);	/* link in netnews mail driver */
+  mail_link (&nntpdriver);	/* link in NNTP driver */
   mail_link (&dummydriver);	/* finally dummy driver at the end */
 #endif
 				/* user wants protocol telemetry? */
@@ -207,10 +211,25 @@ void mm (MAILSTREAM *stream,long debug)
       last = 0;
       break;
     case 'F':			/* Find command */
+      if (!arg) arg = "*";
+      puts ("Subscribed mailboxes:");
+      mail_find (NIL,arg);
+      puts ("Subscribed bboards:");
+      mail_find_bboards (NIL,arg);
       puts ("Known mailboxes:");
-      mail_find (stream,"*");
+      mail_find_all (NIL,arg);
       puts ("Known bboards:");
-      mail_find_bboards (stream,"*");
+      mail_find_all_bboard (NIL,arg);
+      if (*stream->mailbox == '{') {
+	puts ("Remote Subscribed mailboxes:");
+	mail_find (stream,arg);
+	puts ("Remote Subscribed bboards:");
+	mail_find_bboards (stream,arg);
+	puts ("Remote known mailboxes:");
+	mail_find_all (stream,arg);
+	puts ("Remote known bboards:");
+	mail_find_all_bboard (stream,arg);
+      }
       break;
     case 'G':
       mail_gc (stream,GC_ENV|GC_TEXTS|GC_ELT);

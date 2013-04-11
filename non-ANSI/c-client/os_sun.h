@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	27 October 1992
+ * Last Edited:	4 February 1993
  *
- * Copyright 1992 by the University of Washington
+ * Copyright 1993 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -39,14 +39,16 @@
 #define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 #define NFSKLUDGE
 
+#define strstr Strstr		/* override system definition */
+
 #include <sys/types.h>
+#include <sys/dir.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
 
 extern char *strerror ();
 extern char *memmove ();
-
 
 /* Dummy definition overridden by TCP routines */
 
@@ -64,6 +66,8 @@ void fatal  ();
 char *strcrlfcpy  ();
 unsigned long strcrlflen  ();
 long server_login  ();
+char *myusername ();
+char *myhomedir ();
 char *lockname  ();
 TCPSTREAM *tcp_open  ();
 TCPSTREAM *tcp_aopen  ();

@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	27 October 1992
+ * Last Edited:	3 December 1992
  *
  * Copyright 1992 by Mark Crispin
  *
@@ -386,4 +386,36 @@ char *tcp_host (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   return stream->localhost;	/* return local host name */
+}
+
+/* Subscribe to mailbox
+ * Accepts: mailbox name
+ * Returns: T on success, NIL on failure
+ */
+
+long sm_subscribe (char *mailbox)
+{
+  return NIL;			/* needs to be written */
+}
+
+
+/* Unsubscribe from mailbox
+ * Accepts: mailbox name
+ * Returns: T on success, NIL on failure
+ */
+
+long sm_unsubscribe (char *mailbox)
+{
+  return NIL;			/* needs to be written */
+}
+
+
+/* Read subscription database
+ * Accepts: pointer to subscription database handle (handle NIL if first time)
+ * Returns: character string for subscription database or NIL if done
+ */
+
+char *sm_read (void **sdb)
+{
+  return NIL;
 }

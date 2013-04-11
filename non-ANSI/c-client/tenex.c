@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	2 October 1992
+ * Last Edited:	4 December 1992
  *
  * Copyright 1992 by the University of Washington
  *
@@ -54,10 +54,21 @@ extern int errno;		/* just in case */
 /* Driver dispatch used by MAIL */
 
 DRIVER tenexdriver = {
+  "tenex",			/* driver name */
   (DRIVER *) NIL,		/* next driver */
   tenex_valid,			/* mailbox is valid for us */
+  tenex_parameters,		/* manipulate parameters */
   tenex_find,			/* find mailboxes */
   tenex_find_bboards,		/* find bboards */
+  tenex_find_all,		/* find all mailboxes */
+  tenex_find_all_bboards,	/* find all bboards */
+  tenex_subscribe,		/* subscribe to mailbox */
+  tenex_unsubscribe,		/* unsubscribe from mailbox */
+  tenex_subscribe_bboard,	/* subscribe to bboard */
+  tenex_unsubscribe_bboard,	/* unsubscribe from bboard */
+  tenex_create,			/* create mailbox */
+  tenex_delete,			/* delete mailbox */
+  tenex_rename,			/* rename mailbox */
   tenex_open,			/* open mailbox */
   tenex_close,			/* close mailbox */
   tenex_fetchfast,		/* fetch message "fast" attributes */
@@ -74,19 +85,23 @@ DRIVER tenexdriver = {
   tenex_expunge,		/* expunge deleted messages */
   tenex_copy,			/* copy messages to another mailbox */
   tenex_move,			/* move messages to another mailbox */
+  tenex_append,			/* append string message to mailbox */
   tenex_gc			/* garbage collect stream */
 };
+
+				/* prototype stream */
+MAILSTREAM tenexproto = {&tenexdriver};
 
 /* Tenex mail validate mailbox
  * Accepts: mailbox name
- * Returns: our driver if name is valid, otherwise calls valid in next driver
+ * Returns: our driver if name is valid, NIL otherwise
  */
 
 DRIVER *tenex_valid (name)
 	char *name;
 {
-  return tenex_isvalid (name) ? &tenexdriver :
-    (tenexdriver.next ? (*tenexdriver.next->valid) (name) : NIL);
+  char tmp[MAILTMPLEN];
+  return tenex_isvalid (name,tmp) ? &tenexdriver : NIL;
 }
 
 
@@ -95,11 +110,11 @@ DRIVER *tenex_valid (name)
  * Returns: T if valid, NIL otherwise
  */
 
-int tenex_isvalid (name)
+int tenex_isvalid (name,tmp)
 	char *name;
+	char *tmp;
 {
   int fd;
-  char tmp[MAILTMPLEN];
   struct stat sbuf;
 				/* if file, get its status */
   if (*name != '{' && (stat (tenex_file (tmp,name),&sbuf) == 0)) {
@@ -115,6 +130,20 @@ int tenex_isvalid (name)
   }
   return NIL;			/* failed miserably */
 }
+
+
+/* Tenex manipulate driver parameters
+ * Accepts: function code
+ *	    function-dependent value
+ * Returns: function-dependent return value
+ */
+
+void *tenex_parameters (function,value)
+	long function;
+	void *value;
+{
+  fatal ("Invalid tenex_parameters function");
+}
 
 /* Tenex mail find list of mailboxes
  * Accepts: mail stream
@@ -125,23 +154,11 @@ void tenex_find (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
-  int fd;
-  char tmp[MAILTMPLEN];
-  char *s,*t;
-  struct stat sbuf;
-				/* make file name */
-  sprintf (tmp,"%s/.mailboxlist",myhomedir ());
-  if ((fd = open (tmp,O_RDONLY,NIL)) >= 0) {
-    fstat (fd,&sbuf);		/* get file size and read data */
-    read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
-    close (fd);			/* close file */
-    s[sbuf.st_size] = '\0';	/* tie off string */
-    if (t = strtok (s,"\n"))	/* get first mailbox name */
-      do if ((*t != '{') && strcmp (t,"INBOX") && pmatch (t,pat) &&
-	     tenex_isvalid (t)) mm_mailbox (t);
-				/* for each mailbox */
-    while (t = strtok (NIL,"\n"));
-  }
+  void *s = NIL;
+  char *t,tmp[MAILTMPLEN];
+  while (t = sm_read (&s))	/* read subscription database */
+    if ((*t != '{') && strcmp (t,"INBOX") && pmatch (t,pat) &&
+	tenex_isvalid (t,tmp)) mm_mailbox (t);
 }
 
 
@@ -154,6 +171,199 @@ void tenex_find_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
+}
+
+/* Tenex mail find list of all mailboxes
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void tenex_find_all (stream,pat)
+	MAILSTREAM *stream;
+	char *pat;
+{
+  DIR *dirp;
+  struct direct *d;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN];
+  char *s,*t;
+  if (s = strrchr (pat,'/')) {	/* directory specified in pattern? */
+    switch (*(t = pat)) {	/* yes, what is first character? */
+    case '/':			/* absolute file path */
+      tmp[0] = '\0';		/* no prefix */
+      break;
+    case '~':			/* home directory */
+      t = strchr (pat,'/');	/* skip to first directory */
+      strcpy (tmp,myhomedir ());/* base is home directory */
+      break;
+    default:			/* relative path */
+      sprintf (tmp,"%s/",myhomedir ());
+      break;
+    }
+    if (s != t) strncat (tmp,t,s - t);
+    s++;			/* pattern to search */
+    t = tmp;			/* directory to search */
+  }
+  else {			/* no directory specified */
+    s = pat;			/* use entire pattern for pmatch */
+    t = myhomedir ();		/* use home directory to search */
+  }
+  if (dirp = opendir (t)) {	/* now open that directory */
+    sprintf (file,"%s/",t);	/* build filename prefix */
+    t = file + strlen (file);	/* where we write the file name */
+				/* for each matching directory entry */
+    while (d = readdir (dirp)) if (pmatch (d->d_name,s)) {
+      strcpy (t,d->d_name);	/* write the file name */
+      if (tenex_isvalid (file,tmp)) mm_mailbox (file);
+    }
+    closedir (dirp);		/* flush directory */
+  }
+				/* always an INBOX for full wildcard */
+  if (!strcmp (pat,"*") && tenex_isvalid ("INBOX",tmp)) mm_mailbox ("INBOX");
+}
+
+
+/* Tenex mail find list of all bboards
+ * Accepts: mail stream
+ *	    pattern to search
+ */
+
+void tenex_find_all_bboards (stream,pat)
+	MAILSTREAM *stream;
+	char *pat;
+{
+  /* Always a no-op */
+}
+
+/* Tenex mail subscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long tenex_subscribe (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  char tmp[MAILTMPLEN];
+  return sm_subscribe (tenex_file (tmp,mailbox));
+}
+
+
+/* Tenex mail unsubscribe to mailbox
+ * Accepts: mail stream
+ *	    mailbox to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long tenex_unsubscribe (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  char tmp[MAILTMPLEN];
+  return sm_unsubscribe (tenex_file (tmp,mailbox));
+}
+
+
+/* Tenex mail subscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to add to subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long tenex_subscribe_bboard (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* never valid for Tenex */
+}
+
+
+/* Tenex mail unsubscribe to bboard
+ * Accepts: mail stream
+ *	    bboard to delete from subscription list
+ * Returns: T on success, NIL on failure
+ */
+
+long tenex_unsubscribe_bboard (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return NIL;			/* never valid for Tenex */
+}
+
+/* Tenex mail create mailbox
+ * Accepts: MAIL stream
+ *	    mailbox name to create
+ * Returns: T on success, NIL on failure
+ */
+
+long tenex_create (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  char tmp[MAILTMPLEN];
+  int fd = open (tenex_file (tmp,mailbox),O_WRONLY|O_CREAT|O_EXCL,0600);
+  if (fd < 0) {			/* failed */
+    sprintf (tmp,"Can't create mailbox %s: %s",mailbox,strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  close (fd);			/* close the file */
+  return T;			/* return success */
+}
+
+
+/* Tenex mail delete mailbox
+ * Accepts: MAIL stream
+ *	    mailbox name to delete
+ * Returns: T on success, NIL on failure
+ */
+
+long tenex_delete (stream,mailbox)
+	MAILSTREAM *stream;
+	char *mailbox;
+{
+  return tenex_rename (stream,mailbox,NIL);
+}
+
+/* Tenex mail rename mailbox
+ * Accepts: MAIL stream
+ *	    old mailbox name
+ *	    new mailbox name (or NIL for delete)
+ * Returns: T on success, NIL on failure
+ */
+
+long tenex_rename (stream,old,new)
+	MAILSTREAM *stream;
+	char *old;
+	char *new;
+{
+  long ret = T;
+  char tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN],lockx[MAILTMPLEN];
+  int fd = open (tenex_file (file,old),O_RDONLY,NIL);
+				/* lock out non c-client applications */
+  if (fd < 0) {			/* open mailbox */
+    sprintf (tmp,"Can't open mailbox %s: %s",old,strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+				/* lock out other users */
+  if (flock (fd,LOCK_EX|LOCK_NB)) {
+    close (fd);			/* couldn't lock, give up on it then */
+    sprintf (tmp,"Mailbox %s is in use by another process",old);
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+				/* do the rename or delete operation */
+  if (new ? rename (file,tenex_file (tmp,new)) : unlink (file)) {
+    sprintf (tmp,"Can't %s mailbox %s: %s",new ? "rename" : "delete",old,
+	     strerror (errno));
+    mm_log (tmp,ERROR);
+    ret = NIL;			/* set failure */
+  }
+  flock (fd,LOCK_UN);		/* release c-client lock lock */
+  close (fd);			/* close c-client lock */
+  return ret;			/* return success */
 }
 
 /* Tenex mail open
@@ -170,6 +380,8 @@ MAILSTREAM *tenex_open (stream)
   char tmp[MAILTMPLEN];
   struct stat sbuf;
   struct hostent *host_name;
+				/* return prototype for OP_PROTOTYPE call */
+  if (!stream) return &tenexproto;
   if (LOCAL) {			/* close old file if stream being recycled */
     tenex_close (stream);	/* dump and save the changes */
     stream->dtb = &tenexdriver;	/* reattach this driver */
@@ -623,7 +835,6 @@ long tenex_ping (stream)
   MAILSTREAM *bezerk = NIL;
 				/* punt if stream no longer alive */
   if (!(stream && LOCAL)) return NIL;
-#if unix
 				/* only if this is a read-write inbox */
   if (LOCAL->inbox && !stream->readonly) {
     stream->silent = T;		/* avoid blabber in initial parse */
@@ -672,7 +883,6 @@ long tenex_ping (stream)
     flock (LOCAL->fd,LOCK_SH);	/* back to shared access */
     mm_nocritical (stream);	/* release critical */
   }
-#endif
 				/* parse mailbox, punt if parse dies */
   return (tenex_parse (stream)) ? T : NIL;
 }
@@ -814,8 +1024,56 @@ long tenex_move (stream,sequence,mailbox)
   if (!stream->readonly) fsync (LOCAL->fd);
   return T;
 }
+
+/* Tenex mail append message from stringstruct
+ * Accepts: MAIL stream
+ *	    destination mailbox
+ *	    stringstruct of messages to append
+ * Returns: T if append successful, else NIL
+ */
 
-
+long tenex_append (stream,mailbox,message)
+	MAILSTREAM *stream;
+	char *mailbox;
+	STRING *message;
+{
+  struct stat sbuf;
+  char tmp[MAILTMPLEN];
+  char c,*s;
+  long i = SIZE (message);
+  long size = 0;
+  int fd = open (tenex_file (tmp,mailbox),O_WRONLY|O_APPEND,S_IREAD|S_IWRITE);
+  if (fd < 0) {			/* open the destination */
+    sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
+  s = fs_get (i + 1);		/* get space for the data */
+				/* copy the data w/o CR's */
+  while (i--) if ((c = SNX (message)) != '\015') s[size++] = c;
+  mm_critical (stream);		/* go critical */
+  /* Something will need to be done about interlocking multiple appends. */
+  flock (fd,LOCK_SH);		/* lock out expunges */
+  fstat (fd,&sbuf);		/* get current file size */
+  rfc822_date (tmp);		/* get the date in RFC822 format */
+				/* convert date string to Tenex format */
+  tmp[7] = tmp[11] = '-';
+				/* add remainder of header */
+  sprintf (tmp+31,",%ld;000000000000\n",size);
+				/* write header */
+  if ((write (fd,tmp+5,strlen (tmp+5)) < 0) || ((write (fd,s,size)) < 0)) {
+    sprintf (tmp,"Message append failed: %s",strerror (errno));
+    mm_log (tmp,ERROR);
+    ftruncate (fd,sbuf.st_size);
+  }
+  fsync (fd);			/* force out the update */
+  flock (fd,LOCK_UN);		/* unlock mailbox */
+  close (fd);			/* close the file */
+  mm_nocritical (stream);	/* release critical */
+  fs_give ((void **) &s);	/* flush the buffer */
+  return T;			/* return success */
+}
+
 /* Tenex garbage collect stream
  * Accepts: Mail stream
  *	    garbage collection flags
@@ -841,11 +1099,17 @@ char *tenex_file (dst,name)
 	char *dst;
 	char *name;
 {
-  strcpy (dst,name);		/* copy the mailbox name */
-  if (*dst != '/') {		/* pass absolute file paths */
-    if (strcmp (ucase (dst),"INBOX")) sprintf (dst,"%s/%s",myhomedir (),name);
-				/* INBOX becomes ~USER/mail.txt file */
-    else sprintf (dst,"%s/mail.txt",myhomedir ());
+  char *s;
+  switch (*name) {
+  case '/':			/* absolute file path */
+    strcpy (dst,name);		/* copy the mailbox name */
+    break;
+  case '~':			/* home directory */
+    sprintf (dst,"%s%s",myhomedir (),(s = strchr (name,'/')) ? s : "");
+    break;
+  default:			/* other name - INBOX becomes mail.txt */
+    if (!strcmp (ucase (strcpy (dst,name)),"INBOX")) name = "mail.txt";
+    sprintf (dst,"%s/%s",myhomedir (),name);
   }
   return dst;
 }
