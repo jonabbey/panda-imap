@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	22 June 1998
+ * Last Edited:	13 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -52,7 +52,7 @@ extern int errno;		/* just in case */
 
 DRIVER tenexdriver = {
   "tenex",			/* driver name */
-  DR_LOCAL|DR_MAIL,		/* driver flags */
+  DR_LOCAL|DR_MAIL|DR_NOSTICKY,	/* driver flags */
   (DRIVER *) NIL,		/* next driver */
   tenex_valid,			/* mailbox is valid for us */
   tenex_parameters,		/* manipulate parameters */

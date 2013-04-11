@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	20 March 1998
+ * Last Edited:	13 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -71,7 +71,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "4.47";		/* server version */
+char *version = "5.49";		/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -644,8 +644,9 @@ void mm_dlog (char *string)
 void mm_login (NETMBX *mb,char *username,char *password,long trial)
 {
 				/* set user name */
-  strncpy (username,*mb->user ? mb->user : user,NETMAXUSER);
-  strncpy (password,pass,256);	/* and password */
+  strncpy (username,*mb->user ? mb->user : user,NETMAXUSER-1);
+  strncpy (password,pass,255);	/* and password */
+  username[NETMAXUSER] = password[255] = '\0';
 }
 
 /* About to enter critical code

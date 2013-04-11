@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	11 February 1998
+ * Last Edited:	11 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -55,7 +55,7 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
     struct ktc_token token;
 				/* just check the password */
     ka_StringToKey (pass,NIL,&key);
-    return ka_GetAdminToken (pw->pw_name,NIL,NIL,&key,600,&token,1) ? NIL : pw;
+    return ka_GetAdminToken (pw->pw_name,"","",&key,600,&token,1) ? NIL : pw;
   }
 #endif
 				/* check password and get AFS token */

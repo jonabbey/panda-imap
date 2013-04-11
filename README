@@ -1,12 +1,12 @@
 		  IMAP4rev1/c-client Development Environment
-				 15 May 1998
+				 13 July 1998
 				 Mark Crispin
 
 
 			    UNIX QUICK BUILD NOTES
 
 1) Look in imap-4.1/Makefile and find your system type code, e.g. slx for
-   glibc Linux with shadow password security.
+   glibc Linux and/or Linux with shadow password security.
 
 2) Type "make" followed by the system type, e.g. "make slx".
 

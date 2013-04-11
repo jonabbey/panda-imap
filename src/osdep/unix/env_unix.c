@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	28 June 1998
+ * Last Edited:	13 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -63,6 +63,7 @@ static char *blackBoxDir = NIL;	/* black box directory name */
 static char *blackBoxDefaultHome = NIL;
 static short anonymous = NIL;	/* is anonymous */
 static short blackBox = NIL;	/* is a black box */
+static short has_no_life = NIL;	/* is a cretin with no life */
 static long list_max_level = 20;/* maximum level of list recursion */
 				/* default file protection */
 static long mbx_protection = 0600;
@@ -240,6 +241,12 @@ void *env_parameters (long function,void *value)
     break;
   case GET_LOCKEACCESERROR:
     value = (void *) lockEaccesError;
+    break;
+  case SET_USERHASNOLIFE:
+    has_no_life = value ? T : NIL;
+    break;
+  case GET_USERHASNOLIFE:
+    value = (void *) (has_no_life ? T : NIL);
     break;
   default:
     value = NIL;		/* error case */

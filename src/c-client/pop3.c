@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	19 May 1998
+ * Last Edited:	13 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -52,10 +52,11 @@
 
 DRIVER pop3driver = {
   "pop3",			/* driver name */
+				/* driver flags */
 #ifdef INADEQUATE_MEMORY
   DR_LOWMEM |
 #endif
-  DR_MAIL|DR_NOFAST|DR_CRLF,	/* driver flags */
+  DR_MAIL|DR_NOFAST|DR_CRLF|DR_NOSTICKY,
   (DRIVER *) NIL,		/* next driver */
   pop3_valid,			/* mailbox is valid for us */
   pop3_parameters,		/* manipulate parameters */

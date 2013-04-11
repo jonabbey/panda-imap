@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 September 1996
- * Last Edited:	22 October 1996
+ * Last Edited:	13 July 1998
  *
- * Copyright 1996 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -57,6 +57,7 @@
 /* syslog() emulation */
 
 #define LOG_MAIL	(2<<3)	/* mail system */
+#define LOG_AUTH	(4<<3)	/* security/authorization messages */
 #define LOG_ALERT	1	/* action must be taken immediately */
 #define LOG_INFO	6	/* informational */
 #define LOG_PID		0x01	/* log the pid with each message */

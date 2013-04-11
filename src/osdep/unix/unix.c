@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	11 June 1998
+ * Last Edited:	15 June 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -256,6 +256,8 @@ long unix_create (MAILSTREAM *stream,char *mailbox)
       mm_log (tmp,ERROR);
       unlink (mbx);		/* delete the file */
     }
+				/* in case a whiner with no life */
+    else if (mail_parameters (NIL,GET_USERHASNOLIFE,NIL)) ret = T;
     else {			/* initialize header */
       memset (tmp,'\0',MAILTMPLEN);
       sprintf (tmp,"From %s %sDate: ",pseudo_from,ctime (&ti));
@@ -1435,7 +1437,10 @@ int unix_parse (MAILSTREAM *stream,char *lock,int op)
 				/* need to start a new UID validity? */
       if (!stream->uid_validity) {
 	stream->uid_validity = time (0);
-	LOCAL->dirty = T;	/* make dirty to create pseudo-message */
+				/* in case a whiner with no life */
+	if (mail_parameters (NIL,GET_USERHASNOLIFE,NIL))
+	  stream->uid_nosticky = T;
+	else LOCAL->dirty = T;	/* make dirty to create pseudo-message */
       }
       stream->nmsgs = oldnmsgs;	/* whack it back down */
       stream->silent = silent;	/* restore old silent setting */
@@ -1560,25 +1565,27 @@ unsigned long unix_xstatus (MAILSTREAM *stream,char *status,MESSAGECACHE *elt,
   if (elt->answered) *s++ = 'A';
   if (elt->draft) *s++ = 'T';
   *s++ = '\n';
-  *s++ = 'X'; *s++ = '-'; *s++ = 'K'; *s++ = 'e'; *s++ = 'y'; *s++ = 'w';
-  *s++ = 'o'; *s++ = 'r'; *s++ = 'd'; *s++ = 's'; *s++ = ':';
-  while (uf) {
-    *s++ = ' ';
-    for (t = stream->user_flags[find_rightmost_bit (&uf)]; *t; *s++ = *t++);
-  }
-  *s++ = '\n';
-  if (flag) {			/* want to include UID? */
-    char stack[64];
-    char *p = stack;
-				/* push UID digits on the stack */
-    unsigned long n = elt->private.uid;
-    do *p++ = (char) (n % 10) + '0';
-    while (n /= 10);
-    *s++ = 'X'; *s++ = '-'; *s++ = 'U'; *s++ = 'I'; *s++ = 'D'; *s++ = ':';
-    *s++ = ' ';
-				/* pop UID from stack */
-    while (p > stack) *s++ = *--p;
+  if (!stream->uid_nosticky) {	/* cretins with no life can't use this */
+    *s++ = 'X'; *s++ = '-'; *s++ = 'K'; *s++ = 'e'; *s++ = 'y'; *s++ = 'w';
+    *s++ = 'o'; *s++ = 'r'; *s++ = 'd'; *s++ = 's'; *s++ = ':';
+    while (uf) {
+      *s++ = ' ';
+      for (t = stream->user_flags[find_rightmost_bit (&uf)]; *t; *s++ = *t++);
+    }
     *s++ = '\n';
+    if (flag) {			/* want to include UID? */
+      char stack[64];
+      char *p = stack;
+				/* push UID digits on the stack */
+      unsigned long n = elt->private.uid;
+      do *p++ = (char) (n % 10) + '0';
+      while (n /= 10);
+      *s++ = 'X'; *s++ = '-'; *s++ = 'U'; *s++ = 'I'; *s++ = 'D'; *s++ = ':';
+      *s++ = ' ';
+				/* pop UID from stack */
+      while (p > stack) *s++ = *--p;
+      *s++ = '\n';
+    }
   }
   *s++ = '\n'; *s = '\0';	/* end of extended message status */
   return s - status;		/* return size of resulting string */
@@ -1602,8 +1609,8 @@ long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp)
   if (nexp) *nexp = 0;		/* initially nothing expunged */
 				/* open scratch file */
   if (!(f = tmpfile ())) return unix_punt_scratch (NIL);
-				/* write pseudo-header */
-  if (!unix_fwrite (f,LOCAL->buf,unix_pseudo (stream,LOCAL->buf),&size))
+  if (!(stream->uid_nosticky ||	/* write pseudo-header */
+	unix_fwrite (f,LOCAL->buf,unix_pseudo (stream,LOCAL->buf),&size)))
     return unix_punt_scratch (f);
   if (nexp) {			/* expunging */
     for (i = 1; i <= stream->nmsgs; i++)

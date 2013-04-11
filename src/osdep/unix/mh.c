@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	3 June 1998
+ * Last Edited:	13 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -54,7 +54,7 @@ extern int errno;		/* just in case */
 DRIVER mhdriver = {
   "mh",				/* driver name */
 				/* driver flags */
-  DR_MAIL|DR_LOCAL|DR_NOFAST|DR_NAMESPACE,
+  DR_MAIL|DR_LOCAL|DR_NOFAST|DR_NAMESPACE|DR_NOSTICKY,
   (DRIVER *) NIL,		/* next driver */
   mh_valid,			/* mailbox is valid for us */
   mh_parameters,		/* manipulate parameters */

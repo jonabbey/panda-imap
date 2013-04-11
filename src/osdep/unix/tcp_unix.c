@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	1 July 1998
+ * Last Edited:	16 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -135,8 +135,10 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   char hostname[MAILTMPLEN];
   char tmp[MAILTMPLEN];
   struct servent *sv = service ? getservbyname (service,"tcp") : NIL;
-				/* copy port number in network format */
-  sin.sin_port = sv ? sv->s_port : htons (port);
+				/* user service name port */
+  if (sv) port = ntohs (sin.sin_port = sv->s_port);
+ 				/* copy port number in network format */
+  else sin.sin_port = htons (port);
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */
@@ -577,7 +579,7 @@ char *tcp_remotehost (TCPSTREAM *stream)
     struct hostent *he;
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
-    if (getpeername (stream->tcpsi,(struct sockaddr *) &sin,&sinlen))
+    if (getpeername (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen))
       s = stream->host;
 #ifndef DISABLE_REVERSE_DNS_LOOKUP
     /* Guarantees that the client will have the same string as the server does
@@ -626,7 +628,7 @@ char *tcp_localhost (TCPSTREAM *stream)
     int sinlen = sizeof (struct sockaddr_in);
 				/* get socket address */
     if ((stream->port & 0xffff000) ||
-	getsockname (stream->tcpsi,(struct sockaddr *) &sin,&sinlen))
+	getsockname (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen))
       s = mylocalhost ();	/* not a socket or failed, use my name */
 #ifndef DISABLE_REVERSE_DNS_LOOKUP
     /* Guarantees that the client will have the same string as the server will
@@ -661,7 +663,8 @@ char *tcp_clienthost ()
     struct hostent *he;
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
-    if (getpeername (0,(struct sockaddr *) &sin,&sinlen)) s = "UNKNOWN";
+    if (getpeername (0,(struct sockaddr *) &sin,(void *) &sinlen))
+      s = "UNKNOWN";
 #ifndef DISABLE_REVERSE_DNS_LOOKUP
     /* Includes both client name and IP address in syslog() output. */
     else if (he = gethostbyaddr ((char *) &sin.sin_addr,
@@ -691,7 +694,8 @@ char *tcp_serverhost ()
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
 				/* get socket address */
-    if (getsockname (0,(struct sockaddr *) &sin,&sinlen)) s = mylocalhost ();
+    if (getsockname (0,(struct sockaddr *) &sin,(void *) &sinlen))
+      s = mylocalhost ();
 #ifndef DISABLE_REVERSE_DNS_LOOKUP
     /* Guarantees that the server will have the same string as the client does
      * from calling tcp_remotehost ().

@@ -16,8 +16,8 @@ Documentation:
 Sources:
  . Makefile		master makefile for UNIX
  . makefile.nt		master makefile for NT/Win32
+ . makefile.nt		master makefile for NT/Win32 using Kerberos V
  . makefile.wce		master makefile for Windows CE
- . src			portable C sources
  . src/ansilib		pre-processed ANSI library routines
  . src/c-client		pre-processed c-client sources
  . src/charset		pre-processed character set conversion tables

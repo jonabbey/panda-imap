@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	29 April 1997
- * Last Edited:	2 May 1997
+ * Last Edited:	15 July 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -34,6 +34,7 @@
  */
  
 #include <signal.h>
+#include <string.h>
 
 #ifndef SA_RESTART
 #define SA_RESTART 0

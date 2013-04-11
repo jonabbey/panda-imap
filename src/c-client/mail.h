@@ -199,6 +199,8 @@
 #define SET_MHPATH (long) 533
 #define GET_ONETIMEEXPUNGEATPING (long) 534
 #define SET_ONETIMEEXPUNGEATPING (long) 535
+#define GET_USERHASNOLIFE (long) 536
+#define SET_USERHASNOLIFE (long) 537
 
 /* Driver flags */
 
@@ -212,6 +214,7 @@
 #define DR_LOWMEM (long) 128	/* low amounts of memory available */
 #define DR_LOCKING (long) 256	/* driver does locking */
 #define DR_CRLF (long) 512	/* driver internal form uses CRLF newlines */
+#define DR_NOSTICKY (long) 1024	/* driver does not support sticky UIDs */
 
 
 /* Cache management function codes */
@@ -733,6 +736,7 @@ typedef struct mail_stream {
   unsigned int perm_answered :1;/* permanent Answered flag */
   unsigned int perm_draft : 1;	/* permanent Draft flag */
   unsigned int kwd_create : 1;	/* can create new keywords */
+  unsigned int uid_nosticky : 1;/* UIDs are not preserved */
   unsigned long perm_user_flags;/* mask of permanent user flags */
   unsigned long gensym;		/* generated tag */
   unsigned long nmsgs;		/* # of associated msgs */

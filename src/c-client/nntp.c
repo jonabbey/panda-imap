@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	19 May 1998
+ * Last Edited:	16 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -474,7 +474,6 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
 
 				/* have a session, log in if have user name */
   if (mb.user[0] && !nntp_send_auth_work (nstream,&mb,tmp)) {
-    mm_log (nstream->reply,ERROR);
     nntp_close (nstream);	/* punt stream */
     return NIL;
   }
@@ -1007,34 +1006,55 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 			    unsigned long port,long options)
 {
   SENDSTREAM *stream = NIL;
-  long reply;
   NETSTREAM *netstream;
+  NETMBX mb;
+  char tmp[MAILTMPLEN];
+  long reply;
   if (!(hostlist && *hostlist)) mm_log ("Missing NNTP service host",ERROR);
   else do {			/* try to open connection */
-    if (netstream = nntp_defaultport ?
-	net_open (dv,*hostlist,NIL,nntp_defaultport) :
-	net_open (dv,*hostlist,service,port)) {
-      stream = (SENDSTREAM *) fs_get (sizeof (SENDSTREAM));
+    sprintf (tmp,"{%.1000s/%.20s}",*hostlist,service ? service : "nntp");
+    if (!mail_valid_net_parse (tmp,&mb) || mb.anoflag || mb.secflag) {
+      sprintf (tmp,"Invalid host specifier: %.80s",*hostlist);
+      mm_log (tmp,ERROR);
+    }
+    else {			/* did user supply port or service? */
+      if (mb.port) netstream = net_open (dv,mb.host,NIL,mb.port);
+      else if (nntp_defaultport)/* is there a configured override? */
+	netstream = net_open (dv,mb.host,NIL,nntp_defaultport);
+      else netstream = net_open (dv,mb.host,service,port);
+
+      if (netstream) {
+	stream = (SENDSTREAM *) fs_get (sizeof (SENDSTREAM));
 				/* initialize stream */
-      memset ((void *) stream,0,sizeof (SENDSTREAM));
-      stream->netstream = netstream;
-      stream->debug = (options & OP_DEBUG) ? T : NIL;
+	memset ((void *) stream,0,sizeof (SENDSTREAM));
+	stream->netstream = netstream;
+	stream->debug = (mb.dbgflag || (options & OP_DEBUG)) ? T : NIL;
 				/* get server greeting */
-      reply = nntp_reply (stream);
-				/* if just want to read, either code is OK */
-      if ((options & OP_READONLY) &&
-	  ((reply == NNTPGREET) || (NNTP.post = (reply == NNTPGREETNOPOST)))) {
-	mm_notify (NIL,stream->reply + 4,(long) NIL);
-	reply = NNTPGREET;	/* coerce test */
-      }
-      if (reply != NNTPGREET) {	/* got successful connection? */
-	mm_log (stream->reply,ERROR);
-	stream = nntp_close (stream);
+	switch (reply = nntp_reply (stream)) {
+	case NNTPGREET:		/* allow posting */
+	  NNTP.post = T;
+	  mm_notify (NIL,stream->reply + 4,(long) NIL);
+	  break;
+	case NNTPGREETNOPOST:	/* posting not allowed, must be readonly */
+	  if (options & OP_READONLY) {
+	    mm_notify (NIL,stream->reply + 4,(long) NIL);
+	    break;
+	  }
+				/* falls through */
+	default:		/* anything else is an error */
+	  mm_log (stream->reply,ERROR);
+	  stream = nntp_close (stream);
+	}
       }
     }
   } while (!stream && *++hostlist);
+  if (stream) {			/* got a live stream? */
 				/* some silly servers require this */
-  if (stream) nntp_send (stream,"MODE","READER");
+    nntp_send (stream,"MODE","READER");
+				/* authenticate if requested */
+    if (mb.user[0] && !nntp_send_auth_work (stream,&mb,tmp))
+      stream = nntp_close (stream);
+  }
   return stream;
 }
 
@@ -1179,8 +1199,10 @@ long nntp_send_auth_work (SENDSTREAM *stream,NETMBX *mb,char *tmp)
       i = nntp_send_work (stream,"AUTHINFO PASS",tmp);
 				/* successful authentication */
     if (i == NNTPAUTHED) return T;
+    mm_log (stream->reply,WARN);
   }
   while ((i != NNTPSOFTFATAL) && (trial < nntp_maxlogintrials));
+  mm_log ("Too many NNTP authentication failures",ERROR);
   return NIL;			/* authentication failed */
 }
 

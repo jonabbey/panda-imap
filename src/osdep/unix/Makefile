@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	29 June 1998
+# Last Edited:	16 July 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -44,8 +44,8 @@ AFSDIR=/usr/afsws
 AFSCFLAGS=-Dexit=afs_exit -D_exit=_afs_exit -I$(AFSDIR)/include
 AFSLIB=$(AFSDIR)/lib
 AFSLDFLAGS=-L$(AFSLIB)/afs -L$(AFSLIB)\
- -lkauth -lprot -lubik -lauth -lrxkad -lsys -lrx -llwp -ldes -lcom_err\
- $(AFSLIB)/afs/util.a -laudit
+ -lkauth -lprot -lubik -lauth -lrxkad -lrx -llwp -ldes -lcom_err\
+ $(AFSLIB)/afs/util.a -laudit -lsys
 DCECFLAGS= -DDCE_MINIMAL -DPASSWD_OVERRIDE=\"/opt/pop3/passwd/passwd\"
 DCELDFLAGS= -ldce
 
@@ -313,9 +313,10 @@ isc:	# Interactive
 	 RANLIB=true
 
 lnx:	# Linux non-shadow passwords
-	@echo You are building for Linux *without* shadow passwords.
-	@echo If your system has shadow passwords you must use slx
-	@echo or sl5 instead!
+	@echo You are building for traditional Linux *without* shadow
+	@echo passwords and with the crypt function in the C library.
+	@echo If your system has shadow passwords, or if crypt is not
+	@echo in the C library, you must use slx or sl5 instead!
 	$(BUILD) OS=$@ SIGTYPE=psx \
 	 SPOOLDIR=/var/spool \
 	 RSHPATH=/usr/bin/rsh \
@@ -560,14 +561,14 @@ build:	clean once $(ARCHIVE)
 all:	$(ARCHIVE)
 
 $(ARCHIVE): $(BINARIES)
-	$(RM) $(ARCHIVE) || true
+	sh -c '$(RM) $(ARCHIVE) || true'
 	@cat ARCHIVE
 	@$(SH) ARCHIVE
 
 # Cleanup
 
 clean:
-	$(RM) auths.c flockbsd.c linkage.[ch] siglocal.c osdep*.[ch] *.o ARCHIVE *FLAGS *TYPE $(ARCHIVE) || true
+	sh -c '$(RM) auths.c flockbsd.c linkage.[ch] siglocal.c osdep*.[ch] *.o ARCHIVE *FLAGS *TYPE $(ARCHIVE) || true'
 
 
 # Dependencies
@@ -616,7 +617,7 @@ osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	$(CC) $(CFLAGS) `cat OSCFLAGS` -c osdep.c
 
 osdep.c: osdepbas.c osdepckp.c osdeplog.c
-	$(RM) osdep.c || true
+	sh -c '$(RM) osdep.c || true'
 	cat osdepbas.c osdepckp.c osdeplog.c > osdep.c
 
 flockbsd.c:	# cretin Linux
@@ -626,7 +627,7 @@ siglocal.c:	# cretin Linux
 
 # Once-only environment setup
 
-once:	onceenv ckp$(PASSWDTYPE) flockbsd.c osdep.c $(EXTRAAUTHENTICATORS) 
+once:	onceenv ckp$(PASSWDTYPE) osdep.c $(EXTRAAUTHENTICATORS) 
 
 onceenv:
 	@echo Once-only environment setup...
@@ -644,7 +645,7 @@ onceenv:
 	$(LN) os_$(OS).c osdepbas.c
 	$(LN) log_$(LOGINPW).c osdeplog.c
 	$(LN) sig_$(SIGTYPE).c siglocal.c
-	sh -c '(test -f /usr/include/sys/statvfs.h && $(LN) flocksun.c flockbsd.c) || $(LN) flocksv4.c flockbsd.c'
+	sh -c '(test -f /usr/include/sys/statvfs.h -a $(OS) != sc5 -a $(OS) != sco) && $(LN) flocksun.c flockbsd.c || $(LN) flocksv4.c flockbsd.c'
 
 # Password checkers
 

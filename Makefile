@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	28 April 1998
+# Last Edited:	14 July 1998
 #
 # Copyright 1998 by the University of Washington
 #
@@ -142,7 +142,7 @@ all:	c-client rebuild bundled
 # hpx	HP-UX 10.x
 # hxd	HP-UX 10.x with DCE security
 # isc	Interactive Systems
-# lnx	Linux
+# lnx	Linux with crypt() in the C library (see slx and sl5)
 # lyn	LynxOS
 # mct	MachTen
 # mnt	Atari ST Mint (not MacMint)
@@ -158,8 +158,8 @@ all:	c-client rebuild bundled
 # sco	Santa Cruz Operation
 # shp	HP-UX with Trusted Computer Base
 # sgi	Silicon Graphics IRIX
-# sl5	Linux with shadow password security (libc5 version)
-# slx	Linux with shadow password security (glibc version)
+# sl5	Linux using -lcrypt to get the crypt() function
+# slx	Linux using -lshadow to get the crypt() function
 # snx	Siemens Nixdorf SININX or Reliant UNIX
 # sol	Solaris (won't work unless "ucbcc" works -- use gso instead)
 # sos	OSF/1 with SecureWare
@@ -269,7 +269,7 @@ rebuild:
 	$(CD) c-client;$(MAKE) all CC=`cat CCTYPE` CFLAGS="`cat CFLAGS`"
 
 rebuildclean:
-	$(RM) rebuild || true
+	sh -c '$(RM) rebuild || true'
 
 bundled:
 	@echo Building bundled tools...
@@ -279,7 +279,7 @@ bundled:
 
 clean:
 	@echo Removing old processed sources and binaries...
-	$(RM) an ua OSTYPE c-client mtest imapd ipopd || true
+	sh -c '$(RM) an ua OSTYPE c-client mtest imapd ipopd || true'
 	$(CD) tools;$(MAKE) clean
 
 

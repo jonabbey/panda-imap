@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	25 March 1998
+ * Last Edited:	13 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -66,7 +66,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "3.44";		/* server version */
+char *version = "4.46";		/* server version */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -257,7 +257,8 @@ short c_helo (char *t,int argc,char *argv[])
 {
   char *s,*u,*p;
   char tmp[TMPLEN];
-  if (!(t && *t && (u = strtok (t," ")) && (p = strtok (NIL,"\015\012")))) {
+  if ((!(t && *t && (u = strtok (t," ")) && (p = strtok (NIL,"\015\012")))) ||
+      (strlen (p) >= TMPLEN)) {	/* get user name and password */
     puts ("- Missing user or password\015");
     return DONE;
   }
@@ -574,8 +575,9 @@ void mm_dlog (char *string)
 void mm_login (NETMBX *mb,char *username,char *password,long trial)
 {
 				/* set user name */
-  strncpy (username,*mb->user ? mb->user : user,NETMAXUSER);
-  strncpy (password,pass,256);	/* and password */
+  strncpy (username,*mb->user ? mb->user : user,NETMAXUSER-1);
+  strncpy (password,pass,255);	/* and password */
+  username[NETMAXUSER] = password[255] = '\0';
 }
 
 /* About to enter critical code

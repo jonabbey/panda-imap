@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	10 July 1998
+ * Last Edited:	16 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -346,17 +346,18 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
 DRIVER *mail_valid (MAILSTREAM *stream,char *mailbox,char *purpose)
 {
   char tmp[MAILTMPLEN];
-  DRIVER *factory;
-  for (factory = maildrivers; factory && 
-       ((factory->flags & DR_DISABLE) ||
-	((factory->flags & DR_LOCAL) && (*mailbox == '{')) ||
-	!(*factory->valid) (mailbox));
-       factory = factory->next);
+  DRIVER *factory = NIL;
+  if (strlen (mailbox) < (NETMAXHOST+NETMAXUSER+NETMAXMBX+NETMAXSRV+50))
+    for (factory = maildrivers; factory && 
+	 ((factory->flags & DR_DISABLE) ||
+	  ((factory->flags & DR_LOCAL) && (*mailbox == '{')) ||
+	  !(*factory->valid) (mailbox));
+	 factory = factory->next);
 				/* must match stream if not dummy */
   if (factory && stream && (stream->dtb != factory))
     factory = strcmp (factory->name,"dummy") ? NIL : stream->dtb;
   if (!factory && purpose) {	/* if want an error message */
-    sprintf (tmp,"Can't %s %s: %s",purpose,mailbox,(*mailbox == '{') ?
+    sprintf (tmp,"Can't %s %.80s: %s",purpose,mailbox,(*mailbox == '{') ?
 	     "invalid remote specification" : "no such mailbox");
     mm_log (tmp,ERROR);
   }
@@ -427,7 +428,7 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
 	i = strlen (v);		/* length of argument */
 	if (!strcmp (s,"service") && (i < NETMAXSRV)) {
 	  if (*mb->service) return NIL;
-	  else strcpy (mb->service,v);
+	  else strcpy (mb->service,lcase (v));
 	}
 	else if (!strcmp (s,"user") && (i < NETMAXUSER)) {
 	  if (*mb->user) return NIL;
@@ -621,7 +622,7 @@ long mail_create (MAILSTREAM *stream,char *mailbox)
     d = stream->dtb;
   else if ((*mailbox != '{') && (ts = default_proto (NIL))) d = ts->dtb;
   else {			/* failed utterly */
-    sprintf (tmp,"Can't create mailbox %s: indeterminate format",mailbox);
+    sprintf (tmp,"Can't create mailbox %.80s: indeterminate format",mailbox);
     mm_log (tmp,ERROR);
     return NIL;
   }
@@ -663,7 +664,8 @@ long mail_rename (MAILSTREAM *stream,char *old,char *newname)
   char tmp[MAILTMPLEN];
   DRIVER *dtb = mail_valid (stream,old,"rename mailbox");
   if ((*old != '{') && (*old != '#') && mail_valid (NIL,newname,NIL)) {
-    sprintf (tmp,"Can't rename to mailbox %s: mailbox already exists",newname);
+    sprintf (tmp,"Can't rename to mailbox %.80s: mailbox already exists",
+	     newname);
     mm_log (tmp,ERROR);
   }
   else SAFE_DISPATCH (dtb,ret,mbxren,(stream,old,newname))
@@ -795,6 +797,7 @@ MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
     stream->secure = (options & OP_SECURE) ? T : NIL;
     stream->perm_seen = stream->perm_deleted = stream->perm_flagged =
       stream->perm_answered = stream->perm_draft = stream->kwd_create = NIL;
+    stream->uid_nosticky = (d->flags & DR_NOSTICKY) ? T : NIL;
 				/* have driver open, flush if failed */
     if (!(*d->open) (stream)) stream = mail_close (stream);
   }
@@ -1133,6 +1136,7 @@ char *mail_fetch_header (MAILSTREAM *stream,unsigned long msgno,char *section,
   MESSAGECACHE *elt;
   char tmp[MAILTMPLEN];
   if (len) *len = 0;		/* default return size */
+  if (section && (strlen (section) > (MAILTMPLEN - 20))) return "";
   if (flags & FT_UID) {		/* UID form of call */
     if (msgno = mail_msgno (stream,msgno)) flags &= ~FT_UID;
     else return "";		/* must get UID/msgno map first */
@@ -1222,6 +1226,7 @@ char *mail_fetch_text (MAILSTREAM *stream,unsigned long msgno,char *section,
   char tmp[MAILTMPLEN];
   unsigned long i;
   if (len) *len = 0;		/* default return size */
+  if (section && (strlen (section) > (MAILTMPLEN - 20))) return "";
   if (flags & FT_UID) {		/* UID form of call */
     if (msgno = mail_msgno (stream,msgno)) flags &= ~FT_UID;
     else return "";		/* must get UID/msgno map first */
@@ -1276,6 +1281,7 @@ char *mail_fetch_mime (MAILSTREAM *stream,unsigned long msgno,char *section,
   BODY *b;
   char tmp[MAILTMPLEN];
   if (len) *len = 0;		/* default return size */
+  if (section && (strlen (section) > (MAILTMPLEN - 20))) return "";
   if (flags & FT_UID) {		/* UID form of call */
     if (msgno = mail_msgno (stream,msgno)) flags &= ~FT_UID;
     else return "";		/* must get UID/msgno map first */
@@ -1415,6 +1421,7 @@ long mail_partial_text (MAILSTREAM *stream,unsigned long msgno,char *section,
   unsigned long i;
   mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
   if (!mg) fatal ("mail_partial_text() called without a mailgets!");
+  if (section && (strlen (section) > (MAILTMPLEN - 20))) return NIL;
   if (flags & FT_UID) {		/* UID form of call */
     if (msgno = mail_msgno (stream,msgno)) flags &= ~FT_UID;
     else return NIL;		/* must get UID/msgno map first */
@@ -1636,7 +1643,8 @@ void mail_fetchfrom (char *s,MAILSTREAM *stream,unsigned long msgno,
 				/* get first from address from envelope */
   while (adr && !adr->host) adr = adr->next;
   if (adr) {			/* if a personal name exists use it */
-    if (!(t = adr->personal)) sprintf (t = tmp,"%s@%s",adr->mailbox,adr->host);
+    if (!(t = adr->personal))
+      sprintf (t = tmp,"%.256s@%.256s",adr->mailbox,adr->host);
     memcpy (s,t,(size_t) min (length,(long) strlen (t)));
   }
 }
@@ -2484,13 +2492,14 @@ unsigned long mail_filter (char *text,unsigned long len,STRINGLIST *lines,
   STRINGLIST *hdrs;
   int notfound;
   unsigned long i;
-  char c,*s,*t,tmp[MAILTMPLEN],tst[MAILTMPLEN];
+  char c,*s,*e,*t,tmp[MAILTMPLEN],tst[MAILTMPLEN];
   char *src = text;
   char *dst = src;
   char *end = text + len;
   while (src < end) {		/* process header */
 				/* slurp header line name */
-    for (s = src,t = tmp; (s < end) && (*s != ' ')  && (*s != '\t') &&
+    for (s = src, e = s + MAILTMPLEN - 1,t = tmp;
+	 (s < end) && (s < e) && (*s != ' ') && (*s != '\t') &&
 	 (*s != ':') && (*s != '\015') && (*s != '\012'); *t++ = *s++);
     *t = '\0';			/* tie off */
     notfound = T;		/* not found yet */
@@ -2739,6 +2748,7 @@ long mail_search_body (MAILSTREAM *stream,unsigned long msgno,BODY *body,
   SIZEDTEXT st,h;
   PART *part;
   PARAMETER *param;
+  if (prefix && (strlen (prefix) > (MAILTMPLEN - 20))) return NIL;
   sprintf (sect,"%s%lu",prefix ? prefix : "",section++);
   if (flags && prefix) {	/* want to search MIME header too? */
     st.data = (unsigned char *) mail_fetch_mime (stream,msgno,sect,&st.size,
@@ -2880,21 +2890,23 @@ long mail_search_addr (ADDRESS *adr,STRINGLIST *st)
 				/* never an error or next */
     tadr.error = NIL,tadr.next = NIL;
 				/* write address list */
-    for (txt.size = k = 0,a = adr; a; a = a->next) {
-      tadr.personal = a->personal;
-      tadr.adl = a->adl;
-      tadr.mailbox = a->mailbox;
-      tadr.host = a->host;
-      tmp[0] = '\0';
-      rfc822_write_address (tmp,&tadr);
+    for (txt.size = 0,a = adr; a; a = a->next) {
+      k = 2*strlen (tadr.mailbox = a->mailbox);
+      if (tadr.personal = a->personal) k += 3 + 2*strlen (a->personal);
+      if (tadr.adl = a->adl) k += 1 + 2*strlen (a->adl);
+      if (tadr.host = a->host) k += 1 + 2*strlen (a->host);
+      if (k < MAILTMPLEN) {	/* ignore ridiculous addresses */
+	tmp[0] = '\0';
+	rfc822_write_address (tmp,&tadr);
 				/* resize buffer if necessary */
-      if ((k = strlen (tmp)) > (i - txt.size))
-	fs_resize ((void **) &txt.data,SEARCHBUFSLOP + (i += SEARCHBUFLEN));
+	if ((k = strlen (tmp)) > (i - txt.size))
+	  fs_resize ((void **) &txt.data,SEARCHBUFSLOP + (i += SEARCHBUFLEN));
 				/* add new address */
-      memcpy (txt.data + txt.size,tmp,k);
-      txt.size += k;
+	memcpy (txt.data + txt.size,tmp,k);
+	txt.size += k;
 				/* another address follows */
-      if (a->next) txt.data[txt.size++] = ',';
+	if (a->next) txt.data[txt.size++] = ',';
+      }
     }
     txt.data[txt.size] = '\0';	/* tie off string */
     ret = mail_search_header (&txt,st);
@@ -4309,22 +4321,28 @@ NETSTREAM *net_open (NETDRIVER *dv,char *host,char *service,unsigned long prt)
 {
   NETSTREAM *stream = NIL;
   void *tstream;
-  char *s,*hst,tmp[MAILTMPLEN];
+  char *s,hst[NETMAXHOST],tmp[MAILTMPLEN];
+  size_t hs;
   if (!dv) dv = &tcpdriver;	/* default to TCP driver */
-  if (s = strchr (host,':')) {	/* port number specified? */
-    size_t hs = s++ - host;
+				/* port number specified? */
+  if ((s = strchr (host,':')) && ((hs = s++ - host) < NETMAXHOST)) {
     prt = strtoul (s,&s,10);	/* parse port */
     if (s && *s) {
       sprintf (tmp,"Junk after port number: %.80s",s);
       mm_log (tmp,ERROR);
       return NIL;
     }
-    hst = strncpy ((char *) fs_get (hs + 1),host,hs);
+    strncpy (hst,host,hs);
     hst[hs] = '\0';		/* tie off port */
     tstream = (*dv->open) (hst,NIL,prt);
-    fs_give ((void **) &hst);
   }
-  else tstream = (*dv->open) (host,service,prt);
+  else if (!s && (strlen (host) < NETMAXHOST))
+    tstream = (*dv->open) (host,service,prt);
+  else {
+    sprintf (tmp,"Invalid host name: %.80s",host);
+    mm_log (tmp,ERROR);
+    return NIL;
+  }
   if (tstream) {
     stream = (NETSTREAM *) fs_get (sizeof (NETSTREAM));
     stream->stream = tstream;

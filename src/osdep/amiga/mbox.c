@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	28 March 1998
+ * Last Edited:	14 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -294,7 +294,7 @@ long mbox_ping (MAILSTREAM *stream)
 	      if (strcmp ((char *) mail_parameters (NIL,GET_SERVICENAME,NIL),
 			  "unknown"))
 		syslog (LOG_INFO,"%s host= %s",LOCAL->buf,tcp_clienthost ());
-	      else mm_log (LOCAL->buf,stream->nmsgs ? NIL : WARN);
+	      else mm_log (LOCAL->buf,WARN);
 	    }
 	  }
 	  unix_unlock (fd,NIL,lock);

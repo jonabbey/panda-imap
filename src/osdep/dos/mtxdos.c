@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	5 May 1998
+ * Last Edited:	13 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -57,7 +57,7 @@
 DRIVER mtxdriver = {
   "mtx",			/* driver name */
 				/* driver flags */
-  DR_LOCAL|DR_MAIL|DR_LOWMEM|DR_CRLF,
+  DR_LOCAL|DR_MAIL|DR_LOWMEM|DR_CRLF|DR_NOSTICKY,
   (DRIVER *) NIL,		/* next driver */
   mtx_valid,			/* mailbox is valid for us */
   mtx_parameters,		/* manipulate parameters */

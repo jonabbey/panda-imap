@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	5 May 1998
+ * Last Edited:	16 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -90,8 +90,10 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   char tmp[MAILTMPLEN];
   struct protoent *pt = getprotobyname ("ip");
   struct servent *sv = service ? getservbyname (service,"tcp") : NIL;
-				/* copy port number in network format */
-  sin.sin_port = sv ? sv->s_port : htons (port);
+				/* user service name port */
+  if (sv) port = ntohs (sin.sin_port = sv->s_port);
+ 				/* copy port number in network format */
+  else sin.sin_port = htons (port);
   /* The domain literal form is used (rather than simply the dotted decimal
      as with other Unix programs) because it has to be a valid "host name"
      in mailsystem terminology. */

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	3 July 1998
+ * Last Edited:	13 July 1998
  *
  * Copyright 1998 by the University of Washington
  *
@@ -83,7 +83,7 @@ typedef struct text_args {
 
 /* Global storage */
 
-char *version = "10.234";	/* version number of this server */
+char *version = "11.237";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 int state = LOGIN;		/* server state */
 int trycreate = 0;		/* saw a trycreate */
@@ -1054,6 +1054,9 @@ void ping_mailbox ()
 	    stream->uid_validity);
     printf ("* OK [UIDNEXT %lu] Predicted next UID\015\012",
 	    stream->uid_last + 1);
+    if (stream->uid_nosticky)
+      printf ("* NO [UIDNOTSTICKY] Non-permanent unique identifiers: %s\015\012",
+	      stream->mailbox);
     new_flags (stream,tmp);	/* send mailbox flags */
 				/* note readonly/write if possible change */
     if (curdriver) printf ("* OK [READ-%s] Mailbox status\015\012",
@@ -1065,7 +1068,7 @@ void ping_mailbox ()
 				/* don't do this if newsrc already did */
       if (!(curdriver->flags & DR_NEWS)) {
 				/* find first unseen message */
-	for (i = 1; i <= nmsgs && !mail_elt (stream,i)->seen; i++);
+	for (i = 1; i <= nmsgs && mail_elt (stream,i)->seen; i++);
 	if (i <= nmsgs)
 	  printf("* OK [UNSEEN %lu] %lu is first unseen message in %s\015\012",
 		 i,i,stream->mailbox);

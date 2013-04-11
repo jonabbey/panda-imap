@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	29 December 1997
+ * Last Edited:	13 July 1998
  *
- * Copyright 1997 by the University of Washington
+ * Copyright 1998 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -55,7 +55,8 @@ extern int errno;		/* just in case */
 
 DRIVER philedriver = {
   "phile",			/* driver name */
-  DR_LOCAL|DR_READONLY,		/* driver flags */
+				/* driver flags */
+  DR_LOCAL|DR_READONLY|DR_NOSTICKY,
   (DRIVER *) NIL,		/* next driver */
   phile_valid,			/* mailbox is valid for us */
   phile_parameters,		/* manipulate parameters */

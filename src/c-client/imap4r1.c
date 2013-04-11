@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	22 June 1998
+ * Last Edited:	17 July 1998
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -2686,6 +2686,8 @@ void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy)
 	stream->uid_validity = strtoul (s,NIL,10);
       else if (!strcmp (LOCAL->tmp,"UIDNEXT"))
 	stream->uid_last = strtoul (s,NIL,10) - 1;
+      else if (!strcmp (LOCAL->tmp,"UIDNOTSTICKY"))
+	stream->uid_nosticky = T;
       else if (!strcmp (LOCAL->tmp,"PERMANENTFLAGS") && (*s == '(') &&
 	       (LOCAL->tmp[i-1] == ')')) {
 	LOCAL->tmp[i-1] = '\0';	/* tie off flags */
