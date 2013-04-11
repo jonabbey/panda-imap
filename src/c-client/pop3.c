@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	18 October 2002
+ * Last Edited:	25 November 2002
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -715,9 +715,9 @@ char *pop3_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
   *size = 0;			/* initially no header size */
   if ((flags & FT_UID) && !(msgno = mail_msgno (stream,msgno))) return "";
 				/* have header text? */
-  if (!(elt = mail_elt (stream,msgno))->private.msg.header.text.data) {
-    elt->private.msg.header.text.size = pop3_cache (stream,elt);
-				/* read the header */
+  if (!(elt = mail_elt (stream,msgno))->private.msg.header.text.data &&
+      (elt->private.msg.header.text.size = pop3_cache (stream,elt)) &&
+      LOCAL->txt) {		/* read the header */
     fread (elt->private.msg.header.text.data = (unsigned char *)
 	   fs_get ((size_t) elt->private.msg.header.text.size + 1),
 	   (size_t) 1,(size_t) elt->private.msg.header.text.size,LOCAL->txt);
@@ -725,7 +725,8 @@ char *pop3_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
   }
 				/* return size of text */
   if (size) *size = elt->private.msg.header.text.size;
-  return (char *) elt->private.msg.header.text.data;
+  return elt->private.msg.header.text.data ?
+    (char *) elt->private.msg.header.text.data : "";
 }
 
 /* POP3 fetch body
@@ -767,12 +768,10 @@ unsigned long pop3_cache (MAILSTREAM *stream,MESSAGECACHE *elt)
     if (LOCAL->txt) fclose (LOCAL->txt);
     LOCAL->txt = NIL;
     LOCAL->msgno = LOCAL->hdrsize = 0;
-    if (pop3_send_num (stream,"RETR",elt->msgno)) {
+    if (pop3_send_num (stream,"RETR",elt->msgno) &&
+	(LOCAL->txt = netmsg_slurp (LOCAL->netstream,&elt->rfc822_size,
+				    &LOCAL->hdrsize)))
       LOCAL->msgno = elt->msgno;/* set as current message number */
-				/* load the cache */
-      LOCAL->txt = netmsg_slurp (LOCAL->netstream,&elt->rfc822_size,
-				 &LOCAL->hdrsize);
-    }
     else elt->deleted = T;
   }
   return LOCAL->hdrsize;

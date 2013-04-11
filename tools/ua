@@ -3,7 +3,7 @@
 BASE=`pwd`
 
 if [ ! -f tools/uahelper ]; then
-  cd tools;make
+  (cd tools;make)
 fi
 
 if [ ! -d $3 ]; then

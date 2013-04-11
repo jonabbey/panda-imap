@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	18 December 2001
+ * Last Edited:	2 December 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -57,7 +57,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2001.80";	/* server version */
+char *version = "2002.81";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -97,12 +97,14 @@ int main (int argc,char *argv[])
   char *s,*t;
   char tmp[TMPLEN];
   time_t autologouttime;
+  char *pgmname = (argc && argv[0]) ?
+    (((s = strrchr (argv[0],'/')) || (s = strrchr (argv[0],'\\'))) ?
+     s+1 : argv[0]) : "ipop3d";
 				/* set service name before linkage */
   mail_parameters (NIL,SET_SERVICENAME,(void *) "pop");
 #include "linkage.c"
 				/* initialize server */
-  server_init (((s = strrchr (argv[0],'/')) || (s = strrchr (argv[0],'\\'))) ?
-	       s+1 : argv[0],"pop3","pop3s",clkint,kodint,hupint,trmint);
+  server_init (pgmname,"pop3","pop3s",clkint,kodint,hupint,trmint);
   challenge[0] = '\0';		/* find the CRAM-MD5 authenticator */
   if (i = mail_lookup_auth_name ("CRAM-MD5",NIL)) {
     AUTHENTICATOR *a = mail_lookup_auth (i);
@@ -258,7 +260,7 @@ int main (int argc,char *argv[])
 	else if (!strcmp (s,"RPOP"))
 	  PSOUT ("-ERR Nice try, bunkie\015\012");
 	else if (!strcmp (s,"STLS")) {
-	  if (t = ssl_start_tls (argv[0])) {
+	  if (t = ssl_start_tls (pgmname)) {
 	    PSOUT ("-ERR STLS failed: ");
 	    PSOUT (t);
 	    CRLF;

@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- NeXT version
+ * Program:	Operating-system dependent routines -- MachTen version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -39,7 +39,6 @@ extern int errno;		/* just in case */
 #include "ftl_unix.c"
 #include "nl_unix.c"
 #include "env_unix.c"
-#define fork vfork
 #include "tcp_unix.c"
 #include "gr_wait4.c"
 #include "tz_bsd.c"

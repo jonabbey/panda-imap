@@ -1,7 +1,7 @@
 	   KNOWN BUGS/MISFEATURES/DEFICIENCIES IN THE IMAP TOOLKIT
-			Last Updated: 4 September 2002
+			Last Updated: 10 December 2002
 
-The following are known problems/deficiencies in the imap-2002 toolkit:
+The following are known problems/deficiencies in the imap-2002a toolkit:
  . Possible problems for some installations:
    . In some versions of Redhat Linux, SVR4-style timezone name lookup
       doesn't work properly due to a bug in glibc.  The workaround is to
@@ -14,7 +14,7 @@ The following are known problems/deficiencies in the imap-2002 toolkit:
       the SSLDIR variable, either by including a setting of EXTRASPECIALS
       in the make command line, e.g.
        build lnp SPECIALAUTHENTICATORS=ssl EXTRASPECIALS="SSLDIR=/usr/ssl"
-      or by editing imap-2002/src/osdep/unix/Makefile
+      or by editing imap-2002a/src/osdep/unix/Makefile
    . /tmp, /usr/tmp or /var/tmp (if present), and the mail spool directory
       must be protected 1777 (world write with sticky bit); otherwise
       mailbox locking and updates won't work.
@@ -54,11 +54,11 @@ The following are known problems/deficiencies in the imap-2002 toolkit:
       the public domain on September 6, 2000.  There is no longer any need to
       use RSAREF, and since RSAREF is slower than OpenSSL's RSA routines
       there's good reason not to.  If for some reason you still want to use
-      RSAREF, you will need to edit imap-2002/src/osdep/unix/Makefile to
+      RSAREF, you will need to edit imap-2002a/src/osdep/unix/Makefile to
       change SSLRSA to load libRSAglue and librsaref.
    . By default, the UNIX SSL build assumes that no name conflict exists
       between OpenSSL and Kerberos 5.  If you are using an older version
-      of Kerberos, you may need to edit imap-2002/src/osdep/unix/Makefile
+      of Kerberos, you may need to edit imap-2002a/src/osdep/unix/Makefile
       to change SSLCRYPTO so that it loads the OpenSSL libcrypto library
       explicitly as libcrypto.a.
    . By default, host names are canonicalized via gethostbyname() and

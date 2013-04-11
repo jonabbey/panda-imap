@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	18 November 2002
+ * Last Edited:	5 December 2002
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2002 University of Washington.
@@ -178,7 +178,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2002.332";	/* version number of this server */
+char *version = "2002.334";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
@@ -248,13 +248,15 @@ int main (int argc,char *argv[])
   char *s,*t,*u,*v,tmp[MAILTMPLEN];
   struct stat sbuf;
   time_t autologouttime = 0;
+  char *pgmname = (argc && argv[0]) ?
+    (((s = strrchr (argv[0],'/')) || (s = strrchr (argv[0],'\\'))) ?
+     s+1 : argv[0]) : "imapd";
 				/* set service name before linkage */
   mail_parameters (NIL,SET_SERVICENAME,(void *) "imap");
 #include "linkage.c"
   rfc822_date (tmp);		/* get date/time at startup */
 				/* initialize server */
-  server_init(((s = strrchr (argv[0],'/')) || (s = strrchr (argv[0],'\\'))) ?
-	      s+1 : argv[0],"imap","imaps",clkint,kodint,hupint,trmint);
+  server_init(pgmname,"imap","imaps",clkint,kodint,hupint,trmint);
 				/* forbid automatic untagged expunge */
   mail_parameters (NIL,SET_EXPUNGEATPING,NIL);
 				/* arm proxy copy callback */
@@ -481,7 +483,7 @@ int main (int argc,char *argv[])
 				/* start TLS security */
 	else if (!strcmp (cmd,"STARTTLS")) {
 	  if (arg) response = badarg;
-	  else if (lsterr = ssl_start_tls (argv[0])) response = lose;
+	  else if (lsterr = ssl_start_tls (pgmname)) response = lose;
 	}
 	else response =
 	  "%.80s BAD Command unrecognized/login please: %.80s\015\012";
@@ -3468,6 +3470,8 @@ long append_msg (MAILSTREAM *stream,void *data,char **flags,char **date,
     response = "%.80s BAD Missing message to %.80s\015\012";
   else if (!(i = strtoul (arg+1,&t,10)))
     response = "%.80s NO Empty message to %.80s\015\012";
+  else if (i > 0x7fffffff)	/* maybe relax this a little */
+    response = "%.80s NO Excessively large message to %.80s\015\012";
   else if ((*t != '}') || t[1]) response = badarg;
   else {			/* get a literal buffer */
     inliteral (ad->msg = (char *) fs_get (i+1),i);

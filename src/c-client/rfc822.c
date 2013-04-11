@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	14 November 2002
+ * Last Edited:	2 December 2002
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2002 University of Washington.
@@ -182,17 +182,18 @@ char *rfc822_write_address_full (char *dest,ADDRESS *adr,char *base)
     if (adr->host) {		/* ordinary address? */
       if (!(base && n)) {	/* only write if exact form or not in group */
 				/* simple case? */
-#ifdef RFC2822
-	if (!adr->personal) rfc822_address (dest,adr);
+#ifdef RFC2822			/* use phrase <route-addr> form if phrase */
+	if (adr->personal && *adr->personal) {
+	  rfc822_cat (dest,adr->personal,rspecials);
 #else				/* old code with A-D-L support */
-	if (!(adr->personal || adr->adl)) rfc822_address (dest,adr);
+	if (adr->personal && *adr->personal) || adr->adl) {
+	  rfc822_cat (dest,adr->personal ? adr->personal : "",rspecials);
 #endif
-	else {			/* no, must use phrase <route-addr> form */
-	  if (adr->personal) rfc822_cat (dest,adr->personal,rspecials);
 	  strcat (dest," <");	/* write address delimiter */
 	  rfc822_address (dest,adr);
 	  strcat (dest,">");	/* closing delimiter */
 	}
+	else rfc822_address (dest,adr);
 	if (adr->next && adr->next->mailbox) strcat (dest,", ");
       }
     }
@@ -1248,7 +1249,8 @@ ADDRESS *rfc822_parse_addrspec (char *string,char **ret,char *defaulthost)
     adr->host = cpystr (errhst);
 				/* default host if missing */
   if (!adr->host) adr->host = cpystr (defaulthost);
-  if (end && !adr->personal) {	/* try person name in comments if missing */
+				/* try person name in comments if missing */
+  if (end && !(adr->personal && *adr->personal)) {
     while (*end == ' ') ++end;	/* see if we can find a person name here */
     if ((*end == '(') && (s = rfc822_skip_comment (&end,LONGT)) && strlen (s))
       adr->personal = rfc822_cpy (s);
@@ -1583,10 +1585,10 @@ void rfc822_encode_body_7bit (ENVELOPE *env,BODY *body)
     case ENC7BIT:
       break;
     case ENC8BIT:
-      MM_LOG ("8-bit included message in 7-bit message body",WARN);
+      MM_LOG ("8-bit included message in 7-bit message body",PARSE);
       break;
     case ENCBINARY:
-      MM_LOG ("Binary included message in 7-bit message body",WARN);
+      MM_LOG ("Binary included message in 7-bit message body",PARSE);
       break;
     default:
       fatal ("Invalid rfc822_encode_body_7bit message encoding");
@@ -1651,7 +1653,7 @@ void rfc822_encode_body_8bit (ENVELOPE *env,BODY *body)
     case ENC8BIT:
       break;
     case ENCBINARY:
-      MM_LOG ("Binary included message in 8-bit message body",WARN);
+      MM_LOG ("Binary included message in 8-bit message body",PARSE);
       break;
     default:
       fatal ("Invalid rfc822_encode_body_7bit message encoding");
@@ -1732,7 +1734,7 @@ long rfc822_output_body (BODY *body,soutr_t f,void *s)
 
 void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
 {
-  char c;
+  char c,*s,tmp[MAILTMPLEN];
   void *ret = fs_get ((size_t) (*len = 4 + ((srcl * 3) / 4)));
   char *d = (char *) ret;
   int e;
@@ -1784,7 +1786,10 @@ void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
     switch (e++) {		/* check quantum position */
     case 3:			/* one = is good enough in quantum 3 */
 				/* make sure no data characters in remainder */
-      for (; srcl; --srcl) if (!(decode[*src++] & 0300)) {
+      for (; srcl; --srcl) switch (decode[*src++]) {
+      case JNK: case PAD:	/* ignore junk and extraneous padding */
+	break;
+      default:			/* valid BASE64 data character */
 	/* This indicates bad MIME.  One way that it can be caused is if
 	   a single-section message was BASE64 encoded and then something
 	   (e.g. a mailing list processor) appended text.  The problem is
@@ -1792,11 +1797,12 @@ void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
 	   to detect the end of the data.  Consequently, prudent software
 	   will always encapsulate a BASE64 segment inside a MULTIPART.
 	   */
-	char *s,tmp[MAILTMPLEN];
 	sprintf (tmp,"Possible data truncation in rfc822_base64(): %.80s",
 		 (char *) src - 1);
 	if (s = strpbrk (tmp,"\015\012")) *s = NIL;
-	mm_log (tmp,WARN);
+	mm_log (tmp,PARSE);
+	srcl = 1;		/* don't issue any more messages */
+	break;
       }
       break;
     case 2:			/* expect a second = in quantum 2 */

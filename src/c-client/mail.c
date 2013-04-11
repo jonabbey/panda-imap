@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	28 October 2002
+ * Last Edited:	4 December 2002
  *
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2002 University of Washington.
@@ -3376,10 +3376,10 @@ long mail_search_addr (ADDRESS *adr,STRINGLIST *st)
     tadr.error = NIL,tadr.next = NIL;
 				/* write address list */
     for (txt.size = 0,a = adr; a; a = a->next) {
-      k = (tadr.mailbox = a->mailbox) ? 2*strlen (a->mailbox) : 3;
+      k = (tadr.mailbox = a->mailbox) ? 2 + 2*strlen (a->mailbox) : 3;
       if (tadr.personal = a->personal) k += 3 + 2*strlen (a->personal);
-      if (tadr.adl = a->adl) k += 1 + 2*strlen (a->adl);
-      if (tadr.host = a->host) k += 1 + 2*strlen (a->host);
+      if (tadr.adl = a->adl) k += 3 + 2*strlen (a->adl);
+      if (tadr.host = a->host) k += 3 + 2*strlen (a->host);
       if (k < MAILTMPLEN) {	/* ignore ridiculous addresses */
 	tmp[0] = '\0';
 	rfc822_write_address (tmp,&tadr);
@@ -4380,7 +4380,7 @@ THREADNODE *mail_thread_references (MAILSTREAM *stream,char *charset,
 				/* last resort */
 	if (!s->date && !(s->date = s->arrival)) {
 				/* internal date unknown but can get? */
-	  if (!(elt = mail_elt (stream,i))->day &&
+	  if (!(elt = mail_elt (stream,s->num))->day &&
 	      !(stream->dtb->flags & DR_NOINTDATE)) {
 	    sprintf (tmp,"%lu",s->num);
 	    mail_fetch_fast (stream,tmp,NIL);

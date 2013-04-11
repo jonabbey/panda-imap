@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	20 November 2001
+ * Last Edited:	2 December 2002
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2002 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -51,7 +51,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2001.64";	/* server version */
+char *version = "2002.65";	/* server version */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -86,6 +86,9 @@ int main (int argc,char *argv[])
 {
   char *s,*t;
   char cmdbuf[TMPLEN];
+  char *pgmname = (argc && argv[0]) ?
+    (((s = strrchr (argv[0],'/')) || (s = strrchr (argv[0],'\\'))) ?
+     s+1 : argv[0]) : "ipop2d";
 				/* set service name before linkage */
   mail_parameters (NIL,SET_SERVICENAME,(void *) "pop");
 #include "linkage.c"
@@ -95,8 +98,7 @@ int main (int argc,char *argv[])
     _exit (1);
   }
 				/* initialize server */
-  server_init (((s = strrchr (argv[0],'/')) || (s = strrchr (argv[0],'\\'))) ?
-	       s+1 : argv[0],"pop",NIL,clkint,kodint,hupint,trmint);
+  server_init (pgmname,"pop",NIL,clkint,kodint,hupint,trmint);
   /* There are reports of POP2 clients which get upset if anything appears
    * between the "+" and the "POP2" in the greeting.
    */

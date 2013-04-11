@@ -1,5 +1,5 @@
 			 BUILD AND INSTALLATION NOTES
-			 Last Updated: 6 November 2002
+			Last Updated: 10 December 2002
 
 Table of Contents:
 1. UNIX Build Notes
@@ -24,12 +24,12 @@ current IESG security requirements.
      A change has been made from previous versions of the IMAP toolkit.
 There are no longer separate ANSI and non-ANSI source trees.  Nor is it
 possible to build directly on the source tree.  Instead, you *must* build
-through the top-level imap-2002/Makefile, which will run a "process" step the
-first time and create the imap-2002/c-client, imap-2002/ipopd, and
-imap-2002/imapd directories in which building actually takes place.
+through the top-level imap-2002a/Makefile, which will run a "process" step the
+first time and create the imap-2002a/c-client, imap-2002a/ipopd, and
+imap-2002a/imapd directories in which building actually takes place.
 
-     Before doing a make on UNIX, you should read imap-2002/Makefile and see if
-your system type is known.  The various system types are three-letter codes.
+     Before doing a make on UNIX, you should read imap-2002a/Makefile and see
+if your system type is known.  The various system types are three-letter codes.
 If your system type is known, then use this as the make option.  After the
 first time you do a make, this option is remembered in a file called OSTYPE,
 so just typing "make" suffices.
@@ -39,7 +39,7 @@ system type is either slx (shadow passwords only) or lnp (PAM), and the
 appropriate command is:
 	make slx	(or make lnp)
 
-     There are other make options, described in imap-2002/src/osdep/Makefile.
+     There are other make options, described in imap-2002a/src/osdep/Makefile.
 
      It's probably best to see if an existing port will work on your system
 before inventing a new port.  Try:
@@ -49,14 +49,14 @@ before inventing a new port.  Try:
 	nxt, bsf	modern BSD
 
      If you must invent a new port, you need to create an entry in
-imap-2002/Makefile and imap-2002/src/osdep/Makefile for your new port, as well
-as osdep/os_???.h and osdep/os_???.c files with the appropriate OS-dependent
-support for that system.  You also need to determine which setup process to
-use.  You should use the ua process unless you are sure that your compiler
-supports *ALL* aspects of ANSI C prototyping.  Note that some compilers, such
-as Ultrix, support some aspects of ANSI C but not others; c-client really
-beats on the full prototyping capability of ANSI C so you have to use the
-non-ANSI source tree for such systems.
+imap-2002a/Makefile and imap-2002a/src/osdep/Makefile for your new port, as
+well as osdep/os_???.h and osdep/os_???.c files with the appropriate
+OS-dependent support for that system.  You also need to determine which setup
+process to use.  You should use the ua process unless you are sure that your
+compiler supports *ALL* aspects of ANSI C prototyping.  Note that some
+compilers, such as Ultrix, support some aspects of ANSI C but not others;
+c-client really beats on the full prototyping capability of ANSI C so you
+have to use the non-ANSI source tree for such systems.
 
      If you send a new port back to us, we will make it available for others
 who use your particular system type.
@@ -75,10 +75,10 @@ tenex, and unix drivers.
 			   UNIX INSTALLATION NOTES
 
      Binaries from the build are:
-	imap-2002/mtest/mtest		c-client testbed program
-	imap-2002/ipopd/ipop2d		POP2 daemon
-	imap-2002/ipopd/ipop3d		POP3 daemon
-	imap-2002/imapd/imapd		IMAP4rev1 daemon
+	imap-2002a/mtest/mtest		c-client testbed program
+	imap-2002a/ipopd/ipop2d		POP2 daemon
+	imap-2002a/ipopd/ipop3d		POP3 daemon
+	imap-2002a/imapd/imapd		IMAP4rev1 daemon
 
      mtest is normally not used except by c-client developers.
 
@@ -209,11 +209,11 @@ the Microsoft Platform SDK from Microsoft's web site.
 
      There is also considerable debate about how new mail is to be snarfed.
 I am currently using something that seems to work with WinSMTP.  Look at
-the definition of MAILFILE in imap-2002/src/osdep/nt/mailfile.h and at the
-sysinbox() function in imap-2002/src/osdep/nt/env_nt.c to see what's there
+the definition of MAILFILE in imap-2002a/src/osdep/nt/mailfile.h and at the
+sysinbox() function in imap-2002a/src/osdep/nt/env_nt.c to see what's there
 now, so you have a clue about how to hack it.
 
-     To build under Windows 95/98/NT, connect to the imap-2002 directory
+     To build under Windows 95/98/NT, connect to the imap-2002a directory
 and do:
 	nmake -f makefile.nt
 The resulting binaries will support SSL if either schannel.dll or
@@ -221,7 +221,7 @@ security.dll is installed in Windows, using the old, undocumented, SSL
 interfaces.  You can also use this to build under Me/2000/XP, but it is
 not the preferred build on this platform.
 
-     To build with MIT Kerberos support, connect to the imap-2002 directory
+     To build with MIT Kerberos support, connect to the imap-2002a directory
 and do:
 	nmake -f makefile.ntk
 The resulting binaries will support SSL if either schannel.dll or
@@ -230,7 +230,7 @@ interfaces.  They will also support MIT Kerberos.  Note, however, that
 these binaries will only run on systems which have the MIT Kerberos DLLs
 installed, and will not run otherwise.
 
-     To build under Windows Me/2000/XP, connect to the imap-2002 directory
+     To build under Windows Me/2000/XP, connect to the imap-2002a directory
 and do:
 	nmake -f makefile.w2k
 The resulting binaries will support SSL and Microsoft Kerberos, using the
@@ -240,10 +240,10 @@ binaries will not run under Windows 95, Windows 98, or Windows NT4.
 			   WIN32 INSTALLATION NOTES
 
      The resulting binaries will be:
-	imap-2002\mtest\mtest.exe	(testbed client)
-	imap-2002\ipopd\ipop2d.exe	POP2 server
-	imap-2002\ipopd\ipop3d.exe	POP3 server
-	imap-2002\imapd\imapd.exe	IMAP4rev1 server
+	imap-2002a\mtest\mtest.exe	(testbed client)
+	imap-2002a\ipopd\ipop2d.exe	POP2 server
+	imap-2002a\ipopd\ipop3d.exe	POP3 server
+	imap-2002a\imapd\imapd.exe	IMAP4rev1 server
 
      These servers are stdio servers.  I wrote a simple network listener
 for NT called inetlisn; currently it is available as:
@@ -284,10 +284,10 @@ own in terms of a nice TOPS-20 like main program.  Maybe someday some nice
 person will try porting Pine to TOPS-20.  This assumes the use of KCC 6, and
 probably will not build with other compilers or older versions of KCC.
 
-     You do not use imap-2002/Makefile under TOPS-20, nor do you build any
+     You do not use imap-2002a/Makefile under TOPS-20, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2002/src/c-client, imap-2002/src/charset, imap-2002/src/mtest, and
-imap-2002/src/osdep/tops-20 onto a single directory on TOPS-20 and build from
+imap-2002a/src/c-client, imap-2002a/src/charset, imap-2002a/src/mtest, and
+imap-2002a/src/osdep/tops-20 onto a single directory on TOPS-20 and build from
 that.  The command:
 	DO BUILD.CTL
 will build the sources.  If you don't have MIC, then SUBMIT BUILD.CTL and let
@@ -299,10 +299,10 @@ perfectly alright; just ignore them.
 
 			       VMS BUILD NOTES
 
-      You do not use imap-2002/Makefile under VMS, nor do you build any
+      You do not use imap-2002a/Makefile under VMS, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2002/src/c-client, imap-2002/src/charset, imap-2002/src/mtest, and
-imap-2002/src/osdep/vms onto a single directory on VMS and build from that.
+imap-2002a/src/c-client, imap-2002a/src/charset, imap-2002a/src/mtest, and
+imap-2002a/src/osdep/vms onto a single directory on VMS and build from that.
 The command to build it is:
 	@BUILD MULTINET
 or	@BUILD NETLIB
@@ -334,12 +334,12 @@ OS/2		Unknown
      If you are building a Macintosh client, you will need MacTCP installed on
 your system as well as the MacTCP C includes and libraries.
 
-     You do not use imap-2002/Makefile on the Mac, nor do you build any
+     You do not use imap-2002a/Makefile on the Mac, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2002/src/c-client, imap-2002/src/charset, imap-2002/src/mtest, and
-imap-2002/src/osdep/mac onto a single directory on the Mac and build from that.
-mtext.sit.hqx is a THINK C project file and cute icon for building mtest,
-encoded with Binhex and StuffIt.
+imap-2002a/src/c-client, imap-2002a/src/charset, imap-2002a/src/mtest, and
+imap-2002a/src/osdep/mac onto a single directory on the Mac and build from
+that.  mtext.sit.hqx is a THINK C project file and cute icon for building
+mtest, encoded with Binhex and StuffIt.
 
      THINK C is a truly wretched product which help make me understand why
 Macintosh has lost most of its market share.  Not only does it do cretinous
@@ -384,10 +384,10 @@ on your DOS system along with its development environment.  The currently
 supported stacks are Beame & Whiteside, PC-NFS, Novell, PC/IP, Waterloo, and
 Winsock.  mtest and a version of Pine called PC Pine run under DOS.
 
-      You do not use imap-2002/Makefile under DOS, nor do you build any
+      You do not use imap-2002a/Makefile under DOS, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2002/src/c-client, imap-2002/src/charset, imap-2002/src/mtest, and
-imap-2002/src/osdep/dos onto a single directory on DOS and build from that.
+imap-2002a/src/c-client, imap-2002a/src/charset, imap-2002a/src/mtest, and
+imap-2002a/src/osdep/dos onto a single directory on DOS and build from that.
 The MAKE command on DOS takes an argument identifying the TCP/IP stack in use.
 For example, do:
 	MAKE MAKEFILE OS=WSK   (or MAKE -F MAKEFILE OS=WSK)
@@ -407,7 +407,7 @@ least install Win32s.
      I build using Visual C++ 6.0 with the WCE extensions.  The current code
 has SH3 wired in for the compiler building.
 
-     To build under NT, connect to the imap-2002 directory and do:
+     To build under NT, connect to the imap-2002a directory and do:
 	nmake -f makefile.wce
 
      The only binary produced is a cclient.lib file.  I haven't gotten as far

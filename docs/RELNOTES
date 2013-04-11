@@ -1,3 +1,12 @@
+Updated: 10 December 2002
+
+imap-2002a is a maintenance release, consisting entirely of critical
+bugfixes.  Programs written for imap-2002 will build with this version
+without modification.
+
+There are no functional enhancements in this version.
+
+
 Updated: 28 October 2002
 
 imap-2002 is a major release.  Programs written for imap-2001 will probably

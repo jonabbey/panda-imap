@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	5 November 2002
+ * Last Edited:	27 November 2002
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2002 University of Washington.
@@ -3659,6 +3659,8 @@ void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy)
       else if (!compare_cstring (LOCAL->tmp,"READ-ONLY")) stream->rdonly = T;
       else if (!compare_cstring (LOCAL->tmp,"READ-WRITE"))
 	stream->rdonly = NIL;
+      else if (!compare_cstring (LOCAL->tmp,"PARSE") && !errflg)
+	errflg = PARSE;
     }
   }
 				/* give event to main program */
