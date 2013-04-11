@@ -1,0 +1,24 @@
+#
+#	A mini host name file for use until domains is here.
+#	Caveats:
+#   	One line per entry( A max of 80 characters in length )
+#
+#   	The longest allowed name is 64 characters. Only 5 aliases are
+#		permitted.
+#
+#		Make sure you don't leave trailing white space after the last name
+#
+#		See ipname.h for details. Currently, only 32 hosts are allowed.
+#
+#  ipaddress	fullname,<alias>
+#        10        20        30        40        50         60       70        80
+#12345678901234567890123456789012345678901234567890123456789012345678901234567890
+36.45.0.87 sumex-aim.stanford.edu, sumex-aim, sumex, aim
+36.44.0.6 ksl.stanford.edu, ksl
+36.44.0.193 safe.stanford.edu, safe
+36.47.0.193 ardvax.stanford.edu, ardvax
+36.73.0.26  knife.stanford.edu, knife
+36.8.0.46   score.stanford.edu, score
+36.21.0.13  macbeth.stanford.edu, macbeth
+26.0.0.74	simtel20.army.mil, simtel20.arpa, simtel20
+<done>								#the last line in the file

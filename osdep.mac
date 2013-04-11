@@ -1,0 +1,38 @@
+/*
+ * Operating-system dependent routines - Macintosh version
+ *
+ * Mark Crispin, SUMEX Computer Project, 18 August 1988
+ *
+ * Copyright (c) 1988 Stanford University
+ *
+ */
+
+#include <osutils.h>
+
+/* Regrettably, the Mac has no concept of timezone or of summer time.
+ * I think the thing to do is to make all users set their Mac's clock
+ * to GMT and later on have routines to set local time zone and know
+ * about summer time.
+ */
+
+static char *days[] =
+  	{"???", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+static char *months[] =
+  	{"???", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+	 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+static char *timezone = "GMT";
+
+
+/* Write current time in RFC 822 format
+ * Accepts: destination string
+ */
+
+rfc822_date (string)
+    char *string;
+{
+  DateTimeRec date;
+  GetTime (&date);
+  sprintf (string,"%s, %d %s %d %d:%02d:%02d %s",
+	   days[date.dayOfWeek],date.day,months[date.month],date.year,
+	   date.hour,date.minute,date.second,timezone);
+}

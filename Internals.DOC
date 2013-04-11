@@ -1,0 +1,464 @@
+            DOCUMENTATION OF MM-D FUNCTIONS AND INTERFACES
+                             MARK CRISPIN
+----------------------------------------------------------------------
+     The files listed below must be rewritten for each port of MM-D to
+a new operating system.
+
+[Main program]
+
+#include "imap2.h"
+#include "smtp.h"
+#include "misc.h"
+#include "tcpsio.h"
+
+mm_searched (stream,msgno)
+    IMAPSTREAM *stream;
+    int msgno;
+ This function is called from map_search to notify the main program
+that this message number matches the search.  Note that the stream is
+locked and that therefore you cannot call any map_xxx functions!
+
+mm_exists (stream,msgno)
+    IMAPSTREAM *stream;
+    int msgno;
+ This function is called from several functions to notify the main
+program that this message number exists (i.e. there are this many
+messages in the mailbox).  Note that the stream is locked and that
+therefore you cannot call any map_xxx functions!
+
+mm_expunged (stream,msgno)
+    IMAPSTREAM *stream;
+    int msgno;
+ This function is called from map_expunge to notify the main program
+that this message number has been expunged from the mail file and that
+all subsequent messages are now referenced by a message number one
+less than before.  Note that the stream is locked and that therefore
+you cannot call any map_xxx functions!
+
+usrlog (string)
+    char *string;
+ This function is called from several functions to output a string for
+the user to see.  No newline is included in the string, so this
+function has to output its own.
+
+dbglog (string)
+    char *string;
+ This function is called from several functions to output a string to a
+debugging telemetry stream.  No newline is included in the string, so
+this function has to output its own.
+
+getpassword (host,username,password)
+    char *host;
+    char *username;
+    char *password;
+ This function is called to get a user name and password for the given
+host.  The function stores the user name and password in the strings
+pointed to by the appropriate arguments.
+
+[OSDEP.C]:	operating system-dependent functions
+
+rfc822_date (date)
+     char date[];
+ This function is called to get the current date and time in an RFC 822
+format string into the the string pointed to by the argument.
+
+[TCPSIO.C]:	TCP/IP string-oriented I/O functions
+
+#include "tcpsio.h"
+#include "misc.h"
+
+TCPSTREAM *tcp_open (host,port)
+    char *host;
+    int port;
+ This function is called to open a TCP connection to the given host
+name on the given port number.  It returns a TCPSTREAM, which is an
+internal data structure for this file and is implementation-dependent.
+NIL is returned if this function fails for any reason.
+
+char *tcp_getline (stream)
+    TCPSTREAM *stream;
+ This function returns a malloc() string containing a null-terminated
+text line from the TCP stream.  The CR/LF which terminated the line is
+not included.  The caller should free() the string when it is finished
+with it.  NIL is returned if this function fails for any reason.
+
+tcp_getbuffer (stream,size,buffer)
+    TCPSTREAM *stream;
+    int size;
+    char *buffer;
+ This function reads the requested number of bytes into the indicated
+buffer.  This function returns T if successful and NIL if it fails for
+any reason.
+
+tcp_soutr (stream,string)
+    TCPSTREAM *stream;
+    char *string;
+ This function writes the indicated (null-terminated) string to the
+TCP stream.  This function returns T if successful and NIL if it fails
+for any reason.
+
+tcp_close (stream)
+    TCPSTREAM *stream;
+ The function closes the TCP stream and frees all resources associated
+with it that it may have created.
+
+char *tcp_host (stream)
+    TCPSTREAM *stream;
+ This function returns the stream's foreign host name string.
+
+char *tcp_localhost (stream)
+    TCPSTREAM *stream;
+ This function returns the stream's local host name string.
+
+----------------------------------------------------------------------
+     The files listed below are the standard MM-D mailsystem library
+modules, and are operating system and machine independent.  Only those
+functions suitable for external callers are documented here; other
+functions are for internal use only and are used by external callers
+at their own risk!
+
+[IMAP2.C]:	Mail Access Protocol functions
+
+[Note!!  There is an important difference between a "sequence" and a
+ "msgno".  A sequence is a string representing one or more messages in
+ IMAP2 sequence format ("n", "n:m", or combination of these delimited
+ by commas), whereas a msgno is an int representing a single message.]
+
+IMAPSTREAM *map_open (net_mailbox,oldstream,debug)
+    char *net_mailbox;
+    IMAPSTREAM *oldstream;
+    short debug;
+ This function opens a MAP connection to the net_mailbox (in
+{host}mailbox format, e.g. "{KSL.Stanford.EDU}INBOX") and if
+successful returns a stream suitable for use by the other MAP
+functions.  If oldstream is non-NIL, a check is made to see if the TCP
+host is the same as the host for this mailbox.  If it is not,
+oldstream is closed; otherwise, an attempt is made to reuse oldstream
+as the stream for this mailbox.  If debug is non-NIL, map_debug() is
+called on a newly-created stream immediately after the TCP connection
+is opened so that the greeting, login, and mailbox selection protocol
+goes into the debugging telemetry.  NIL is returned if this function
+fails for any reason.
+
+map_close (stream)
+    IMAPSTREAM *stream;
+ This function closes the MAP stream and frees all resources
+associated with it that it may have created.
+
+map_fetchfast (stream,sequence)
+    IMAPSTREAM *stream;
+    char *sequence;
+ This function causes a fetch of all the IMAP2 "fast" information
+(internal date, RFC 822 size, and flags) for the given sequence.
+Since all this information is also fetched by map_fetchenvelope(),
+this function is generally not used.
+
+map_fetchflags (stream,sequence)
+    IMAPSTREAM *stream;
+    char *sequence;
+ This function causes a fetch of the flags for the given sequence.
+This main reason for using this function is to update the flags in the
+local cache in case some other process changed the flags (multiple
+simultaneous write access is allowed to the flags in IMAP2) as part of
+a "check entire mailbox" (as opposed to "check for new messages")
+operation.
+
+ENVELOPE *map_fetchenvelope (stream,msgno)
+    IMAPSTREAM *stream;
+    int msgno;
+ This function causes a fetch of all the IMAP2 information (envelope,
+internal date, RFC 822 size, and flags) for the given msgno and up to
+MAPLOOKAHEAD (a parameter in IMAP2.H) subsequent messages which are
+not yet in the cache.  No fetch is done if the envelope for the given
+msgno is already in the cache.  The ENVELOPE for this msgno is
+returned.
+ This is the primary function for fetching non-text information about
+messages, and should be called before any attempt to reference cache
+information about this message via map_elt().
+
+char *map_fetchmessage (stream,msgno)
+    IMAPSTREAM *stream;
+    int msgno;
+ This function causes a fetch of the specified message as an RFC 822
+format text string and returns that text string.
+ An application which uses both this and map_fetchtext() would use
+this function for a "display message literally" function.
+
+char *map_fetchheader (stream,msgno)
+    IMAPSTREAM *stream;
+    int msgno;
+ This function causes a fetch of the RFC 822 format header of the
+specified message as a text string and returns that text string.
+
+char *map_fetchtext (stream,msgno)
+    IMAPSTREAM *stream;
+    int msgno;
+ This function causes a fetch of the body of the specified message as
+a text string and returns that text string.
+ An application which uses both this and map_fetchmessage() would use
+this function for a "display message" function, with the envelope
+interpreted and displayed to the user in some manner to provide the
+information which would otherwise be in the header.
+
+char *map_fetchfromstring (stream,msgno,length)
+    IMAPSTREAM *stream;
+    int msgno;
+    int length;
+ This function returns a "from" string of the specified length for the
+specified message, suitable for display to the user in a menu line.
+ If the personal name of the first address in the envelope's from item
+is non-NIL, it is used; otherwise a string is created by appending the
+mailbox of the first address, an "@", and the host of the first
+address.  The string is trimmed or padded with trailing spaces as
+necessary to make its length match what the caller requested.
+ The length argument is provided to make it convenient for the
+application to decide upon the length it wants.  It should be
+considered a constant, since once generated the string is kept in the
+cache and is returned on subsequent calls instead of recomputed.
+
+char *map_fetchsubjectstring (stream,msgno,length)
+    IMAPSTREAM *stream;
+    int msgno;
+    int length;
+ This function returns a "subject" string of the specified length for
+the specified message, suitable for display to the user in a menu
+line.
+ The envelope's subject item is copied and trimmed as necessary to
+make its length be no more what the caller requested.  Unlike
+map_fetchfromstring(), this function can return a string of shorter
+length than what the caller requested.
+ The warning about the length argument in map_fetchfromstring() also
+applies to this function.
+
+MESSAGECACHE *map_elt (stream,msgno)
+    IMAPSTREAM *stream;
+    int msgno;
+ This function returns the cache entry for the specified message, and
+is preferred over using stream->messagearray[msgno-1].
+ Although this function will create a cache entry if it does not
+already exist, that functionality is for internal use only.  This
+function should never be called without having first called
+map_fetchenvelope() on the message first.
+
+map_setflag (stream,sequence,flag)
+    IMAPSTREAM *stream;
+    char *sequence;
+    char *flag;
+ This function causes a store to add the specified flag to the flags
+set for the messages in the specified sequence.  If there is any
+problem in setting flags, a message will be passed to the application
+via the usrlog() facility.
+
+map_clearflag (stream,sequence,flag)
+    IMAPSTREAM *stream;
+    char *sequence;
+    char *flag;
+ This function causes a store to delete the specified flag from the
+flags set for the messages in the specified sequence.  If there is any
+problem in clearing flags, a message will be passed to the application
+via the usrlog() facility.
+
+map_search (stream,criteria)
+    IMAPSTREAM *stream;
+    char *criteria;
+ This function causes a mailbox search using the specified criteria
+(in IMAP2 format).  The application's mm_searched() function is called
+for each message that matches the search criteria.  If there is any
+problem in searching, a message will be passed to the application via
+the usrlog() facility.
+
+map_checkmailbox (stream)
+    IMAPSTREAM *stream;
+ This function causes an explicit check of the mailbox for new
+messages including a remote reparse of all flags in the mailbox.  The
+application's mm_exists() function is called with the number of
+messages in the mailbox.  The status of the check is passed to the
+application via the usrlog() facility.
+ Note that map_fetchflags() needs to be called to update the flags in
+the local cache.
+
+map_expungemailbox (stream)
+    IMAPSTREAM *stream;
+ This function causes an expunge of the mailbox.  The application's
+mm_expunged() function is called for each message that has been
+expunged.  The application's mm_exists() function is called at the
+start and end of the expunge to ensure synchronization.  The status of
+the expunge is passed to the application via the usrlog() facility.
+ Note that the decrementing of msgno's for subsequent messages happens
+immediately; for example, if three consequtive messages starting at
+msgno 5 are expunged, mm_expunged() will be called with a msgno of 5
+three times.
+
+map_copymessage (stream,sequence,mailbox)
+    IMAPSTREAM *stream;
+    char *sequence;
+    char *mailbox;
+ This function causes the messages in the specified sequence to be
+copied to the specified mailbox.  The system \Seen flag is set for
+these messages if the copy is successful.
+ If there is any problem in copying, a message will be passed to the
+application via the usrlog() facility.
+ Note that the mailbox must be on the same host as the stream and is a
+mailbox only, not a net_mailbox ({host}mailbox format).
+
+map_movemessage (stream,sequence,mailbox)
+    IMAPSTREAM *stream;
+    char *sequence;
+    char *mailbox;
+ This function causes the messages in the specified sequence to be
+copied to the specified mailbox.  The system \Seen and \Deleted flags
+are set for these messages if the copy is successful.
+ If there is any problem in copying, a message will be passed to the
+application via the usrlog() facility.
+ Note that the mailbox must be on the same host as the stream and is a
+mailbox only, not a net_mailbox ({host}mailbox format).
+
+map_checklock (stream)
+    IMAPSTREAM *stream;
+ This function returns T if the stream is locked (an IMAP2 protocol
+operation is in progress) else NIL.  Any multi-tasking application
+should call this function prior to calling any of the other functions
+in this module.  Any attempt to do a MAP operation while one is
+already in progress on the same stream will cause the application to
+fail in unpredictable ways, mostly likely due to the _exit() calls in
+the internal imap_lock() routine when it discovers the stream is
+already locked.
+ Note that this check is insufficient in a preemptive-scheduling
+multi-tasking application due to the possibility of a timing race.
+Such applications must be written so that only one process accesses
+the stream, or to have a higher level lock.
+ Since MAP operations will not finish until they are completed, a
+single-tasking application does not have to worry about this problem,
+except in its mm_searched(), mm_exists(), and mm_expunged() functions
+when the stream is *always* locked.
+
+map_debug (stream)
+    IMAPSTREAM *stream;
+ This function enables IMAP2 protocol telemetry logging for this
+stream.  All IMAP2 protocol operations are passed to the application
+via the dbglog() facility.
+
+map_nodebug (stream)
+    IMAPSTREAM *stream;
+ This function disables IMAP2 protocol telemetry logging for this
+stream.
+
+[MISC.C]:	Miscellaneous utility functions
+
+char *ucase (string)
+    char *string;
+ This function converts each lowercase character of the specified
+string to uppercase and returns the string.
+ Note: this function modifies the source string.
+
+char *lcase (string)
+    char *string;
+ This function converts each uppercase character of the specified
+string to lowercase and returns the string.
+ Note: this function modifies the source string.
+
+char *hostfield (string)
+    char *string;
+ This function parses the specified string as if it were a net_mailbox
+({host}mailbox format) and if successful returns a malloc() string
+containing the host part of that string.  The caller should free() the
+returned string when it is finished with it.  NIL is returned if this
+function fails for any reason.
+
+char *mailboxfield (string)
+    char *string;
+ This function parses the specified string as if it were a net_mailbox
+({host}mailbox format) and if successful returns a malloc() string
+containing the mailbox part of that string.  If the net_mailbox has a
+valid host but no mailbox (e.g. "{SUMEX-AIM.Stanford.EDU}") then a
+malloc() copy of the default mailbox, "INBOX", is returned.  The
+caller should free() the returned string when it is finished with it.
+NIL is returned if this function fails for any reason.
+
+find_rightmost_bit (valptr)
+    long *valptr;
+ This function returns -1 if the 32-bit value pointed to by valptr is
+non-zero, otherwise it returns the bit number (0 = LSB, 31 = MSB) of
+the right-most bit in that value.  This is used to convert from the
+bits in the cache's userFlags item to an index into the stream's
+userFlags array of flag texts.
+
+min (i,j)
+    int i,j;
+ This function returns the minimum of the two integers.
+
+[SMTP.C]:	Mail Transfer Protocol functions
+
+SMTPSTREAM *mtp_open (hostlist,debug)
+    char **hostlist;
+    int debug;
+ This function opens an MTP connection to a one of the hosts in the
+host list and if successful returns a stream suitable for use by the
+other MTP functions.  The hosts are tried in order until a connection
+is successfully opened.  If debug is non-NIL, mtp_debug() is called on
+the stream immediately after the TCP connection is opened so that the
+greeting and hello protocol goes into the debugging telemetry.  NIL is
+returned if this function fails to open a connection to any of the
+hosts in the list.
+
+mtp_close (stream)
+    SMTPSTREAM *stream;
+ This function closes the MTP stream and frees all resources
+associated with it that it may have created.
+
+mtp_mail (stream,type,msg)
+    SMTPSTREAM *stream;
+    char *type;
+    MESSAGE *msg;
+ This function negotiates an MTP transaction of the specified type
+(one of "MAIL", "SEND", "SAML", or "SOML") to deliver the specified
+message.  This function returns T if success or NIL if there is any
+failure.  The text reason for the failure is in the stream's reply
+item; if it is associated with a recipient it is also in that address'
+error item.
+
+MTPADR *mtp_parse_address (string,defaulthost)
+    char *string;
+    char *defaulthost;
+ This function parses a string that contains an RFC 822 format address
+list and returns an address list suitable for the to, cc, or bcc items
+of a message.  The address list should be freed via mtp_free_address()
+when the application is finished with it.  If there are any parsing
+errors a message is passed to the application via the usrlog()
+facility.
+
+mtp_debug (stream)
+    SMTPSTREAM *stream;
+ This function enables SMTP protocol telemetry logging for this
+stream.  All SMTP protocol operations are passed to the application
+via the dbglog() facility.
+
+mtp_nodebug (stream)
+    SMTPSTREAM *stream;
+ This function disables SMTP protocol telemetry logging for this
+stream.
+
+rfc822_header (header,message)
+    char *header;
+    MESSAGE *message;
+ This function writes an RFC 822 format header into header based on
+the information in message.
+
+rfc822_write_address (destination,address)
+    char *destination;
+    MTPADR *address;
+ This function writes an RFC 822 format address list into destination
+based on the information in address and is therefore the inverse of
+mtp_parse_address().
+
+mtp_free_message (message)
+    MESSAGE *message;
+ This function does a free() of message and all the malloc() strings
+inside of it.
+
+mtp_free_address (address)
+    MTPADR *address;
+ This function does a free() of the specified address list and all the
+malloc() strings inside of it.  This is called from mtp_free_message,
+so it isn't necessary to call this for an address list that is in a
+message.
