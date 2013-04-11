@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	30 November 2000
+ * Last Edited:	19 December 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -187,13 +187,11 @@ MAILSTREAM *mbox_open (MAILSTREAM *stream)
 {
   unsigned long i = 1;
   unsigned long recent = 0;
-  char tmp[MAILTMPLEN];
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &mboxproto;
 				/* change mailbox file name */
-  sprintf (tmp,"%s/mbox",myhomedir ());
   fs_give ((void **) &stream->mailbox);
-  stream->mailbox = cpystr (tmp);
+  stream->mailbox = cpystr ("mbox");
 				/* open mailbox, snarf new mail */
   if (!(unix_open (stream) && mbox_ping (stream))) return NIL;
   stream->inbox = T;		/* mark that this is an INBOX */

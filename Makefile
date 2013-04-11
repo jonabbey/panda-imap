@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	2 November 2000
+# Last Edited:	4 January 2001
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2000 University of Washington.
+# Copyright 2001 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -60,6 +60,7 @@
 # gh9   GCC HP-UX 9.x
 # ghp	GCC HP-UX 10.x
 # go5	GCC 2.7.1 (95q4 from Skunkware _not_ 98q2!) SCO Open Server 5.0.x
+# gsc	GCC Santa Cruz Operation
 # gsg	GCC SGI
 # gso	GCC Solaris
 # gsu	GCC SUN-OS
@@ -76,6 +77,7 @@
 # mnt	Atari ST Mint (not MacMint)
 # neb	NetBSD/FreeBSD
 # nec	NEC UX
+# nto	QNX Neutrine RTP
 # nxt	NEXTSTEP
 # nx3	NEXTSTEP 3.x
 # osf	OSF/1 (see sos, os4)
@@ -324,7 +326,7 @@ c-client:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp go5 gsg gso gsu gul hpp hpx lnp lyn mct mnt neb nec nxt nx3 osf os4 osx ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
+a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp go5 gsc gsg gso gsu gul hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 osx ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
 	$(BUILD) OS=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.

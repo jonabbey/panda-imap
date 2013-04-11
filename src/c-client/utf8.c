@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	24 October 2000
+ * Last Edited:	10 January 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -329,7 +329,7 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
       if ((c = text->data[i++]) & BIT8) {
 				/* yes, must have another high byte */
 	if ((i >= text->size) || !((c1 = text->data[i++]) & BIT8))
-	  c = BOGON;		/* out of space or bogon */
+	  c = UBOGON;		/* out of space or bogon */
 	else switch (c) {	/* check 8bit code set */
 	case EUC_CS2:		/* CS2 */
 	  if (p2->base_ku) {	/* CS2 set up? */
@@ -337,12 +337,12 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	      c = ((i < text->size) && ((c = text->data[i++]) & BIT8) &&
 		   ((ku = (c1 & BITS7) - p2->base_ku) < p2->max_ku) &&
 		   ((ten = (c & BITS7) - p2->base_ten) < p2->max_ten)) ?
-		     t2[(ku*p2->max_ten) + ten] : BOGON;
+		     t2[(ku*p2->max_ten) + ten] : UBOGON;
 	    else c = ((c1 >= p2->base_ku) && (c1 <= p2->max_ku)) ?
-	      c1 + ((unsigned int) p2->tab) : BOGON;
+	      c1 + ((unsigned int) p2->tab) : UBOGON;
 	  }	  
 	  else {		/* CS2 not set up */
-	    c = BOGON;		/* swallow byte, say bogon */
+	    c = UBOGON;		/* swallow byte, say bogon */
 	    if (i < text->size) i++;
 	  }
 	  break;
@@ -352,12 +352,12 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	      c = ((i < text->size) && ((c = text->data[i++]) & BIT8) &&
 		   ((ku = (c1 & BITS7) - p3->base_ku) < p3->max_ku) &&
 		   ((ten = (c & BITS7) - p3->base_ten) < p3->max_ten)) ?
-		     t3[(ku*p3->max_ten) + ten] : BOGON;
+		     t3[(ku*p3->max_ten) + ten] : UBOGON;
 	    else c = ((c1 >= p3->base_ku) && (c1 <= p3->max_ku)) ?
-	      c1 + ((unsigned int) p3->tab) : BOGON;
+	      c1 + ((unsigned int) p3->tab) : UBOGON;
 	  }	  
 	  else {		/* CS3 not set up */
-	    c = BOGON;		/* swallow byte, say bogon */
+	    c = UBOGON;		/* swallow byte, say bogon */
 	    if (i < text->size) i++;
 	  }
 	  break;
@@ -370,7 +370,7 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 		/* special hack for JIS X 0212: merge rows less than 10 */
 	      c = t3[((ku - (p3->base_ku - p1->base_ku))*p3->max_ten) + ten];
 	  }
-	  else c = BOGON;
+	  else c = UBOGON;
 	}
       }
       if (pass) UTF8_PUT (s,c)
@@ -399,14 +399,14 @@ void utf8_text_dbyte (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
       c = ((i < text->size) && (c1 = text->data[i++]) &&
 	   ((ku = c - p1->base_ku) < p1->max_ku) &&
 	   ((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-	     t1[(ku*p1->max_ten) + ten] : BOGON;
+	     t1[(ku*p1->max_ten) + ten] : UBOGON;
   s = ret->data = (unsigned char *) fs_get (ret->size + 1);
   for (i = 0; i < text->size;) {
     if ((c = text->data[i++]) & BIT8)
       c = ((i < text->size) && (c1 = text->data[i++]) &&
 	   ((ku = c - p1->base_ku) < p1->max_ku) &&
 	   ((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-	     t1[(ku*p1->max_ten) + ten] : BOGON;
+	     t1[(ku*p1->max_ten) + ten] : UBOGON;
     UTF8_PUT (s,c)		/* convert Unicode to UTF-8 */
   }
 }
@@ -428,27 +428,27 @@ void utf8_text_dbyte2 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
   for (ret->size = i = 0; i < text->size; ret->size += UTF8_SIZE (c))
     if ((c = text->data[i++]) & BIT8) {
       if ((i >= text->size) || !(c1 = text->data[i++]))
-	c = BOGON;		/* out of space or bogon */
+	c = UBOGON;		/* out of space or bogon */
       else if (c1 & BIT8)	/* high vs. low plane */
 	c = ((ku = c - p2->base_ku) < p2->max_ku &&
 	     ((ten = c1 - p2->base_ten) < p2->max_ten)) ?
-	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] : BOGON;
+	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] :UBOGON;
       else c = ((ku = c - p1->base_ku) < p1->max_ku &&
 		((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : BOGON;
+		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : UBOGON;
     }
   s = ret->data = (unsigned char *) fs_get (ret->size + 1);
   for (i = j = 0; i < text->size;) {
     if ((c = text->data[i++]) & BIT8) {
       if ((i >= text->size) || !(c1 = text->data[i++]))
-	c = BOGON;		/* out of space or bogon */
+	c = UBOGON;		/* out of space or bogon */
       else if (c1 & BIT8)	/* high vs. low plane */
 	c = ((ku = c - p2->base_ku) < p2->max_ku &&
 	     ((ten = c1 - p2->base_ten) < p2->max_ten)) ?
-	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] : BOGON;
+	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] :UBOGON;
       else c = ((ku = c - p1->base_ku) < p1->max_ku &&
 		((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : BOGON;
+		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : UBOGON;
     }
     UTF8_PUT (s,c)	/* convert Unicode to UTF-8 */
   }
@@ -470,7 +470,7 @@ void utf8_text_sjis (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
     if ((c = text->data[i++]) & BIT8) {
 				/* half-width katakana */
       if ((c >= MIN_KANA_8) && (c <= MAX_KANA_8)) c += KANA_8;
-      else if (i >= text->size) c = BOGON;
+      else if (i >= text->size) c = UBOGON;
       else {		/* Shift-JIS */
 	c1 = text->data[i++];
 	SJISTOJIS (c,c1);

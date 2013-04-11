@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	31 October 2000
+# Last Edited:	4 January 2001
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2000 University of Washington.
+# Copyright 2001 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -314,6 +314,15 @@ go5:	# GCC 2.7.1 (95q4) SCO Open Server 5.0.x
 	 BASELDFLAGS="-lsocket -lprot -lx -ltinfo -lm" \
 	 RANLIB=true CC=gcc
 
+gsc:	# Santa Cruz Operation
+	$(BUILD) `$(CAT) SPECIALS` OS=sco \
+	 SIGTYPE=sv4 CHECKPW=sec LOGINPW=sec \
+	 CREATEPROTO=mmdfproto EMPTYPROTO=mmdfproto \
+	 RSHPATH=/usr/bin/rcmd \
+	 BASECFLAGS="-O3" \
+	 BASELDFLAGS="-lsocket -lprot -lcrypt_i -lx -los" \
+	 RANLIB=true LN=ln CC=gcc
+
 gsg:	# GCC Silicon Graphics
 	$(BUILD) `$(CAT) SPECIALS` OS=sgi \
 	 SIGTYPE=sv4 CRXTYPE=nfs \
@@ -434,6 +443,14 @@ nec:	# NEC UX
 	 BASECFLAGS="-g -Kopt=2 -KOlimit=2000" \
 	 BASELDFLAGS="-lsocket -lnsl -lgen" \
 	 RANLIB=true CC=/usr/abiccs/bin/cc
+
+nto:	# QNX Neutrino RTP
+	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
+	 CRXTYPE=nfs \
+	 SPOOLDIR=/var/spool \
+	 ACTIVEFILE=/var/lib/news/active \
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="-g -O -DNFSKLUDGE"
 
 nxt:	# NEXTSTEP
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
@@ -838,7 +855,11 @@ ckpmd5:	# MD5 database (must have md5 AUTHENTICATOR as well)
 	$(LN) ckp_md5.c osdepckp.c
 
 ckpnul:	# NUL authenticator (disables all plaintext authentication)
-	echo -DPLAINTEXT_DISABLED >> CFLAGS
+#	echo -DPLAINTEXT_DISABLED >> CFLAGS
+# Setting CFLAGS=`$(CAT) CFLAGS` won't work if there's a newline in the file,
+# so work around it this way
+	echo `$(CAT) CFLAGS` -DPLAINTEXT_DISABLED > CFLAGS.tmp
+	mv CFLAGS.tmp CFLAGS
 	$(LN) ckp_nul.c osdepckp.c
 
 ckppam:	# Pluggable Authentication Modules authenticator

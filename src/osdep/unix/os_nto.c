@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- QNX version
+ * Program:	Operating-system dependent routines -- QNX Neutrino RTP version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -43,10 +43,12 @@ extern int errno;		/* just in case */
 #include "nl_unix.c"
 #include "env_unix.c"
 #include "tcp_unix.c"
-#include "gr_waitp.c"
+#include "gr_wait.c"
 #include "tz_sv4.c"
 #include "gethstid.c"
-#include "scandir.c"
+#undef flock
+#include "flock.c"
+#include "utime.c"
 
 /* QNX local readdir()
  * Accepts: directory structure

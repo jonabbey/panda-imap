@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	17 November 2000
+ * Last Edited:	19 December 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -350,8 +350,9 @@ long mh_create (MAILSTREAM *stream,char *mailbox)
     return NIL;
   }
   if (!mh_path) return NIL;	/* sorry */
-				/* try to make it */
-  if (!(mh_file (tmp,mailbox) && dummy_create_path (stream,strcat (tmp,"/")))){
+  if (!(mh_file (tmp,mailbox) &&/* try to make it */
+	dummy_create_path (stream,strcat (tmp,"/"),
+			   get_dir_protection (mailbox)))) {
     sprintf (tmp,"Can't create mailbox %.80s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;

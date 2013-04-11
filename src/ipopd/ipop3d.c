@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	24 October 2000
+ * Last Edited:	10 December 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -61,7 +61,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2000.69";	/* server version */
+char *version = "2000.70";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -181,7 +181,7 @@ int main (int argc,char *argv[])
 	while (auth) {
 #ifdef PLAINTEXT_DISABLED
 				/* disable insecure authenticators */
-	  if (!auth->secflag) auth->server = NIL;
+	  if (!(auth->flags & AU_SECURE)) auth->server = NIL;
 #endif
 	  if (auth->server) {
 	    PBOUT (' ');
@@ -241,7 +241,7 @@ int main (int argc,char *argv[])
 	    while (auth) {
 #ifdef PLAINTEXT_DISABLED
 				/* disable insecure authenticators */
-	      if (!auth_secflag) auth->server = NIL;
+	      if (!(auth->flags & AU_SECURE)) auth->server = NIL;
 #endif
 	      if (auth->server) {
 		PSOUT (auth->name);

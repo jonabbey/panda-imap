@@ -1,5 +1,5 @@
 	   KNOWN BUGS/MISFEATURES/DEFICIENCIES IN THE IMAP TOOLKIT
-			 Last Updated: 9 October 2000
+			 Last Updated: 9 January 2001
 
 The following are known problems/deficiencies in the imap-2000 toolkit:
  . Possible problems for some installations:
@@ -8,6 +8,13 @@ The following are known problems/deficiencies in the imap-2000 toolkit:
       edit os_lnx.c to include tz_bsd.c instead of tz_sv4.c.  Note that
       other versions of Linux don't support BSD-style timezone name
       lookup, so don't make this change unless it's needed on your system.
+   . In some systems, the OpenSSL distribution is installed other than at
+      the standard /usr/local/ssl location.  If this is the case on your
+      system and you want to build with SSL support, you will need to set
+      the SSLDIR variable, either by including a setting of EXTRASPECIALS
+      in the make command line, e.g.
+       build lnp SPECIALAUTHENTICATORS=ssl EXTRASPECIALS="SSLDIR=/usr/ssl"
+      or by editing imap-2000/src/osdep/unix/Makefile.ssl
    . /tmp, /usr/tmp or /var/tmp (if present), and the mail spool directory
       must be protected 1777 (world write with sticky bit); otherwise
       mailbox locking and updates won't work.
@@ -31,7 +38,17 @@ The following are known problems/deficiencies in the imap-2000 toolkit:
        {imap.blurdybloop.com/ssl/novalidate-cert}INBOX
       to get an SSL session instead of just
        {imap.blurdybloop.com/ssl}INBOX
- . Bugs:
+   . GCC 8.x and above on SGI systems does not correct pass/return
+      structures which are smaller than 16 bytes and are not 8 bytes.  The
+      problem is that structures are padded at the wrong end; e.g. a 4 byte
+      structure is loaded into the lower 4 bytes of the register when it
+      should be loaded into the upper 4 bytes of the register.  This affects
+      IRIX 6 the most because it is a 64-bit system and 4 byte structures are
+      common.  This compiler bug impacts the use of inet_ntoa() in c-client
+      and causes syslog messages to show IP addresses as 255.255.255.255
+      instead of the correct values.  The fix is either to use SGI's C compiler
+      instead of GCC or link with an implementation of inet_ntoa() that was
+      built with GCC instead of the standard SGI C library version.
    . By default, the UNIX SSL build assumes that RSAREF is not needed, because
       RSA Security Inc. released the RSA public key encryption algorithm into
       the public domain on September 6, 2000.  There is no longer any need to
@@ -44,6 +61,7 @@ The following are known problems/deficiencies in the imap-2000 toolkit:
       libcrypto library explicitly as libcrypto.a.  If you use shared
       libraries, you may need to edit imap-2000/src/osdep/unix/Makefile.ssl
       to change SSLCRYPTO to use the more normal -lcrypto.
+ . Bugs:
    . It doesn't work to have a "}" character as a user name in /user= in a
       mailbox name, even if the user name is quoted.  In other words,
       {blurdybloop.com/user="foo}bar"}zap won't work; foo will be interpreted

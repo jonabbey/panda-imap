@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	24 October 2000
+ * Last Edited:	17 January 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -1379,20 +1379,15 @@ SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
   } while (!stream && *++hostlist);
 
 				/* have a session, log in if have user name */
-  if (mb.user[0] && !nntp_send_auth_work (stream,&mb,tmp)) {
-    nntp_close (stream);	/* punt stream */
-    return NIL;
-  }
+  if (stream && mb.user[0] && !nntp_send_auth_work (stream,&mb,tmp))
+				/* punt stream */
+    stream = nntp_close (stream);
 				/* in case server demands MODE READER */
   if (stream) switch ((int) nntp_send_work (stream,"MODE","READER")) {
   case NNTPWANTAUTH:		/* server wants auth first, do so and retry */
   case NNTPWANTAUTH2:
     if (nntp_send_auth_work(stream,&mb,tmp)) nntp_send(stream,"MODE","READER");
     else stream = nntp_close (stream);
-    break;
-  default:			/* only authenticate if requested */
-    if (mb.user[0] && !nntp_send_auth_work (stream,&mb,tmp))
-      stream = nntp_close (stream);
     break;
   }
   return stream;
@@ -1509,14 +1504,17 @@ long nntp_send_work (SENDSTREAM *stream,char *command,char *args)
   long ret;
   char *s = (char *) fs_get (strlen (command) + (args ? strlen (args) + 1 : 0)
 			     + 3);
-				/* build the complete command */
-  if (args) sprintf (s,"%s %s",command,args);
-  else strcpy (s,command);
-  if (stream->debug) mm_dlog (s);
-  strcat (s,"\015\012");
+  if (!stream->netstream)
+    ret = nntp_fake (stream,NNTPSOFTFATAL,"No-op dead stream");
+  else {			/* build the complete command */
+    if (args) sprintf (s,"%s %s",command,args);
+    else strcpy (s,command);
+    if (stream->debug) mm_dlog (s);
+    strcat (s,"\015\012");
 				/* send the command */
-  ret = net_soutr (stream->netstream,s) ? nntp_reply (stream) :
-    nntp_fake (stream,NNTPSOFTFATAL,"NNTP connection broken (command)");
+    ret = net_soutr (stream->netstream,s) ? nntp_reply (stream) :
+      nntp_fake (stream,NNTPSOFTFATAL,"NNTP connection broken (command)");
+  }
   fs_give ((void **) &s);
   return ret;
 }

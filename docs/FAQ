@@ -1,5 +1,5 @@
 		   IMAP TOOLKIT FREQUENTLY ASKED QUESTIONS
-			Last Updated: 9 November 2000
+			Last Updated: 9 January 2001
 
 GENERAL QUESTIONS:
 
@@ -72,6 +72,9 @@ A: The IMAP toolkit is partially internationalized and multilingualized.
      at the present time, but such support is planned.
 
 
+Q: Why do I get the message:
+     CREATE failed: Can't create mailbox node xxxxxxxxx: File exists
+    and how do I fix it?
 Q: Are hierarchical mailboxes supported?
 A: Yes.  However, there is one important caveat.
    Some mailbox formats, including the default which is the traditional UNIX
@@ -95,6 +98,7 @@ A: Yes.  However, there is one important caveat.
     documentation for your client software to see how to do this with that
     software.
    Of course, on Windows systems you would use "\" instead of "/".
+
 
 Q: Are "dual-use" mailboxes supported?
 Q: Can I have a mailbox that has both messages and sub-mailboxes?
@@ -146,6 +150,12 @@ A: Yes.  imap-2000 supports SSL client functionality for IMAP, POP3, SMTP,
    SSL is supported via undocumented Microsoft interfaces in Windows 9x,
     Windows Millenium, and NT4; and via standard interfaces in Windows 2000.
    
+
+Q: How do I build/install OpenSSL?
+Q: How do I obtain/create certificates for use with SSL?
+A: If you need help in doing this, try the contacts mentioned in the OpenSSL
+    README.  We do not offer support for OpenSSL or certificates.
+
 
 Q: Can I use CRAM-MD5 authentication?
 Q: Can I use APOP authentication?
@@ -471,8 +481,10 @@ A: This usually means that some "helpful" person has protected /tmp so
     lock file protection.
 
 
-Q: What does the syslog message:
+Q: What do the syslog messages:
      Command stream end of file, while reading line user=... host=...
+     Command stream end of file, while reading char user=... host=...
+     Command stream end of file, while writing text user=... host=...
     mean?
 A: This message occurs when the session is disconnected without a proper
     LOGOUT (IMAP) or QUIT (POP) command being received by the server first.
@@ -547,6 +559,90 @@ A: As distributed, the IMAP server is connected to your home directory by
    It is possible to modify the software so that the default connected
     directory is someplace else.  Please read the file CONFIG for
     discussion of this and other issues.
+
+
+Q: Why is there a long delay in mail_open() before I get connected to the
+    IMAP server?
+A: By default, the c-client library attempts to make a connection through
+    rsh (and ssh, if you enable that).  If the command:
+     rsh imapserver exec /etc/rimapd
+    (or ssh if that is enabled) returns with a "* PREAUTH" response, it
+    will use the resulting rsh session as the IMAP session and not require
+    an authentication step on the server.
+   Unfortunately, rsh has a design error that treats "TCP connection
+    refused" as "temporary failure, try again"; it expects the "rsh not
+    allowed" case to be implemented as a successful connection followed
+    by an error message and close the connection.
+   It must be emphasized that this is a bug in rsh.  It is NOT a bug in the
+    IMAP toolkit.
+   The use of rsh can be disabled in any the following ways:
+    (1) You can disable it for this particular session by either:
+	(a) setting an explicit port number in the mailbox name, e.g.
+	    {imapserver.foo.com:143}INBOX
+	(b) using SSL (the /ssl switch)
+    (2) You can disable it globally by setting the rsh timeout value to 0
+	with the call: mail_parameters (NIL,SET_RSHTIMEOUT,0);
+
+
+Q: Why does a message sometimes get split into two or more messages on my
+    SUN system?
+A: This is caused by an interaction of two independent design problems in
+    SUN mail software.  The first problem is that the "forward message"
+    option in SUN's "mail tool" program includes the internal "From "
+    header line in the text that it forwarded.  This internal header line
+    is specific to traditional UNIX mailbox files and is not suitable for
+    use in forwarded messages.
+   The second problem is that the mail delivery agent assumes that mail
+    reading problems will not use the traditional UNIX mailbox format but
+    instead an incompatible variant that depends upon a "Content-Length:"
+    message header.
+   Content-Length is widely recognized to have been a terrible mistake,
+    and is no longer recommended for use anywhere.
+   One symptom of the problem is that under certain circumstances, a
+    message may get broken up into several messages.
+   I'm also aware of security bugs caused by programs that foolishly
+    trust "Content-Length:" headers with evil values.
+   To fix the mailer on your system, edit your sendmail.cf to change the
+    Mlocal line to have the -E flag.  A typical entry will lool like:
+	Mlocal,	P=/usr/lib/mail.local, F=flsSDFMmnPE, S=10, R=20,
+		A=mail.local -d $u
+   This fix will also work around the problem with "mail tool", because
+    it will insert a ">" before the internal header line to prevent it
+    from being interpreted by mail reading software as an internal header
+    line.
+
+
+Q: Why did my IMAP session suddenly disconnect?  The syslog has the message:
+     Autologout user=<...my user name...> host=<...my imap server...>
+A: This is a bug in your IMAP client.  It failed to communicate with the
+    IMAP server for over 30 minutes.
+
+
+Q: Why does reading certain messages hang when using Netscape?  It works
+    fine with Pine!
+A: There are two possible causes.
+   Check the mail syslog.  If you see the message "Killed (lost mailbox
+    lock)" for the impacted user(s), read the FAQ entry regarding this
+     message.
+   Check the affected mailbox to see if there are embedded NUL characters
+    in the message.  NULs in message texts are a technical violation of both
+    the message format and IMAP specifications.  Most clients don't care, but
+    apparently Netscape does.  You can work around this by rebuilding imapd
+    with the NETSCAPE_BRAIN_DAMAGE option set (see src/imapd/Makefile); this
+    will cause imapd to convert all NULs to 0x80 characters.  A better
+    solution is to enable the feature in your MTA to MIME-convert messages
+    with binary content.  See the documentation for your MTA for how to do
+    this.
+
+
+Q: Why does Netscape say that there's a problem with the IMAP server and that
+    I should "Contact your mail server administrator."?
+A: Certain versions of Netscape do this when you click the Manage Mail button,
+    which uses an undocumented feature of Netscape's proprietary IMAP server.
+    You can work around this by rebuilding imapd with the
+    NETSCAPE_BRAIN_DAMAGE option set (see src/imapd/Makefile) to a URL that
+    points either to an alternative IMAP client (e.g. Pine) or perhaps to a
+    homebrew mail account management page.
 
 WHERE TO GO FOR ADDITIONAL INFORMATION:
 

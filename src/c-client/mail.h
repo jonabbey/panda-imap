@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	27 November 2000
+ * Last Edited:	19 December 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -264,6 +264,12 @@
 #define SET_NOTIMEZONES (long) 547
 #define GET_HIDEDOTFILES (long) 548
 #define SET_HIDEDOTFILES (long) 549
+#define GET_FTPDIRPROTECTION (long) 550
+#define SET_FTPDIRPROTECTION (long) 551
+#define GET_PUBLICDIRPROTECTION (long) 552
+#define SET_PUBLICDIRPROTECTION (long) 553
+#define GET_SHAREDDIRPROTECTION (long) 554
+#define SET_SHAREDDIRPROTECTION (long) 555
 
 /* Driver flags */
 

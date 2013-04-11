@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- QNX version
+ * Program:	Operating-system dependent routines -- QNX Neutrino RTP version
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -24,10 +24,8 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/file.h>
 #include <sys/dir.h>
 #include <sys/types.h>
-#include </usr/include/unix.h>
 #include <time.h>
 #include <utime.h>
 
@@ -39,6 +37,31 @@
 #define FNDELAY O_NONBLOCK
 #define d_ino d_fileno
 
+
+/* Different names, equivalent things in BSD and SysV */
+
+#ifndef L_SET
+#define L_SET SEEK_SET
+#endif
+#ifndef L_INCR
+#define L_INCR SEEK_CUR
+#endif
+#ifndef L_XTND
+#define L_XTND SEEK_END
+#endif
+
+/* For flock() emulation */
+
+#define flock bsd_flock
+
+#define LOCK_SH 1
+#define LOCK_EX 2
+#define LOCK_NB 4
+#define LOCK_UN 8
+
+#define utime portable_utime
+int portable_utime (char *file,time_t timep[2]);
+
 typedef int (*select_t) (struct direct *name);
 typedef int (*compar_t) (void *d1,void *d2);
 
@@ -48,8 +71,4 @@ typedef int (*compar_t) (void *d1,void *d2);
 #include "nl.h"
 #include "tcp.h"
 
-long gethostid(void);
 struct direct *Readdir (DIR *dirp);
-
-extern char *crypt (const char *pw, const char *salt);
-extern long random (void);

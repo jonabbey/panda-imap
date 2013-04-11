@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	19 November 2000
+ * Last Edited:	19 December 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -208,7 +208,7 @@ long mbx_create (MAILSTREAM *stream,char *mailbox)
     mm_log (mbx,ERROR);
   }
 				/* create underlying file */
-  else if (dummy_create_path (stream,s)) {
+  else if (dummy_create_path (stream,s,get_dir_protection (mailbox))) {
 				/* done if made directory */
     if ((s = strrchr (s,'/')) && !s[1]) return T;
     if ((fd = open (mbx,O_WRONLY,

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	28 November 2000
+ * Last Edited:	9 January 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -495,8 +495,7 @@ long imap_status (MAILSTREAM *stream,char *mbx,long flags)
 				/* can't use stream if not IMAP4rev1, STATUS,
 				   or halfopen and right host */
   if (stream && (!(LEVELSTATUS (stream) || stream->halfopen)
-		 || strcmp (ucase (strcpy (tmp,imap_host (stream))),
-			    ucase (mb.host))))
+		 || mail_compare_cstring (imap_host (stream),mb.host)))
     return imap_status (NIL,mbx,flags);
 				/* make stream if don't have one */
   if (!(stream || (stream = mail_open (NIL,mbx,OP_HALFOPEN|OP_SILENT))))
@@ -595,6 +594,9 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
       (void *) memset (fs_get (sizeof (IMAPLOCAL)),0,sizeof (IMAPLOCAL));
 				/* assume IMAP2bis server */
     LOCAL->imap2bis = LOCAL->rfc1176 = T;
+				/* desirable authenticators */
+    LOCAL->authflags = (stream->secure ? AU_SECURE : NIL) |
+      (mb.authuser[0] ? AU_AUTHUSER : NIL);
     /* IMAP connection open logic is more complex than net_open() normally
      * deals with, because of the simap and rimap hacks.
      * If the session is anonymous, a specific port is given, or if alt is
@@ -624,8 +626,6 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
     if (LOCAL->netstream && reply && imap_OK (stream,reply)) {
 				/* if not preauthenticated */
       if (strcmp (reply->key,"PREAUTH")) {
-	LOCAL->authflags = (stream->secure ? AU_SECURE : NIL) |
-	  (mb.authuser[0] ? AU_AUTHUSER : NIL);
 				/* get server capabilities */
 	if (!LOCAL->gotcapability) imap_send (stream,"CAPABILITY",NIL);
 				/* remote name for authentication */
@@ -676,13 +676,13 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
     if (mb.altopt) sprintf (tmp + strlen (tmp),"/%s",(char *)
 			    mail_parameters (NIL,GET_ALTOPTIONNAME,NIL));
     if (mb.secflag) strcat (tmp,"/secure");
-    if (stream->anonymous) strcat (tmp,"/anonymous}");
+    if (stream->anonymous) strcat (tmp,"/anonymous");
     else {			/* record user name */
       if (!LOCAL->user && usr[0]) LOCAL->user = cpystr (usr);
       if (LOCAL->user) sprintf (tmp + strlen (tmp),"/user=\"%s\"",
 				LOCAL->user);
-      else strcat (tmp,"}");
     }
+    strcat (tmp,"}");
 
     if (!stream->halfopen) {	/* wants to open a mailbox? */
       IMAPARG *args[2];
@@ -692,12 +692,11 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
       args[0] = &ambx; args[1] = NIL;
       if (imap_OK (stream,reply = imap_send (stream,stream->rdonly ?
 					     "EXAMINE": "SELECT",args))) {
-				/* mailbox name */
-	sprintf (tmp + strlen (tmp),"}%s",mb.mailbox);
+	strcat (tmp,mb.mailbox);/* mailbox name */
 	if (!stream->nmsgs && !stream->silent)
 	  mm_log ("Mailbox is empty",(long) NIL);
 				/* note if an INBOX or not */
-	stream->inbox = !strcmp (ucase (mb.mailbox),"INBOX");
+	stream->inbox = !mail_compare_cstring (mb.mailbox,"INBOX");
       }
       else if (ir && LOCAL->referral &&
 	       (s = (*ir) (stream,LOCAL->referral,REFSELECT))) {
@@ -713,7 +712,7 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
       }
     }
     if (stream->halfopen) {	/* half-open connection? */
-      strcat (tmp,"}<no_mailbox>");
+      strcat (tmp,"<no_mailbox>");
 				/* make sure dummy message counts */
       mail_exists (stream,(long) 0);
       mail_recent (stream,(long) 0);
@@ -1272,7 +1271,8 @@ ENVELOPE *imap_structure (MAILSTREAM *stream,unsigned long msgno,BODY **body,
   }
   else if (!*env || (*env)->incomplete) aatt.text = (void *) "ALL";
   else if (!(elt->rfc822_size && elt->day)) aatt.text = (void *) "FAST";
-  if (aatt.text) {		/* need to fetch anything? */
+				/* need to fetch anything? */
+  if (aatt.text && !stream->lock) {
     if (!imap_OK (stream,reply = imap_send (stream,"FETCH",args))) {
 				/* failed, probably RFC-1176 server */
       if (!LEVELIMAP4 (stream) && LEVELIMAP2bis (stream) && body && !*b){
@@ -2872,6 +2872,8 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
 	  if (!mail_parse_date (elt,s)) {
 	    sprintf (LOCAL->tmp,"Bogus date: %.80s",s);
 	    mm_log (LOCAL->tmp,WARN);
+				/* slam in default so we don't try again */
+	    mail_parse_date (elt,"01-Jan-1970 00:00:00 +0000");
 	  }
 	  fs_give ((void **) &s);
 	}
@@ -3779,13 +3781,10 @@ void imap_parse_flags (MAILSTREAM *stream,MESSAGECACHE *elt,char **txtptr)
 
 unsigned long imap_parse_user_flag (MAILSTREAM *stream,char *flag)
 {
-  char tmp[MAILTMPLEN];
   long i;
 				/* sniff through all user flags */
-  for (i = 0; i < NUSERFLAGS; ++i) if (stream->user_flags[i]) {
-    sprintf (tmp,"%.1000s",stream->user_flags[i]);
-    if (!strcmp (flag,ucase (tmp))) return (1 << i);
-  }
+  for (i = 0; i < NUSERFLAGS; ++i) if (stream->user_flags[i])
+    if (!mail_compare_cstring (flag,stream->user_flags[i])) return (1 << i);
   return (unsigned long) 0;	/* not found */
 }
 

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	17 November 2000
+ * Last Edited:	16 January 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -136,12 +136,6 @@ DRIVER *unix_valid (char *name)
       utime (file,&times);	/* set the times */
     }
   }
-				/* in case INBOX but not unix format */
-  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
-	   ((name[1] == 'N') || (name[1] == 'n')) &&
-	   ((name[2] == 'B') || (name[2] == 'b')) &&
-	   ((name[3] == 'O') || (name[3] == 'o')) &&
-	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
   return ret;			/* return what we should */
 }
 /* UNIX manipulate driver parameters
@@ -216,11 +210,10 @@ long unix_create (MAILSTREAM *stream,char *mailbox)
     mm_log (tmp,ERROR);
   }
 				/* create underlying file */
-  else if (dummy_create_path (stream,s)) {
+  else if (dummy_create_path (stream,s,NIL)) {
 				/* done if made directory */
     if ((s = strrchr (s,'\\')) && !s[1]) return T;
-    if ((fd = open (mbx,O_WRONLY|O_BINARY,
-		    (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
+    if ((fd = open (mbx,O_WRONLY|O_BINARY,NIL)) < 0) {
       sprintf (tmp,"Can't reopen mailbox node %.80s: %s",mbx,strerror (errno));
       mm_log (tmp,ERROR);
       unlink (mbx);		/* delete the file */
@@ -695,6 +688,15 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* make sure valid mailbox */
   if (!unix_valid (mailbox)) switch (errno) {
   case ENOENT:			/* no such file? */
+    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
+	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
+	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
+	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
+	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+      if (pc) return (*pc) (stream,sequence,mailbox,options);
+      unix_create (NIL,"INBOX");/* create empty INBOX */
+      break;
+    }
     mm_notify (stream,"[TRYCREATE] Must create mailbox before copy",NIL);
     return NIL;
   case 0:			/* merely empty file? */
@@ -794,14 +796,13 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
 	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
 	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5])
-      unix_create (NIL,"INBOX");
-    else {
-      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
-      return NIL;
+	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+      unix_create (NIL,"INBOX");/* create empty INBOX */
+      break;
     }
-				/* falls through */
-  case 0:			/* INBOX ENOENT or empty file? */
+    mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+    return NIL;
+  case 0:			/* merely empty file? */
     break;
   case EINVAL:
     sprintf (tmp,"Invalid UNIX-format mailbox name: %.80s",mailbox);
@@ -1360,11 +1361,12 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 				/* retain or non-continuation? */
 	    if (retain || ((*s != ' ') && (*s != '\t'))) {
 	      retain = T;	/* retaining continuation now */
+				/* line length in CRLF format newline */
+	      k = i + (((i < 2) || (s[i - 2] != '\r')) ? 1 : 0);
 				/* "internal" header size */
-	      elt->private.data +=
-		i + (((i < 2) || (s[i - 2] != '\r')) ? 1 : 0);
+	      elt->private.data += k;
 				/* message size */
-	      elt->rfc822_size += elt->private.data;	      
+	      elt->rfc822_size += k;
 	    }
 	    else {
 	      char err[MAILTMPLEN];

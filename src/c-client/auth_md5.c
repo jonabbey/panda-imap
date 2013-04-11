@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	21 October 1998
- * Last Edited:	6 October 2000
+ * Last Edited:	12 January 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -264,9 +264,9 @@ char *hmac_md5 (char *text,unsigned long tl,char *key,unsigned long kl)
   memset (k_ipad+kl,0,(MD5BLKLEN+1)-kl);
   memcpy (k_opad,k_ipad,MD5BLKLEN+1);
 				/* XOR key with ipad and opad values */
-  for (i = 0; i < MD5BLKLEN; i++) {/* for each byte of pad */
-    k_ipad[i] ^= 0x36;		/* XOR key with ipad */
-    k_opad[i] ^= 0x5c;		/*  and opad values */
+  for (i = 0; i < MD5BLKLEN; i++) {
+    k_ipad[i] ^= 0x36;
+    k_opad[i] ^= 0x5c;
   }
   md5_init (&ctx);		/* inner MD5: hash ipad and text */
   md5_update (&ctx,k_ipad,MD5BLKLEN);
@@ -287,6 +287,11 @@ char *hmac_md5 (char *text,unsigned long tl,char *key,unsigned long kl)
 
 /* Everything after this point is derived from the RSA Data Security, Inc.
  * MD5 Message-Digest Algorithm
+ */
+
+/* You may wonder why these strange "a &= 0xffffffff;" statements are here.
+ * This is to ensure correct results on machines with a unsigned long size of
+ * larger than 32 bits.
  */
 
 #define RND1(a,b,c,d,x,s,ac) \
@@ -423,6 +428,11 @@ static void md5_transform (unsigned long *state,unsigned char *block)
   memset (x,0,sizeof (x));	/* erase sensitive data */
 }
 
+/* You may wonder why these strange "& 0xff" maskings are here.  This is to
+ * ensure correct results on machines with a char size of larger than 8 bits.
+ * For example, the KCC compiler on the PDP-10 uses 9-bit chars.
+ */
+
 /* MD5 encode unsigned long into LSB-first bytes
  * Accepts: destination pointer
  *	    source
@@ -451,6 +461,8 @@ static void md5_decode (unsigned long *dst,unsigned char *src,int len)
 {
   int i, j;
   for (i = 0, j = 0; i < len; i++, j += 4)
-    dst[i] = ((unsigned long) src[j]) | (((unsigned long) src[j+1]) << 8) |
-      (((unsigned long) src[j+2]) << 16) | (((unsigned long) src[j+3]) << 24);
+    dst[i] = ((unsigned long) (src[j] & 0xff)) |
+      (((unsigned long) (src[j+1] & 0xff)) << 8) |
+      (((unsigned long) (src[j+2] & 0xff)) << 16) |
+	(((unsigned long) (src[j+3] & 0xff)) << 24);
 }

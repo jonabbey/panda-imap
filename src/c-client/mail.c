@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	29 November 2000
+ * Last Edited:	4 January 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -656,11 +656,13 @@ void mail_list (MAILSTREAM *stream,char *ref,char *pat)
     char tmp[MAILTMPLEN];
     sprintf (tmp,"Invalid LIST reference specification: %.80s",ref);
     mm_log (tmp,ERROR);
+    return;
   }
   if (strlen (pat) > NETMAXMBX) {
     char tmp[MAILTMPLEN];
     sprintf (tmp,"Invalid LIST pattern specification: %.80s",pat);
     mm_log (tmp,ERROR);
+    return;
   }
   if (*pat == '{') ref = NIL;	/* ignore reference if pattern is remote */
   if (stream && stream->dtb) {	/* if have a stream, do it for that stream */
@@ -687,11 +689,13 @@ void mail_lsub (MAILSTREAM *stream,char *ref,char *pat)
     char tmp[MAILTMPLEN];
     sprintf (tmp,"Invalid LSUB reference specification: %.80s",ref);
     mm_log (tmp,ERROR);
+    return;
   }
   if (strlen (pat) > NETMAXMBX) {
     char tmp[MAILTMPLEN];
     sprintf (tmp,"Invalid LSUB pattern specification: %.80s",pat);
     mm_log (tmp,ERROR);
+    return;
   }
   if (*pat == '{') ref = NIL;	/* ignore reference if pattern is remote */
   if (stream && stream->dtb) {	/* if have a stream, do it for that stream */
@@ -4571,6 +4575,7 @@ container_t mail_thread_prune_dummy_work (container_t msg,container_t ane)
 				/* prune and return new container */
     msg = mail_thread_prune_dummy_work (nxt,ane);
   }
+  else SETCHILD (msg,nxt);	/* in case child pruned */
   return msg;			/* return this message */
 }
 

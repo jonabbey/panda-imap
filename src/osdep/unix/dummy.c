@@ -359,20 +359,20 @@ long dummy_create (MAILSTREAM *stream,char *mailbox)
     sprintf (tmp,"Can't create %s: invalid name",mailbox);
     mm_log (tmp,ERROR);
   }
-				/* create the name */
-  else if ((ret = dummy_create_path (stream,tmp)) &&
-				/* done if made directory */
+				/* create the name, done if made directory */
+  else if ((ret = dummy_create_path (stream,tmp,get_dir_protection(mailbox)))&&
 	   (s = strrchr (s,'/')) && !s[1]) return T;
   return ret ? set_mbx_protections (mailbox,tmp) : NIL;
 }
 
 /* Dummy create path
  * Accepts: mail stream
- *	    path name name to create
+ *	    path name to create
+ *	    directory mode
  * Returns: T on success, NIL on failure
  */
 
-long dummy_create_path (MAILSTREAM *stream,char *path)
+long dummy_create_path (MAILSTREAM *stream,char *path,long dirmode)
 {
   struct stat sbuf;
   char c,*s,tmp[MAILTMPLEN];
@@ -386,11 +386,11 @@ long dummy_create_path (MAILSTREAM *stream,char *path)
     *s = '\0';			/* tie off to get just superior */
 				/* name doesn't exist, create it */
     if ((stat (path,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	!dummy_create_path (stream,path)) return NIL;
+	!dummy_create_path (stream,path,dirmode)) return NIL;
     *s = c;			/* restore full name */
   }
   if (wantdir) {		/* want to create directory? */
-    ret = !mkdir (path,(int) mail_parameters (NIL,GET_DIRPROTECTION,NIL));
+    ret = !mkdir (path,(int) dirmode);
     *t = '/';			/* restore directory delimiter */
   }
 				/* create file */

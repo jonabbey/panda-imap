@@ -9,14 +9,18 @@
 !		Internet: MRC@CAC.Washington.EDU
 !
 ! Date:		11 May 1989
-! Last Edited:	24 October 2000
+! Last Edited:	12 January 2001
 !
 ! The IMAP toolkit provided in this Distribution is
-! Copyright 2000 University of Washington.
+! Copyright 2001 University of Washington.
 !
 ! The full text of our legal notices is contained in the file called
 ! CPYRIGHT, included with this Distribution.
 
 @COPY OS_T20.* OSDEP.*
-
-@CC -o MTEST MTEST.C MAIL.C DUMMYT20.C IMAP4R1.C SMTP.C NNTP.C POP3.C RFC822.C MISC.C OSDEP.C FLSTRING.C SMANAGER.C NEWSRC.C NETMSG.C UTF8.C
+@CC -c MTEST.C MAIL.C DUMMYT20.C IMAP4R1.C SMTP.C NNTP.C POP3.C RFC822.C MISC.C OSDEP.C FLSTRING.C SMANAGER.C NEWSRC.C NETMSG.C UTF8.C
+@LINK
+*/SET:.HIGH.:300000
+*MTEST.REL,MAIL.REL,DUMMYT20.REL,IMAP4R1.REL,SMTP.REL,NNTP.REL,POP3.REL,RFC822.REL,MISC.REL,OSDEP.REL,FLSTRING.REL,SMANAGER.REL,NEWSRC.REL,NETMSG.REL,UTF8.REL
+*MTEST/SAVE
+*/GO
