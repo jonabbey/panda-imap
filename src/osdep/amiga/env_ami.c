@@ -20,7 +20,7 @@
  *		Internet: MRC@Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 February 2008
+ * Last Edited:	15 May 2008
  */
 
 #include <grp.h>
@@ -692,11 +692,8 @@ char *mylocalhost ()
 {
   char tmp[MAILTMPLEN];
   struct hostent *host_name;
-  if (!myLocalHost) {
-    gethostname(tmp,MAILTMPLEN);/* get local host name */
-    myLocalHost = cpystr ((host_name = gethostbyname (tmp)) ?
-			  host_name->h_name : tmp);
-  }
+  if (!myLocalHost) myLocalHost = cpystr (gethostname (tmp,MAILTMPLEN-1) ?
+					  "random-pc" : tcp_canonical (tmp));
   return myLocalHost;
 }
 

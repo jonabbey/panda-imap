@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,13 @@
  * Program:	UNIX mail routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	11 October 2007
+ * Last Edited:	27 March 2008
  */
 
 
@@ -1573,7 +1571,7 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 				/* find end of keyword */
 		  if (!(u = strpbrk (s," \n\r"))) u = s + strlen (s);
 				/* got a keyword? */
-		  if ((k = (u - s)) <= MAXUSERFLAG) {
+		  if ((k = (u - s)) && (k <= MAXUSERFLAG)) {
 		    uf.data = (unsigned char *) s;
 		    uf.size = k;
 		    for (j = 0; (j < NUSERFLAGS) && stream->user_flags[j]; ++j)
@@ -1627,7 +1625,8 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 		      while (*s == ' ') s++;
 		      u = strpbrk (s," \n\r");
 				/* got a keyword? */
-		      if ((j < NUSERFLAGS) && ((k = (u - s)) <= MAXUSERFLAG)) {
+		      if ((j < NUSERFLAGS) && (k = (u - s)) &&
+			  (k <= MAXUSERFLAG)) {
 			if (stream->user_flags[j])
 			  fs_give ((void **) &stream->user_flags[j]);
 			stream->user_flags[j] = (char *) fs_get (k + 1);

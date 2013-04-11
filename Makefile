@@ -1,5 +1,5 @@
 # ========================================================================
-# Copyright 1988-2007 University of Washington
+# Copyright 1988-2008 University of Washington
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,15 +13,12 @@
 # Program:	IMAP Toolkit Makefile
 #
 # Author:	Mark Crispin
-#		Networks and Distributed Computing
-#		Computing & Communications
-#		University of Washington
-#		Administration Building, AG-44
+#		UW Technology
 #		Seattle, WA  98195
-#		Internet: MRC@CAC.Washington.EDU
+#		Internet: MRC@Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	17 December 2007
+# Last Edited:	12 May 2008
 
 
 # Normal command to build IMAP toolkit:
@@ -100,6 +97,7 @@
 # nx3	NEXTSTEP 3.x
 # osf	OSF/1 (see sos, os4)
 # os4	OSF/1 (Digital UNIX) 4
+# osi	Apple iPhone and iPod Touch
 # osx	Mac OS X
 # oxp	Mac OS X with Pluggable Authentication Modules (PAM)
 # ptx	PTX
@@ -406,6 +404,15 @@ lrhwarn:
 lsu:	an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/share/ssl/certs SSLKEYS=/usr/share/ssl/private GSSDIR=/usr/kerberos"
+
+# iToy does not have Kerberos or PAM.  It doesn't have a
+# /System/Library/OpenSSL directory either, but the libcrypto shared library
+# has these locations so this is what we will use.
+
+osi:	an
+	$(TOUCH) ip6
+	$(BUILD) BUILDTYPE=osx IP=$(IP6) CC=arm-apple-darwin-gcc \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/System/Library/OpenSSL/certs SSLKEYS=/System/Library/OpenSSL/private"
 
 oxp:	an
 	$(TOUCH) ip6

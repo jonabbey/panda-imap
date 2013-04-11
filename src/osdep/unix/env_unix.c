@@ -21,7 +21,7 @@
  *		Internet: MRC@Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 February 2008
+ * Last Edited:	15 May 2008
  */
 
 #include <grp.h>
@@ -931,10 +931,16 @@ char *myusername_full (unsigned long *flags)
 
 char *mylocalhost ()
 {
-  char tmp[MAILTMPLEN];
   if (!myLocalHost) {
-    gethostname(tmp,MAILTMPLEN);/* get local host name */
-    myLocalHost = cpystr (tcp_canonical (tmp));
+    char *s,tmp[MAILTMPLEN];
+    char *t = "unknown";
+    tmp[0] = tmp[MAILTMPLEN-1] = '\0';
+    if (!gethostname (tmp,MAILTMPLEN-1) && tmp[0]) {
+				/* sanity check of name */
+      for (s = tmp; (*s > 0x20) && (*s < 0x7f); ++s);
+      if (!*s) t = tcp_canonical (tmp);
+    }
+    myLocalHost = cpystr (t);
   }
   return myLocalHost;
 }

@@ -18,7 +18,7 @@
  *		UW Technology
  *		University of Washington
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	5 November 1990
  * Last Edited:	3 March 2008
@@ -58,7 +58,7 @@ extern int errno;		/* just in case */
 #define MAXCLIENTLIT 10000	/* maximum non-APPEND client literal size
 				 * must be smaller than 4294967295
 				 */
-#define MAXAPPENDTXT 0x7ffffffe	/* maximum APPEND literal size
+#define MAXAPPENDTXT 0x40000000	/* maximum APPEND literal size
 				 * must be smaller than 4294967295
 				 */
 #define CMDLEN 65536		/* size of command buffer */
@@ -207,7 +207,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "403";		/* edit number of this server */
+char *version = "404";		/* edit number of this server */
 char *logout = "Logout";	/* syslogreason for logout */
 char *goodbye = NIL;		/* bye reason */
 time_t alerttime = 0;		/* time of last alert */
@@ -3812,7 +3812,7 @@ void pcapability (long flag)
   AUTHENTICATOR *auth;
   THREADER *thr = (THREADER *) mail_parameters (NIL,GET_THREADERS,NIL);
 				/* always output protocol level */
-  PSOUT ("CAPABILITY IMAP4REV1 LITERAL+");
+  PSOUT ("CAPABILITY IMAP4REV1 I18NLEVEL=1 LITERAL+");
 #ifdef NETSCAPE_BRAIN_DAMAGE
   PSOUT (" X-NETSCAPE");
 #endif

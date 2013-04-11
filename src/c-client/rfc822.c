@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,13 @@
  * Program:	RFC 2822 and MIME routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	11 September 2007
+ * Last Edited:	14 May 2008
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -304,8 +302,17 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
 	}
 	if (c == '\n') body->size.lines++;
       }
-				/* otherwise assume US-ASCII */
-      if (!body->parameter->value) body->parameter->value = cpystr("US-ASCII");
+				/* 7-bit content */
+      if (!body->parameter->value) switch (body->encoding) {
+      case ENC7BIT:		/* unadorned 7-bit */
+      case ENC8BIT:		/* unadorned 8-bit (but 7-bit content) */
+      case ENCBINARY:		/* binary (but 7-bit content( */
+	body->parameter->value = cpystr ("US-ASCII");
+	break;
+      default:			/* QUOTED-PRINTABLE, BASE64, etc. */
+	body->parameter->value = cpystr ("X-UNKNOWN");
+	break;
+      }
     }
 				/* just count lines */
     else while (i--) if ((SNX (bs)) == '\n') body->size.lines++;
@@ -503,7 +510,10 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
 	  if (!part->body.parameter) {
 	    part->body.parameter = mail_newbody_parameter ();
 	    part->body.parameter->attribute = cpystr ("CHARSET");
-	    part->body.parameter->value = cpystr ("US-ASCII");
+				/* only assume US-ASCII if 7BIT */
+	    part->body.parameter->value =
+	      cpystr ((part->body.encoding == ENC7BIT) ?
+		      "US-ASCII" : "X-UNKNOWN");
 	  }
 	  break;
 	case TYPEMESSAGE:	/* encapsulated message in digest */
@@ -1554,7 +1564,7 @@ long rfc822_output_address_list (RFC822BUFFER *buf,ADDRESS *adr,long pretty,
 	  ((!--n && adr->next && adr->next->mailbox) &&
 	   !rfc822_output_string (buf,", "))) return NIL;
     }
-    if (pretty &&		/* pretty printing? */
+    if (pretty && adr->next &&	/* pretty printing? */
 	((pretty += ((buf->cur > base) ? buf->cur - base :
 		     (buf->end - base) + (buf->cur - buf->beg))) >= 78)) {
       if (!(rfc822_output_string (buf,"\015\012") &&

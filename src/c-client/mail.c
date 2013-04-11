@@ -15,15 +15,13 @@
  * Program:	Mailbox Access routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	13 March 2008
+ * Last Edited:	15 April 2008
  */
 
 
@@ -333,8 +331,7 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
     fatal ("SET_INBOXPATH not permitted");
   case GET_INBOXPATH:
     if ((stream || (stream = mail_open (NIL,"INBOX",OP_PROTOTYPE))) &&
-	stream->dtb->parameters)
-      ret = (*stream->dtb->parameters) (function,value);
+	stream->dtb) ret = (*stream->dtb->parameters) (function,value);
     break;
   case SET_THREADERS:
     fatal ("SET_THREADERS not permitted");
@@ -347,7 +344,7 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
     fatal ("SET_NAMESPACE not permitted");
     break;
   case SET_NEWSRC:		/* too late on open stream */
-    if (stream && (stream != ((*stream->dtb->open) (NIL))))
+    if (stream && stream->dtb && (stream != ((*stream->dtb->open) (NIL))))
       fatal ("SET_NEWSRC not permitted");
     else ret = env_parameters (function,value);
     break;
@@ -365,7 +362,8 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
   case SET_DIRFMTTEST:
     fatal ("SET_DIRFMTTEST not permitted");
   case GET_DIRFMTTEST:
-    if (!(stream && (ret = (*stream->dtb->parameters) (function,NIL))))
+    if (!(stream && stream->dtb &&
+	  (ret = (*stream->dtb->parameters) (function,NIL))))
       fatal ("GET_DIRFMTTEST not permitted");
     break;
 
@@ -684,7 +682,7 @@ DRIVER *mail_valid (MAILSTREAM *stream,char *mailbox,char *purpose)
 	  !(*factory->valid) (mailbox));
 	 factory = factory->next);
 				/* validate factory against non-dummy stream */
-  if (factory && stream && (stream->dtb != factory) &&
+  if (factory && stream && stream->dtb && (stream->dtb != factory) &&
       strcmp (stream->dtb->name,"dummy"))
 				/* factory invalid; if dummy, use stream */
     factory = strcmp (factory->name,"dummy") ? NIL : stream->dtb;
@@ -1352,6 +1350,7 @@ MAILSTREAM *mail_close_full (MAILSTREAM *stream,long options)
   if (stream) {			/* make sure argument given */
 				/* do the driver's close action */
     if (stream->dtb) (*stream->dtb->close) (stream,options);
+    stream->dtb = NIL;		/* resign driver */
     if (stream->mailbox) fs_give ((void **) &stream->mailbox);
     if (stream->original_mailbox)
       fs_give ((void **) &stream->original_mailbox);
@@ -2519,7 +2518,8 @@ long mail_expunge_full (MAILSTREAM *stream,char *sequence,long options)
 long mail_copy_full (MAILSTREAM *stream,char *sequence,char *mailbox,
 		     long options)
 {
-  return SAFE_COPY (stream->dtb,stream,sequence,mailbox,options);
+  return stream->dtb ?
+    SAFE_COPY (stream->dtb,stream,sequence,mailbox,options) : NIL;
 }
 
 /* Append data package to use for old single-message mail_append() interface */
@@ -2616,7 +2616,7 @@ long mail_append_multiple (MAILSTREAM *stream,char *mailbox,append_t af,
    * took care of the appendProto case.  Otherwise, if appendProto is set to
    * NIL, we won't get a TRYCREATE.
    */
-  else if (!stream && (stream = default_proto (NIL)) &&
+  else if (!stream && (stream = default_proto (NIL)) && stream->dtb &&
 	   SAFE_APPEND (stream->dtb,stream,mailbox,af,data))
 				/* timing race? */
     MM_NOTIFY (stream,"Append validity confusion",WARN);
@@ -5455,7 +5455,7 @@ long mail_parse_flags (MAILSTREAM *stream,char *flag,unsigned long *uf)
 	     !i && (j < NUSERFLAGS) && (s = stream->user_flags[j]); ++j)
 	  if (!compare_cstring (t,s)) *uf |= i = 1 << j;
 	if (!i) {		/* flag not found, can it be created? */
-	  if (stream->kwd_create && (j < NUSERFLAGS) &&
+	  if (stream->kwd_create && (j < NUSERFLAGS) && *t &&
 	      (strlen (t) <= MAXUSERFLAG)) {
 	    for (s = t; t && *s; s++) switch (*s) {
 	    default:		/* all other characters */
@@ -5478,7 +5478,8 @@ long mail_parse_flags (MAILSTREAM *stream,char *flag,unsigned long *uf)
 	    }
 	  }
 	  else {
-	    sprintf (msg,"Unknown flag: %.80s",t);
+	    if (*t) sprintf (msg,"Unknown flag: %.80s",t);
+	    else strcpy (msg,"Empty flag invalid");
 	    MM_LOG (msg,WARN);
 	  }
 	}

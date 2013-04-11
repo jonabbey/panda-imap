@@ -21,7 +21,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	19 February 2008
+ * Last Edited:	8 May 2008
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -2394,28 +2394,28 @@ long imap_expunge (MAILSTREAM *stream,char *sequence,long options)
 				/* otherwise try to make into UID EXPUNGE */
     else if (mail_sequence (stream,sequence)) {
       unsigned long i,j;
-      char *s = LOCAL->tmp;
+      char *t = (char *) fs_get (IMAPTMPLEN);
+      char *s = t;
 				/* search through mailbox */
-      for (s = '\0',i = 1; i <= stream->nmsgs; ++i) 
+      for (*s = '\0', i = 1; i <= stream->nmsgs; ++i)
 	if (mail_elt (stream,i)->sequence) {
-				/* prepend with comma if not first time */
-	if (LOCAL->tmp[0]) *s++ = ',';
-	sprintf (s,"%lu",mail_uid (stream,j = i));
-	s += strlen (s);	/* point at end of string */
-				/* search for possible end of range */
-	while ((i < stream->nmsgs) && mail_elt (stream,i+1)->sequence) i++;
-	if (i != j) {		/* output end of range */
-	  sprintf (s,":%lu",mail_uid (stream,i));
+	  if (t[0]) *s++ = ',';	/* prepend with comma if not first time */
+	  sprintf (s,"%lu",mail_uid (stream,j = i));
 	  s += strlen (s);	/* point at end of string */
+				/* search for possible end of range */
+	  while ((i < stream->nmsgs) && mail_elt (stream,i+1)->sequence) i++;
+	  if (i != j) {		/* output end of range */
+	    sprintf (s,":%lu",mail_uid (stream,i));
+	    s += strlen (s);	/* point at end of string */
+	  }
+	  if ((s - t) > (IMAPTMPLEN - 50)) {
+	    mm_log ("Excessively complex sequence",ERROR);
+	    return NIL;
+	  }
 	}
-	if ((s - LOCAL->tmp) > (IMAPTMPLEN - 50)) {
-	  mm_log ("Excessively complex sequence",ERROR);
-	  return NIL;
-	}
-      }
 				/* now do as UID EXPUNGE */
-      ret = imap_expunge (stream,s = cpystr (s),EX_UID);
-      fs_give ((void **) &s);
+      ret = imap_expunge (stream,t,EX_UID);
+      fs_give ((void **) &t);
     }
   }
 				/* ordinary EXPUNGE */
