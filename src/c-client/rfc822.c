@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	2 December 2002
+ * Last Edited:	18 December 2002
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2002 University of Washington.
@@ -551,9 +551,9 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
     break;
 
   case TYPEMESSAGE:		/* encapsulated message */
-    body->nested.msg = mail_newmsg ();
 				/* encapsulated RFC-822 message? */
     if (!strcmp (body->subtype,"RFC822")) {
+      body->nested.msg = mail_newmsg ();
       switch (body->encoding) {	/* make sure valid encoding */
       case ENC7BIT:		/* these are valid nested encodings */
       case ENC8BIT:
@@ -732,7 +732,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
 	rfc822_parse_content (&part->body,bs,h,depth+1,flags);
 	bs->size = j;		/* restore current level size */
       }
-      else {			/* empty part, default subtype if necessary */
+      else {			/* empty MIME headers, use default subtype */
 	part->body.subtype = cpystr (rfc822_default_subtype (part->body.type));
 				/* see if anything else special to do */
 	switch (part->body.type) {
@@ -744,7 +744,7 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,unsigned long depth,
 	    part->body.parameter->value = cpystr ("US-ASCII");
 	  }
 	  break;
-	case TYPEMESSAGE:	/* encapsulated message */
+	case TYPEMESSAGE:	/* encapsulated message in digest */
 	  part->body.nested.msg = mail_newmsg ();
 	  break;
 	default:

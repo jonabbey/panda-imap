@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	21 October 2002
+ * Last Edited:	26 December 2002
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2002 University of Washington.
@@ -95,21 +95,23 @@ MAILSTREAM mbxproto = {&mbxdriver};
 DRIVER *mbx_valid (char *name)
 {
   char tmp[MAILTMPLEN];
-  return mbx_isvalid (name,tmp) ? &mbxdriver : NIL;
+  return mbx_isvalid (NIL,name,tmp) ? &mbxdriver : NIL;
 }
 
 
 /* MBX mail test for valid mailbox
- * Accepts: mailbox name
+ * Accepts: returned stream with valid mailbox keywords
+ *	    mailbox name
  *	    scratch buffer
  * Returns: T if valid, NIL otherwise
  */
 
-int mbx_isvalid (char *name,char *tmp)
+int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp)
 {
   int fd;
   int ret = NIL;
-  char *s,hdr[HDRSIZE];
+  unsigned long i;
+  char *s,*t,hdr[HDRSIZE];
   struct stat sbuf;
   struct utimbuf times;
   errno = EINVAL;		/* assume invalid argument */
@@ -127,7 +129,19 @@ int mbx_isvalid (char *name,char *tmp)
 	isxdigit (hdr[15]) && isxdigit (hdr[16]) && isxdigit (hdr[17]) &&
 	isxdigit (hdr[18]) && isxdigit (hdr[19]) && isxdigit (hdr[20]) &&
 	isxdigit (hdr[21]) && isxdigit (hdr[22]) &&
-	(hdr[23] == '\015') && (hdr[24] == '\012')) ret = T;
+	(hdr[23] == '\015') && (hdr[24] == '\012')) {
+      ret = T;
+      if (stream) {		/* stream specified? */
+	*stream = (MAILSTREAM *) memset (fs_get (sizeof (MAILSTREAM)),0,
+					 sizeof (MAILSTREAM));
+	for (i = 0, s = hdr + 25;	/* parse user flags */
+	     (i < NUSERFLAGS) && (t = strchr (s,'\015')) && (t - s);
+	     i++, s = t + 2) {
+	  *t = '\0';		/* tie off flag */
+	  if (strlen (s) <= MAXUSERFLAG) (*stream)->user_flags[i] = cpystr (s);
+	}
+      }
+    }
     close (fd);			/* close the file */
 				/* preserve atime and mtime */
     times.actime = sbuf.st_atime;
@@ -231,7 +245,10 @@ long mbx_create (MAILSTREAM *stream,char *mailbox)
   sprintf (s = tmp,"*mbx*\015\012%08lx00000000\015\012",
 	   (unsigned long) time (0));
   s += strlen (s);		/* move to end of pointer */
-  for (i = 0; i < NUSERFLAGS; ++i) *s++ ='\015',*s++ = '\012';
+  for (i = 0; i < NUSERFLAGS; ++i)
+    sprintf (s += strlen (s),"%s\015\012",
+	     (stream && stream->user_flags[i]) ? stream->user_flags[i] : "");
+
   if (write (fd,tmp,HDRSIZE) != HDRSIZE) {
     sprintf (tmp,"Can't initialize mailbox node %.80s: %s",
 	     mbx,strerror (errno));
@@ -664,14 +681,15 @@ long mbx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   struct stat sbuf;
   struct utimbuf times;
   MESSAGECACHE *elt;
-  unsigned long i,j,k;
+  unsigned long i,j,k,m;
   long ret = LONGT;
   int fd,ld;
-  char file[MAILTMPLEN],lock[MAILTMPLEN];
+  char *s,*t,file[MAILTMPLEN],lock[MAILTMPLEN];
   mailproxycopy_t pc =
     (mailproxycopy_t) mail_parameters (stream,GET_MAILPROXYCOPY,NIL);
+  MAILSTREAM *dstream = NIL;
 				/* make sure valid mailbox */
-  if (!mbx_isvalid (mailbox,LOCAL->buf)) switch (errno) {
+  if (!mbx_isvalid (&dstream,mailbox,LOCAL->buf)) switch (errno) {
   case ENOENT:			/* no such file? */
     mm_notify (stream,"[TRYCREATE] Must create mailbox before copy",NIL);
     return NIL;
@@ -711,8 +729,13 @@ long mbx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
       lseek (LOCAL->fd,elt->private.special.offset +
 	     elt->private.special.text.size,L_SET);
       mail_date(LOCAL->buf,elt);/* build target header */
+				/* get target keyword mask */
+      for (j = elt->user_flags, k = 0; j; )
+	if (s = stream->user_flags[find_rightmost_bit (&j)])
+	  for (m = 0; (m < NUSERFLAGS) && (t = dstream->user_flags[m]); m++)
+	    if (!compare_cstring (s,t) && (k |= 1 << m)) break;
       sprintf (LOCAL->buf+strlen(LOCAL->buf),",%lu;%08lx%04x-00000000\015\012",
-	       elt->rfc822_size,elt->user_flags,(unsigned)
+	       elt->rfc822_size,k,(unsigned)
 	       ((fSEEN * elt->seen) + (fDELETED * elt->deleted) +
 		(fFLAGGED * elt->flagged) + (fANSWERED * elt->answered) +
 		(fDRAFT * elt->draft)));
@@ -775,18 +798,17 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   long f;
   unsigned long i,uf;
   STRING *message;
-  long ret = LONGT;
-				/* default stream to prototype */
-  if (!stream) stream = &mbxproto;
+  long ret = NIL;
+  MAILSTREAM *dstream = NIL;
 				/* make sure valid mailbox */
-  if (!mbx_isvalid (mailbox,tmp)) switch (errno) {
+  if (!mbx_isvalid (&dstream,mailbox,tmp)) switch (errno) {
   case ENOENT:			/* no such file? */
     if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
 	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
 	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
 	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
 	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5])
-      mbx_create (NIL,"INBOX");
+      mbx_create (dstream = stream ? stream : &mbxproto,"INBOX");
     else {
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
       return NIL;
@@ -803,65 +825,67 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     mm_log (tmp,ERROR);
     return NIL;
   }
-				/* get first message */
-  if (!(*af) (stream,data,&flags,&date,&message)) return NIL;
 
+				/* get first message */
+  if (!(*af) (dstream,data,&flags,&date,&message));
 				/* open destination mailbox */
-  if (((fd = open (mbx_file (file,mailbox),O_BINARY|O_WRONLY|O_APPEND|O_CREAT,
-		   S_IREAD|S_IWRITE)) < 0) || !(df = fdopen (fd,"ab"))) {
+  else if (((fd = open (mbx_file (file,mailbox),
+			O_BINARY|O_WRONLY|O_APPEND|O_CREAT,
+			S_IREAD|S_IWRITE)) < 0) || !(df = fdopen (fd,"ab"))) {
     sprintf (tmp,"Can't open append mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
-    return NIL;
   }
 				/* get parse/append permission */
-  if ((ld = lockname (lock,mailbox,LOCK_EX)) < 0) {
+  else if ((ld = lockname (lock,mailbox,LOCK_EX)) < 0) {
     mm_log ("Unable to lock append mailbox",ERROR);
     close (fd);
-    return NIL;
   }
-  mm_critical (stream);		/* go critical */
-  fstat (fd,&sbuf);		/* get current file size */
-  do {				/* parse flags */
-    if (!SIZE (message)) {	/* guard against zero-length */
-      mm_log ("Append of zero-length message",ERROR);
-      ret = NIL;
-      break;
-    }
-    f = mail_parse_flags (stream,flags,&uf);
-    if (date) {			/* parse date if given */
-      if (!mail_parse_date (&elt,date)) {
-	sprintf (tmp,"Bad date in append: %.80s",date);
-	mm_log (tmp,ERROR);
-	ret = NIL;		/* mark failure */
+  else {
+    mm_critical (dstream);	/* go critical */
+    fstat (fd,&sbuf);		/* get current file size */
+    for (ret = LONGT; ret && message; ) {
+      if (!SIZE (message)) {	/* guard against zero-length */
+	mm_log ("Append of zero-length message",ERROR);
+	ret = NIL;
 	break;
       }
-      mail_date (tmp,&elt);	/* write preseved date */
-    }
-    else internal_date (tmp);	/* get current date in IMAP format */
+      f = mail_parse_flags (dstream,flags,&uf);
+      if (date) {		/* parse date if given */
+	if (!mail_parse_date (&elt,date)) {
+	  sprintf (tmp,"Bad date in append: %.80s",date);
+	  mm_log (tmp,ERROR);
+	  ret = NIL;		/* mark failure */
+	  break;
+	}
+	mail_date (tmp,&elt);	/* write preseved date */
+      }
+      else internal_date (tmp);	/* get current date in IMAP format */
 				/* write header */
-    if (fprintf (df,"%s,%lu;%08lx%04lx-00000000\015\012",tmp,
-		 i = SIZE (message),uf,(unsigned long) f) < 0) ret = NIL;
-    else {			/* write message */
-      if (i) do c = 0xff & SNX (message);
-      while ((putc (c,df) != EOF) && --i);
+      if (fprintf (df,"%s,%lu;%08lx%04lx-00000000\015\012",tmp,
+		   i = SIZE (message),uf,(unsigned long) f) < 0) ret = NIL;
+      else {			/* write message */
+	if (i) do c = 0xff & SNX (message);
+	       while ((putc (c,df) != EOF) && --i);
 				/* get next message */
-      if (i || !(*af) (stream,data,&flags,&date,&message)) ret = NIL;
+	if (i || !(*af) (dstream,data,&flags,&date,&message)) ret = NIL;
+      }
     }
-  } while (ret && message);
 				/* if error... */
-  if (!ret || (fflush (df) == EOF)) {
-    ftruncate (fd,sbuf.st_size);/* revert file */
-    close (fd);			/* make sure fclose() doesn't corrupt us */
-    sprintf (tmp,"Message append failed: %s",strerror (errno));
-    mm_log (tmp,ERROR);
-    ret = NIL;
+    if (!ret || (fflush (df) == EOF)) {
+      ftruncate (fd,sbuf.st_size);/* revert file */
+      close (fd);		/* make sure fclose() doesn't corrupt us */
+      sprintf (tmp,"Message append failed: %s",strerror (errno));
+      mm_log (tmp,ERROR);
+      ret = NIL;
+    }
+    times.actime = sbuf.st_atime; /* preserve atime and mtime */
+    times.modtime= sbuf.st_mtime;
+    utime (file,&times);	/* set the times */
+    fclose (df);		/* close the file */
+    unlockfd (ld,lock);		/* release exclusive parse/append permission */
+    mm_nocritical (dstream);	/* release critical */
   }
-  times.actime = sbuf.st_atime;	/* preserve atime and mtime */
-  times.modtime= sbuf.st_mtime;
-  utime (file,&times);		/* set the times */
-  fclose (df);			/* close the file */
-  unlockfd (ld,lock);		/* release exclusive parse/append permission */
-  mm_nocritical (stream);	/* release critical */
+  if (dstream != stream) mail_close (dstream);
   return ret;
 }
 

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	19 March 2002
+ * Last Edited:	8 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -38,7 +38,7 @@ extern int errno;		/* just in case */
 DRIVER newsdriver = {
   "news",			/* driver name */
 				/* driver flags */
-  DR_NEWS|DR_READONLY|DR_NOFAST|DR_NAMESPACE,
+  DR_NEWS|DR_READONLY|DR_NOFAST|DR_NAMESPACE|DR_NONEWMAIL,
   (DRIVER *) NIL,		/* next driver */
   news_valid,			/* mailbox is valid for us */
   news_parameters,		/* manipulate parameters */

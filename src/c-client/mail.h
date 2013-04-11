@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	28 October 2002
+ * Last Edited:	7 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -293,6 +293,10 @@
 #define DR_XPOINT (long) 0x1000	/* needs to be checkpointed when recycling */
 				/* driver has no real internal date */
 #define DR_NOINTDATE (long) 0x2000
+				/* driver does not announce new mail */
+#define DR_NONEWMAIL (long) 0x4000
+				/* driver does not announce new mail when RO */
+#define DR_NONEWMAILRONLY (long) 0x8000
 
 
 /* Cache management function codes */

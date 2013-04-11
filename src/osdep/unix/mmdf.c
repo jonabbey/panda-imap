@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	7 March 2002
+ * Last Edited:	20 December 2002
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2002 University of Washington.
@@ -40,7 +40,8 @@ extern int errno;		/* just in case */
 
 DRIVER mmdfdriver = {
   "mmdf",			/* driver name */
-  DR_LOCAL|DR_MAIL|DR_LOCKING,	/* driver flags */
+				/* driver flags */
+  DR_LOCAL|DR_MAIL|DR_LOCKING|DR_NONEWMAILRONLY,
   (DRIVER *) NIL,		/* next driver */
   mmdf_valid,			/* mailbox is valid for us */
   mmdf_parameters,		/* manipulate parameters */
@@ -1859,7 +1860,7 @@ long mmdf_extend (MAILSTREAM *stream,unsigned long size)
 	if (MM_DISKERROR (stream,e,NIL)) {
 	  fsync (LOCAL->fd);	/* user chose to punt */
 	  sprintf (LOCAL->buf,"Unable to extend mailbox: %s",strerror (e));
-	  MM_LOG (LOCAL->buf,ERROR);
+	  if (!stream->silent) MM_LOG (LOCAL->buf,ERROR);
 	  return NIL;
 	}
       }

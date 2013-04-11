@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	11 April 2001
+ * Last Edited:	7 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -38,7 +38,8 @@ extern int errno;		/* just in case */
 
 DRIVER mboxdriver = {
   "mbox",			/* driver name */
-  DR_LOCAL|DR_MAIL|DR_LOCKING,	/* driver flags */
+				/* driver flags */
+  DR_LOCAL|DR_MAIL|DR_LOCKING|DR_NONEWMAILRONLY,
   (DRIVER *) NIL,		/* next driver */
   mbox_valid,			/* mailbox is valid for us */
   unix_parameters,		/* manipulate parameters */

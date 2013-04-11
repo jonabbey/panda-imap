@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	27 November 2002
+ * Last Edited:	3 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -4242,7 +4242,8 @@ char *imap_parse_string (MAILSTREAM *stream,char **txtptr,
     if (flags && string)	/* need to filter newlines? */
       for (st = string; st = strpbrk (st,"\015\012\011"); *st++ = ' ');
 				/* get new reply text line */
-    reply->line = net_getline (LOCAL->netstream);
+    if (!(reply->line = net_getline (LOCAL->netstream)))
+      reply->line = cpystr ("");
     if (stream->debug) mm_dlog (reply->line);
     *txtptr = reply->line;	/* set text pointer to point at it */
     break;
@@ -4686,7 +4687,8 @@ void imap_parse_extension (MAILSTREAM *stream,char **txtptr,
 		     LOCAL->tmp);
     while (i -= j);
 				/* get new reply text line */
-    reply->line = net_getline (LOCAL->netstream);
+    if (!(reply->line = net_getline (LOCAL->netstream)))
+      reply->line = cpystr ("");
     if (stream->debug) mm_dlog (reply->line);
     *txtptr = reply->line;	/* set text pointer to point at it */
     break;
@@ -4730,7 +4732,6 @@ void imap_parse_capabilities (MAILSTREAM *stream,char *t)
     else if (!compare_cstring (t,"CHILDREN")) LOCAL->cap.children = T;
     else if (!compare_cstring (t,"MULTIAPPEND")) LOCAL->cap.multiappend = T;
     else if (!compare_cstring (t,"SCAN")) LOCAL->cap.scan = T;
-    else if (!compare_cstring (t,"CHILDREN")) LOCAL->cap.children = T;
     else if (((t[0] == 'S') || (t[0] == 's')) &&
 	     ((t[1] == 'O') || (t[1] == 'o')) &&
 	     ((t[2] == 'R') || (t[2] == 'r')) &&

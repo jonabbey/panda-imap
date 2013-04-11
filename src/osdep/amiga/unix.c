@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	7 March 2002
+ * Last Edited:	7 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -53,7 +53,8 @@ extern int errno;		/* just in case */
 
 DRIVER unixdriver = {
   "unix",			/* driver name */
-  DR_LOCAL|DR_MAIL|DR_LOCKING,	/* driver flags */
+				/* driver flags */
+  DR_LOCAL|DR_MAIL|DR_LOCKING|DR_NONEWMAILRONLY,
   (DRIVER *) NIL,		/* next driver */
   unix_valid,			/* mailbox is valid for us */
   unix_parameters,		/* manipulate parameters */
@@ -1874,7 +1875,7 @@ long unix_extend (MAILSTREAM *stream,unsigned long size)
 	if (MM_DISKERROR (stream,e,NIL)) {
 	  fsync (LOCAL->fd);	/* user chose to punt */
 	  sprintf (LOCAL->buf,"Unable to extend mailbox: %s",strerror (e));
-	  MM_LOG (LOCAL->buf,ERROR);
+	  if (!stream->silent) MM_LOG (LOCAL->buf,ERROR);
 	  return NIL;
 	}
       }

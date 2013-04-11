@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	24 October 2000
+ * Last Edited:	26 December 2002
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -57,7 +57,7 @@ typedef struct mbx_local {
 /* Function prototypes */
 
 DRIVER *mbx_valid (char *name);
-int mbx_isvalid (char *name,char *tmp);
+int mbx_isvalid (MAILSTREAM **stream,char *name,char *tmp);
 void *mbx_parameters (long function,void *value);
 void mbx_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
 void mbx_list (MAILSTREAM *stream,char *ref,char *pat);

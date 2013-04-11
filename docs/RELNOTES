@@ -1,3 +1,16 @@
+Updated: 7 January 2003
+
+imap-2002b is a maintenace release, released concurrently with Pine 4.52,
+and contains only bugfixes.  Programs written for imap-2002 will build with
+this version without modification.
+
+Drivers which do not announce new mail are now indicated by the DR_NONEWMAIL
+driver flag.  Driver which do not announce new mail when read-only are now
+indicated by the DR_NONEWMAILRONLY flag.
+
+There are no user-visible functional enhancements in this version.
+
+
 Updated: 10 December 2002
 
 imap-2002a is a maintenance release, consisting entirely of critical

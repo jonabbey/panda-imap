@@ -22,7 +22,7 @@ mailutil - mail utility program
 .I [-debug] [-verbose] source dest
 .br
 .B mailutil transfer
-.I [-debug] [-verbose] source destination
+.I [-debug] [-verbose] [-merge m] src dst
 .SH DESCRIPTION
 .B mailutil
 replaces the old chkmail, imapcopy, imapmove, imapxfer, mbxcopy,
@@ -79,7 +79,28 @@ except that they do not create the destination mailbox.
 .B mailutil transfer
 copies an entire hierarchy of mailboxes from the named source to the
 named destination.  Mailboxes are created on the destination as
-needed.
+needed.  Any error in copying messages will cause the transfer to stop.
+.PP
+Normally, any error in creation will cause the transfer to stop.
+However, if
+.B -merge mode 
+is specified, a merging transfer is performed.  The
+.B mode
+argument the type of merge.
+.PP
+.B -merge prompt
+indicates that the user should be asked for an alternative name to create.
+If creating the new name fails, the user will be asked again.
+.PP
+.B -merge append
+indicates that it's alright to copy the messages into an existing mailbox
+with that name.  If the mailbox does not exist, the user will be prompted
+for an alternative name.
+.PP
+.B -merge suffix=XXXX
+where XXXX is any string, indicates that an alternative name should be
+built by appending the given suffix to the name.  It that alternative name
+can't be created, then the user will be prompted for an alternative name.
 .PP
 The source hierarchy consists of all mailboxes which start
 with the given source name.  With the exception of a remote system

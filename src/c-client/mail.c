@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	4 December 2002
+ * Last Edited:	2 January 2003
  *
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -28,6 +28,9 @@
 #include "rfc822.h"
 #include "utf8.h"
 #include "smtp.h"
+
+static char *copyright = "The IMAP toolkit provided in this Distribution is\nCopyright 1988-2003 University of Washington.\nThe full text of our legal notices is contained in the file called\nCPYRIGHT, included with this Distribution.\n";
+
 
 /* c-client global data */
 
@@ -3257,23 +3260,26 @@ long mail_search_body (MAILSTREAM *stream,unsigned long msgno,BODY *body,
       ret = mail_search_body (stream,msgno,&part->body,s,i,flags);
     break;
   case TYPEMESSAGE:
-    if (flags) {		/* want to search nested message header? */
-      st.data = (unsigned char *)
-	mail_fetch_header (stream,msgno,sect,NIL,&st.size,
-			   FT_INTERNAL | FT_PEEK);
-      if (stream->dtb->flags & DR_LOWMEM) ret = stream->private.search.result;
-      else {
-	utf8_mime2text (&st,&h);/* make UTF-8 version of header */
-	ret = mail_search_string (&h,"UTF-8",&stream->private.search.string);
-	if (h.data != st.data) fs_give ((void **) &h.data);
+    if (!strcmp (body->subtype,"RFC822")) {
+      if (flags) {		/* want to search nested message header? */
+	st.data = (unsigned char *)
+	  mail_fetch_header (stream,msgno,sect,NIL,&st.size,
+			     FT_INTERNAL | FT_PEEK);
+	if (stream->dtb->flags & DR_LOWMEM) ret =stream->private.search.result;
+	else {
+	  utf8_mime2text (&st,&h);/* make UTF-8 version of header */
+	  ret = mail_search_string (&h,"UTF-8",&stream->private.search.string);
+	  if (h.data != st.data) fs_give ((void **) &h.data);
+	}
       }
+      if (body = body->nested.msg->body)
+	ret = (body->type == TYPEMULTIPART) ?
+	  mail_search_body (stream,msgno,body,(prefix ? prefix : ""),
+			    section - 1,flags) :
+	mail_search_body (stream,msgno,body,strcat (sect,"."),1,flags);
+      break;
     }
-    if (body = body->nested.msg->body)
-      ret = (body->type == TYPEMULTIPART) ?
-	mail_search_body (stream,msgno,body,(prefix ? prefix : ""),section - 1,
-			  flags) :
-	  mail_search_body (stream,msgno,body,strcat (sect,"."),1,flags);
-    break;
+				/* non-MESSAGE/RFC822 falls into text case */
 
   case TYPETEXT:
     s = mail_fetch_body (stream,msgno,sect,&i,FT_INTERNAL | FT_PEEK);
@@ -4926,7 +4932,7 @@ long mail_parse_flags (MAILSTREAM *stream,char *flag,unsigned long *uf)
 	}
 	else {
 	  sprintf (flg,"Unknown flag: %.80s",t);
-	  MM_LOG (flg,ERROR);
+	  MM_LOG (flg,WARN);
 	}
       }
     }
@@ -5200,8 +5206,8 @@ void mail_free_body_data (BODY *body)
     if (body->subtype && !strcmp (body->subtype,"RFC822")) {
       mail_free_stringlist (&body->nested.msg->lines);
       mail_gc_msg (body->nested.msg,GC_ENV | GC_TEXTS);
-      fs_give ((void **) &body->nested.msg);
     }
+    if (body->nested.msg) fs_give ((void **) &body->nested.msg);
     break;
   default:
     break;

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	5 December 2002
+ * Last Edited:	7 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -178,7 +178,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2002.334";	/* version number of this server */
+char *version = "2002.336";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
@@ -367,6 +367,7 @@ int main (int argc,char *argv[])
 	if (arg) response = badarg;
 	else {			/* time to say farewell */
 	  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+	  if (lastsel) fs_give ((void **) &lastsel);
 	  if (state == OPEN) stream = mail_close (stream);
 	  state = LOGOUT;
 	  PSOUT ("* BYE ");
@@ -776,6 +777,7 @@ int main (int argc,char *argv[])
 	    else {		/* failed, nuke old selection */
 	      if (stream) stream = mail_close (stream);
 	      state = SELECT;	/* no mailbox open now */
+	      if (lastsel) fs_give ((void **) &lastsel);
 	      response = lose;	/* open failed */
 	    }
 	  }
@@ -896,7 +898,7 @@ int main (int argc,char *argv[])
 	    if (state == LOGOUT) response = lose;
 				/* get mailbox status */
 	    else if (lastsel && (!strcmp (s,lastsel) ||
-				 !strcmp (s,stream->mailbox))) {
+				 (stream && !strcmp (s,stream->mailbox)))) {
 	      unsigned long unseen;
 #ifndef ENTOURAGE_BRAIN_DAMAGE
 				/* snarl at cretins which do this */
@@ -3846,14 +3848,10 @@ long mm_diskerror (MAILSTREAM *s,long errcode,long serious)
     return NIL;
   }
   if (!quell_events) {		/* otherwise die before more damage is done */
-    PSOUT ("* BYE Aborting due to disk error: ");
+    PSOUT ("* NO Disk error: ");
     PSOUT (strerror (errcode));
     CRLF;
   }
-  syslog (LOG_ALERT,"Fatal disk error user=%.80s host=%.80s mbx=%.80s: %.80s",
-	  user ? user : "???",tcp_clienthost (),
-	  (stream && stream->mailbox) ? stream->mailbox : "???",
-	  strerror (errcode));
   return T;
 }
 
