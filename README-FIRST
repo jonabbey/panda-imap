@@ -1,2 +1,7 @@
+imap-4.7b is a patch release which corrects a crash caused by an even
+more obscure circumstance in message headers than in imap-4.7a.
+
 imap-4.7a is a patch release which corrects crashes caused by certain
 unusual tokens in message headers.  There are no new features.
+
+imap-4.7 is a release version, distributed with Pine 4.21.

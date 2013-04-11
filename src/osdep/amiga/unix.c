@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	20 January 2000
+ * Last Edited:	22 February 2000
  *
  * Copyright 2000 by the University of Washington
  *
@@ -1047,7 +1047,7 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
   int zn;
   unsigned long i,j,k,m;
   char c,*s,*t,*u,tmp[MAILTMPLEN],date[30];
-  int ti = 0,pseudoseen = NIL;
+  int ti = 0,pseudoseen = NIL,retain = T;
   unsigned long nmsgs = stream->nmsgs;
   unsigned long prevuid = nmsgs ? mail_elt (stream,nmsgs)->private.uid : 0;
   unsigned long recent = stream->recent;
@@ -1197,6 +1197,7 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 		  }
 		  s = u;	/* advance to next keyword */
 		}
+		retain = NIL;	/* don't retain continuation */
 		break;
 	      }
 
@@ -1243,6 +1244,7 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 				/* pseudo-header seen */
 		  pseudoseen = T;
 		}
+		retain = NIL;	/* don't retain continuation */
 		break;
 	      }
 
@@ -1286,6 +1288,7 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 		  stream->uid_validity = 0;
 		  elt->private.uid = 0;
 		}
+		retain = NIL;	/* don't retain continuation */
 		break;
 	      }
 	    }
@@ -1320,6 +1323,7 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 	      default:		/* some other crap */
 		break;
 	      } while (*s && (*s != '\n') && (*s != '\r'));
+	      retain = NIL;	/* don't retain continuation */
 	      break;		/* all done */
 	    }
 				/* otherwise fall into default case */
@@ -1336,15 +1340,35 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 	      *v = '\0';	/* tie off */
 				/* matches internal header? */
 	      if (!strcmp (ucase (tmp),"STATUS") || !strcmp (tmp,"X-STATUS") ||
-		  !strcmp (tmp,"X-KEYWORDS") || !strcmp (tmp,"X-UID"))
+		  !strcmp (tmp,"X-KEYWORDS") || !strcmp (tmp,"X-UID")) {
+		char err[MAILTMPLEN];
+		sprintf (err,"Discarding bogus %s header in message %lu",
+			 tmp,elt->msgno);
+		mm_log (err,WARN);
+		retain = NIL;	/* don't retain continuation */
 		break;		/* different case or something */
+	      }
 	    }
+				/* retain or non-continuation? */
+	    if (retain || ((*s != ' ') && (*s != '\t'))) {
+	      retain = T;	/* retaining continuation now */
 				/* line length in LF format newline */
-	    k =  i - (((i >= 2) && (s[i - 2] == '\r')) ? 1 : 0);
+	      k = i - (((i >= 2) && (s[i - 2] == '\r')) ? 1 : 0);
 				/* "internal" header size */
-	    elt->private.data += k;
+	      elt->private.data += k;
 				/* message size */
-	    elt->rfc822_size += k + 1;
+	      elt->rfc822_size += k + 1;
+	    }
+	    else {
+	      char err[MAILTMPLEN];
+	      sprintf (err,"Discarding bogus continuation in message %lu: ",
+		       elt->msgno);
+	      u = strncpy (err + strlen (err),s,(size_t) max (i,80));
+	      u[80] = '\0';	/* make sure tired off */
+	      if (u = strpbrk (u,"\r\n")) *u = '\0';
+	      mm_log (err,WARN);
+	      break;		/* different case or something */
+	    }
 	    break;
 	  }
 	} while (i && (*t != '\n') && (*t != '\r'));
