@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	8 February 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -153,7 +153,7 @@ static void do_date (char *date,char *prefix,char *fmt,int suffix)
     char *tz;
     tzset ();			/* get timezone from TZ environment stuff */
     tz = tzname[daylight ? (((struct tm *) t)->tm_isdst > 0) : 0];
-    if (tz && tz[0]) sprintf (date + strlen (date)," (%s)",tz);
+    if (tz && tz[0]) sprintf (date + strlen (date)," (%.50s)",tz);
   }
 }
 
@@ -230,26 +230,51 @@ void CALLBACK clock_ticked (UINT IDEvent,UINT uReserved,DWORD dwUser,
  *	    termination interrupt handler
  */
 
-void server_init (char *server,char *service,char *altservice,char *sasl,
+void server_init (char *server,char *service,char *sslservice,char *sasl,
 		  void *clkint,void *kodint,void *hupint,void *trmint)
 {
   if (!check_nt ()) {
     if (!auth_md5.server) fatal ("Can't run on Windows without MD5 database");
     server_nli = T;		/* Windows server not logged in */
   }
-  if (server) {			/* set server name in syslog */
+				/* only do this if for init call */
+  if (server && service && sslservice && sasl) {
+    long port;
+    struct servent *sv;
+    struct sockaddr_in sin;
+    int i = sizeof (struct sockaddr_in);
+    /* Don't use tcp_clienthost() since reverse DNS problems may slow down the
+     * greeting message and cause the client to time out.
+     */
+    char *client = getpeername (0,(struct sockaddr *) &sin,(void *) &i) ?
+      "UNKNOWN" : inet_ntoa (sin.sin_addr);
+				/* set server name in syslog */
     openlog (server,LOG_PID,LOG_MAIL);
     fclose (stderr);		/* possibly save a process ID */
-  }
+    /* Use SSL if SSL service, or if server starts with "s" and not service */
+    if (((port = tcp_serverport ()) >= 0)) {
+      if ((sv = getservbyname (service,"tcp")) && (port == ntohs (sv->s_port)))
+	syslog (LOG_DEBUG,"%s service init from %s",service,client);
+      else if ((sv = getservbyname (sslservice,"tcp")) &&
+	       (port == ntohs (sv->s_port))) {
+	syslog (LOG_DEBUG,"%s SSL service init from %s",sslservice,client);
+	ssl_server_init (server);
+      }
+      else {			/* not service or SSL service port */
+	syslog (LOG_DEBUG,"port %ld service init from %s",port,client);
+	if (*server == 's') ssl_server_init (server);
+      }
+    }
 				/* set SASL name */
-  if (sasl) mail_parameters (NIL,SET_SERVICENAME,(void *) sasl);
+    mail_parameters (NIL,SET_SERVICENAME,(void *) sasl);
+				/* make sure stdout does binary */
+    setmode (fileno (stdin),O_BINARY);
+    setmode (fileno (stdout),O_BINARY);
+    setmode (fileno (stderr),O_BINARY);
+  }
   alarm_rang = clkint;		/* note the clock interrupt */
   timeBeginPeriod (1000);	/* set the timer interval */
   timeSetEvent (1000,1000,clock_ticked,NIL,TIME_PERIODIC);
-				/* make sure stdout does binary */
-  setmode (fileno (stdin),O_BINARY);
-  setmode (fileno (stdout),O_BINARY);
-  setmode (fileno (stderr),O_BINARY);
 }
 
 
@@ -635,15 +660,18 @@ char *lockdir (char *lock,char *first,char *last)
   char c,*s;
   if (first && *first) {	/* first part must be non-NIL */
 				/* copy first part */
-    for (s = lock; *first; c = *s++ = *first++);
+    for (s = lock; c = *first++; *s++ = (c == '/') ? '\\' : c);
     if (last && *last) {	/* copy last part if specified */
 				/* write trailing \ in case not in first */
-      if (c != '\\') *s++ = '\\';
-      while (*last) c = *s++ = *last++;
+      if (s[-1] != '\\') *s++ = '\\';
+      while (c = *last++) *s++ = (c == '/') ? '\\' : c;
     }
-    if (c == '\\') --s;		/* delete trailing \ if any */
-    *s = '\0';			/* tie off name at this point */
-    return stat (lock,&sbuf) ? NIL : s;
+    if (s[-1] == '\\') --s;	/* delete trailing \ if any */
+    *s = s[1] = '\0';		/* tie off name at this point */
+    if (!stat (lock,&sbuf)) {	/* does the name exist? */
+      *s++ = '\\';		/* yes, reinstall trailing \ */
+      return s;			/* return the name */
+    }
   }
   return NIL;			/* failed */
 }

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 June 1995
- * Last Edited:	24 October 2000
+ * Last Edited:	21 May 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -54,8 +54,13 @@ FILE *netmsg_slurp (NETSTREAM *stream,unsigned long *size,unsigned long *hsiz)
   char *s,*t,tmp[MAILTMPLEN];
   FILE *f = tmpfile ();
   if (!f) {
-    sprintf (tmp,"Unable to create scratch file: %.80s",strerror (errno));
-    mm_log (tmp,ERROR);
+    sprintf (tmp,".%lx.%lx",(unsigned long) time (0),(unsigned long)getpid ());
+    if (f = fopen (tmp,"wb+")) unlink (tmp);
+    else {
+      sprintf (tmp,"Unable to create scratch file: %.80s",strerror (errno));
+      MM_LOG (tmp,ERROR);
+      return NIL;
+    }
   }
   *size = 0;			/* initially emtpy */
   if (hsiz) *hsiz = 0;
@@ -78,7 +83,7 @@ FILE *netmsg_slurp (NETSTREAM *stream,unsigned long *size,unsigned long *hsiz)
       }
       else {
 	sprintf (tmp,"Error writing scratch file at byte %lu",*size);
-	mm_log (tmp,ERROR);
+	MM_LOG (tmp,ERROR);
 	fclose (f);		/* forget it */
 	f = NIL;		/* failure now */
       }

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	24 October 2000
+ * Last Edited:	9 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -50,7 +50,7 @@ DRIVER newsdriver = {
   news_create,			/* create mailbox */
   news_delete,			/* delete mailbox */
   news_rename,			/* rename mailbox */
-  NIL,				/* status of mailbox */
+  mail_status_default,		/* status of mailbox */
   news_open,			/* open mailbox */
   news_close,			/* close mailbox */
   news_fast,			/* fetch message "fast" attributes */
@@ -277,36 +277,6 @@ long news_delete (MAILSTREAM *stream,char *mailbox)
 long news_rename (MAILSTREAM *stream,char *old,char *newname)
 {
   return NIL;			/* never valid for News */
-}
-
-/* News status of mailbox default handler
- * Accepts: mail stream
- *	    mailbox name
- *	    status flags
- * Returns: T on success, NIL on failure
- */
-
-long news_status (MAILSTREAM *stream,char *mbx,long flags)
-{
-  MAILSTATUS status;
-  unsigned long i;
-  MAILSTREAM *tstream = NIL;
-				/* make temporary stream (unless this mbx) */
-  if ((!stream || strcmp (stream->mailbox,mbx)) &&
-      !(stream = tstream = mail_open (NIL,mbx,OP_READONLY|OP_SILENT)))
-    return NIL;
-  status.flags = flags;		/* return status values */
-  status.messages = stream->nmsgs;
-  status.recent = stream->recent;
-  if (flags & SA_UNSEEN)	/* must search to get unseen messages */
-    for (i = 1,status.unseen = 0; i <= stream->nmsgs; i++)
-      if (!mail_elt (stream,i)->deleted) status.unseen++;
-  status.uidnext = stream->uid_last + 1;
-  status.uidvalidity = stream->uid_validity;
-				/* pass status to main program */
-  mm_status (stream,mbx,&status);
-  if (tstream) mail_close (tstream);
-  return T;			/* success */
 }
 
 /* News open

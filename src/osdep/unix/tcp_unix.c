@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	14 August 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -30,13 +30,7 @@ static char *rshpath = NIL;	/* rsh path */
 static long sshtimeout = 15;	/* ssh timeout */
 static char *sshcommand = NIL;	/* ssh command */
 static char *sshpath = NIL;	/* ssh path */
-static long allowreversedns =	/* allow reverse DNS lookup */
-#ifdef DISABLE_REVERSE_DNS_LOOKUP
-  NIL	/* Not recommended, especially if using Kerberos authentication */
-#else
-  T
-#endif
-  ;
+static long allowreversedns = T;/* allow reverse DNS lookup */
 
 extern long maxposint;		/* get this from write.c */
 
@@ -46,6 +40,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
 		     unsigned long port);
 long tcp_abort (TCPSTREAM *stream);
 char *tcp_name (struct sockaddr_in *sin,long flag);
+long tcp_name_valid (char *s);
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -246,7 +241,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
   if (!ctr) {			/* no open timeout wanted */
 				/* open connection */
     while ((i = connect (sock,(struct sockaddr *) sin,
-			 sizeof (struct sockaddr_in))) < 0 && errno == EINTR);
+			 sizeof (struct sockaddr_in))) < 0 &&(errno == EINTR));
     if (i < 0) {		/* failed? */
       sprintf (tmp,"Can't connect to %.80s,%lu: %s",hst,port,strerror (errno));
       close (sock);		/* flush socket */
@@ -261,7 +256,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
     fcntl (sock,F_SETFL,flgs | FNDELAY);
 				/* open connection */
     while ((i = connect (sock,(struct sockaddr *) sin,
-		       sizeof (struct sockaddr_in))) < 0 && errno == EINTR);
+		       sizeof (struct sockaddr_in))) < 0 && (errno == EINTR));
     if (i < 0) switch (errno) {	/* failed? */
     case EAGAIN:		/* DG brain damage */
     case EINPROGRESS:		/* what we expect to happen */
@@ -278,13 +273,14 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
     FD_ZERO (&efds);		/* handle errors too */
-    FD_SET (sock,&fds);	/* block for error or writeable */
+    FD_SET (sock,&fds);		/* block for error or readable */
     FD_SET (sock,&efds);
     do {			/* block under timeout */
       tmo.tv_sec = ti ? ti - now : 0;
-      i = select (sock+1,0,&fds,&efds,ti ? &tmo : 0);
-      now = time (0);
-    } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
+      i = select (sock+1,&fds,0,&efds,ti ? &tmo : 0);
+      now = time (0);		/* fake timeout if interrupt & time expired */
+      if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
+    } while ((i < 0) && (errno == EINTR));
     if (i > 0) {		/* success, make sure really connected */
       fcntl (sock,F_SETFL,flgs);/* restore blocking status */
       /* This used to be a zero-byte read(), but that crashes Solaris */
@@ -300,12 +296,6 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
       return -1;
     }
   }
-  for (i = 65536; (i > 4096) &&	/* set receive buffer size to 64K */
-       setsockopt (sock,SOL_SOCKET,SO_RCVBUF,(void *) &i,sizeof(i));
-       i -= 1024);
-  for (i = 65536; (i > 4096) &&	/* set send buffer size to 64K */
-       setsockopt (sock,SOL_SOCKET,SO_SNDBUF,(void *) &i,sizeof(i));
-       i -= 1024);
   return sock;			/* return the socket */
 }
   
@@ -417,8 +407,9 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   do {				/* block under timeout */
     tmo.tv_sec = ti - now;
     i = select (max (stream->tcpsi,stream->tcpso)+1,&fds,0,&efds,&tmo);
-    now = time (0);
-  } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
+    now = time (0);		/* fake timeout if interrupt & time expired */
+    if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
+  } while ((i < 0) && (errno == EINTR));
   if (i <= 0) {			/* timeout or error? */
     sprintf (tmp,i ? "error in %s to IMAP server" :
 	     "%s to IMAP server timed out",(*service == '*') ? "ssh" : "rsh");
@@ -520,8 +511,9 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
       do {			/* block under timeout */
 	tmo.tv_sec = ti ? ti - now : 0;
 	i = select (stream->tcpsi+1,&fds,0,&efds,ti ? &tmo : 0);
-	now = time (0);
-      } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
+	now = time (0);		/* fake timeout if interrupt & time expired */
+	if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
+      } while ((i < 0) && (errno == EINTR));
       if (i > 0) {		/* select says there's data to read? */
 	while (((i = read (stream->tcpsi,s,(int) min (maxposint,size))) < 0) &&
 	       (errno == EINTR));
@@ -565,18 +557,18 @@ long tcp_getdata (TCPSTREAM *stream)
     do {			/* block under timeout */
       tmo.tv_sec = ti ? ti - now : 0;
       i = select (stream->tcpsi+1,&fds,0,&efds,ti ? &tmo : 0);
-      now = time (0);
-    } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
-    if (!i) {			/* timeout? */
-      if (tmoh && ((*tmoh) (now - t,now - tl))) continue;
-      else return tcp_abort (stream);
+      now = time (0);		/* fake timeout if interrupt & time expired */
+      if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
+    } while ((i < 0) && (errno == EINTR));
+    if (i > 0) {		/* got data? */
+      while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
+	     (errno == EINTR));
+      if (i < 1) return tcp_abort (stream);
+      stream->iptr = stream->ibuf;/* point at TCP buffer */
+      stream->ictr = i;		/* set new byte count */
     }
-    else if (i < 0) return tcp_abort (stream);
-    while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
-	   (errno == EINTR));
-    if (i < 1) return tcp_abort (stream);
-    stream->iptr = stream->ibuf;/* point at TCP buffer */
-    stream->ictr = i;		/* set new byte count */
+    else if (i || !tmoh || !(*tmoh) (now - t,now - tl))
+      return tcp_abort (stream);/* error or timeout no-continue */
   }
   (*bn) (BLOCK_NONE,NIL);
   return T;
@@ -623,17 +615,17 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
     do {			/* block under timeout */
       tmo.tv_sec = ti ? ti - now : 0;
       i = select (stream->tcpso+1,0,&fds,&efds,ti ? &tmo : 0);
-      now = time (0);
-    } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
-    if (!i) {			/* timeout? */
-      if (tmoh && ((*tmoh) (now - t,now - tl))) continue;
-      else return tcp_abort (stream);
+      now = time (0);		/* fake timeout if interrupt & time expired */
+      if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
+    } while ((i < 0) && (errno == EINTR));
+    if (i > 0) {		/* OK to send data? */
+      while (((i = write (stream->tcpso,string,size)) < 0) &&(errno == EINTR));
+      if (i < 0) return tcp_abort (stream);
+      size -= i;		/* how much we sent */
+      string += i;
     }
-    else if (i < 0) return tcp_abort (stream);
-    while (((i = write (stream->tcpso,string,size)) < 0) && (errno == EINTR));
-    if (i < 0) return tcp_abort (stream);
-    size -= i;			/* how much we sent */
-    string += i;
+    else if (i || !tmoh || !(*tmoh) (now - t,now - tl))
+      return tcp_abort (stream);/* error or timeout no-continue */
   }
   (*bn) (BLOCK_NONE,NIL);
   return T;			/* all done */
@@ -694,8 +686,9 @@ char *tcp_remotehost (TCPSTREAM *stream)
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
     stream->remotehost =	/* get socket's peer name */
-      getpeername (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen) ?
-	cpystr (stream->host) : tcp_name (&sin,NIL);
+      (getpeername (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen) ||
+       (sin.sin_family != AF_INET)) ?
+	 cpystr (stream->host) : tcp_name (&sin,NIL);
   }
   return stream->remotehost;
 }
@@ -724,7 +717,8 @@ char *tcp_localhost (TCPSTREAM *stream)
     int sinlen = sizeof (struct sockaddr_in);
     stream->localhost =		/* get socket's name */
       ((stream->port & 0xffff000) ||
-       getsockname (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen)) ?
+       getsockname (stream->tcpsi,(struct sockaddr *) &sin,(void *) &sinlen) ||
+       (sin.sin_family != AF_INET)) ?
 	 cpystr (mylocalhost ()) : tcp_name (&sin,NIL);
   }
   return stream->localhost;	/* return local host name */
@@ -741,9 +735,10 @@ char *tcp_clienthost ()
   if (!myClientHost) {
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
-				/* get stdin's peer name */
-    myClientHost = getpeername (0,(struct sockaddr *) &sin,(void *) &sinlen) ?
-      cpystr ("UNKNOWN") : tcp_name (&sin,T);
+    myClientHost =		/* get stdin's peer name */
+      getpeername (0,(struct sockaddr *) &sin,(void *) &sinlen) ?
+	cpystr ("UNKNOWN") : ((sin.sin_family == AF_INET) ?
+			      tcp_name (&sin,T) : cpystr ("NON-IPv4"));
   }
   return myClientHost;
 }
@@ -762,8 +757,8 @@ char *tcp_serverhost ()
     struct sockaddr_in sin;
     int sinlen = sizeof (struct sockaddr_in);
 				/* get stdin's name */
-    if (getsockname (0,(struct sockaddr *) &sin,(void *) &sinlen))
-      myServerHost = cpystr (mylocalhost ());
+    if (getsockname (0,(struct sockaddr *) &sin,(void *) &sinlen) ||
+	(sin.sin_family != AF_INET)) myServerHost = cpystr (mylocalhost ());
     else {
       myServerHost = tcp_name (&sin,NIL);
       myServerPort = ntohs (sin.sin_port);
@@ -823,7 +818,8 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
     data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* translate address to name */
     if (!(he = gethostbyaddr ((char *) &sin->sin_addr,
-			      sizeof (struct in_addr),sin->sin_family)))
+			      sizeof (struct in_addr),sin->sin_family)) ||
+	!tcp_name_valid (he->h_name))
       sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
     else if (flag) sprintf (s = tmp,"%s [%s]",he->h_name,
 			    inet_ntoa (sin->sin_addr));
@@ -833,4 +829,19 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
   }
   else sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
   return cpystr (s);
+}
+
+
+/* Validate name
+ * Accepts: domain name
+ * Returns: T if valid, NIL otherwise
+ */
+
+long tcp_name_valid (char *s)
+{
+  int c;
+  while (c = *s++)		/* must be alnum, dot, or hyphen */
+    if (!((c >= 'A') && (c <= 'Z')) && !((c >= 'a') && (c <= 'z')) &&
+	!((c >= '0') && (c <= '9')) && (c != '-') && (c != '.')) return NIL;
+  return LONGT;
 }

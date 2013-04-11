@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	24 October 2000
+ * Last Edited:	2 May 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -94,6 +94,147 @@
 #define I2C_SS2 0x4e		/* single shift to G2 (SS2) */
 #define I2C_SS3 0x4f		/* single shift to G3 (SS3) */
 
+/* 94 character sets */
+
+				/* 4/0 ISO 646 IRV */
+#define I2CS_94_BRITISH 0x41	/* 4/1 ISO 646 British */
+#define I2CS_94_ASCII 0x42	/* 4/2 ISO 646 USA (ASCII) */
+				/* 4/3 NATS Finland/Sweden (primary) */
+				/* 4/4 NATS Finland/Sweden (secondary) */
+				/* 4/5 NATS Denmark/Norway (primary) */
+				/* 4/6 NATS Denmark/Norway (secondary) */
+				/* 4/7 ISO 646 Swedish SEN 850200 */
+				/* 4/8 ISO 646 Swedish names */
+#define I2CS_94_JIS_BUGROM 0x48	/* 4/8 some buggy software does this */
+#define I2CS_94_JIS_KANA 0x49	/* 4/9 JIS X 0201-1976 right half */
+#define I2CS_94_JIS_ROMAN 0x4a	/* 4/a JIS X 0201-1976 left half */
+				/* 4/b ISO 646 German */
+				/* 4/c ISO 646 Portuguese (Olivetti) */
+				/* 4/d ISO 6438 African */
+				/* 4/e ISO 5427 Cyrillic (Honeywell-Bull) */
+				/* 4/f DIN 31624 extended bibliography  */
+				/* 5/0 ISO 5426-1980 Bibliography */
+				/* 5/1 ISO 5427-1981 Cyrillic*/
+				/* 5/2 ISO 646 French (withdrawn) */
+				/* 5/3 ISO 5428-1980 Greek bibliography */
+				/* 5/4 GB 1988-80 Chinese */
+				/* 5/5 Latin-Greek (Honeywell-Bull) */
+				/* 5/6 UK Viewdata/Teletext */
+				/* 5/7 INIS (IRV subset) */
+				/* 5/8 ISO 5428 Greek Bibliography */
+				/* 5/9 ISO 646 Italian (Olivetti) */
+				/* 5/a ISO 646 Spanish (Olivetti) */
+				/* 5/b Greek (Olivetti) */
+				/* 5/c Latin-Greek (Olivetti) */
+				/* 5/d INIS non-standard extension */
+				/* 5/e INIS Cyrillic extension */
+				/* 5/f Arabic CODAR-U IERA */
+				/* 6/0 ISO 646 Norwegian */
+				/* 6/1 Norwegian version 2 (withdrawn) */
+				/* 6/2 Videotex supplementary */
+				/* 6/3 Videotex supplementary #2 */
+				/* 6/4 Videotex supplementary #3 */
+				/* 6/5 APL */
+				/* 6/6 ISO 646 French */
+				/* 6/7 ISO 646 Portuguese (IBM) */
+				/* 6/8 ISO 646 Spanish (IBM) */
+				/* 6/9 ISO 646 Hungarian */
+				/* 6/a Greek ELOT (withdrawn) */
+				/* 6/b ISO 9036 Arabic 7-bit */
+				/* 6/c ISO 646 IRV supplementary set */
+				/* 6/d JIS C6229-1984 OCR-A */
+				/* 6/e JIS C6229-1984 OCR-B */
+				/* 6/f JIS C6229-1984 OCR-B additional */
+				/* 7/0 JIS C6229-1984 hand-printed */
+				/* 7/1 JIS C6229-1984 additional hand-printd */
+				/* 7/2 JIS C6229-1984 katakana hand-printed */
+				/* 7/3 E13B Japanese graphic */
+				/* 7/4 Supplementary Videotex (withdrawn) */
+				/* 7/5 Teletex primary CCITT T.61 */
+				/* 7/6 Teletex secondary CCITT T.61 */
+				/* 7/7 CSA Z 243.4-1985 Alternate primary #1 */
+				/* 7/8 CSA Z 243.4-1985 Alternate primary #2 */
+				/* 7/9 Mosaic CCITT T.101 */
+				/* 7/a Serbocroatian/Slovenian Latin */
+				/* 7/b Serbocroatian Cyrillic */
+				/* 7/c Supplementary CCITT T.101 */
+				/* 7/d Macedonian Cyrillic */
+
+/* 94 character sets - second intermediate byte */
+
+				/* 4/0 Greek primary CCITT */
+				/* 4/1 Cuba */
+				/* 4/2 ISO/IEC 646 invariant */
+				/* 4/3 Irish Gaelic 7-bit */
+				/* 4/4 Turkmen */
+
+
+/* 94x94 character sets */
+
+#define I2CS_94x94_JIS_OLD 0x40	/* 4/0 JIS X 0208-1978 */
+#define I2CS_94x94_GB 0x41	/* 4/1 GB 2312 */
+#define I2CS_94x94_JIS_NEW 0x42	/* 4/2 JIS X 0208-1983 */
+#define I2CS_94x94_KSC 0x43	/* 4/3 KSC 5601 */
+#define I2CS_94x94_JIS_EXT 0x44	/* 4/4 JIS X 0212-1990 */
+				/* 4/5 CCITT Chinese */
+				/* 4/6 Blisssymbol Graphic */
+#define I2CS_94x94_CNS1 0x47	/* 4/7 CNS 11643 plane 1 */
+#define I2CS_94x94_CNS2 0x48	/* 4/8 CNS 11643 plane 2 */
+#define I2CS_94x94_CNS3 0x49	/* 4/9 CNS 11643 plane 3 */
+#define I2CS_94x94_CNS4 0x4a	/* 4/a CNS 11643 plane 4 */
+#define I2CS_94x94_CNS5 0x4b	/* 4/b CNS 11643 plane 5 */
+#define I2CS_94x94_CNS6 0x4c	/* 4/c CNS 11643 plane 6 */
+#define I2CS_94x94_CNS7 0x4d	/* 4/d CNS 11643 plane 7 */
+				/* 4/e DPRK (North Korea) KGCII */
+				/* 4/f JGCII plane 1 */
+				/* 5/0 JGCII plane 2 */
+
+/* 96 character sets */
+
+#define I2CS_96_ISO8859_1 0x41	/* 4/1 Latin-1 (Western Europe) */
+#define I2CS_96_ISO8859_2 0x42	/* 4/2 Latin-2 (Czech, Slovak) */
+#define I2CS_96_ISO8859_3 0x43	/* 4/3 Latin-3 (Dutch, Turkish) */
+#define I2CS_96_ISO8859_4 0x44	/* 4/4 Latin-4 (Scandinavian) */
+				/* 4/5 CSA Z 243.4-1985 */
+#define I2CS_96_ISO8859_7 0x46	/* 4/6 Greek */
+#define I2CS_96_ISO8859_6 0x47	/* 4/7 Arabic */
+#define I2CS_96_ISO8859_8 0x48	/* 4/8 Hebrew */
+				/* 4/9 Czechoslovak CSN 369103 */
+				/* 4/a Supplementary Latin and non-alpha */
+				/* 4/b Technical */
+#define I2CS_96_ISO8859_5 0x4c	/* 4/c Cyrillic */
+#define I2CS_96_ISO8859_9 0x4d	/* 4/d Latin-5 (Finnish, Portuguese) */
+				/* 4/e ISO 6937-2 residual */
+				/* 4/f Basic Cyrillic */
+				/* 5/0 Supplementary Latin 1, 2 and 5 */
+				/* 5/1 Basic Box */
+				/* 5/2 Supplementary ISO/IEC 6937 : 1992 */
+				/* 5/3 CCITT Hebrew supplementary */
+#define I2CS_96_TIS620 0x54	/* 5/4 TIS 620 */
+				/* 5/5 Arabic/French/German */
+#define I2CS_96_ISO8859_10 0x56	/* 5/6 Latin-6 (Northern Europe) */
+				/* 5/7 ??? */
+				/* 5/8 Sami (Lappish) supplementary */
+#define I2CS_96_ISO8859_13 0x59	/* 5/9 Latin-7 (Baltic) */
+#define I2CS_96_VSCII 0x5a	/* 5/a Vietnamese */
+				/* 5/b Technical #1 IEC 1289 */
+#define I2CS_96_ISO8859_14 0x5c	/* 5/c Latin-8 (Celtic) */
+				/* 5/d Sami supplementary Latin */
+				/* 5/e Latin/Hebrew */
+				/* 5/f Celtic supplementary Latin */
+				/* 6/0 Uralic supplementary Cyrillic */
+				/* 6/1 Volgaic supplementary Cyrillic */
+#define I2CS_96_ISO8859_15 0x62	/* 6/2 Latin-9 (Euro) */
+				/* 6/3 Latin-1 with Euro */
+				/* 6/4 Latin-4 with Euro */
+				/* 6/5 Latin-7 with Euro */
+#define I2CS_96_ISO8859_16 0x66	/* 6/6 Latin-10 (Balkan) */
+				/* 6/7 Ogham */
+				/* 6/8 Sami supplementary Latin #2 */
+				/* 7/d Supplementary Mosaic for CCITT 101 */
+
+/* 96x96 character sets */
+
 /* Types of character sets */
 
 #define I2CS_94 0x000		/* 94 character set */
@@ -103,74 +244,41 @@
 #define I2CS_96x96 (I2CS_MUL | I2CS_96)
 
 
-/* 94 character sets */
+/* Character set identifiers stored in Gn */
 
-				/* British localized ASCII */
-#define I2CS_BRITISH (I2CS_94 | 0x41)
-				/* ASCII */
-#define I2CS_ASCII (I2CS_94 | 0x42)
-				/* some buggy software does this */
-#define I2CS_JIS_BUGROM (I2CS_94 | 0x48)
-				/* JIS X 0201-1976 right half */
-#define I2CS_JIS_KANA (I2CS_94 | 0x49)
-				/* JIS X 0201-1976 left half */
-#define I2CS_JIS_ROMAN (I2CS_94 | 0x4a)
-				/* JIS X 0208-1978 */
-#define I2CS_JIS_OLD (I2CS_94x94 | 0x40)
-				/* GB 2312 */
-#define I2CS_GB (I2CS_94x94 | 0x41)
-				/* JIS X 0208-1983 */
-#define I2CS_JIS_NEW (I2CS_94x94 | 0x42)
-				/* KSC 5601 */
-#define I2CS_KSC (I2CS_94x94 | 0x43)
-				/* JIS X 0212-1990 */
-#define I2CS_JIS_EXT (I2CS_94x94 | 0x44)
-				/* CNS 11643 plane 1 */
-#define I2CS_CNS1 (I2CS_94x94 | 0x47)
-				/* CNS 11643 plane 2 */
-#define I2CS_CNS2 (I2CS_94x94 | 0x48)
-				/* CNS 11643 plane 3 */
-#define I2CS_CNS3 (I2CS_94x94 | 0x49)
-				/* CNS 11643 plane 4 */
-#define I2CS_CNS4 (I2CS_94x94 | 0x4a)
-				/* CNS 11643 plane 5 */
-#define I2CS_CNS5 (I2CS_94x94 | 0x4b)
-				/* CNS 11643 plane 6 */
-#define I2CS_CNS6 (I2CS_94x94 | 0x4c)
-				/* CNS 11643 plane 7 */
-#define I2CS_CNS7 (I2CS_94x94 | 0x4d)
-
-/* 96 character sets */
-				/* Latin-1 (Western Europe) */
-#define I2CS_ISO8859_1 (I2CS_96 | 0x41)
-				/* Latin-2 (Czech, Slovak) */
-#define I2CS_ISO8859_2 (I2CS_96 | 0x42)
-				/* Latin-3 (Dutch, Turkish) */
-#define I2CS_ISO8859_3 (I2CS_96 | 0x43)
-				/* Latin-4 (Scandinavian) */
-#define I2CS_ISO8859_4 (I2CS_96 | 0x44)
-				/* Greek */
-#define I2CS_ISO8859_7 (I2CS_96 | 0x46)
-				/* Arabic */
-#define I2CS_ISO8859_6 (I2CS_96 | 0x47)
-				/* Hebrew */
-#define I2CS_ISO8859_8 (I2CS_96 | 0x48)
-				/* Cyrillic */
-#define I2CS_ISO8859_5 (I2CS_96 | 0x4c)
-				/* Latin-5 (Finnish, Portuguese) */
-#define I2CS_ISO8859_9 (I2CS_96 | 0x4d)
-				/* TIS 620 */
-#define I2CS_TIS620 (I2CS_96 | 0x54)
-				/* Latin-6 (Northern Europe) */
-#define I2CS_ISO8859_10 (I2CS_96 | 0x56)
-				/* Latin-7 (Baltic) */
-#define I2CS_ISO8859_13 (I2CS_96 | 0x59)
-				/* Vietnamese */
-#define I2CS_VSCII (I2CS_96 | 0x5a)
-				/* Latin-8 (Celtic) */
-#define I2CS_ISO8859_14 (I2CS_96 | 0x5c)
-				/* Euro (6/2 may be incorrect) */
-#define I2CS_ISO8859_15 (I2CS_96 | 0x62)
+#define I2CS_BRITISH (I2CS_94 | I2CS_94_BRITISH)
+#define I2CS_ASCII (I2CS_94 | I2CS_94_ASCII)
+#define I2CS_JIS_BUGROM (I2CS_94 | I2CS_94_JIS_BUGROM)
+#define I2CS_JIS_KANA (I2CS_94 | I2CS_94_JIS_KANA)
+#define I2CS_JIS_ROMAN (I2CS_94 | I2CS_94_JIS_ROMAN)
+#define I2CS_JIS_OLD (I2CS_94x94 | I2CS_94x94_JIS_OLD)
+#define I2CS_GB (I2CS_94x94 | I2CS_94x94_GB)
+#define I2CS_JIS_NEW (I2CS_94x94 | I2CS_94x94_JIS_NEW)
+#define I2CS_KSC (I2CS_94x94 | I2CS_94x94_KSC)
+#define I2CS_JIS_EXT (I2CS_94x94 | I2CS_94x94_JIS_EXT)
+#define I2CS_CNS1 (I2CS_94x94 | I2CS_94x94_CNS1)
+#define I2CS_CNS2 (I2CS_94x94 | I2CS_94x94_CNS2)
+#define I2CS_CNS3 (I2CS_94x94 | I2CS_94x94_CNS3)
+#define I2CS_CNS4 (I2CS_94x94 | I2CS_94x94_CNS4)
+#define I2CS_CNS5 (I2CS_94x94 | I2CS_94x94_CNS5)
+#define I2CS_CNS6 (I2CS_94x94 | I2CS_94x94_CNS6)
+#define I2CS_CNS7 (I2CS_94x94 | I2CS_94x94_CNS7)
+#define I2CS_ISO8859_1 (I2CS_96 | I2CS_96_ISO8859_1)
+#define I2CS_ISO8859_2 (I2CS_96 | I2CS_96_ISO8859_2)
+#define I2CS_ISO8859_3 (I2CS_96 | I2CS_96_ISO8859_3)
+#define I2CS_ISO8859_4 (I2CS_96 | I2CS_96_ISO8859_4)
+#define I2CS_ISO8859_7 (I2CS_96 | I2CS_96_ISO8859_7)
+#define I2CS_ISO8859_6 (I2CS_96 | I2CS_96_ISO8859_6)
+#define I2CS_ISO8859_8 (I2CS_96 | I2CS_96_ISO8859_8)
+#define I2CS_ISO8859_5 (I2CS_96 | I2CS_96_ISO8859_5)
+#define I2CS_ISO8859_9 (I2CS_96 | I2CS_96_ISO8859_9)
+#define I2CS_TIS620 (I2CS_96 | I2CS_96_TIS620)
+#define I2CS_ISO8859_10 (I2CS_96 | I2CS_96_ISO8859_10)
+#define I2CS_ISO8859_13 (I2CS_96 | I2CS_96_ISO8859_13)
+#define I2CS_VSCII (I2CS_96 | I2CS_96_VSCII)
+#define I2CS_ISO8859_14 (I2CS_96 | I2CS_96_ISO8859_14)
+#define I2CS_ISO8859_15 (I2CS_96 | I2CS_96_ISO8859_15)
+#define I2CS_ISO8859_16 (I2CS_96 | I2CS_96_ISO8859_16)
 
 /* Miscellaneous ISO 2022 definitions */
 
@@ -185,7 +293,7 @@
 #define UCS2_YEN 0x00a5
 #define UCS2_OVERLINE 0x203e
 #define UCS2_KATAKANA 0xff61
-#define BOGON 0xfffd
+#define UBOGON 0xfffd		/* replacement character */
 
 				/* hankaku katakana parameters */
 #define MIN_KANA_7 0x21
@@ -207,7 +315,6 @@
  */
 
 #define SC_UNICODE 0x1		/* UNICODE */
-	/* ISO 8859 scripts */
 #define SC_LATIN_1 0x10		/* Western Europe */
 #define SC_LATIN_2 0x20		/* Eastern Europe */
 #define SC_LATIN_3 0x40		/* Southern Europe */
@@ -224,12 +331,12 @@
 #define SC_HEBREW 0x10000
 #define SC_THAI 0x20000
 #define SC_UKRANIAN 0x40000
-	/* East Asian scripts */
 #define SC_CHINESE_SIMPLIFIED 0x100000
 #define SC_CHINESE_TRADITIONAL 0x200000
 #define SC_JAPANESE 0x400000
 #define SC_KOREAN 0x800000
 #define SC_VIETNAMESE 0x1000000
+#define SC_LATIN_10 0x2000000	/* Balkan */
 
 /* Character set table support */
 

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	24 October 2000
+ * Last Edited:	9 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -53,7 +53,7 @@ DRIVER mtxdriver = {
   mtx_create,			/* create mailbox */
   mtx_delete,			/* delete mailbox */
   mtx_rename,			/* rename mailbox */
-  NIL,				/* status of mailbox */
+  mail_status_default,		/* status of mailbox */
   mtx_open,			/* open mailbox */
   mtx_close,			/* close mailbox */
   mtx_flags,			/* fetch message "fast" attributes */
@@ -312,7 +312,7 @@ MAILSTREAM *mtx_open (MAILSTREAM *stream)
   LOCAL->buf = (char *) fs_get (MAXMESSAGESIZE + 1);
   LOCAL->buflen = MAXMESSAGESIZE;
 				/* note if an INBOX or not */
-  stream->inbox = !strcmp(ucase (strcpy (LOCAL->buf,stream->mailbox)),"INBOX");
+  stream->inbox = !compare_cstring (stream->mailbox,"INBOX");
   fs_give ((void **) &stream->mailbox);
   stream->mailbox = cpystr (tmp);
 				/* get shared parse permission */
@@ -789,6 +789,11 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
   do {				/* parse flags */
+    if (!SIZE (message)) {	/* guard against zero-length */
+      mm_log ("Append of zero-length message",ERROR);
+      ret = NIL;
+      break;
+    }
     f = mail_parse_flags (stream,flags,&i);
 				/* reverse bits (dontcha wish we had CIRC?) */
     for (uf = 0; i; uf |= 1 << (29 - find_rightmost_bit (&i)));

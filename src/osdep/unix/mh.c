@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	24 October 2000
+ * Last Edited:	11 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -51,7 +51,7 @@ DRIVER mhdriver = {
   mh_create,			/* create mailbox */
   mh_delete,			/* delete mailbox */
   mh_rename,			/* rename mailbox */
-  NIL,				/* status of mailbox */
+  mail_status_default,		/* status of mailbox */
   mh_open,			/* open mailbox */
   mh_close,			/* close mailbox */
   mh_fast,			/* fetch message "fast" attributes */
@@ -106,8 +106,9 @@ int mh_isvalid (char *name,char *tmp,long synonly)
 {
   struct stat sbuf;
 				/* name must be #MHINBOX or #mh/... */
-  if (strcmp (ucase (strcpy (tmp,name)),"#MHINBOX") &&
-      !(tmp[0] == '#' && tmp[1] == 'M' && tmp[2] == 'H' && tmp[3] == '/')) {
+  if ((name[0] != '#') || ((name[1] != 'm') && name[1] != 'M') ||
+      ((name[2] != 'h') && name[2] != 'H') ||
+      ((name[3] != '/') && compare_cstring (name+3,"INBOX"))) {
     errno = EINVAL;		/* bogus name */
     return NIL;
   }
@@ -234,7 +235,7 @@ void mh_list (MAILSTREAM *stream,char *ref,char *pat)
       mh_list_work (stream,s,test,0);
     }
 				/* always an INBOX */
-    if (pmatch ("#MHINBOX",ucase (test)))
+    if (!compare_cstring (test,"#MHINBOX"))
       mm_list (stream,NIL,"#MHINBOX",LATT_NOINFERIORS);
   }
 }
@@ -350,8 +351,9 @@ long mh_create (MAILSTREAM *stream,char *mailbox)
     return NIL;
   }
   if (!mh_path) return NIL;	/* sorry */
-				/* try to make it */
-  if (!(mh_file (tmp,mailbox) && dummy_create_path (stream,strcat (tmp,"/")))){
+  if (!(mh_file (tmp,mailbox) &&/* try to make it */
+	dummy_create_path (stream,strcat (tmp,"/"),
+			   get_dir_protection (mailbox)))) {
     sprintf (tmp,"Can't create mailbox %.80s: %s",mailbox,strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -435,7 +437,8 @@ long mh_rename (MAILSTREAM *stream,char *old,char *newname)
       *s = '\0';		/* tie off to get just superior */
 				/* name doesn't exist, create it */
       if ((stat (tmp1,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	  !dummy_create (stream,tmp1)) return NIL;
+	  !dummy_create_path (stream,tmp1,get_dir_protection (newname)))
+	return NIL;
       *s = c;			/* restore full name */
     }
     if (!rename (mh_file (tmp,old),tmp1)) return T;
@@ -458,7 +461,7 @@ MAILSTREAM *mh_open (MAILSTREAM *stream)
   if (stream->local) fatal ("mh recycle stream");
   stream->local = fs_get (sizeof (MHLOCAL));
 				/* note if an INBOX or not */
-  stream->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"#MHINBOX");
+  stream->inbox = !compare_cstring (stream->mailbox,"#MHINBOX");
   mh_file (tmp,stream->mailbox);/* get directory name */
   LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
 				/* make temporary buffer */
@@ -901,6 +904,11 @@ long mh_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 
   mm_critical (stream);		/* go critical */
   do {
+    if (!SIZE (message)) {	/* guard against zero-length */
+      mm_log ("Append of zero-length message",ERROR);
+      ret = NIL;
+      break;
+    }
     if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
       if (!mail_parse_date (&elt,date)) {
@@ -978,10 +986,10 @@ int mh_numsort (const void *d1,const void *d2)
 
 char *mh_file (char *dst,char *name)
 {
-  char *s,tmp[MAILTMPLEN];
+  char *s;
 				/* build composite name */
   sprintf (dst,"%s/%.900s",mh_path,
-	   strcmp (ucase (strcpy (tmp,name)),"#MHINBOX") ? name + 4 : "inbox");
+	   compare_cstring (name,"#MHINBOX") ? name + 4 : "inbox");
 				/* tie off unnecessary trailing / */
   if ((s = strrchr (dst,'/')) && !s[1] && (s[-1] == '/')) *s = '\0';
   return dst;

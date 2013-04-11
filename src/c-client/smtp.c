@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	29 August 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -38,11 +38,14 @@
 
 static unsigned long smtp_maxlogintrials = MAXLOGINTRIALS;
 static long smtp_port = 0;	/* default port override */
-static long smtp_altport = 0;
-static char *smtp_altname = NIL;
+static long smtp_sslport = 0;
 
 
-/* SMTP limits, current as of most recent draft */
+#ifndef RFC2821
+#define RFC2821			/* RFC 2821 compliance */
+#endif
+
+/* SMTP limits, current as of RFC 2821 */
 
 #define SMTPMAXLOCALPART 64
 #define SMTPMAXDOMAIN 255
@@ -79,17 +82,11 @@ void *smtp_parameters (long function,void *value)
   case GET_SMTPPORT:
     value = (void *) smtp_port;
     break;
-  case SET_ALTSMTPPORT:
-    smtp_altport = (long) value;
+  case SET_SSLSMTPPORT:
+    smtp_sslport = (long) value;
     break;
-  case GET_ALTSMTPPORT:
-    value = (void *) smtp_altport;
-    break;
-  case SET_ALTSMTPNAME:
-    smtp_altname = (char *) value;
-    break;
-  case GET_ALTSMTPNAME:
-    value = (void *) smtp_altname;
+  case GET_SSLSMTPPORT:
+    value = (void *) smtp_sslport;
     break;
   default:
     value = NIL;		/* error case */
@@ -119,21 +116,21 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 				/* maximum domain name is 64 characters */
   else do if (strlen (*hostlist) < SMTPMAXDOMAIN) {
     sprintf (tmp,"{%.1000s/%.20s}",*hostlist,service ? service : "smtp");
-    if (!mail_valid_net_parse (tmp,&mb) || mb.anoflag) {
+    if (!mail_valid_net_parse (tmp,&mb) || mb.anoflag || mb.readonlyflag) {
       sprintf (tmp,"Invalid host specifier: %.80s",*hostlist);
       mm_log (tmp,ERROR);
     }
-    else {
-				/* light tryalt flag if requested */
-      mb.tryaltflag = (options & SOP_TRYALT) ? T : NIL;
+    else {			/* light tryssl flag if requested */
+      mb.trysslflag = (options & SOP_TRYSSL) ? T : NIL;
       if (netstream =		/* try to open ordinary connection */
 	  net_open (&mb,dv,smtp_port ? smtp_port : port,
-		    (NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL),
-		    (char *) mail_parameters (NIL,GET_ALTSMTPNAME,NIL),
-		    (unsigned long)mail_parameters(NIL,GET_ALTSMTPPORT,NIL))) {
+		    (NETDRIVER *) mail_parameters (NIL,GET_SSLDRIVER,NIL),
+		    "*smtps",smtp_sslport ? smtp_sslport : SMTPSSLPORT)) {
 	stream = (SENDSTREAM *) memset (fs_get (sizeof (SENDSTREAM)),0,
 					sizeof (SENDSTREAM));
 	stream->netstream = netstream;
+	stream->host = cpystr ((int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
+			       net_host (netstream) : mb.host);
 	stream->debug = (mb.dbgflag || (options & OP_DEBUG)) ? T : NIL;
 	if (options & SOP_SECURE) mb.secflag = T;
 	if (options &(SOP_DSN | SOP_DSN_NOTIFY_FAILURE | SOP_DSN_NOTIFY_DELAY |
@@ -146,7 +143,7 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	}
 	if (options & SOP_8BITMIME) ESMTP.eightbit.want = T;
 				/* get name of local host to use */
-	s = strcmp ("localhost",lcase (strcpy (tmp,mb.host))) ?
+	s = compare_cstring ("localhost",mb.host) ?
 	  net_localhost (netstream) : "localhost";
 
 	do reply = smtp_reply (stream);
@@ -157,12 +154,46 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	  stream = smtp_close (stream);
 	}
 	else if ((reply = smtp_ehlo (stream,s,&mb)) == SMTPOK) {
-	  ESMTP.ok = T;
-	  if (mb.secflag || mb.user[0]) {
-	    if (ESMTP.auth) {	/* have authenticators? */
-	      if (!smtp_auth (stream,&mb,tmp)) stream = smtp_close(stream);
+	  NETDRIVER *ssld =(NETDRIVER *)mail_parameters(NIL,GET_SSLDRIVER,NIL);
+	  sslstart_t stls = (sslstart_t) mail_parameters(NIL,GET_SSLSTART,NIL);
+	  ESMTP.ok = T;		/* ESMTP server, has TLS? */
+	  if (stls && ESMTP.service.starttls && !mb.sslflag && !mb.notlsflag &&
+	      smtp_send (stream,"STARTTLS",NIL) == SMTPGREET) {
+	    mb.tlsflag = T;	/* TLS OK, get into TLS at this end */
+	    stream->netstream->dtb = ssld;
+	    if (!(stream->netstream->stream =
+		  (*stls) (stream->netstream->stream,mb.host,NET_TLSCLIENT |
+			   (mb.novalidate ? NET_NOVALIDATECERT : NIL)))) {
+				/* drat, drop this connection */
+	      if (stream->netstream) net_close (stream->netstream);
+	      stream->netstream = NIL;
+	      stream = smtp_close (stream);
 	    }
-	    else {		/* no available authenticators */
+	    if (stream && ((reply = smtp_ehlo (stream,s,&mb)) != SMTPOK)) {
+	      sprintf (tmp,"SMTP EHLO failure after STARTLS: %.80s",
+		       stream->reply);
+	      mm_log (tmp,ERROR);
+	      stream = smtp_close (stream);
+	    }
+	  }
+	  else if (mb.tlsflag) {/* user specified /tls but can't do it */
+	    mm_log ("Unable to negotiate TLS with this server",ERROR);
+	    return NIL;
+	  }
+				/* remote name for authentication */
+	  if (stream && ((mb.secflag || mb.user[0]))) {
+	    if (ESMTP.auth) {	/* use authenticator? */
+	      if ((int) mail_parameters (NIL,GET_TRUSTDNS,NIL)) {
+				/* remote name for authentication */
+		strncpy (mb.host,
+			 (int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
+			 net_remotehost (netstream) : net_host (netstream),
+			 NETMAXHOST-1);
+		mb.host[NETMAXHOST-1] = '\0';
+	      }
+	      if (!smtp_auth (stream,&mb,tmp)) stream = smtp_close (stream);
+	    }
+	    else {		/* no available authenticators? */
 	      sprintf (tmp,"%sSMTP authentication not available: %.80s",
 		       mb.secflag ? "Secure " : "",mb.host);
 	      mm_log (tmp,ERROR);
@@ -170,13 +201,14 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	    }
 	  }
 	}
+
 	else if (mb.secflag || mb.user[0]) {
 	  sprintf (tmp,"ESMTP failure: %.80s",stream->reply);
 	  mm_log (tmp,ERROR);
 	  stream = smtp_close (stream);
 	}
 				/* try ordinary SMTP then */
-	else if ((reply = smtp_send_work (stream,"HELO",s)) != SMTPOK) {
+	else if ((reply = smtp_send (stream,"HELO",s)) != SMTPOK) {
 	  sprintf (tmp,"SMTP hello failure: %.80s",stream->reply);
 	  mm_log (tmp,ERROR);
 	  stream = smtp_close (stream);
@@ -213,8 +245,9 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
     tmp[0] = '\0';		/* empty buffer */
     if (stream->netstream) do {
       if (tmp[0]) mm_log (tmp,WARN);
-      if (smtp_send_work (stream,"AUTH",at->name) &&
-	  (*at->client) (smtp_challenge,smtp_response,mb,stream,&trial,usr)) {
+      if (smtp_send (stream,"AUTH",at->name) &&
+	  (*at->client) (smtp_challenge,smtp_response,"smtp",mb,stream,&trial,
+			 usr)) {
 	if (stream->replycode == SMTPAUTHED) return LONGT;
 	if (!trial) {		/* if main program requested cancellation */
 	  mm_log ("SMTP Authentication cancelled",ERROR);
@@ -265,13 +298,13 @@ long smtp_response (void *s,char *response,unsigned long size)
       for (t = (char *) rfc822_binary ((void *) response,size,&i),u = t,j = 0;
 	   j < i; j++) if (t[j] > ' ') *u++ = t[j];
       *u = '\0';		/* tie off string */
-      i = smtp_send_work (stream,t,NIL);
+      i = smtp_send (stream,t,NIL);
       fs_give ((void **) &t);
     }
-    else i = smtp_send_work (stream,"",NIL);
+    else i = smtp_send (stream,"",NIL);
   }
 				/* abort requested */
-  else i = smtp_send_work (stream,"*",NIL);
+  else i = smtp_send (stream,"*",NIL);
   return LONGT;
 }
 
@@ -283,9 +316,10 @@ long smtp_response (void *s,char *response,unsigned long size)
 SENDSTREAM *smtp_close (SENDSTREAM *stream)
 {
   if (stream) {			/* send "QUIT" */
-    smtp_send_work (stream,"QUIT",NIL);
-				/* close TCP connection */
-    net_close (stream->netstream);
+    smtp_send (stream,"QUIT",NIL);
+				/* do close actions */
+    if (stream->netstream) net_close (stream->netstream);
+    if (stream->host) fs_give ((void **) &stream->host);
     if (stream->reply) fs_give ((void **) &stream->reply);
     fs_give ((void **) &stream);/* flush the stream */
   }
@@ -305,41 +339,67 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
   /* Note: This assumes that the envelope will never generate a header of
    * more than 8K.  If your client generates godzilla headers, you will
    * need to install your own rfc822out_t routine via SET_RFC822OUTPUT
-   * to use in place of this.
+   * to use in place of this to avoid a buffer overflow.
    */
   char tmp[8*MAILTMPLEN];
   long error = NIL;
+  long retry;
   if (!(env->to || env->cc || env->bcc)) {
   				/* no recipients in request */
     smtp_fake (stream,SMTPHARDERROR,"No recipients specified");
     return NIL;
   }
-  smtp_send (stream,"RSET",NIL);/* make sure stream is in good shape */
-  strcpy (tmp,"FROM:<");	/* compose "MAIL FROM:<return-path>" */
-  if (env->return_path && env->return_path->host &&
-      !((env->return_path->adl &&
-	 (strlen (env->return_path->adl) > SMTPMAXPATH)) ||
-	(strlen (env->return_path->mailbox) > SMTPMAXLOCALPART) ||
-	(strlen (env->return_path->host) > SMTPMAXDOMAIN)))
-    rfc822_address (tmp,env->return_path);
-  strcat (tmp,">");
-  if (ESMTP.ok) {
-    if (ESMTP.eightbit.ok && ESMTP.eightbit.want) strcat(tmp," BODY=8BITMIME");
-    if (ESMTP.dsn.ok && ESMTP.dsn.want)
-      strcat (tmp,ESMTP.dsn.full ? " RET=FULL" : " RET=HDRS");
-  }
-				/* send "MAIL FROM" command */
-  if (!(smtp_send (stream,type,tmp) == SMTPOK)) return NIL;
-				/* negotiate the recipients */
-  if (env->to) smtp_rcpt (stream,env->to,&error);
-  if (env->cc) smtp_rcpt (stream,env->cc,&error);
-  if (env->bcc) smtp_rcpt (stream,env->bcc,&error);
-  if (error) {			/* any recipients failed? */
-      				/* reset the stream */
+  do {
+    retry = NIL;		/* no retry at this point */
+				/* make sure stream is in good shape */
     smtp_send (stream,"RSET",NIL);
-    smtp_fake (stream,SMTPHARDERROR,"One or more recipients failed");
-    return NIL;
-  }
+    strcpy (tmp,"FROM:<");	/* compose "MAIL FROM:<return-path>" */
+#ifdef RFC2821
+    if (env->return_path && env->return_path->host &&
+	!((strlen (env->return_path->mailbox) > SMTPMAXLOCALPART) ||
+	  (strlen (env->return_path->host) > SMTPMAXDOMAIN))) {
+      rfc822_cat (tmp,env->return_path->mailbox,NIL);
+      sprintf (tmp + strlen (tmp),"@%s",env->return_path->host);
+    }
+#else				/* old code with A-D-L support */
+    if (env->return_path && env->return_path->host &&
+	!((env->return_path->adl &&
+	   (strlen (env->return_path->adl) > SMTPMAXPATH)) ||
+	  (strlen (env->return_path->mailbox) > SMTPMAXLOCALPART) ||
+	  (strlen (env->return_path->host) > SMTPMAXDOMAIN)))
+      rfc822_address (tmp,env->return_path);
+#endif
+    strcat (tmp,">");
+    if (ESMTP.ok) {
+      if (ESMTP.eightbit.ok && ESMTP.eightbit.want)
+	strcat (tmp," BODY=8BITMIME");
+      if (ESMTP.dsn.ok && ESMTP.dsn.want)
+	strcat (tmp,ESMTP.dsn.full ? " RET=FULL" : " RET=HDRS");
+    }
+				/* send "MAIL FROM" command */
+    switch (smtp_send (stream,type,tmp)) {
+    case SMTPOK:		/* looks good */
+      break;
+    case SMTPWANTAUTH:		/* wants authentication? */
+    case SMTPWANTAUTH2:
+      if (ESMTP.auth && smtp_send_auth (stream)) {
+	retry = T;
+	break;
+      }
+    default:			/* other failure */
+      return NIL;
+    }
+
+				/* negotiate the recipients */
+    if (!retry && env->to) retry = smtp_rcpt (stream,env->to,&error);
+    if (!retry && env->cc) retry = smtp_rcpt (stream,env->cc,&error);
+    if (!retry && env->bcc) retry = smtp_rcpt (stream,env->bcc,&error);
+    if (!retry && error) {	/* any recipients failed? */
+      smtp_send (stream,"RSET",NIL);
+      smtp_fake (stream,SMTPHARDERROR,"One or more recipients failed");
+      return NIL;
+    }
+  } while (retry);
 				/* negotiate data command */
   if (!(smtp_send (stream,"DATA",NIL) == SMTPREADY)) return NIL;
 				/* set up error in case failure */
@@ -357,9 +417,10 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
  * Accepts: SMTP stream
  *	    address list
  *	    pointer to error flag
+ * Returns: T if should retry, else NIL
  */
 
-void smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
+long smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
 {
   char *s,tmp[MAILTMPLEN];
   while (adr) {			/* for each address on the list */
@@ -367,22 +428,30 @@ void smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
     if (adr->error) fs_give ((void **) &adr->error);
     if (adr->host) {		/* ignore group syntax */
 				/* enforce SMTP limits to protect the buffer */
-      if (adr->adl && (strlen (adr->adl) > SMTPMAXPATH)) {
-	adr->error = cpystr ("501 Path too long");
-	*error = T;
-      }
-      else if (strlen (adr->mailbox) > MAXLOCALPART) {
+      if (strlen (adr->mailbox) > MAXLOCALPART) {
 	adr->error = cpystr ("501 Recipient name too long");
 	*error = T;
       }
-      if ((strlen (adr->host) > SMTPMAXDOMAIN)) {
+      else if ((strlen (adr->host) > SMTPMAXDOMAIN)) {
 	adr->error = cpystr ("501 Recipient domain too long");
 	*error = T;
       }
+#ifndef RFC2821			/* old code with A-D-L support */
+      else if (adr->adl && (strlen (adr->adl) > SMTPMAXPATH)) {
+	adr->error = cpystr ("501 Path too long");
+	*error = T;
+      }
+#endif
+
       else {
 	strcpy (tmp,"TO:<");	/* compose "RCPT TO:<return-path>" */
+#ifdef RFC2821
+	rfc822_cat (tmp,adr->mailbox,NIL);
+	sprintf (tmp + strlen (tmp),"@%s>",adr->host);
+#else				/* old code with A-D-L support */
 	rfc822_address (tmp,adr);
 	strcat (tmp,">");
+#endif
 				/* want notifications */
 	if (ESMTP.ok && ESMTP.dsn.ok && ESMTP.dsn.want) {
 				/* yes, start with prefix */
@@ -395,8 +464,13 @@ void smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
 	  if (*s) s[strlen (s) - 1] = '\0';
 	  else strcat (tmp,"NEVER");
 	}
-				/* send "RCPT TO" command */
-	if (!(smtp_send (stream,"RCPT",tmp) == SMTPOK)) {
+	switch (smtp_send (stream,"RCPT",tmp)) {
+	case SMTPOK:		/* looks good */
+	  break;
+	case SMTPWANTAUTH:	/* wants authentication? */
+	case SMTPWANTAUTH2:
+	  if (ESMTP.auth && smtp_send_auth (stream)) return T;
+	default:		/* other failure */
 	  *error = T;		/* note that an error occurred */
 	  adr->error = cpystr (stream->reply);
 	}
@@ -404,30 +478,16 @@ void smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
     }
     adr = adr->next;		/* do any subsequent recipients */
   }
+  return NIL;			/* no retry called for */
 }
 
 /* Simple Mail Transfer Protocol send command
- * Accepts: SMTP stream
- *	    text
- * Returns: reply code
- */
-
-long smtp_send (SENDSTREAM *stream,char *command,char *args)
-{
-  long ret;
-  do ret = smtp_send_work (stream,command,args);
-  while (ESMTP.auth && smtp_send_auth (stream,ret));
-  return ret;
-}
-
-
-/* SMTP send command worker routine
  * Accepts: SEND stream
  *	    text
  * Returns: reply code
  */
 
-long smtp_send_work (SENDSTREAM *stream,char *command,char *args)
+long smtp_send (SENDSTREAM *stream,char *command,char *args)
 {
   long ret;
   char *s = (char *) fs_get (strlen (command) + (args ? strlen (args) + 1 : 0)
@@ -452,26 +512,24 @@ long smtp_send_work (SENDSTREAM *stream,char *command,char *args)
 
 /* SMTP send authentication if needed
  * Accepts: SEND stream
- *	    code from previous command
  * Returns: T if need to redo command, NIL otherwise
  */
 
-long smtp_send_auth (SENDSTREAM *stream,long code)
+long smtp_send_auth (SENDSTREAM *stream)
 {
   NETMBX mb;
   char tmp[MAILTMPLEN];
-  switch (code) {
-  case SMTPWANTAUTH: case SMTPWANTAUTH2:
-    sprintf (tmp,"{%.200s/smtp",net_host (stream->netstream));
-    if (stream->netstream->dtb ==
-	(NETDRIVER *) mail_parameters (NIL,GET_ALTDRIVER,NIL))
-      sprintf (tmp + strlen (tmp),"/%.200s",
-	       (char *) mail_parameters (NIL,GET_ALTDRIVERNAME,NIL));
-    strcat (tmp,"}<none>");
-    mail_valid_net_parse (tmp,&mb);
-    return smtp_auth (stream,&mb,tmp);
-  }
-  return NIL;			/* no auth needed */
+				/* remote name for authentication */
+  sprintf (tmp,"{%.200s/smtp%s}<none>",
+	   (int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
+	   ((int) mail_parameters (NIL,GET_SASLUSESPTRNAME,NIL) ?
+	    net_remotehost (stream->netstream) : net_host (stream->netstream)):
+	   stream->host,
+	   (stream->netstream->dtb ==
+	    (NETDRIVER *) mail_parameters (NIL,GET_SSLDRIVER,NIL)) ?
+	   "/ssl" : "");
+  mail_valid_net_parse (tmp,&mb);
+  return smtp_auth (stream,&mb,tmp);
 }
 
 /* Simple Mail Transfer Protocol get reply
@@ -503,11 +561,12 @@ long smtp_reply (SENDSTREAM *stream)
 
 long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
 {
-  unsigned long i;
-  unsigned int j;
+  unsigned long i,j;
   long flags = (mb->secflag ? AU_SECURE : NIL) |
     (mb->authuser[0] ? AU_AUTHUSER : NIL);
   char *s,tmp[MAILTMPLEN];
+				/* clear ESMTP data */
+  memset (&ESMTP,0,sizeof (ESMTP));
   sprintf (tmp,"EHLO %s",host);	/* build the complete command */
   if (stream->debug) mm_dlog (tmp);
   strcat (tmp,"\015\012");
@@ -531,10 +590,11 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
 	     (tmp[3] == 'H') && ((tmp[4] == ' ') || (tmp[4] == '='))) {
       for (s = strtok (tmp+5," "); s && *s; s = strtok (NIL," "))
 	if ((j = mail_lookup_auth_name (s,flags)) &&
-	    (--j < (8 * sizeof (ESMTP.auth)))) ESMTP.auth |= (1 << j);
+	    (--j < MAXAUTHENTICATORS)) ESMTP.auth |= (1 << j);
     }
     else if ((tmp[0] == 'D') && (tmp[1] == 'S') && (tmp[2] == 'N') && !tmp[3])
       ESMTP.dsn.ok = T;
+
     else if ((tmp[0] == 'S') && (tmp[1] == 'E') && (tmp[2] == 'N') &&
 	     (tmp[3] == 'D') && !tmp[4]) ESMTP.service.send = T;
     else if ((tmp[0] == 'S') && (tmp[1] == 'O') && (tmp[2] == 'M') &&
@@ -549,7 +609,10 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
 	     (tmp[3] == 'N') && !tmp[4]) ESMTP.service.turn = T;
     else if ((tmp[0] == 'E') && (tmp[1] == 'T') && (tmp[2] == 'R') &&
 	     (tmp[3] == 'N') && !tmp[4]) ESMTP.service.etrn = T;
-
+    else if ((tmp[0] == 'S') && (tmp[1] == 'T') && (tmp[2] == 'A') &&
+	     (tmp[3] == 'R') && (tmp[4] == 'T') && (tmp[5] == 'T') &&
+	     (tmp[6] == 'L') && (tmp[7] == 'S') && !tmp[8])
+      ESMTP.service.starttls = T;
     else if ((tmp[0] == 'R') && (tmp[1] == 'E') && (tmp[2] == 'L') &&
 	     (tmp[3] == 'A') && (tmp[4] == 'Y') && !tmp[5])
       ESMTP.service.relay = T;
@@ -566,6 +629,11 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
 	     (tmp[18] == 'S') && !tmp[19]) ESMTP.service.ensc = T;
   }
   while ((i < 100) || (stream->reply[3] == '-'));
+				/* disable LOGIN if PLAIN also advertised */
+  if ((j = mail_lookup_auth_name ("PLAIN",NIL)) && (--j < MAXAUTHENTICATORS) &&
+      (ESMTP.auth & (1 << j)) &&
+      (j = mail_lookup_auth_name ("LOGIN",NIL)) && (--j < MAXAUTHENTICATORS))
+    ESMTP.auth &= ~(1 << j);
   return i;			/* return the response code */
 }
 

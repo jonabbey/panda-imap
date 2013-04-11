@@ -9,18 +9,18 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	24 October 2000
+# Last Edited:	2 July 2001
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2000 University of Washington.
+# Copyright 2001 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
 
 
 # Normal command to build IMAP toolkit:
-#  make <port> [EXTRAAUTHENTICATORS=xxx] [SPECIALAUTHENTICATORS=ssl] \
-#    [EXTRADRIVERS=xxx] [PASSWDTYPE=xxx]
+#  make <port> [EXTRAAUTHENTICATORS=xxx] [EXTRADRIVERS=xxx] [EXTRACFLAGS=xxx]
+#	       [PASSWDTYPE=xxx] [SSLTYPE=xxx]
 
 
 # Port name.  These refer to the *standard* compiler on the given system.
@@ -49,6 +49,7 @@
 # bsi	BSD/i386
 # bso	OpenBSD (yes, yet another one...)
 # cvx	Convex
+# cyg	Cygwin
 # d-g	Data General DG/UX prior to 5.4 (d41 port no longer exists)
 # d54	Data General DG/UX 5.4
 # do4	Apollo Domain/OS sr10.4
@@ -59,13 +60,15 @@
 # gas	GCC Altos SVR4
 # gh9   GCC HP-UX 9.x
 # ghp	GCC HP-UX 10.x
-# gs5	GCC 2.7.1 (95q4 from Skunkware _not_ 98q2!) SCO Open Server 5.0.x
+# ghs	GCC HP-UX 10.x with Trusted Computer Base
+# go5	GCC 2.7.1 (95q4 from Skunkware _not_ 98q2!) SCO Open Server 5.0.x
+# gsc	GCC Santa Cruz Operation
 # gsg	GCC SGI
 # gso	GCC Solaris
 # gsu	GCC SUN-OS
 # gul	GCC RISC Ultrix (DEC-5000)
 # hpp	HP-UX 9.x (see gh9)
-# hpx	HP-UX 10.x (see ghp, hxd, and shp)
+# hpx	HP-UX 10.x (see ghp, ghs, hxd, and shp)
 # hxd	HP-UX 10.x with DCE security (see shp)
 # isc	Interactive Systems
 # lnx	Linux with traditional passwords and crypt() in the C library
@@ -76,6 +79,7 @@
 # mnt	Atari ST Mint (not MacMint)
 # neb	NetBSD/FreeBSD
 # nec	NEC UX
+# nto	QNX Neutrine RTP
 # nxt	NEXTSTEP
 # nx3	NEXTSTEP 3.x
 # osf	OSF/1 (see sos, os4)
@@ -85,8 +89,8 @@
 # pyr	Pyramid
 # qnx	QNX 4
 # s40	SUN-OS 4.0 (*not* Solaris)
-# sc5	SCO Open Server 5.0.x (see gs5)
-# sco	Santa Cruz Operation (see sc5, gs5)
+# sc5	SCO Open Server 5.0.x (see go5)
+# sco	Santa Cruz Operation (see sc5, go5)
 # shp	HP-UX with Trusted Computer Base
 # sgi	Silicon Graphics IRIX
 # sg6	Silicon Graphics IRIX 6.5
@@ -109,20 +113,11 @@
 # Extra authenticators (e.g. OTP, Kerberos, etc.).  Adds linkage for
 # auth_xxx.c and executes Makefile.xxx, where xxx is the name of the
 # authenticator.  Some authenticators are only available from third parties.
-# Do not use this for SSL; use SPECIALAUTHENTICATORS instead.
 #
 # The following extra authenticators are bundled:
 # gss	Kerberos V
 
 EXTRAAUTHENTICATORS=
-
-
-# Special authenticators.  If you build with SSL support, set SSL as a
-# special authenticator instead of an extra authenticator.  This will guarantee
-# that the PLAIN SASL mechanism is ordered after more secure SASL mechanisms
-# (between the built-in CRAM-MD5 and LOGIN mechanisms).
-
-SPECIALAUTHENTICATORS=
 
 
 # Additional mailbox drivers.  Add linkage for xxxdriver.  Some drivers are
@@ -142,9 +137,7 @@ EXTRADRIVERS=mbox
 # afs	AFS authentication database
 # dce	DCE authentication database
 # gss	Kerberos V
-# krb	Kerberos IV
-# nul	no plaintext authentication (note: this will break some secure
-#	 authenticators -- don't use without checking first!!)
+# nul	plaintext authentication never permitted
 # pam	PAM authentication (note: for Linux, you should use the "lnp" port
 #	 instead of setting this...also, you may have to modify PAMLDFLAGS
 #	 in the imap-[]/src/osdep/unix/Makefile
@@ -156,28 +149,22 @@ EXTRADRIVERS=mbox
 PASSWDTYPE=std
 
 
+# SSL type.  Defines whether or not SSL support is on this system
+#
+# The following SSL types are bundled:
+# none	no SSL support
+# unix	SSL support using OpenSSL
+# nopwd	SSL support using OpenSSL, and plaintext authentication permitted only
+#	in SSL/TLS sessions
+# sco	link SSL before other libraries (for SCO systems)
+# unix.nopwd	same as nopwd
+# sco.nopwd	same as nopwd, plaintext authentication in SSL/TLS only
+
+SSLTYPE=none
+
+
 # The following extra compilation flags are defined.  None of these flags are
 # recommended.  If you use these, include them in the EXTRACFLAGS.
-#
-# -DCHROOT_SERVER
-#	This option is for closed server systems only.  If defined, a chroot()
-#	call to the user's home directory is done as part of the login
-#	process.  This has the effect of preventing access to any files
-#	outside of the user's home directory (including shared mailboxes).
-#
-#	Shared mailboxes with other users can't possibly work with this
-#	option, because there is no way to export lock information to other
-#	users.
-#
-#	This should be done ONLY on systems which do not permit users to
-#	have shell access
-#
-#	This option should NEVER(!!) be set if users are allowed shell access.
-#	Doing so actually makes the system *less* secure, since the user could
-#	create an etc subdirectory which would be treated as real /etc by such
-#	programs as /bin/su.
-#
-#	This option is strongly *NOT* recommended.
 #
 # -DDISABLE_POP_PROXY
 #	By default, the ipop[23]d servers offer POP->IMAP proxy access,
@@ -185,46 +172,7 @@ PASSWDTYPE=std
 #	POP server as a go-between.  Setting this option disables this
 #	facility.
 #
-# -DDISABLE_REVERSE_DNS_LOOKUP
-#	Never do gethostbyaddr() calls on sockets in the client and server.
-#	By default, the servers (ipop[23]d and imapd) will do gethostbyaddr()
-#	on the local and remote sockets so that imapd can identify itself
-#	properly (this is important when the same CPU hosts multiple virtual
-#	hosts on different IP addresss) and also includes the client's name
-#	when it writes to the syslog.  There are also client gethostbyaddr()
-#	calls, used primarily by authentication mechanisms.
-#
-#	Setting this option disables all gethostbyaddr() calls.  The returned
-#	"host name" string for the socket is just the bracketed [12.34.56.78]
-#	form, as if the reverse DNS lookup failed.
-#
-#	WARNING: Some authentication mechanisms, e.g. Kerberos V, depend upon
-#	the host names being right, and if you set this option, it won't work.
-#
-#	You should only do this if you are encountering server performance
-#	problems due to a misconfigured DNS, e.g. long startup delays or
-#	client timeouts.
-#
-# -DMAILSUBDIR=\\\"xxx\\\"
-#	Change the default connected directory from the user's home directory
-#	to the named subdirectory of the user's home directory.  For example,
-#	setting MAILSUBDIR="mail" will cause the POP2 and IMAP servers to
-#	connect to the user's ~/mail subdirectory.  This is equivalent to
-#	the env_unix.c edit described in Example 2 of the CONFIG file.
-#
-#	Note that if the subdirectory does not exist, the result is undefined.
-#	It is probably an extremely bad idea to set this unless you can
-#	guarantee that the subdirectory exists for all users.  If you can not
-#	guarantee this, then you should leave the default as the user's home
-#	directory and allow them to configure a personal default in their IMAP
-#	client.
-#
-# -DADVERTISE_THE_WORLD
-#	Include the UNIX root as a shared namespace.  This is generally a bad
-#	idea, since certain IMAP clients (names withheld to protect the guilty)
-#	will take this as license to download the entire filesystem tree.
-#
-# -DOLDFILESUFFIX=\\\"xxx\\\"
+# -DOLDFILESUFFIX=\"xxx\"
 #	Change the default suffix appended to the backup .newsrc file from
 #	"old".
 #
@@ -288,6 +236,7 @@ CD=cd
 LN=ln -s
 MAKE=make
 MKDIR=mkdir
+BUILDTYPE=rebuild
 RM=rm -rf
 SH=sh
 SYSTEM=unix
@@ -297,10 +246,12 @@ TOUCH=touch
 
 # Primary build command
 
-BUILDOPTIONS= EXTRACFLAGS='$(EXTRACFLAGS)' EXTRALDFLAGS='$(EXTRALDFLAGS)'\
- EXTRADRIVERS='$(EXTRADRIVERS)' EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
- PASSWDTYPE=$(PASSWDTYPE) SPECIALAUTHENTICATORS='$(SPECIALAUTHENTICATORS)'
-BUILD=$(MAKE) build $(BUILDOPTIONS) EXTRASPECIALS='$(EXTRASPECIALS)'
+BUILD=$(MAKE) build EXTRACFLAGS='$(EXTRACFLAGS)'\
+ EXTRALDFLAGS='$(EXTRALDFLAGS)'\
+ EXTRADRIVERS='$(EXTRADRIVERS)'\
+ EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
+ PASSWDTYPE=$(PASSWDTYPE) SSLTYPE=$(SSLTYPE)\
+ EXTRASPECIALS='$(EXTRASPECIALS)'
 
 
 # Make the IMAP Toolkit
@@ -315,21 +266,21 @@ c-client:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsf bsi bso d-g d54 do4 drs epx gas gh9 ghp gs5 gsg gso gsu gul hpp hpx lnp lyn mct mnt neb nec nxt nx3 osf os4 osx ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
-	$(BUILD) OS=$@
+a32 a41 aix bs3 bsf bsi bso cyg d-g d54 do4 drs epx gas gh9 ghp ghs go5 gsc gsg gso gsu gul hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 osx ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx sol sos uw2: an
+	$(BUILD) BUILDTYPE=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
 # If so, you probably will want to delete the "-Dconst=" from the sv4 CFLAGS in
 # the c-client Makefile.
 
 aos art asv aux bsd cvx dpx dyn isc pyr s40 sv4 ult vul vu2: ua
-	$(BUILD) OS=$@
+	$(BUILD) BUILDTYPE=$@
 
 # Linux shadow password support doesn't build on traditional systems, but most
 # Linux systems are shadow these days.
 
 lnx:	lnxnul an
-	$(BUILD) OS=$@
+	$(BUILD) BUILDTYPE=$@
 
 lnxnul:
 	@sh -c '(test $(PASSWDTYPE) = nul) || make lnxok'
@@ -354,7 +305,7 @@ lnxok:
 # SUN-OS makes you load libdl by hand...
 
 ssn sun: suntools ua
-	$(BUILD) OS=$@
+	$(BUILD) BUILDTYPE=$@
 
 suntools:
 	$(CD) tools;$(MAKE) LDFLAGS=-ldl
@@ -364,16 +315,16 @@ suntools:
 
 sv2:
 	$(MAKE) ua LN=ln
-	$(BUILD) OS=$@ LN=ln
+	$(BUILD) BUILDTYPE=$@ LN=ln
 
 
 # Pine port names, not distinguished in c-client
 
 bs2:	an
-	$(BUILD) OS=bsi
+	$(BUILD) BUILDTYPE=bsi
 
 pt1:	an
-	$(BUILD) OS=ptx
+	$(BUILD) BUILDTYPE=ptx
 
 
 # Compatibility
@@ -385,7 +336,7 @@ hxd:	# Gotta do this one the hard way
 
 ami am2 ama amn:
 	$(MAKE) an LN=cp SYSTEM=amiga
-	$(BUILD) OS=$@ LN=cp
+	$(BUILD) BUILDTYPE=$@ LN=cp
 
 
 # Courtesy entries for Microsoft systems
@@ -410,7 +361,6 @@ an ua:
 	$(TOOLS)/$@ "$(LN)" src/c-client c-client
 	$(TOOLS)/$@ "$(LN)" src/ansilib c-client
 	$(TOOLS)/$@ "$(LN)" src/charset c-client
-	sh -c '(test -d src/kerberos) && ($(LN) `pwd`/src/kerberos/* c-client) || true'
 	$(TOOLS)/$@ "$(LN)" src/osdep/$(SYSTEM) c-client
 	$(TOOLS)/$@ "$(LN)" src/mtest mtest
 	$(TOOLS)/$@ "$(LN)" src/ipopd ipopd
@@ -420,14 +370,19 @@ an ua:
 build:	OSTYPE rebuild rebuildclean bundled
 
 OSTYPE:
-	@echo Building c-client for $(OS)...
+	@echo Building c-client for $(BUILDTYPE)...
 	echo $(SPECIALS) $(EXTRASPECIALS) > c-client/SPECIALS
-	$(CD) c-client;$(MAKE) $(OS) BUILDOPTIONS="$(BUILDOPTIONS)" \
+	$(CD) c-client;$(MAKE) $(BUILDTYPE) EXTRACFLAGS='$(EXTRACFLAGS)'\
+	 EXTRALDFLAGS='$(EXTRALDFLAGS)'\
+	 EXTRADRIVERS='$(EXTRADRIVERS)'\
+	 EXTRAAUTHENTICATORS='$(EXTRAAUTHENTICATORS)'\
+	 PASSWDTYPE=$(PASSWDTYPE) SSLTYPE=$(SSLTYPE)\
 	 $(SPECIALS) $(EXTRASPECIALS)
-	echo $(OS) > OSTYPE
+	echo $(BUILDTYPE) > OSTYPE
 	$(TOUCH) rebuild
 
 rebuild:
+	@sh -c '(test $(BUILDTYPE) = rebuild -o $(BUILDTYPE) = `$(CAT) OSTYPE`) || (echo Already built for `$(CAT) OSTYPE` -- you must do \"make clean\" first && exit 1)'
 	@echo Rebuilding c-client for `$(CAT) OSTYPE`...
 	$(TOUCH) c-client/SPECIALS
 	$(CD) c-client;$(MAKE) all CC=`$(CAT) CCTYPE` \

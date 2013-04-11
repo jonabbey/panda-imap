@@ -1,3 +1,53 @@
+Updated: 22 June 2001
+
+imap-2001 is a major release.  Programs written for imap-2000 will probably
+build with this version without modification.
+
+The FAQ document has been significantly expanded.  Be sure to read it for
+more information.
+
+In addition to the usual bugfixes, the following features are new in
+imap-2001:
+
+SSL is now fully integrated into the IMAP toolkit; the old "alt" kludges to
+be able to produce a "sanitized" version of the IMAP toolkit to comply with
+late unlamented US export regulations are now completely gone.
+
+Full client and server TLS support is also in this release.
+
+The server certificate must be signed by a trusted certificate authority and
+the name in the certificate match the user's entry for the server host name;
+this means that the user must enter a fully-qualified host name.
+
+To build with SSL/TLS on UNIX, you now use "SSLTYPE=unix" instead of the
+former "SPECIALAUTHENTICATORS=ssl".  To build with SSL/TLS on UNIX and disable
+the use of plaintext passwords except when under SSL/TLS, use "SSLTYPE=nopwd"
+instead of "SSLTYPE=unix".
+
+RFC 1730 (IMAP4 as opposed to IMAP4rev1) support is turned off by default in
+imapd.  No clients should still be using RFC 1730 protocol.  Look at the imapd
+Makefile for how to re-enable RFC 1730 support.  Note that this code may be
+removed in the future, so if you think you need it you had better let me know.
+
+There are some new options (turned off by default) which attempt to work around
+problems in certain clients.  See the FAQ file for more details.
+
+
+Updated: 24 January 2001
+
+imap-2000c is a maintenance release, consisting primarily of bugfixes.
+
+
+Updated: 9 January 2001
+
+imap-2000b is a maintenance release, consisting primarily of bugfixes.
+
+
+Updated: 9 November 2000
+
+imap-2000a is a maintenance release, consisting primarily of bugfixes.
+
+
 Updated: 19 September 2000
 
 imap-2000 is a major release.  There are major internal and external changes
@@ -16,15 +66,14 @@ support is now automatic for the NT, NTK, and W2K ports.  SSL use is indicated
 by the /ssl switch in the mailbox name.
 
 With SSL connections, the server certificate is validated by the client code
-on UNIX, Windows 2000, and Windows Millenium unless /novalidate-cert is
-specified.  Server certificates are currently is not validated on Windows 9x
+on UNIX, and Windows 2000 unless /novalidate-cert is specified.  Server
+certificates are currently is not validated on Windows 9x, Windows Millenium,
 or Windows NT 4; this is an artifact of the operating system and not the port
 (e.g. client code using the NT port will validate certificates if running on
 Windows 2000).  On UNIX, the server certificate must be signed by a trusted
-certificate authority.  On Windows 2000 and Windows Millenium, the certificate
-must be signed by a trusted certificate authority and the match the user's
-entry for the server host name; this means that the user must enter a
-fully-qualified host name.
+certificate authority.  On Windows 2000, the certificate must be signed by a
+trusted certificate authority and match the user's entry for the server host
+name; this means that the user must enter a fully-qualified host name.
 
 Calendar reclama for the benefit of old broken non-Y2K compliant software.
 Two digit years from 00 to 69 will be interpreted as 2000 through 2069.  In
@@ -88,11 +137,11 @@ checkpoint is attempted at close time.
 
 Windows-specific Changes:
 
-New W2K port for Windows 2000 and Windows Millenium.  In addition to
-supporting SSL using the official SSPI interface (the NT and NTK ports invoke
-SChannel.DLL directly), the W2K port also supports Microsoft Kerberos.  Note
-that the NT and NTK ports will work on Windows 2000 and Windows Millenium, but
-the W2K port will not work on NT4 or Windows 9x.
+New W2K port for Windows 2000.  In addition to supporting SSL using the
+official SSPI interface (the NT and NTK ports invoke SChannel.DLL directly),
+the W2K port also supports Microsoft Kerberos.  Note that the NT and NTK ports
+will work on Windows 2000, but the W2K port will not work on NT4, Windows
+9x, or Windows Millenium.
 
 There is now a #user namespace, equivalent to the "~" namespace on UNIX.
 

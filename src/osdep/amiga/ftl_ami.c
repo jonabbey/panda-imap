@@ -1,5 +1,5 @@
 /*
- * Program:	UNIX crash management routines
+ * Program:	DOS/VMS/TOPS-20 crash management routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -26,6 +26,5 @@
 void fatal (char *string)
 {
   mm_fatal (string);		/* pass up the string */
-  syslog (LOG_ALERT,"IMAP toolkit crash: %.100s",string);
   abort ();			/* die horribly */
 }

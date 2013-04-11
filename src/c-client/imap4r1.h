@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	14 August 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -31,6 +31,7 @@
 #define IMAPLOOKAHEAD 20	/* envelope lookahead */
 #define IMAPUIDLOOKAHEAD 1000	/* UID lookahead */
 #define IMAPTCPPORT (long) 143	/* assigned TCP contact port */
+#define IMAPSSLPORT (long) 993	/* assigned SSL TCP contact port */
 
 
 /* Parsed reply message from imap_reply */
@@ -44,7 +45,7 @@ typedef struct imap_parsed_reply {
 
 
 #define IMAPTMPLEN 16*MAILTMPLEN
-#define MAXAUTHENTICATORS 8
+
 
 /* IMAP4 I/O stream local data */
 	
@@ -52,15 +53,16 @@ typedef struct imap_local {
   NETSTREAM *netstream;		/* TCP I/O stream */
   IMAPPARSEDREPLY reply;	/* last parsed reply */
   MAILSTATUS *stat;		/* status to fill in */
-  unsigned int imap4rev1 : 1;	/* server is IMAP4rev1 */
-  unsigned int imap4 : 1;	/* server is IMAP4 */
   unsigned int imap2bis : 1;	/* server is IMAP2bis */
   unsigned int rfc1176 : 1;	/* server is RFC-1176 IMAP2 */
   struct {
+    unsigned int imap4rev1 : 1;	/* server is IMAP4rev1 */
+    unsigned int imap4 : 1;	/* server is IMAP4 */
     unsigned int status : 1;	/* server has STATUS */
     unsigned int acl : 1;	/* server has ACL */
     unsigned int quota : 1;	/* server has QUOTA */
     unsigned int namespace :1;	/* server has NAMESPACE */
+    unsigned int starttls : 1;	/* server has STARTTLS */
     unsigned int mbx_ref : 1;	/* server has mailbox referrals */
     unsigned int log_ref : 1;	/* server has login referrals */
 				/* server has multi-APPEND */
@@ -70,7 +72,7 @@ typedef struct imap_local {
     unsigned int authanon : 1;	/* server has anonymous authentication */
 				/* supported authenticators */
     unsigned int auth : MAXAUTHENTICATORS;
-  } use;
+  } cap;
   unsigned int uidsearch : 1;	/* UID searching */
   unsigned int byeseen : 1;	/* saw a BYE response */
 				/* don't do LOGIN command */
@@ -96,7 +98,7 @@ typedef struct imap_local {
 
 /* Has MULTIAPPEND extension (else done in client) */
 
-#define LEVELMULTIAPPEND(stream) ((IMAPLOCAL *) stream->local)->use.multiappend
+#define LEVELMULTIAPPEND(stream) ((IMAPLOCAL *) stream->local)->cap.multiappend
 
 
 /* Has THREAD extension (else done in client) */
@@ -106,44 +108,44 @@ typedef struct imap_local {
 
 /* Has SORT extension (else done in client) */
 
-#define LEVELSORT(stream) ((IMAPLOCAL *) stream->local)->use.sort
+#define LEVELSORT(stream) ((IMAPLOCAL *) stream->local)->cap.sort
 
 
 /* Has SCAN extension */
 
-#define LEVELSCAN(stream) ((IMAPLOCAL *) stream->local)->use.scan
+#define LEVELSCAN(stream) ((IMAPLOCAL *) stream->local)->cap.scan
 
 
 /* Has QUOTA extension */
 
-#define LEVELQUOTA(stream) ((IMAPLOCAL *) stream->local)->use.quota
+#define LEVELQUOTA(stream) ((IMAPLOCAL *) stream->local)->cap.quota
 
 
 /* Has ACL extension */
 
-#define LEVELACL(stream) ((IMAPLOCAL *) stream->local)->use.acl
+#define LEVELACL(stream) ((IMAPLOCAL *) stream->local)->cap.acl
 
 
 /* IMAP4rev1 level or better */
 
-#define LEVELIMAP4rev1(stream) ((IMAPLOCAL *) stream->local)->imap4rev1
+#define LEVELIMAP4rev1(stream) ((IMAPLOCAL *) stream->local)->cap.imap4rev1
 
 
 /* IMAP4 w/ STATUS level or better */
 
-#define LEVELSTATUS(stream) (((IMAPLOCAL *) stream->local)->imap4rev1 || \
-			     ((IMAPLOCAL *) stream->local)->use.status)
+#define LEVELSTATUS(stream) (((IMAPLOCAL *) stream->local)->cap.imap4rev1 || \
+			     ((IMAPLOCAL *) stream->local)->cap.status)
 
 
 /* IMAP4 level or better */
 
-#define LEVELIMAP4(stream) (((IMAPLOCAL *) stream->local)->imap4rev1 || \
-			    ((IMAPLOCAL *) stream->local)->imap4)
+#define LEVELIMAP4(stream) (((IMAPLOCAL *) stream->local)->cap.imap4rev1 || \
+			    ((IMAPLOCAL *) stream->local)->cap.imap4)
 
 
 /* IMAP4 RFC-1730 level */
 
-#define LEVEL1730(stream) ((IMAPLOCAL *) stream->local)->imap4
+#define LEVEL1730(stream) ((IMAPLOCAL *) stream->local)->cap.imap4
 
 
 /* IMAP2bis level or better */
@@ -202,13 +204,13 @@ IMAPPARSEDREPLY *imap_rimap (MAILSTREAM *stream,char *service,NETMBX *mb,
 			     char *usr,char *tmp);
 long imap_anon (MAILSTREAM *stream,char *tmp);
 long imap_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr);
-long imap_login (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr);
+long imap_login (MAILSTREAM *stream,NETMBX *mb,char *pwd,char *usr);
 void *imap_challenge (void *stream,unsigned long *len);
 long imap_response (void *stream,char *s,unsigned long size);
 void imap_close (MAILSTREAM *stream,long options);
 void imap_fast (MAILSTREAM *stream,char *sequence,long flags);
 void imap_flags (MAILSTREAM *stream,char *sequence,long flags);
-long imap_overview (MAILSTREAM *stream,char *sequence,overview_t ofn);
+long imap_overview (MAILSTREAM *stream,overview_t ofn);
 ENVELOPE *imap_structure (MAILSTREAM *stream,unsigned long msgno,BODY **body,
 			  long flags);
 long imap_msgdata (MAILSTREAM *stream,unsigned long msgno,char *section,
@@ -231,6 +233,7 @@ long imap_append_single (MAILSTREAM *stream,char *mailbox,char *flags,
 			 char *date,STRING *message,imapreferral_t ir);
 void imap_gc (MAILSTREAM *stream,long gcflags);
 void imap_gc_body (BODY *body);
+void imap_capability (MAILSTREAM *stream);
 long imap_setacl (MAILSTREAM *stream,char *mailbox,char *id,char *rights);
 long imap_deleteacl (MAILSTREAM *stream,char *mailbox,char *id);
 long imap_getacl (MAILSTREAM *stream,char *mailbox);
@@ -277,7 +280,7 @@ char *imap_parse_astring (MAILSTREAM *stream,char **txtptr,
 			  IMAPPARSEDREPLY *reply,unsigned long *len);
 char *imap_parse_string (MAILSTREAM *stream,char **txtptr,
 			 IMAPPARSEDREPLY *reply,GETS_DATA *md,
-			 unsigned long *len);
+			 unsigned long *len,long flags);
 void imap_parse_body (GETS_DATA *md,char *seg,char **txtptr,
 		      IMAPPARSEDREPLY *reply);
 long imap_cache (MAILSTREAM *stream,unsigned long msgno,char *seg,
@@ -296,3 +299,4 @@ void imap_parse_extension (MAILSTREAM *stream,char **txtptr,
 			   IMAPPARSEDREPLY *reply);
 void imap_parse_capabilities (MAILSTREAM *stream,char *t);
 char *imap_host (MAILSTREAM *stream);
+IMAPPARSEDREPLY *imap_fetch (MAILSTREAM *stream,char *sequence,long flags);

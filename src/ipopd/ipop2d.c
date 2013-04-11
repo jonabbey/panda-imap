@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	24 October 2000
+ * Last Edited:	16 August 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -51,7 +51,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2000.59";	/* server version */
+char *version = "2001.63";	/* server version */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -86,15 +86,15 @@ int main (int argc,char *argv[])
 {
   char *s,*t;
   char cmdbuf[TMPLEN];
-#ifdef PLAINTEXT_DISABLED
-  printf ("- POP2 server disabled on this system\015\012");
-  fflush (stdout);
-  _exit (1);
-#endif
 #include "linkage.c"
+  if (mail_parameters (NIL,GET_DISABLEPLAINTEXT,NIL)) {
+    printf ("- POP2 server disabled on this system\015\012");
+    fflush (stdout);
+    _exit (1);
+  }
 				/* initialize server */
-  server_init ((s = strrchr (argv[0],'/')) ? s + 1 : argv[0],
-	       "pop",NIL,"pop",clkint,kodint,hupint,trmint);
+  server_init (((s = strrchr (argv[0],'/')) || (s = strrchr (argv[0],'\\'))) ?
+	       s+1 : argv[0],"pop",NIL,"pop",clkint,kodint,hupint,trmint);
   /* There are reports of POP2 clients which get upset if anything appears
    * between the "+" and the "POP2" in the greeting.
    */
@@ -614,7 +614,7 @@ void mm_login (NETMBX *mb,char *username,char *password,long trial)
 
 void mm_critical (MAILSTREAM *stream)
 {
-  critical = T;
+  ++critical;
 }
 
 
@@ -624,7 +624,7 @@ void mm_critical (MAILSTREAM *stream)
 
 void mm_nocritical (MAILSTREAM *stream)
 {
-  critical = NIL;
+  --critical;
 }
 
 

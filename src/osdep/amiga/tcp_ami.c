@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	14 August 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -24,13 +24,7 @@ static tcptimeout_t tmoh = NIL;	/* TCP timeout handler routine */
 static long ttmo_open = 0;	/* TCP timeouts, in seconds */
 static long ttmo_read = 0;
 static long ttmo_write = 0;
-static long allowreversedns =	/* allow reverse DNS lookup */
-#ifdef DISABLE_REVERSE_DNS_LOOKUP
-  NIL	/* Not recommended, especially if using Kerberos authentication */
-#else
-  T
-#endif
-  ;
+static long allowreversedns = T;/* allow reverse DNS lookup */
 
 extern long maxposint;		/* get this from write.c */
 
@@ -40,6 +34,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
 		     unsigned long port);
 long tcp_abort (TCPSTREAM *stream);
 char *tcp_name (struct sockaddr_in *sin,long flag);
+long tcp_name_valid (char *s);
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -237,11 +232,11 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
     FD_ZERO (&efds);		/* handle errors too */
-    FD_SET (sock,&fds);	/* block for error or writeable */
+    FD_SET (sock,&fds);		/* block for error or readable */
     FD_SET (sock,&efds);
     do {			/* block under timeout */
       tmo.tv_sec = ti ? ti - now : 0;
-      i = select (sock+1,0,&fds,&efds,ti ? &tmo : 0);
+      i = select (sock+1,&fds,0,&efds,ti ? &tmo : 0);
       now = time (0);
     } while (((i < 0) && (errno == EINTR)) || (ti && !i && (ti > now)));
     if (i > 0) {		/* success, make sure really connected */
@@ -259,12 +254,6 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
       return -1;
     }
   }
-  for (i = 65536; (i > 4096) &&	/* set receive buffer size to 64K */
-       setsockopt (sock,SOL_SOCKET,SO_RCVBUF,(void *) &i,sizeof(i));
-       i -= 1024);
-  for (i = 65536; (i > 4096) &&	/* set send buffer size to 64K */
-       setsockopt (sock,SOL_SOCKET,SO_SNDBUF,(void *) &i,sizeof(i));
-       i -= 1024);
   return sock;			/* return the socket */
 }
   
@@ -671,7 +660,8 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
     data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* translate address to name */
     if (!(he = gethostbyaddr ((char *) &sin->sin_addr,
-			      sizeof (struct in_addr),sin->sin_family)))
+			      sizeof (struct in_addr),sin->sin_family)) ||
+	!tcp_name_valid (he->h_name))
       sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
     else if (flag) sprintf (s = tmp,"%s [%s]",he->h_name,
 			    inet_ntoa (sin->sin_addr));
@@ -681,4 +671,19 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
   }
   else sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
   return cpystr (s);
+}
+
+
+/* Validate name
+ * Accepts: domain name
+ * Returns: T if valid, NIL otherwise
+ */
+
+long tcp_name_valid (char *s)
+{
+  int c;
+  while (c = *s++)		/* must be alnum, dot, or hyphen */
+    if (!((c >= 'A') && (c <= 'Z')) && !((c >= 'a') && (c <= 'z')) &&
+	!((c >= '0') && (c <= '9')) && (c != '-') && (c != '.')) return NIL;
+  return LONGT;
 }

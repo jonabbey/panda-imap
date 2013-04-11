@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	24 October 2000
+ * Last Edited:	9 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -63,7 +63,7 @@ DRIVER bezerkdriver = {
   bezerk_create,		/* create mailbox */
   bezerk_delete,		/* delete mailbox */
   bezerk_rename,		/* rename mailbox */
-  NIL,				/* status of mailbox */
+  mail_status_default,		/* status of mailbox */
   bezerk_open,			/* open mailbox */
   bezerk_close,			/* close mailbox */
   NIL,				/* fetch message "fast" attributes */
@@ -561,7 +561,8 @@ long bezerk_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
       }
 				/* use POSIX-style date */
       else date = mail_cdate (tmp,&elt);
-      if (!bezerk_append_msg (stream,sf,flags,date,message)) {
+      if (!SIZE (message)) mm_log ("Append of zero-length message",ERROR);
+      else if (!bezerk_append_msg (stream,sf,flags,date,message)) {
 	sprintf (tmp,"Error writing scratch file: %.80s",strerror (errno));
 	mm_log (tmp,ERROR);
       }

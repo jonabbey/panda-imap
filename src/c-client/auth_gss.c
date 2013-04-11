@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 January 1998
- * Last Edited:	24 October 2000
+ * Last Edited:	8 August 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -24,8 +24,8 @@
 
 long auth_gssapi_valid (void);
 long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
-			 NETMBX *mb,void *stream,unsigned long *trial,
-			 char *user);
+			 char *service,NETMBX *mb,void *stream,
+			 unsigned long *trial,char *user);
 char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[]);
 
 AUTHENTICATOR auth_gss = {
@@ -46,12 +46,6 @@ AUTHENTICATOR auth_gss = {
 #define SERVER_LOG(x,y) syslog (LOG_ALERT,x,y)
 
 extern char *krb5_defkeyname;	/* sneaky way to get this name */
-
-
-/* Placate const declarations */
-
-static gss_OID auth_gss_mech;
-static gss_OID_set auth_gss_mech_set;
 
 /* Check if GSSAPI valid on this system
  * Returns: T if valid, NIL otherwise
@@ -66,8 +60,6 @@ long auth_gssapi_valid (void)
   struct stat sbuf;
   sprintf (tmp,"host@%s",mylocalhost ());
   buf.length = strlen (buf.value = tmp) + 1;
-  memcpy (&auth_gss_mech,&gss_mech_krb5,sizeof (gss_OID));
-  memcpy (&auth_gss_mech_set,&gss_mech_set_krb5,sizeof (gss_OID_set));
 				/* see if can build a name */
   if (gss_import_name (&smn,&buf,gss_nt_service_name,&name) != GSS_S_COMPLETE)
     return NIL;			/* failed */
@@ -80,6 +72,7 @@ long auth_gssapi_valid (void)
 /* Client authenticator
  * Accepts: challenger function
  *	    responder function
+ *	    SASL service name
  *	    parsed network mailbox structure
  *	    stream argument for functions
  *	    pointer to current trial count
@@ -88,8 +81,8 @@ long auth_gssapi_valid (void)
  */
 
 long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
-			NETMBX *mb,void *stream,unsigned long *trial,
-			char *user)
+			 char *service,NETMBX *mb,void *stream,
+			 unsigned long *trial,char *user)
 {
   char tmp[MAILTMPLEN];
   OM_uint32 smj,smn,dsmj,dsmn;
@@ -101,13 +94,17 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
   gss_qop_t qop;
   gss_name_t crname = NIL;
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
-  void *data = (*bn) (BLOCK_SENSITIVE,NIL);
+  void *data;
   long ret = NIL;
-  *trial = 0;			/* never retry */
-				/* get initial (empty) challenge */
-  if (!(chal.value = (*challenger) (stream,(unsigned long *) &chal.length)) ||
-      chal.length) return NIL;
-  sprintf (tmp,"%s@%s",mb->service,mb->host);
+  *trial = 65535;		/* never retry */
+  if (!(chal.value = (*challenger) (stream,(unsigned long *) &chal.length)))
+    return NIL;			/* get initial (empty) challenge */
+  if (chal.length) {		/* abort if challenge non-empty */
+    (*responder) (stream,NIL,0);
+    *trial = 0;			/* cancel subsequent attempts */
+    return T;			/* will get a BAD response back */
+  }
+  sprintf (tmp,"%s@%s",service,mb->host);
   buf.length = strlen (buf.value = tmp) + 1;
 				/* must be me if authuser; get service name */
   if ((mb->authuser[0] && strcmp (mb->authuser,myusername ())) ||
@@ -117,8 +114,7 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
   else {
     data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* negotiate with KDC */
-    smj = gss_init_sec_context (&smn,GSS_C_NO_CREDENTIAL,&ctx,crname,
-				auth_gss_mech,
+    smj = gss_init_sec_context (&smn,GSS_C_NO_CREDENTIAL,&ctx,crname,NIL,
 				GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG,0,
 				GSS_C_NO_CHANNEL_BINDINGS,GSS_C_NO_BUFFER,NIL,
 				&resp,NIL,NIL);
@@ -257,8 +253,8 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 				/* acquire credentials */
   if ((gss_import_name (&smn,&buf,gss_nt_service_name,&crname)) ==
       GSS_S_COMPLETE) {
-    if ((smj = gss_acquire_cred (&smn,crname,0,auth_gss_mech_set,GSS_C_ACCEPT,
-				 &crd,NIL,NIL)) == GSS_S_COMPLETE) {
+    if ((smj = gss_acquire_cred (&smn,crname,0,NIL,GSS_C_ACCEPT,&crd,NIL,NIL))
+	== GSS_S_COMPLETE) {
       if (resp.value = (*responder) ("",0,(unsigned long *) &resp.length)) {
 	do {			/* negotiate authentication */
 	  smj = gss_accept_sec_context (&smn,&ctx,crd,&resp,
@@ -268,9 +264,6 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 	  fs_give ((void **) &resp.value);
 	  switch (smj) {	/* how did it go? */
 	  case GSS_S_COMPLETE:	/* successful */
-				/* paranoia */
-	    if (memcmp (mech->elements,auth_gss_mech->elements,mech->length))
-	      fatal ("GSSAPI is bogus");
 	  case GSS_S_CONTINUE_NEEDED:
 	    if (chal.value) {	/* send challenge, get next response */
 	      resp.value = (*responder) (chal.value,chal.length,

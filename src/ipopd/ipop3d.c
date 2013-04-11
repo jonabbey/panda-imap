@@ -10,21 +10,14 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	24 October 2000
+ * Last Edited:	16 August 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
 
-#define PBIN getchar
-#define PSIN(s,n) fgets (s,n,stdin)
-#define PBOUT(c) putchar (c)
-#define PSOUT(s) fputs (s,stdout)
-#define PFLUSH fflush (stdout)
-#define CRLF PSOUT ("\015\012")
-
 /* Parameter files */
 
 #include <stdio.h>
@@ -34,6 +27,9 @@ extern int errno;		/* just in case */
 #include <signal.h>
 #include <time.h>
 #include "c-client.h"
+
+
+#define CRLF PSOUT ("\015\012")	/* primary output terpri */
 
 
 /* Autologout timer */
@@ -61,7 +57,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2000.69";	/* server version */
+char *version = "2001.77";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -103,8 +99,8 @@ int main (int argc,char *argv[])
   time_t autologouttime;
 #include "linkage.c"
 				/* initialize server */
-  server_init ((s = strrchr (argv[0],'/')) ? s + 1 : argv[0],
-	       "pop3","pop3s","pop",clkint,kodint,hupint,trmint);
+  server_init (((s = strrchr (argv[0],'/')) || (s = strrchr (argv[0],'\\'))) ?
+	       s+1 : argv[0],"pop3","pop3s","pop",clkint,kodint,hupint,trmint);
   challenge[0] = '\0';		/* find the CRAM-MD5 authenticator */
   if (i = mail_lookup_auth_name ("CRAM-MD5",NIL)) {
     AUTHENTICATOR *a = mail_lookup_auth (i);
@@ -130,7 +126,7 @@ int main (int argc,char *argv[])
     PSOUT (challenge);
   }
   CRLF;
-  PFLUSH;			/* dump output buffer */
+  PFLUSH ();			/* dump output buffer */
   autologouttime = time (0) + LOGINTIMEOUT;
 				/* command processing loop */
   while ((state != UPDATE) && (state != LOGOUT)) {
@@ -167,27 +163,28 @@ int main (int argc,char *argv[])
 				/* QUIT command always valid */
       if (!strcmp (s,"QUIT")) state = UPDATE;
       else if (!strcmp (s,"CAPA")) {
-	AUTHENTICATOR *auth = mail_lookup_auth (1);
+	AUTHENTICATOR *auth;
 	PSOUT ("+OK Capability list follows:\015\012");
 	PSOUT ("TOP\015\012LOGIN-DELAY 180\015\012UIDL\015\012");
-#ifdef POP3SPECIALCAP
-	PSOUT (POP3SPECIALCAP);
-	CRLF;
-#endif
-#ifndef PLAINTEXT_DISABLED
-	PSOUT ("USER\015\012");
-#endif
-	PSOUT ("SASL");
-	while (auth) {
-#ifdef PLAINTEXT_DISABLED
-				/* disable insecure authenticators */
-	  if (!auth->secflag) auth->server = NIL;
-#endif
-	  if (auth->server) {
-	    PBOUT (' ');
-	    PSOUT (auth->name);
-	  }
-	  auth = auth->next;
+	if (s = ssl_start_tls (NIL)) fs_give ((void *) &s);
+	else PSOUT ("STLS\015\012");
+	if (mail_parameters (NIL,GET_DISABLEPLAINTEXT,NIL)) {
+	  PSOUT ("SASL");	/* display secure server authenticators */
+	  for (auth = mail_lookup_auth (1); auth; auth = auth->next)
+	    if (auth->server) {
+	      if (auth->flags & AU_SECURE) {
+		PBOUT (' ');
+		PSOUT (auth->name);
+	      }
+	    }
+	}
+	else {			/* display all authentication means */
+	  PSOUT ("USER\015\012SASL");
+	  for (auth = mail_lookup_auth (1); auth; auth = auth->next)
+	    if (auth->server) {
+	      PBOUT (' ');
+	      PSOUT (auth->name);
+	    }
 	}
 	CRLF;
 	PSOUT (".\015\012");
@@ -236,19 +233,23 @@ int main (int argc,char *argv[])
 			 user,tcp_clienthost ());
 	  }
 	  else {
-	    AUTHENTICATOR *auth = mail_lookup_auth (1);
+	    AUTHENTICATOR *auth;
 	    PSOUT ("+OK Supported authentication mechanisms:\015\012");
-	    while (auth) {
-#ifdef PLAINTEXT_DISABLED
-				/* disable insecure authenticators */
-	      if (!auth_secflag) auth->server = NIL;
-#endif
+	    if (mail_parameters (NIL,GET_DISABLEPLAINTEXT,NIL)) {
+	      for (auth = mail_lookup_auth (1); auth; auth = auth->next)
+		if (auth->server) {
+		  if (auth->flags & AU_SECURE) {
+		    PSOUT (auth->name);
+		    CRLF;
+		  }
+		}
+	    }
+				/* display all authentication means */
+	    else for (auth = mail_lookup_auth (1); auth; auth = auth->next)
 	      if (auth->server) {
 		PSOUT (auth->name);
 		CRLF;
 	      }
-	      auth = auth->next;
-	    }
 	    PBOUT ('.');
 	    CRLF;
 	  }
@@ -275,15 +276,14 @@ int main (int argc,char *argv[])
 				/* (chuckle) */
 	else if (!strcmp (s,"RPOP"))
 	  PSOUT ("-ERR Nice try, bunkie\015\012");
-#ifdef IMAPSPECIALCAP
-	else if (!strcmp (s,POP3SPECIALCAP)) {
-	  char rsp[TMPLEN];
-	  if (t = SPECIALCAP (argv[0]))
-	    sprintf (rsp,"-ERR %s failed: %.100s\015\012",POP3SPECIALCAP,t);
-	  else sprintf (rsp,"+OK %s completed\015\012",POP3SPECIALCAP);
-	  PSOUT (rsp);
+	else if (!strcmp (s,"STLS")) {
+	  if (t = ssl_start_tls (argv[0])) {
+	    PSOUT ("-ERR STLS failed: ");
+	    PSOUT (t);
+	    CRLF;
+	  }
+	  else PSOUT ("+OK STLS completed\015\012");
 	}
-#endif
 	else PSOUT ("-ERR Unknown AUTHORIZATION state command\015\012");
 	break;
 
@@ -434,7 +434,7 @@ int main (int argc,char *argv[])
 	break;
       }
     }
-    PFLUSH;			/* make sure output finished */
+    PFLUSH ();			/* make sure output finished */
     if (autologouttime) {	/* have an autologout in effect? */
 				/* cancel if no longer waiting for login */
       if (state != AUTHORIZATION) autologouttime = 0;
@@ -442,7 +442,7 @@ int main (int argc,char *argv[])
       else if (autologouttime < time (0)) {
 	PSOUT ("-ERR Autologout\015\012");
 	syslog (LOG_INFO,"Autologout host=%.80s",tcp_clienthost ());
-	PFLUSH;			/* make sure output blatted */
+	PFLUSH ();		/* make sure output blatted */
 	state = LOGOUT;		/* sayonara */
       }
     }
@@ -456,7 +456,7 @@ int main (int argc,char *argv[])
   else syslog (LOG_INFO,"Logout user=%.80s host=%.80s",user ? user : "???",
 	       tcp_clienthost ());
   PSOUT (sayonara);		/* "now it's time to say sayonara..." */
-  PFLUSH;			/* make sure output finished */
+  PFLUSH ();			/* make sure output finished */
   return 0;			/* all done */
 }
 
@@ -468,7 +468,7 @@ void clkint ()
   PSOUT ("-ERR Autologout; idle for too long\015\012");
   syslog (LOG_INFO,"Autologout user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
-  PFLUSH;			/* make sure output blatted */
+  PFLUSH ();			/* make sure output blatted */
   if (critical) state = LOGOUT;	/* badly hosed if in critical code */
   else {			/* try to gracefully close the stream */
     if ((state == TRANSACTION) && !stream->lock) {
@@ -622,7 +622,7 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
     if (t[j] > ' ') PBOUT (t[j]);
   fs_give ((void **) &t);
   CRLF;
-  PFLUSH;			/* dump output buffer */
+  PFLUSH ();			/* dump output buffer */
   resp[RESPBUFLEN-1] = '\0';	/* last buffer character is guaranteed NUL */
   alarm (LOGINTIMEOUT);		/* get a response under timeout */
   clearerr (stdin);		/* clear stdin errors */
@@ -913,7 +913,7 @@ void mm_login (NETMBX *mb,char *username,char *password,long trial)
 
 void mm_critical (MAILSTREAM *stream)
 {
-  critical = T;
+  ++critical;
 }
 
 
@@ -923,7 +923,7 @@ void mm_critical (MAILSTREAM *stream)
 
 void mm_nocritical (MAILSTREAM *stream)
 {
-  critical = NIL;
+  --critical;
 }
 
 

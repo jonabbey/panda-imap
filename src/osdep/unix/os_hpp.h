@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	24 October 2000
+ * Last Edited:	10 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -41,24 +41,14 @@
 #define setpgrp(a,b) Setpgrp(a,b)
 
 
-/* For flock() emulation */
-
-#define flock bsd_flock
-
-#define LOCK_SH 1
-#define LOCK_EX 2
-#define LOCK_NB 4
-#define LOCK_UN 8
-
 #define utime portable_utime
 int portable_utime (char *file,time_t timep[2]);
+
+long gethostid (void);
 
 #include "env_unix.h"
 #include "fs.h"
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
-#include "lockfix.h"
-
-long gethostid (void);
-int bsd_flock (int fd,int operation);
+#include "flocksim.h"

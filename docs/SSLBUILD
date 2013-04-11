@@ -1,16 +1,16 @@
 		  SSL BUILD AND INSTALLATION NOTES FOR UNIX
-			 Last Updated: 16 October 2000
+			 Last Updated: 28 June 2001
 
 PREREQUISITES BEFORE STARTING:
  1) Make sure that you understand how to do a non-SSL build of the IMAP
-    toolkit.   If necessary, review the information in imap-2000/docs/BUILD.
+    toolkit.   If necessary, review the information in imap-2001/docs/BUILD.
  2) Obtain a copy of OpenSSL.  OpenSSL is available from third parties.  We
     do not provide OpenSSL.
  3) Make sure that you know how to build OpenSSL properly on the standard
     /usr/local/ssl directory.  In particular, /usr/local/ssl/include (and
     /usr/local/ssl/include/openssl) and /usr/local/ssl/lib must be set up
     from the OpenSSL build.  If you have a non-standard installation, then
-    you must modify the imap-2000/src/osdep/unixMakefile.ssl file to point
+    you must modify the imap-2001/src/osdep/unixMakefile.ssl file to point
     to the appropriate locations.
  4) Make sure that you know how to obtain appropriate certificates on your
     system.
@@ -22,32 +22,37 @@ mentioned in the OpenSSL README.
 
 SSL BUILD:
 
-     To build with SSL, add "SPECIALAUTHENTICATORS=ssl" to the make command
-line.  For example, on Red Hat Linux, the appropriate command would be:
-	make lnp SPECIALAUTHENTICATORS=ssl
+     To build with SSL, add "SSLTYPE=unix" to the make command line.  For
+example, on Red Hat Linux, the appropriate command would be:
+	make lnp SSLTYPE=unix
 
-     There are other make options, described in
- imap-2000/src/osdep/unix/Makefile.ssl.
-The most important of these are SSLCRYPTO and SSLRSA.
+     There are other make options relevant to SSL, described in
+ imap-2001/src/osdep/unix/Makefile
+The most important of these are SSLDIR, SSLCRYPTO, and SSLRSA.
 
-     SSLCRYPTO gives a fixed patch to libcrypto instead of using -lcrypto to
-avoid a library name conflict with some versions of MIT Kerberos.  If you have
-a newer version of Kerberos or don't use Kerberos, you may want to change it
-to -lcrypto, especially if you use shared libraries.
+     SSLDIR is set to /usr/local/ssl by default.  This is the normal
+installation directory for OpenSSL.  If your system uses a different directory
+you will need to change this.
 
-     SSLRSA specifies the RSAREF libraries, which you must use with OpenSSL to
-use RSA algorithms with OpenSSL legally if you are in the USA, due to patent
-issues.  If you are outside of the USA, and have built OpenSSL without RSAREF,
-you should set this to be empty.
+     SSLCRYPTO is set to -lcrypto by default.  Older versions of MIT Kerberos
+also have a libcrypto and will cause a library name conflict.  If you are
+using an older version of Kerberos, you may need to change SSLCRYPTO to
+$(SSLLIB)/libcrypto.a
+
+     SSLRSA is set empty by default.  It can be set to specify the RSAREF
+libraries, which you once had to use with OpenSSL to use RSA algorithms
+legally if you are in the USA, due to patent issues.  Since RSA Security Inc.
+released the RSA algorithm into the public domain on September 6, 2000, there
+is no longer any reason to do this.
 
 
 SSL INSTALLATION:
 
      Binaries from the build are:
-	imap-2000/mtest/mtest		c-client testbed program
-	imap-2000/ipopd/ipop2d		POP2 daemon
-	imap-2000/ipopd/ipop3d		POP3 daemon
-	imap-2000/imapd/imapd		IMAP4rev1 daemon
+	imap-2001/mtest/mtest		c-client testbed program
+	imap-2001/ipopd/ipop2d		POP2 daemon
+	imap-2001/ipopd/ipop3d		POP3 daemon
+	imap-2001/imapd/imapd		IMAP4rev1 daemon
 
      mtest is normally not used except by c-client developers.
 
@@ -63,10 +68,10 @@ imap	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
 pop3s	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
 imaps	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
 
-     Please refer to imap-2000/docs/BUILD for an important note about inetd's
+     Please refer to imap-2001/docs/BUILD for an important note about inetd's
 limit on the number of new connections.  If that note applies to you, and you
 can configure the number of connection in /etc/inetd.conf as described in
-imap-2000/docs/build, here is the sample /etc/inetd.conf entry with SSL:
+imap-2001/docs/build, here is the sample /etc/inetd.conf entry with SSL:
 
 pop3	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d
 pop3s	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d
@@ -103,15 +108,25 @@ NOTE: We can NOT provide you with support in obtaining certificates.  If you
 need help in doing this, try the contacts mentioned in the OpenSSL README.
 
      You must set up certificates on /usr/local/ssl/certs.  You should install
-both the certificate authority certificates from the SSL sources, plus your
-own certificates.  These should have been purchased from a certificate
-authority, although self-signed certificates are permissible.  A sample
-certificate file is at the end of this document.
+both the certificate authority certificates from the SSL distribution after
+building OpenSSL, plus your own certificates.  The latter should have been
+purchased from a certificate authority, although self-signed certificates are
+permissible.  A sample certificate file is at the end of this document.
 
      Install the IMAP certificate on /usr/local/ssl/certs/imapd.pem and the
 POP3 certificate on /usr/local/ssl/certs/ipop3d.pem.  These files should be
 protected against random people accessing them.  It is permissible for
 imapd.pem and ipop3d.pem to be links to the same file.
+
+     The imapd.pem and ipop3d.pem must contain a private key and a
+certificate.  The private key must not be encrypted.
+
+     The following command to openssl can be used to create a self-signed
+certificate with a 10-year expiration.  Please note that we DO NOT recommend,
+encourage, or sanction the use of self-signed certificates; nor will we be
+responsible for any problems (including security problems!) which result
+from your use of a self-signed certificate.
+	req -new -x509 -nodes -out imapd.pem -keyout imapd.pem -days 3650
 
      If you have a multihomed system with multiple domain names (and hence
 separate certifications for each domain name), you can append the IP address

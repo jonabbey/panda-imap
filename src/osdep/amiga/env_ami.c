@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	25 June 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -21,26 +21,15 @@
 #include <grp.h>
 #include <signal.h>
 #include <sys/wait.h>
-
-#include "write.c"		/* include safe writing routines */
-#include "pmatch.c"		/* include wildcard pattern matcher */
-
-/* Get all authenticators */
-
-#include "auths.c"
 
 /* c-client environment parameters */
-
-				/* don't change these */
-static const char *anonymous_user = "nobody";
-static const char *unlogged_user = "root";
-static const char *admin_grp = "mailadm";
 
 static char *myUserName = NIL;	/* user name */
 static char *myHomeDir = NIL;	/* home directory name */
 static char *myMailboxDir = NIL;/* mailbox directory name */
 static char *myLocalHost = NIL;	/* local host name */
 static char *myNewsrc = NIL;	/* newsrc file name */
+static char *mailsubdir = NIL;	/* mail subdirectory name */
 static char *sysInbox = NIL;	/* system inbox name */
 static char *newsActive = NIL;	/* news active file */
 static char *newsSpool = NIL;	/* news spool */
@@ -50,24 +39,33 @@ static char *ftpHome = NIL;	/* ftp export home directory */
 static char *publicHome = NIL;	/* public home directory */
 static char *sharedHome = NIL;	/* shared home directory */
 static short anonymous = NIL;	/* is anonymous */
-static short closedBox = NIL;	/* is a closed box */
 static short has_no_life = NIL;	/* is a cretin with no life */
+				/* warning on EACCES errors on .lock files */
+static short lockEaccesError = T;
+static short hideDotFiles = NIL;/* hide files whose names start with . */
+				/* 1 = disable plaintext, 2 = if not SSL */
+static long disablePlaintext = NIL;
+				/* advertise filesystem root */
+static short advertisetheworld = NIL;
+				/* disable automatic shared namespaces */
+static short noautomaticsharedns = NIL;
 static long list_max_level = 20;/* maximum level of list recursion */
 				/* default file protection */
 static long mbx_protection = 0600;
 				/* default directory protection */
 static long dir_protection = 0700;
 				/* default lock file protection */
-static long lock_protection = 0666;
+static long lock_protection = MANDATORYLOCKPROT;
 				/* default ftp file protection */
 static long ftp_protection = 0644;
+static long ftp_dir_protection = 0755;
 				/* default public file protection */
 static long public_protection = 0666;
+static long public_dir_protection = 0777;
 				/* default shared file protection */
 static long shared_protection = 0660;
+static long shared_dir_protection = 0770;
 static long locktimeout = 5;	/* default lock timeout */
-static long lockEaccesError = T;/* warning on EACCES errors on .lock files */
-static long hideDotFiles = NIL;	/* hide files whose names start with . */
 				/* default prototypes */
 static MAILSTREAM *createProto = NIL;
 static MAILSTREAM *appendProto = NIL;
@@ -97,13 +95,15 @@ static NAMESPACE nsnews = {"#news.",'.',NIL,&nspublic};
 static NAMESPACE nsftp = {"#ftp/",'/',NIL,&nsnews};
 				/* shared (no anonymous) namespace */
 static NAMESPACE nsshared = {"#shared/",'/',NIL,&nsftp};
-#ifdef ADVERTISE_THE_WORLD
-/* This is not something that you want to do, since certain IMAP clients will
- * treat it as license to download the entire filesystem!!
- */
 				/* world namespace */
 static NAMESPACE nsworld = {"/",'/',NIL,&nsshared};
-#endif
+
+#include "write.c"		/* include safe writing routines */
+#include "pmatch.c"		/* include wildcard pattern matcher */
+
+/* Get all authenticators */
+
+#include "auths.c"
 
 /* Environment manipulate parameters
  * Accepts: function code
@@ -161,6 +161,7 @@ void *env_parameters (long function,void *value)
     if (anonymousHome) fs_give ((void **) &anonymousHome);
     anonymousHome = cpystr ((char *) value);
   case GET_ANONYMOUSHOME:
+    if (!anonymousHome) anonymousHome = cpystr (ANONYMOUSHOME);
     ret = (void *) anonymousHome;
     break;
   case SET_FTPHOME:
@@ -223,25 +224,56 @@ void *env_parameters (long function,void *value)
   case GET_SHAREDPROTECTION:
     ret = (void *) shared_protection;
     break;
+  case SET_FTPDIRPROTECTION:
+    ftp_dir_protection = (long) value;
+  case GET_FTPDIRPROTECTION:
+    ret = (void *) ftp_dir_protection;
+    break;
+  case SET_PUBLICDIRPROTECTION:
+    public_dir_protection = (long) value;
+  case GET_PUBLICDIRPROTECTION:
+    ret = (void *) public_dir_protection;
+    break;
+  case SET_SHAREDDIRPROTECTION:
+    shared_dir_protection = (long) value;
+  case GET_SHAREDDIRPROTECTION:
+    ret = (void *) shared_dir_protection;
+    break;
+
   case SET_LOCKTIMEOUT:
     locktimeout = (long) value;
   case GET_LOCKTIMEOUT:
     ret = (void *) locktimeout;
     break;
   case SET_LOCKEACCESERROR:
-    lockEaccesError = (long) value;
+    lockEaccesError = value ? T : NIL;
   case GET_LOCKEACCESERROR:
-    ret = (void *) lockEaccesError;
+    ret = (void *) (lockEaccesError ? VOIDT : NIL);
     break;
   case SET_HIDEDOTFILES:
-    hideDotFiles = (long) value;
+    hideDotFiles = value ? T : NIL;
   case GET_HIDEDOTFILES:
-    ret = (void *) hideDotFiles;
+    ret = (void *) (hideDotFiles ? VOIDT : NIL);
+    break;
+  case SET_DISABLEPLAINTEXT:
+    disablePlaintext = (long) value;
+  case GET_DISABLEPLAINTEXT:
+    ret = (void *) disablePlaintext;
+    break;
+  case SET_ADVERTISETHEWORLD:
+    advertisetheworld = value ? T : NIL;
+  case GET_ADVERTISETHEWORLD:
+    ret = (void *) (advertisetheworld ? VOIDT : NIL);
+    break;
+  case SET_DISABLEAUTOMATICSHAREDNAMESPACES:
+    noautomaticsharedns = value ? T : NIL;
+  case GET_DISABLEAUTOMATICSHAREDNAMESPACES:
+    ret = (void *) (noautomaticsharedns ? VOIDT : NIL);
     break;
   case SET_USERHASNOLIFE:
     has_no_life = value ? T : NIL;
   case GET_USERHASNOLIFE:
-    ret = (void *) (has_no_life ? T : NIL);
+    ret = (void *) (has_no_life ? VOIDT : NIL);
     break;
   case SET_BLOCKNOTIFY:
     mailblocknotify = (blocknotify_t) value;
@@ -328,31 +360,48 @@ void internal_date (char *date)
  *	    termination interrupt handler
  */
 
-void server_init (char *server,char *service,char *altservice,char *sasl,
+void server_init (char *server,char *service,char *sslservice,char *sasl,
 		  void *clkint,void *kodint,void *hupint,void *trmint)
 {
-  long port;
-  struct servent *sv;
-  struct sockaddr_in sin;
-  int sinlen = sizeof (struct sockaddr_in);
-  /* Don't use tcp_clienthost() since reverse DNS problems may slow down the
-   * greeting message and cause the client to time out.
-   */
-  char *client = getpeername (0,(struct sockaddr *) &sin,(void *) &sinlen) ?
-    "UNKNOWN" : inet_ntoa (sin.sin_addr);
+				/* only do this if for init call */
+  if (server && service && sslservice && sasl) {
+    long port;
+    struct servent *sv;
+    struct sockaddr_in sin;
+    int i = sizeof (struct sockaddr_in);
+    /* Don't use tcp_clienthost() since reverse DNS problems may slow down the
+     * greeting message and cause the client to time out.
+     */
+    char *client =
+      getpeername (0,(struct sockaddr *) &sin,(void *) &i) ? "UNKNOWN" :
+	((sin.sin_family == AF_INET) ? inet_ntoa (sin.sin_addr) : "NON-IPv4");
 				/* set server name in syslog */
-  if (server) openlog (server,LOG_PID,LOG_MAIL);
-  if (service && altservice && ((port = tcp_serverport ()) >= 0)) {
-    if ((sv = getservbyname (service,"tcp")) && (port == ntohs (sv->s_port)))
-      syslog (LOG_DEBUG,"%s service init from %s",service,client);
-    else if ((sv = getservbyname (altservice,"tcp")) &&
-	     (port == ntohs (sv->s_port)))
-      syslog (LOG_DEBUG,"%s alternative service init from %s",
-	      altservice,client);
-    else syslog (LOG_DEBUG,"port %ld service init from %s",port,client);
-  }
+    openlog (server,LOG_PID,LOG_MAIL);
+    fclose (stderr);		/* possibly save a process ID */
+    /* Use SSL if SSL service, or if server starts with "s" and not service */
+    if (((port = tcp_serverport ()) >= 0)) {
+      if ((sv = getservbyname (service,"tcp")) && (port == ntohs (sv->s_port)))
+	syslog (LOG_DEBUG,"%s service init from %s",service,client);
+      else if ((sv = getservbyname (sslservice,"tcp")) &&
+	       (port == ntohs (sv->s_port))) {
+	syslog (LOG_DEBUG,"%s SSL service init from %s",sslservice,client);
+	ssl_server_init (server);
+      }
+      else {			/* not service or SSL service port */
+	syslog (LOG_DEBUG,"port %ld service init from %s",port,client);
+	if (*server == 's') ssl_server_init (server);
+      }
+    }
 				/* set SASL name */
-  if (sasl) mail_parameters (NIL,SET_SERVICENAME,(void *) sasl);
+    mail_parameters (NIL,SET_SERVICENAME,(void *) sasl);
+    switch (i = umask (022)) {	/* check old umask */
+    case 0:			/* definitely unreasonable */
+    case 022:			/* don't need to change it */
+      break;
+    default:			/* already was a reasonable value */
+      umask (i);		/* so change it back */
+    }
+  }
   signal (SIGALRM,clkint);	/* prepare for clock interrupt */
   signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
   signal (SIGHUP,hupint);	/* prepare for hangup */
@@ -376,6 +425,52 @@ long server_input_wait (long seconds)
   return select (1,&rfd,0,&efd,&tmo) ? LONGT : NIL;
 }
 
+/* Return Amiga password entry for user name
+ * Accepts: user name string
+ * Returns: password entry
+ *
+ * Tries all-lowercase form of user name if given user name fails
+ */
+
+static struct passwd *pwuser (char *user)
+{
+  char *s;
+  struct passwd *pw = getpwnam (user);
+  if (!pw) {			/* failed, see if any uppercase characters */
+    for (s = user; *s && !isupper (*s); s++);
+    if (*s) {			/* yes, try all lowercase form */
+      pw = getpwnam (s = lcase (cpystr (user)));
+      fs_give ((void **) &s);
+    }
+  }
+  return pw;
+}
+
+
+/* Validate password for user name
+ * Accepts: user name string
+ *	    password string
+ *	    argument count
+ *	    argument vector
+ * Returns: password entry if validated
+ *
+ * Tries all-lowercase form of user name if given user name fails
+ * Tries password+1 if password fails and starts with space
+ */
+
+static struct passwd *valpwd (char *user,char *pwd,int argc,char *argv[])
+{
+  struct passwd *pw;
+  char *usr;
+  if (pw = pwuser (user)) {	/* can get user? */
+    usr = cpystr (pw->pw_name);	/* copy returned name in case we need it */
+    if (!(pw = checkpw (pw,pwd,argc,argv)) && (*pwd == ' ') &&
+	(pw = pwuser (usr))) pw = checkpw (pw,pwd+1,argc,argv);
+    fs_give ((void **) &usr);	/* don't need copy of name any more */
+  }
+  return pw;
+}
+
 /* Server log in
  * Accepts: user name string
  *	    password string
@@ -387,66 +482,34 @@ long server_input_wait (long seconds)
 
 long server_login (char *user,char *pwd,char *authuser,int argc,char *argv[])
 {
-  char *s,usr[MAILTMPLEN],ausr[MAILTMPLEN];
-  struct passwd *pw;
-  struct passwd *logpw = NIL;
+  char *s;
+  struct passwd *pw = NIL;
+  int level = LOG_NOTICE;
+  char *err = "failed";
 				/* cretins still haven't given up */
-  if ((strlen (user) >= MAILTMPLEN) ||
-      (authuser && (strlen (authuser) >= MAILTMPLEN))) {
-    syslog (LOG_ALERT|LOG_AUTH,"SYSTEM BREAK-IN ATTEMPT, host=%.80s",
-	    tcp_clienthost ());
+  if ((strlen (user) >= NETMAXUSER) ||
+      (authuser && (strlen (authuser) >= NETMAXUSER))) {
+    level = LOG_ALERT;		/* escalate this alert */
+    err = "SYSTEM BREAK-IN ATTEMPT";
     logtry = 0;			/* render this session useless */
   }
-  else {
-    strcpy (usr,user);		/* make writeable copy of user */
-    if (auth_md5.server) {	/* using CRAM-MD5 authentication? */
-				/* make sure user exists */
-      if ((pw = getpwnam (usr)) || (pw = getpwnam (lcase (usr)))) {
-				/* default authentication identity */
-	if (!(authuser && *authuser))
-	  s = auth_md5_pwd (strcpy (ausr,pw->pw_name));
-				/* otherwise use given authentication id */
-	else if (!(s = auth_md5_pwd (strcpy (ausr,authuser))))
-	  s = auth_md5_pwd (lcase (ausr));
-	if (s) {		/* have a CRAM-MD5 password? */
-	  if (!strcmp (s,pwd) && strcmp (s,pwd+1)) logpw = pw;
-				/* erase sensitive information */
-	  memset (s,0,strlen (s));
-	  fs_give ((void **) &s);
-	}
-	else syslog (LOG_NOTICE|LOG_AUTH,
-		     "Login %s failed: %s has no CRAM-MD5 password host=%.80s",
-		     usr,ausr,tcp_clienthost ());
-      }
+  else if (logtry-- <= 0) err = "excessive login failures";
+  else if (disablePlaintext) err = "disabled";
+  else if (auth_md5.server) {	/* using CRAM-MD5 authentication? */
+    if (s = (authuser && *authuser) ?
+	auth_md5_pwd (authuser) : auth_md5_pwd (user)) {
+      if (!strcmp (s,pwd) || ((*pwd == ' ') && !strcmp (s,pwd+1)))
+	pw = pwuser (user);	/* CRAM-MD5 authentication validated */
+      memset (s,0,strlen (s));	/* erase sensitive information */
+      fs_give ((void **) &s);
     }
-				/* ordinary password authentication */
-    else if ((authuser && *authuser) ?
-	     (((pw = getpwnam (strcpy (ausr,authuser))) ||
-	       (pw = getpwnam (lcase (ausr)))) &&
-	      (checkpw (pw,pwd,argc,argv) ||
-	       ((*pwd == ' ') && checkpw (getpwnam (ausr),pwd+1,argc,argv))) &&
-	      ((pw = getpwnam (strcpy (usr,user))) ||
-	       (pw = getpwnam (lcase (usr))))) :
-	     (((pw = getpwnam (strcpy (ausr,user))) ||
-	       (pw = getpwnam (lcase (ausr)))) &&
-	      ((pw = checkpw (pw,pwd,argc,argv)) ||
-	       ((*pwd == ' ') &&
-		(pw = checkpw (getpwnam(ausr),pwd+1,argc,argv))))))
-      logpw = pw;
-
-    if (logtry <= 0)
-      syslog (LOG_NOTICE|LOG_AUTH,
-	      "Login attempt after lockout user=%.80s host=%.80s",
-	      user,tcp_clienthost ());
-#ifndef PLAINTEXT_DISABLED
-    else if (logpw) {		/* have logpw, validate authentication ID */
-      if (pw_login (pw,ausr,pw->pw_name,pw->pw_dir,argc,argv)) return T;
-    }
-#endif
-    else syslog (LOG_NOTICE|LOG_AUTH,"%s user=%.80s host=%.80s",
-		 (logtry-- > 0) ? "Login failure" : "Excessive login attempts",
-		 user,tcp_clienthost ());
+    else err = "failed: no CRAM-MD5 entry";
   }
+  else if (!(authuser && *authuser)) pw = valpwd (user,pwd,argc,argv);
+  else if (valpwd (authuser,pwd,argc,argv)) pw = pwuser (user);
+  if (pw && pw_login (pw,authuser,pw->pw_name,NIL,argc,argv)) return T;
+  syslog (level|LOG_AUTH,"Login %s user=%.64s auth=%.64s host=%.80s",err,
+	  user,(authuser && *authuser) ? authuser : user,tcp_clienthost ());
   sleep (3);			/* slow down possible cracker */
   return NIL;
 }
@@ -461,8 +524,7 @@ long server_login (char *user,char *pwd,char *authuser,int argc,char *argv[])
 
 long authserver_login (char *user,char *authuser,int argc,char *argv[])
 {
-  struct passwd *pw = getpwnam (user);
-  return pw ? pw_login (pw,authuser,pw->pw_name,pw->pw_dir,argc,argv) : NIL;
+  return pw_login (pwuser (user),authuser,user,NIL,argc,argv);
 }
 
 
@@ -474,64 +536,52 @@ long authserver_login (char *user,char *authuser,int argc,char *argv[])
 
 long anonymous_login (int argc,char *argv[])
 {
-  struct passwd *pw = getpwnam ((char *) anonymous_user);
 				/* log in Mr. A. N. Onymous */
-  return pw ? pw_login (pw,NIL,NIL,ANONYMOUSHOME,argc,argv) : NIL;
+  return pw_login (getpwnam (ANONYMOUSUSER),NIL,NIL,
+		   (char *) mail_parameters (NIL,GET_ANONYMOUSHOME,NIL),
+		   argc,argv);
 }
-
-
+
 /* Finish log in and environment initialization
  * Accepts: passwd struct for loginpw()
- *	    authentication user name
+ *	    optional authentication user name
  *	    user name (NIL for anonymous)
- *	    home directory (NIL for anonymous)
+ *	    home directory (NIL to use directory from passwd struct)
  *	    argument count
  *	    argument vector
  * Returns: T if successful, NIL if error
  */
 
-long pw_login (struct passwd *pw,char *authuser,char *user,char *home,int argc,
+long pw_login (struct passwd *pw,char *auser,char *user,char *home,int argc,
 	       char *argv[])
 {
+  struct group *gr;
+  char **t;
   long ret = NIL;
-				/* OK if matches authorization ID */
-  if (authuser && strcmp (authuser,pw->pw_name)) {
-    struct group *gr = getgrnam ((char *) admin_grp);
-    char **t;
+  if (pw && pw->pw_uid) {	/* must have passwd struct for non-UID 0 */
+				/* make safe copies of user and home */
+    if (user) user = cpystr (pw->pw_name);
+    home = cpystr (home ? home : pw->pw_dir);
+				/* authorization ID .NE. authentication ID? */
+    if (user && auser && *auser && compare_cstring (auser,user)) {
 				/* scan list of mail administrators */
-    for (t = gr ? gr->gr_mem : NIL; t; t++) if (!strcmp (authuser,*t)) {
-      syslog (LOG_NOTICE|LOG_AUTH,"Admin %s override of user=%s host=%.80s",
-	      authuser,pw->pw_name,tcp_clienthost ());
-      return pw_login (pw,NIL,user,home,argc,argv);
+      if ((gr = getgrnam (ADMINGROUP)) && (t = gr->gr_mem)) while (*t && !ret)
+	if (!compare_cstring (auser,*t++))
+	  ret = pw_login (pw,NIL,user,home,argc,argv);
+      syslog (LOG_NOTICE|LOG_AUTH,"%s %.80s override of user=%.80s host=%.80s",
+	      ret ? "Admin" : "Failed",auser,user,tcp_clienthost ());
     }
-    syslog (LOG_NOTICE|LOG_AUTH,
-	    "Login %s failed: invalid authentication ID %s host=%.80s",
-	    pw->pw_name,authuser,tcp_clienthost ());
+				/* normal login */
+    else if (((pw->pw_uid == geteuid ()) || loginpw (pw,argc,argv)) &&
+	     (ret = env_init (user,home))) chdir (myhomedir ());
+    fs_give ((void **) &home);	/* clean up */
+    if (user) fs_give ((void **) &user);
   }
-  else if (!pw->pw_uid);	/* disallow UID 0 */
-				/* if same as EUID, treat as application */
-  else if (pw->pw_uid == geteuid ()) ret = env_init (user,home);
-  else {			/* in case loginpw() smashes these */
-    char *u = user ? cpystr (user) : NIL;
-    char *h = home ? cpystr (home) : NIL;
-#ifdef CHROOT_SERVER
-				/* paranoid site, lock out other directories */
-    if (chdir (home ? home : ANONYMOUSHOME) &&
-	chroot (home ? home : ANONYMOUSHOME)) return NIL;
-    home = "/";			/* home directory now root */
-    closedBox = T;		/* flag that this is a closed box */
-#endif
-				/* log the user in */
-    if (loginpw (pw,argc,argv)) ret = env_init (u,h);
-    if (h) fs_give ((void **) &h);
-    if (u) fs_give ((void **) &u);
-  }
-  if (ret) chdir (myhomedir ());/* make sure at home directory */
   return ret;			/* return status */
 }
 
 /* Initialize environment
- * Accepts: user name
+ * Accepts: user name (NIL for anonymous)
  *	    home directory name
  * Returns: T, always
  */
@@ -542,48 +592,24 @@ long env_init (char *user,char *home)
   extern MAILSTREAM EMPTYPROTO;
   struct passwd *pw;
   struct stat sbuf;
-  char *s,tmp[MAILTMPLEN];
+  char tmp[MAILTMPLEN];
   if (myUserName) fatal ("env_init called twice!");
-				/* myUserName must be set before dorc() call */
-  myUserName = cpystr (user ? user : (char *) anonymous_user);
-  if (closedBox) {		/* closed box server */
-				/* standard user can only reference home */
-    if (user) nslist[0] = &nshome;
-    else {			/* anonymous user */
-      nslist[0] = &nsblackother; /* set root */
-      anonymous = T;		/* flag as anonymous */
-    }
-    nslist[1] = nslist[2] = NIL;/* can't reference anything else */
-    anonymousHome = "";		/* make sure user rc files don't try these */
-    sysInbox = cpystr ("INBOX");/* make system INBOX */
+				/* set up user name */
+  myUserName = cpystr (user ? user : ANONYMOUSUSER);
+  if (user) {			/* remember user name and home directory */
+    nslist[0] = &nshome;	/* home namespace */
+    nslist[1] = &nsamigaother;
+    nslist[2] = advertisetheworld ? &nsworld : &nsshared;
   }
-
-  else {			/* open or black box */
-				/* do systemwide configuration */
-    dorc ("/etc/c-client.cf",NIL);
-    if (!anonymousHome) anonymousHome = cpystr (ANONYMOUSHOME);
-    if (user) {			/* remember user name and home directory */
-      nslist[0] = &nshome;	/* home directory */
-				/* other users */
-      nslist[1] = &nsamigaother;
-#ifdef ADVERTISE_THE_WORLD
-      nslist[2] = &nsworld;	/* you probably don't want to do this! */
-#else
-      nslist[2] = &nsshared;	/* what, me paranoid? */
-#endif
-    }
-    else {			/* anonymous user */
-      nslist[0] = nslist[1] = NIL,nslist[2] = &nsftp;
-      sprintf (tmp,"%s/INBOX",home = anonymousHome);
-      sysInbox = cpystr (tmp);	/* make system INBOX */
-      anonymous = T;		/* flag as anonymous */
-    }
+  else {			/* anonymous user */
+    nslist[0] = nslist[1] = NIL,nslist[2] = &nsftp;
+    sprintf (tmp,"%s/INBOX",
+	     home = (char *) mail_parameters (NIL,GET_ANONYMOUSHOME,NIL));
+    sysInbox = cpystr (tmp);	/* make system INBOX */
+    anonymous = T;		/* flag as anonymous */
   }
-
-  myHomeDir = cpystr (home);	/* use real home directory */
-  dorc (strcat (strcpy (tmp,myHomeDir),"/.mminit"),T);
-  dorc (strcat (strcpy (tmp,myHomeDir),"/.imaprc"),NIL);
-  if (!closedBox) {		/* can't do this on closed server */
+  myHomeDir = cpystr (home);	/* set home directory */
+  if (!noautomaticsharedns) {
 				/* #ftp namespace */
     if (!ftpHome && (pw = getpwnam ("ftp"))) ftpHome = cpystr (pw->pw_dir);
 				/* #public namespace */
@@ -613,9 +639,10 @@ long env_init (char *user,char *home)
 
 char *myusername_full (unsigned long *flags)
 {
-  char *ret = (char *) unlogged_user;
+  char *ret = UNLOGGEDUSER;
   if (!myUserName) {		/* get user name if don't have it yet */
     struct passwd *pw;
+    struct stat sbuf;
     unsigned long euid = geteuid ();
     char *s = (char *) (euid ? getlogin () : NIL);
 				/* look up getlogin() user name or EUID */
@@ -672,16 +699,15 @@ char *myhomedir ()
 
 static char *mymailboxdir ()
 {
-				/* initialize if first time */
-#ifdef MAILSUBDIR
-  if (!myMailboxDir) {
-    char tmp[MAILTMPLEN];
-    sprintf (tmp,"%s/%s",myhomedir (),MAILSUBDIR);
-    myHomeDir = cpystr (tmp);	/* use pre-defined subdirectory of home */
+  char *home = myhomedir ();
+  if (!myMailboxDir && home) {	/* initialize if first time */
+    if (mailsubdir) {
+      char tmp[MAILTMPLEN];
+      sprintf (tmp,"%s/%s",home,mailsubdir);
+      myMailboxDir = cpystr (tmp);/* use pre-defined subdirectory of home */
+    }
+    else myMailboxDir = cpystr (home);
   }
-#else
-  if (!myMailboxDir && myHomeDir) myMailboxDir = cpystr (myhomedir ());
-#endif
   return myMailboxDir ? myMailboxDir : "";
 }
 
@@ -749,7 +775,7 @@ char *mailboxfile (char *dst,char *name)
       ((name[3] == 'O') || (name[3] == 'o')) &&
       ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) {
 				/* if restricted, canonicalize name of INBOX */
-    if (anonymous || closedBox) name = "INBOX";
+    if (anonymous) name = "INBOX";
     else return dst;		/* else driver selects the INBOX name */
   }
 				/* restricted name? */
@@ -786,17 +812,17 @@ char *mailboxfile (char *dst,char *name)
 				/* absolute path name? */
   else if (*name == '/') return strcpy (dst,name);
 				/* some home directory? */
-  else if (!closedBox && (*name == '~') && *++name) {
+  else if ((*name == '~') && *++name) {
     if (*name == '/') name++;	/* yes, my home directory? */
     else {			/* no, copy user name */
       for (dir = dst; *name && (*name != '/'); *dir++ = *name++);
       *dir++ = '\0';		/* tie off user name, look up in passwd file */
       if (!((pw = getpwnam (dst)) && (dir = pw->pw_dir))) return NIL;
       if (*name) name++;	/* skip past the slash */
-#ifdef MAILSUBDIR
-      sprintf (dst,"%s/%s/%s",dir,MAILSUBDIR,name);
-      return dst;
-#endif
+      if (mailsubdir) {
+	sprintf (dst,"%s/%s/%s",dir,mailsubdir,name);
+	return dst;
+      }
     }
   }
 				/* build resulting name */
@@ -864,7 +890,7 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
   if (fd >= 0) switch (errno) {
   case EACCES:			/* protection failure? */
 				/* make command pipes */
-    if (!closedBox && !stat (LOCKPGM,&sb) && (pipe (pi) >= 0)) {
+    if (!stat (LOCKPGM,&sb) && (pipe (pi) >= 0)) {
       if (pipe (po) >= 0) {
 	if (!(j = fork ())) {	/* make inferior process */
 	  if (!fork ()) {	/* make grandchild so it's inherited by init */
@@ -976,14 +1002,14 @@ int lockfd (int fd,char *lock,int op)
 int lock_work (char *lock,void *sb,int op,long *pid)
 {
   struct stat lsb,fsb;
-  struct stat *sbuf = sb;
+  struct stat *sbuf = (struct stat *) sb;
   char tmp[MAILTMPLEN];
   long i;
   int fd;
   if (pid) *pid = 0;		/* initialize return PID */
 				/* make temporary lock file name */
-  sprintf (lock,"/tmp/.%lx.%lx",(unsigned long) sbuf->st_dev,
-	   (unsigned long) sbuf->st_ino);
+  sprintf (lock,"%s/.%lx.%lx","/tmp",
+	   (unsigned long) sbuf->st_dev,(unsigned long) sbuf->st_ino);
   while (T) {			/* until get a good lock */
     do switch ((int) chk_notsymlink (lock,&lsb)) {
     case 1:			/* exists just once */
@@ -1001,8 +1027,13 @@ int lock_work (char *lock,void *sb,int op,long *pid)
     if (fd < 0) {		/* failed to get file descriptor */
       syslog (LOG_INFO,"Mailbox lock file %s open failure: %s",lock,
 	      strerror (errno));
+      if (stat ("/tmp",&lsb))
+	syslog (LOG_CRIT,"SYSTEM ERROR: no /tmp: %s",strerror (errno));
+      else if ((lsb.st_mode & 01777) != 01777)
+	mm_log ("Can't lock for write: /tmp must have 1777 protection",WARN);
       return -1;		/* fail: can't open lock file */
     }
+
 				/* non-blocking form */
     if (op & LOCK_NB) i = flock (fd,op);
     else {			/* blocking form */
@@ -1036,7 +1067,7 @@ int lock_work (char *lock,void *sb,int op,long *pid)
 
 long chk_notsymlink (char *name,void *sb)
 {
-  struct stat *sbuf = sb;
+  struct stat *sbuf = (struct stat *) sb;
 				/* name exists? */
   if (lstat (name,sbuf)) return -1;
 				/* forbid symbolic link */
@@ -1099,9 +1130,41 @@ long set_mbx_protections (char *mailbox,char *path)
     if (mode & 0600) mode |= 0100;
     if (mode & 060) mode |= 010;/* set group search if allow read or write */
     if (mode & 06) mode |= 01;	/* set world search if allow read or write */
+				/* preserve directory SGID bit */
+    if (sbuf.st_mode & S_ISGID) mode |= S_ISGID;
   }
   chmod (path,mode);		/* set the new protection, ignore failure */
   return LONGT;
+}
+
+/* Get proper directory protection
+ * Accepts: mailbox name
+ * Returns: directory mode, always
+ */
+
+long get_dir_protection (char *mailbox)
+{
+  if (*mailbox == '#') {	/* possible namespace? */
+      if (((mailbox[1] == 'f') || (mailbox[1] == 'F')) &&
+	  ((mailbox[2] == 't') || (mailbox[2] == 'T')) &&
+	  ((mailbox[3] == 'p') || (mailbox[3] == 'P')) &&
+	  (mailbox[4] == '/')) return ftp_dir_protection;
+      else if (((mailbox[1] == 'p') || (mailbox[1] == 'P')) &&
+	       ((mailbox[2] == 'u') || (mailbox[2] == 'U')) &&
+	       ((mailbox[3] == 'b') || (mailbox[3] == 'B')) &&
+	       ((mailbox[4] == 'l') || (mailbox[4] == 'L')) &&
+	       ((mailbox[5] == 'i') || (mailbox[5] == 'I')) &&
+	       ((mailbox[6] == 'c') || (mailbox[6] == 'C')) &&
+	       (mailbox[7] == '/')) return public_dir_protection;
+      else if (((mailbox[1] == 's') || (mailbox[1] == 'S')) &&
+	       ((mailbox[2] == 'h') || (mailbox[2] == 'H')) &&
+	       ((mailbox[3] == 'a') || (mailbox[3] == 'A')) &&
+	       ((mailbox[4] == 'r') || (mailbox[4] == 'R')) &&
+	       ((mailbox[5] == 'e') || (mailbox[5] == 'E')) &&
+	       ((mailbox[6] == 'd') || (mailbox[6] == 'D')) &&
+	       (mailbox[7] == '/')) return shared_dir_protection;
+  }
+  return dir_protection;
 }
 
 /* Determine default prototype stream to user

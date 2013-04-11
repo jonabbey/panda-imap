@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	24 October 2000
+ * Last Edited:	11 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -38,7 +38,7 @@ extern int errno;		/* just in case */
 
 DRIVER mboxdriver = {
   "mbox",			/* driver name */
-  DR_LOCAL|DR_MAIL,		/* driver flags */
+  DR_LOCAL|DR_MAIL|DR_LOCKING,	/* driver flags */
   (DRIVER *) NIL,		/* next driver */
   mbox_valid,			/* mailbox is valid for us */
   unix_parameters,		/* manipulate parameters */
@@ -133,7 +133,7 @@ long mbox_rename (MAILSTREAM *stream,char *old,char *newname)
   long ret = unix_rename (stream,"~/mbox",newname);
 				/* recreate file if renamed INBOX */
   if (ret) unix_create (NIL,"mbox");
-  else mm_log (tmp,ERROR);	/* log error */
+  else MM_LOG (tmp,ERROR);	/* log error */
   return ret;			/* return success */
 }
 
@@ -171,8 +171,7 @@ long mbox_status (MAILSTREAM *stream,char *mbx,long flags)
 				/* kludge but probably good enough */
     status.uidnext += systream->nmsgs;
   }
-				/* pass status to main program */
-  mm_status (stream,mbx,&status);
+  MM_STATUS(stream,mbx,&status);/* pass status to main program */
   if (tstream) mail_close (tstream);
   if (systream) mail_close (systream);
   return T;			/* success */
@@ -187,13 +186,11 @@ MAILSTREAM *mbox_open (MAILSTREAM *stream)
 {
   unsigned long i = 1;
   unsigned long recent = 0;
-  char tmp[MAILTMPLEN];
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &mboxproto;
 				/* change mailbox file name */
-  sprintf (tmp,"%s/mbox",myhomedir ());
   fs_give ((void **) &stream->mailbox);
-  stream->mailbox = cpystr (tmp);
+  stream->mailbox = cpystr ("mbox");
 				/* open mailbox, snarf new mail */
   if (!(unix_open (stream) && mbox_ping (stream))) return NIL;
   stream->inbox = T;		/* mark that this is an INBOX */
@@ -230,7 +227,7 @@ long mbox_ping (MAILSTREAM *stream)
 	  !unix_isvalid_fd (sfd)) {
 	sprintf (LOCAL->buf,"Mail drop %s is not in standard Unix format",
 		 sysinbox ());
-	mm_log (LOCAL->buf,ERROR);
+	MM_LOG (LOCAL->buf,ERROR);
       }
 				/* sysinbox good, parse and excl-lock mbox */
       else if (unix_parse (stream,&lock,LOCK_EX)) {
@@ -243,7 +240,7 @@ long mbox_ping (MAILSTREAM *stream)
 				/* copy to mbox */
 	if ((write (LOCAL->fd,s,size) < 0) || fsync (LOCAL->fd)) {
 	  sprintf (LOCAL->buf,"New mail move failed: %s",strerror (errno));
-	  mm_log (LOCAL->buf,ERROR);
+	  MM_LOG (LOCAL->buf,WARN);
 				/* revert mbox to previous size */
 	  ftruncate (LOCAL->fd,LOCAL->filesize);
 	}
@@ -251,7 +248,7 @@ long mbox_ping (MAILSTREAM *stream)
 	else if (fstat (sfd,&sbuf) || (size != sbuf.st_size)) {
 	  sprintf (LOCAL->buf,"Mail drop %s lock failure, old=%lu now=%lu",
 		   sysinbox (),size,(unsigned long) sbuf.st_size);
-	  mm_log (LOCAL->buf,ERROR);
+	  MM_LOG (LOCAL->buf,ERROR);
 				/* revert mbox to previous size */
 	  ftruncate (LOCAL->fd,LOCAL->filesize);
 	  /* Believe it or not, a Singaporean government system actually had
@@ -272,7 +269,7 @@ long mbox_ping (MAILSTREAM *stream)
 	    if (strcmp ((char *) mail_parameters (NIL,GET_SERVICENAME,NIL),
 			"unknown"))
 	      syslog (LOG_INFO,"%s host= %s",LOCAL->buf,tcp_clienthost ());
-	    else mm_log (LOCAL->buf,WARN);
+	    else MM_LOG (LOCAL->buf,WARN);
 	  }
 	}
 				/* done with sysinbox text */
@@ -280,7 +277,8 @@ long mbox_ping (MAILSTREAM *stream)
 				/* all done with mbox */
 	unix_unlock (LOCAL->fd,stream,&lock);
 	mail_unlock (stream);	/* unlock the stream */
-	mm_nocritical (stream);	/* done with critical */
+				/* done with critical */
+	MM_NOCRITICAL (stream);
       }
 				/* all done with sysinbox */
       unix_unlock (sfd,NIL,&lockx);

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	24 October 2000
+ * Last Edited:	9 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -52,7 +52,7 @@ DRIVER mbxdriver = {
   mbx_create,			/* create mailbox */
   mbx_delete,			/* delete mailbox */
   mbx_rename,			/* rename mailbox */
-  NIL,				/* status of mailbox */
+  mail_status_default,		/* status of mailbox */
   mbx_open,			/* open mailbox */
   mbx_close,			/* close mailbox */
   mbx_flags,			/* fetch message "fast" attributes */
@@ -321,8 +321,7 @@ long mbx_rename (MAILSTREAM *stream,char *old,char *newname)
   }
   unlockfd (ld,lock);		/* release exclusive parse/append permission */
 				/* recreate file if renamed INBOX */
-  if (ret && !strcmp (ucase (strcpy (tmp,old)),"INBOX"))
-    mbx_create (NIL,"INBOX");
+  if (ret && !compare_cstring (old,"INBOX")) mbx_create (NIL,"INBOX");
   return ret;			/* return success */
 }
 
@@ -356,7 +355,7 @@ MAILSTREAM *mbx_open (MAILSTREAM *stream)
   LOCAL->buf = (char *) fs_get (MAXMESSAGESIZE + 1);
   LOCAL->buflen = MAXMESSAGESIZE;
 				/* note if an INBOX or not */
-  stream->inbox = !strcmp(ucase (strcpy (LOCAL->buf,stream->mailbox)),"INBOX");
+  stream->inbox = !compare_cstring (stream->mailbox,"INBOX");
   fs_give ((void **) &stream->mailbox);
   stream->mailbox = cpystr (tmp);
 				/* get parse/append permission */
@@ -462,17 +461,18 @@ char *mbx_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
   if (flags & FT_UID) return "";/* UID call "impossible" */
 				/* get header position, possibly header */
   i = mbx_hdrpos (stream,msgno,length,&s);
-  if (s) return s;		/* mbx_hdrpos() returned header */
-  lseek (LOCAL->fd,i,L_SET);	/* get to header position */
+  if (!s) {			/* mbx_hdrpos() returned header? */
+    lseek (LOCAL->fd,i,L_SET);	/* no, get to header position */
 				/* is buffer big enough? */
-  if (*length > LOCAL->buflen) {
-    fs_give ((void **) &LOCAL->buf);
-    LOCAL->buf = (char *) fs_get ((LOCAL->buflen = *length) + 1);
-  }
-  LOCAL->buf[*length] = '\0';	/* tie off string */
+    if (*length > LOCAL->buflen) {
+      fs_give ((void **) &LOCAL->buf);
+      LOCAL->buf = (char *) fs_get ((LOCAL->buflen = *length) + 1);
+    }
 				/* slurp the data */
-  read (LOCAL->fd,LOCAL->buf,*length);
-  return LOCAL->buf;
+    read (LOCAL->fd,s = LOCAL->buf,*length);
+  }
+  s[*length] = '\0';		/* tie off string */
+  return s;
 }
 
 /* MBX mail fetch message text (body only)
@@ -813,6 +813,11 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
   do {				/* parse flags */
+    if (!SIZE (message)) {	/* guard against zero-length */
+      mm_log ("Append of zero-length message",ERROR);
+      ret = NIL;
+      break;
+    }
     f = mail_parse_flags (stream,flags,&uf);
     if (date) {			/* parse date if given */
       if (!mail_parse_date (&elt,date)) {
@@ -1215,7 +1220,7 @@ void mbx_update_status (MAILSTREAM *stream,unsigned long msgno,long flags)
 unsigned long mbx_hdrpos (MAILSTREAM *stream,unsigned long msgno,
 			  unsigned long *size,char **hdr)
 {
-  unsigned long siz;
+  unsigned long siz,done;
   long i;
   char *s,*t,*te;
   MESSAGECACHE *elt = mbx_elt (stream,msgno,NIL);
@@ -1230,10 +1235,11 @@ unsigned long mbx_hdrpos (MAILSTREAM *stream,unsigned long msgno,
     LOCAL->buf = (char *) fs_get ((LOCAL->buflen = HDRBUFLEN) + SLOP);
   }
   lseek (LOCAL->fd,ret,L_SET);	/* get to header position */
-  for (siz = 0, s = LOCAL->buf;	/* read HDRBUFLEN chunks with 4 byte slop */
-       (i = min ((long) (elt->rfc822_size - siz),(long) HDRBUFLEN)) &&
+				/* read HDRBUFLEN chunks with 4 byte slop */
+  for (done = siz = 0, s = LOCAL->buf;
+       (i = min ((long) (elt->rfc822_size - done),(long) HDRBUFLEN)) &&
        (read (LOCAL->fd,s,i) == i);
-       siz += (t - LOCAL->buf) - SLOP, s = LOCAL->buf + SLOP) {
+       done += i, siz += (t - LOCAL->buf) - SLOP, s = LOCAL->buf + SLOP) {
     te = (t = s + i) - 12;	/* calculate end of fast scan */
 				/* fast scan for CR */
     for (s = LOCAL->buf; s < te;)

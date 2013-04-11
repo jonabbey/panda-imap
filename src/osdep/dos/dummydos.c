@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	24 October 2000
+ * Last Edited:	9 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -50,7 +50,7 @@ DRIVER dummydriver = {
   dummy_create,			/* create mailbox */
   dummy_delete,			/* delete mailbox */
   dummy_rename,			/* rename mailbox */
-  NIL,				/* status of mailbox */
+  mail_status_default,		/* status of mailbox */
   dummy_open,			/* open mailbox */
   dummy_close,			/* close mailbox */
   NIL,				/* fetch message "fast" attributes */
@@ -333,19 +333,19 @@ long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,
 long dummy_create (MAILSTREAM *stream,char *mailbox)
 {
   char tmp[MAILTMPLEN];
-  return (strcmp (ucase (strcpy (tmp,mailbox)),"INBOX") &&
-	  mailboxfile (tmp,mailbox)) ?
-	    dummy_create_path (stream,tmp) : dummy_badname (tmp,mailbox);
+  return (compare_cstring (mailbox,"INBOX") && mailboxfile (tmp,mailbox)) ?
+    dummy_create_path (stream,tmp,NIL) : dummy_badname (tmp,mailbox);
 }
 
 
 /* Dummy create path
  * Accepts: mail stream
- *	    path name name to create
+ *	    path name to create
+ *	    directory mode
  * Returns: T on success, NIL on failure
  */
 
-long dummy_create_path (MAILSTREAM *stream,char *path)
+long dummy_create_path (MAILSTREAM *stream,char *path,long dirmode)
 {
   struct stat sbuf;
   char c,*s,tmp[MAILTMPLEN];
@@ -363,7 +363,7 @@ long dummy_create_path (MAILSTREAM *stream,char *path)
     *s = '\0';
 				/* name doesn't exist, create it */
     if ((stat (tmp,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	!dummy_create_path (stream,path)) return NIL;
+	!dummy_create_path (stream,path,dirmode)) return NIL;
     *s = c;			/* restore full name */
   }
   if (wantdir) {		/* want to create directory? */
@@ -448,7 +448,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
   int fd = -1;
 				/* OP_PROTOTYPE call or silence */
   if (!stream || stream->silent) return NIL;
-  if (strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX") &&
+  if (compare_cstring (stream->mailbox,"INBOX") &&
       ((fd = open (mailboxfile (tmp,stream->mailbox),O_RDONLY,NIL)) < 0))
     sprintf (tmp,"%s: %s",strerror (errno),stream->mailbox);
   else {
@@ -564,8 +564,8 @@ long dummy_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   int e;
   char tmp[MAILTMPLEN];
   MAILSTREAM *ts = default_proto (T);
-  if ((strcmp (ucase (strcpy (tmp,mailbox)),"INBOX")) &&
-	   ((fd = open (mailboxfile (tmp,mailbox),O_RDONLY,NIL)) < 0)) {
+  if (compare_cstring (mailbox,"INBOX") &&
+      ((fd = open (mailboxfile (tmp,mailbox),O_RDONLY,NIL)) < 0)) {
     if ((e = errno) == ENOENT)	/* failed, was it no such file? */
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
 		 (long) NIL);

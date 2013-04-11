@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	21 October 1998
- * Last Edited:	24 October 2000
+ * Last Edited:	30 May 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -36,7 +36,8 @@ typedef struct {
 
 long auth_md5_valid (void);
 long auth_md5_client (authchallenge_t challenger,authrespond_t responder,
-		      NETMBX *mb,void *stream,unsigned long *trial,char *user);
+		      char *service,NETMBX *mb,void *stream,
+		      unsigned long *trial,char *user);
 char *auth_md5_server (authresponse_t responder,int argc,char *argv[]);
 char *auth_md5_pwd (char *user);
 char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[]);
@@ -76,6 +77,7 @@ long auth_md5_valid (void)
 /* Client authenticator
  * Accepts: challenger function
  *	    responder function
+ *	    SASL service name
  *	    parsed network mailbox structure
  *	    stream argument for functions
  *	    pointer to current trial count
@@ -84,29 +86,41 @@ long auth_md5_valid (void)
  */
 
 long auth_md5_client (authchallenge_t challenger,authrespond_t responder,
-		      NETMBX *mb,void *stream,unsigned long *trial,char *user)
+		      char *service,NETMBX *mb,void *stream,
+		      unsigned long *trial,char *user)
 {
-  char pwd[MAILTMPLEN],resp[MAILTMPLEN];
-  void *chal;
-  unsigned long cl;
+  char pwd[MAILTMPLEN];
+  void *challenge;
+  unsigned long clen;
+  long ret = NIL;
 				/* get challenge */
-  if (chal = (*challenger) (stream,&cl)) {
-				/* prompt user */
+  if (challenge = (*challenger) (stream,&clen)) {
+    pwd[0] = NIL;		/* prompt user */
     mm_login (mb,user,pwd,*trial);
-    if (pwd[0]) {		/* got password, build response */
-      sprintf (resp,"%s %s",user,hmac_md5 (chal,cl,pwd,strlen (pwd)));
-      fs_give ((void **) &chal);/* don't need challenge any moe */
-				/* send credentials, allow retry if OK */
-      if ((*responder) (stream,resp,strlen (resp)) &&
-	  !(chal = (*challenger) (stream,&cl))) return (long) ++*trial;
+    if (!pwd[0]) {		/* user requested abort */
+      fs_give ((void **) &challenge);
+      (*responder) (stream,NIL,0);
+      *trial = 0;		/* cancel subsequent attempts */
+      ret = LONGT;		/* will get a BAD response back */
     }
-				/* user requested abort */
-    else (*responder) (stream,NIL,0);
+    else {			/* got password, build response */
+      sprintf (pwd,"%.65s %.33s",user,hmac_md5 (challenge,clen,
+						pwd,strlen (pwd)));
+      fs_give ((void **) &challenge);
+				/* send credentials, allow retry if OK */
+      if ((*responder) (stream,pwd,strlen (pwd))) {
+	if (challenge = (*challenger) (stream,&clen))
+	  fs_give ((void **) &challenge);
+	else {
+	  ++*trial;		/* can try again if necessary */
+	  ret = LONGT;		/* check the authentication */
+	}
+      }
+    }
   }
-				/* flush any challenge left behind */
-  if (chal) fs_give ((void **) &chal);
-  *trial = 0;			/* retries not permitted */
-  return NIL;			/* return failure */
+  memset (pwd,0,MAILTMPLEN);	/* erase password in case not overwritten */
+  if (!ret) *trial = 65535;	/* don't retry if bad protocol */
+  return ret;
 }
 
 /* Server authenticator
@@ -134,12 +148,8 @@ char *auth_md5_server (authresponse_t responder,int argc,char *argv[])
       *hash++ = '\0';		/* tie off user */
 				/* see if authentication user */
       if (authuser = strchr (user,'*')) *authuser++ = '\0';
-      if (authuser && *authuser) {
-	if (!(p = auth_md5_pwd (authuser)))
-	  p = auth_md5_pwd (lcase (authuser));
-	}
-      else if (!(p = auth_md5_pwd (user))) p = auth_md5_pwd (lcase (user));
-      if (p) {			/* quickly verify password */
+				/* get password */
+      if (p = auth_md5_pwd ((authuser && *authuser) ? authuser : user)) {
 	u = strcmp (hash,hmac_md5 (chal,cl,p,pl = strlen (p))) ? NIL : user;
 	memset (p,0,pl);	/* erase sensitive information */
 	fs_give ((void **) &p);	/* flush erased password */
@@ -158,29 +168,37 @@ char *auth_md5_server (authresponse_t responder,int argc,char *argv[])
  * Returns: plaintext password if success, else NIL
  *
  * This is much hairier than it needs to be due to the necessary of zapping
- * the password data.
+ * the password data.  That's why we don't use stdio here.
  */
 
 char *auth_md5_pwd (char *user)
 {
   struct stat sbuf;
   int fd = open (MD5ENABLE,O_RDONLY,NIL);
-  char *s,*t,*buf;
+  char *s,*t,*buf,*lusr,*lret;
   char *ret = NIL;
   if (fd >= 0) {		/* found the file? */
-    if (!fstat (fd,&sbuf)) {	/* yes, slurp it into memory */
-      read (fd,buf = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
-      for (s = strtok (buf,"\015\012"); s;
-	   s = ret ? NIL : strtok (NIL,"\015\012"))
+    fstat (fd,&sbuf);		/* yes, slurp it into memory */
+    read (fd,buf = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
+				/* see if any uppercase characters in user */
+    for (s = user; *s && !isupper (*s); s++);
+				/* yes, make lowercase copy */
+    lusr = *s ? lcase (cpystr (user)) : NIL;
+    for (s = strtok (buf,"\015\012"),lret = NIL; s;
+	 s = ret ? NIL : strtok (NIL,"\015\012"))
 				/* must be valid entry line */
-	if ((*s != '#') && (t = strchr (s,'\t'))) {
-	  *t++ = '\0';		/* found tab, tie off user, point to pwd */
-	  if (*s && *t && !strcmp (s,user)) ret = cpystr (t);
-	}
+      if (*s && (*s != '#') && (t = strchr (s,'\t')) && t[1]) {
+	*t++ = '\0';		/* found tab, tie off user, point to pwd */
+	if (!strcmp (s,user)) ret = cpystr (t);
+	else if (lusr && !lret) if (!strcmp (s,lusr)) lret = t;
+      }
+				/* accept case-independent name */
+    if (!ret && lret) ret = cpystr (lret);
+				/* don't need lowercase copy any more */
+    if (lusr) fs_give ((void **) &lusr);
 				/* erase sensitive information from buffer */
-      memset (buf,0,sbuf.st_size + 1);
-      fs_give ((void **) &buf);	/* flush the buffer */
-    }
+    memset (buf,0,sbuf.st_size + 1);
+    fs_give ((void **) &buf);	/* flush the buffer */
     close (fd);			/* don't need file any longer */
   }
   return ret;			/* return password */
@@ -205,11 +223,8 @@ char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[])
   char *hex = "0123456789abcdef";
 				/* see if authentication user */
   if (authuser = strchr (user,'*')) *authuser++ = '\0';
-  if (authuser && *authuser) {
-    if (!(s = auth_md5_pwd (authuser))) s = auth_md5_pwd (lcase (authuser));
-  }
-  else if (!(s = auth_md5_pwd (user))) s = auth_md5_pwd (lcase (user));
-  if (s) {			/* only if found password */
+				/* get password */
+  if (s = auth_md5_pwd ((authuser && *authuser) ? authuser : user)) {
     md5_init (&ctx);		/* initialize MD5 context */
 				/* build string to get MD5 digest */
     sprintf (tmp,"%.128s%.128s",chal,s);
@@ -229,7 +244,7 @@ char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[])
       ret = cpystr (myusername ());
     memset (tmp,0,MAILTMPLEN);	/* erase sensitive information */
   }
-  if (!ret) sleep (3);		/* slow down poassible cracker */
+  if (!ret) sleep (3);		/* slow down possible cracker */
   return ret;
 }
 
@@ -261,9 +276,9 @@ char *hmac_md5 (char *text,unsigned long tl,char *key,unsigned long kl)
   memset (k_ipad+kl,0,(MD5BLKLEN+1)-kl);
   memcpy (k_opad,k_ipad,MD5BLKLEN+1);
 				/* XOR key with ipad and opad values */
-  for (i = 0; i < MD5BLKLEN; i++) {/* for each byte of pad */
-    k_ipad[i] ^= 0x36;		/* XOR key with ipad */
-    k_opad[i] ^= 0x5c;		/*  and opad values */
+  for (i = 0; i < MD5BLKLEN; i++) {
+    k_ipad[i] ^= 0x36;
+    k_opad[i] ^= 0x5c;
   }
   md5_init (&ctx);		/* inner MD5: hash ipad and text */
   md5_update (&ctx,k_ipad,MD5BLKLEN);
@@ -284,6 +299,11 @@ char *hmac_md5 (char *text,unsigned long tl,char *key,unsigned long kl)
 
 /* Everything after this point is derived from the RSA Data Security, Inc.
  * MD5 Message-Digest Algorithm
+ */
+
+/* You may wonder why these strange "a &= 0xffffffff;" statements are here.
+ * This is to ensure correct results on machines with a unsigned long size of
+ * larger than 32 bits.
  */
 
 #define RND1(a,b,c,d,x,s,ac) \
@@ -420,6 +440,11 @@ static void md5_transform (unsigned long *state,unsigned char *block)
   memset (x,0,sizeof (x));	/* erase sensitive data */
 }
 
+/* You may wonder why these strange "& 0xff" maskings are here.  This is to
+ * ensure correct results on machines with a char size of larger than 8 bits.
+ * For example, the KCC compiler on the PDP-10 uses 9-bit chars.
+ */
+
 /* MD5 encode unsigned long into LSB-first bytes
  * Accepts: destination pointer
  *	    source
@@ -448,6 +473,8 @@ static void md5_decode (unsigned long *dst,unsigned char *src,int len)
 {
   int i, j;
   for (i = 0, j = 0; i < len; i++, j += 4)
-    dst[i] = ((unsigned long) src[j]) | (((unsigned long) src[j+1]) << 8) |
-      (((unsigned long) src[j+2]) << 16) | (((unsigned long) src[j+3]) << 24);
+    dst[i] = ((unsigned long) (src[j] & 0xff)) |
+      (((unsigned long) (src[j+1] & 0xff)) << 8) |
+      (((unsigned long) (src[j+2] & 0xff)) << 16) |
+	(((unsigned long) (src[j+3] & 0xff)) << 24);
 }

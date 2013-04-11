@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	24 October 2000
+ * Last Edited:	10 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -50,28 +50,19 @@
 #define random lrand48
 
 
-/* For flock() emulation */
-
-#define flock(x,y) bsd_flock((x),(y))
-
-#define LOCK_SH 1
-#define LOCK_EX 2
-#define LOCK_NB 4
-#define LOCK_UN 8
-
 #define utime portable_utime
 int portable_utime (char *file,time_t timep[2]);
-
-#include "env_unix.h"
-#include "fs.h"
-#include "ftl.h"
-#include "nl.h"
-#include "tcp.h"
-#include "lockfix.h"
 
 long gethostid (void);
 typedef int (*select_t) (struct direct *name);
 typedef int (*compar_t) (void *d1,void *d2);
 int scandir (char *dirname,struct direct ***namelist,select_t select,
 	     compar_t compar);
-int bsd_flock (int fd,int operation);
+
+
+#include "env_unix.h"
+#include "fs.h"
+#include "ftl.h"
+#include "nl.h"
+#include "tcp.h"
+#include "flocksim.h"

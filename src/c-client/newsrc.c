@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 September 1994
- * Last Edited:	24 October 2000
+ * Last Edited:	11 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -41,7 +41,7 @@ long newsrc_error (char *fmt,char *text,long errflg)
 {
   char tmp[MAILTMPLEN];
   sprintf (tmp,fmt,text);
-  mm_log (tmp,errflg);
+  MM_LOG (tmp,errflg);
   return NIL;
 }
 
@@ -57,7 +57,7 @@ long newsrc_write_error (char *name,FILE *f1,FILE *f2)
 {
   fclose (f1);			/* close file designators */
   fclose (f2);
-  return newsrc_error ("Error writing to %s",name,ERROR);
+  return newsrc_error ("Error writing to %.80s",name,ERROR);
 }
 
 
@@ -71,8 +71,8 @@ FILE *newsrc_create (MAILSTREAM *stream,int notify)
 {
   char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,stream);
   FILE *f = fopen (newsrc,"wb");
-  if (!f) newsrc_error ("Unable to create news state %s",newsrc,ERROR);
-  else if (notify) newsrc_error ("Creating news state %s",newsrc,WARN);
+  if (!f) newsrc_error ("Unable to create news state %.80s",newsrc,ERROR);
+  else if (notify) newsrc_error ("Creating news state %.80s",newsrc,WARN);
   return f;
 }
 
@@ -196,7 +196,7 @@ long newsrc_update (MAILSTREAM *stream,char *group,char state)
 				/* found the newsgroup? */
       if (((c == ':') || (c == '!')) && !strcmp (tmp,group)) {
 	if (c == state) {	/* already at that state? */
-	  if (c == ':') newsrc_error ("Already subscribed to %s",group,WARN);
+	  if (c == ':') newsrc_error("Already subscribed to %.80s",group,WARN);
 	  ret = LONGT;		/* noop the update */
 	}
 				/* write the character */
@@ -223,7 +223,8 @@ long newsrc_update (MAILSTREAM *stream,char *group,char state)
       else {			/* can't find a newline convention */
 	fclose (f);		/* punt the file */
 				/* can't win if read something */
-	if (pos) newsrc_error("Unknown newline convention in %s",newsrc,ERROR);
+	if (pos) newsrc_error ("Unknown newline convention in %.80s",
+newsrc,ERROR);
 				/* file must have been empty, rewrite it */
 	else ret = newsrc_newstate(newsrc_create(stream,NIL),group,state,"\n");
       }
@@ -282,7 +283,7 @@ long newsrc_read (char *group,MAILSTREAM *stream)
 	    break;
 	  default:		/* bogus character */
 	    sprintf (tmp,"Bogus character 0x%x in news state",(unsigned int)c);
-	    mm_log (tmp,ERROR);
+	    MM_LOG (tmp,ERROR);
 	  case EOF: case '\015': case '\012':
 	    fclose (f);		/* all done - close the file */
 	    f = NIL;
@@ -298,8 +299,8 @@ long newsrc_read (char *group,MAILSTREAM *stream)
     }
   } while (f && (c != EOF));	/* until file closed or EOF */
   if (f) {			/* still have file open? */
-    sprintf (tmp,"No state for newsgroup %s found, reading as new",group);
-    mm_log (tmp,WARN);
+    sprintf (tmp,"No state for newsgroup %.80s found, reading as new",group);
+    MM_LOG (tmp,WARN);
     fclose (f);			/* close the file */
   }
   if (m <= stream->nmsgs) {	/* any messages beyond newsrc range? */
@@ -312,8 +313,8 @@ long newsrc_read (char *group,MAILSTREAM *stream)
     while (m <= stream->nmsgs);
   }
   if (unseen) {			/* report first unseen message */
-    sprintf (tmp,"[UNSEEN] %lu is first unseen message in %s",unseen,group);
-    mm_notify (stream,tmp,(long) NIL);
+    sprintf (tmp,"[UNSEEN] %lu is first unseen message in %.80s",unseen,group);
+    MM_NOTIFY (stream,tmp,(long) NIL);
   }
   return recent;
 }
@@ -334,7 +335,7 @@ long newsrc_write (char *group,MAILSTREAM *stream)
   if (f = fopen (newsrc,"rb")) {/* have existing newsrc file? */
     if (!(bf = fopen ((strcat (strcpy (backup,newsrc),OLDFILESUFFIX)),"wb"))) {
       fclose (f);		/* punt input file */
-      return newsrc_error ("Can't create backup news state %s",backup,ERROR);
+      return newsrc_error("Can't create backup news state %.80s",backup,ERROR);
     }
 				/* copy to backup file */
     while ((c = getc (f)) != EOF) {
@@ -347,25 +348,29 @@ long newsrc_write (char *group,MAILSTREAM *stream)
 				/* write to backup file */
       if ((d = putc (c,bf)) == EOF) {
 	fclose (f);		/* punt input file */
-	return newsrc_error("Error writing backup news state %s",newsrc,ERROR);
+	return newsrc_error ("Error writing backup news state %.80s",
+			     newsrc,ERROR);
       }
     }
     fclose (f);			/* close existing file */
     if (fclose (bf) == EOF)	/* and backup file */
-      return newsrc_error ("Error closing backup news state %s",newsrc,ERROR);
+      return newsrc_error ("Error closing backup news state %.80s",
+			   newsrc,ERROR);
     if (d == EOF) {		/* open for write if empty file */
       if (f = newsrc_create (stream,NIL)) bf = NIL;
       else return NIL;
     }
     else if (!nl[0])		/* make sure newlines valid */
-      return newsrc_error ("Unknown newline convention in %s",newsrc,ERROR);
+      return newsrc_error ("Unknown newline convention in %.80s",newsrc,ERROR);
 				/* now read backup file */
     else if (!(bf = fopen (backup,"rb")))
-      return newsrc_error ("Error reading backup news state %s",backup,ERROR);
+      return newsrc_error ("Error reading backup news state %.80s",
+			   backup,ERROR);
 				/* open newsrc for writing */
     else if (!(f = fopen (newsrc,"wb"))) {
       fclose (bf);		/* punt backup */
-      return newsrc_error ("Can't rewrite news state %s",newsrc,ERROR);
+      return newsrc_error ("Can't rewrite news state %.80s",
+			   newsrc,ERROR);
     }
   }
   else {			/* create new newsrc file */
@@ -459,8 +464,8 @@ char *newsrc_state (MAILSTREAM *stream,char *group)
       }
     }
   } while (f && (c != EOF));	/* until file closed or EOF */
-  sprintf (tmp,"No state for newsgroup %s found",group);
-  mm_log (tmp,WARN);
+  sprintf (tmp,"No state for newsgroup %.80s found",group);
+  MM_LOG (tmp,WARN);
   if (f) fclose (f);		/* close the file */
   return NIL;			/* not found return */
 }

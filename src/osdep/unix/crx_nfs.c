@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	17 December 1999
- * Last Edited:	24 October 2000
+ * Last Edited:	6 November 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -42,9 +42,25 @@ long crexcl (char *name)
 				/* try to get hitching-post file */
   if ((i = open (hitch,O_WRONLY|O_CREAT|O_EXCL,(int) lock_protection)) >= 0) {
     close (i);			/* close the hitching-post */
-    link (hitch,name);		/* tie hitching-post to lock, ignore failure */
+    /* Note: link() may return an error even if it actually succeeded.  So we
+     * always check for success via the link count, and ignore the error if
+     * the link count is right.
+     */
+				/* tie hitching-post to lock */
+    i = link (hitch,name) ? errno : 0;
 				/* success if link count now 2 */
     if (!stat (hitch,&sb) && (sb.st_nlink == 2)) ret = LONGT;
+    else if (i == EPERM) {	/* links not allowed? */
+      /* Probably a FAT filesystem on Linux.  It can't be NFS, so try creating
+       * the lock file directly.
+       */
+      if ((i = open (name,O_WRONLY|O_CREAT|O_EXCL,(int)lock_protection)) >= 0){
+	close (i);		/* close the file */
+	ret = LONGT;		/* success */
+      }
+				/* fail unless error is EEXIST */
+      else if (errno != EEXIST) ret = NIL;
+    }
     unlink (hitch);		/* flush hitching post */
   }
 				/* fail unless error is EEXIST */

@@ -10,17 +10,17 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 December 1995
- * Last Edited:	24 October 2000
+ * Last Edited:	30 May 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
 
 long auth_login_client (authchallenge_t challenger,authrespond_t responder,
-			NETMBX *mb,void *stream,unsigned long *trial,
-			char *user);
+			char *service,NETMBX *mb,void *stream,
+			unsigned long *trial,char *user);
 char *auth_login_server (authresponse_t responder,int argc,char *argv[]);
 
 AUTHENTICATOR auth_log = {
@@ -38,6 +38,7 @@ AUTHENTICATOR auth_log = {
 /* Client authenticator
  * Accepts: challenger function
  *	    responder function
+ *	    SASL service name
  *	    parsed network mailbox structure
  *	    stream argument for functions
  *	    pointer to current trial count
@@ -46,36 +47,41 @@ AUTHENTICATOR auth_log = {
  */
 
 long auth_login_client (authchallenge_t challenger,authrespond_t responder,
-			NETMBX *mb,void *stream,unsigned long *trial,
-			char *user)
+			char *service,NETMBX *mb,void *stream,
+			unsigned long *trial,char *user)
 {
   char pwd[MAILTMPLEN];
   void *challenge;
   unsigned long clen;
+  long ret = NIL;
 				/* get user name prompt */
   if (challenge = (*challenger) (stream,&clen)) {
     fs_give ((void **) &challenge);
-				/* prompt user */
+    pwd[0] = NIL;		/* prompt user */
     mm_login (mb,user,pwd,*trial);
     if (!pwd[0]) {		/* user requested abort */
       (*responder) (stream,NIL,0);
-      *trial = 0;		/* don't retry */
-      return T;			/* will get a NO response back */
+      *trial = 0;		/* cancel subsequent attempts */
+      ret = LONGT;		/* will get a BAD response back */
     }
 				/* send user name */
     else if ((*responder) (stream,user,strlen (user)) &&
 	     (challenge = (*challenger) (stream,&clen))) {
       fs_give ((void **) &challenge);
 				/* send password */
-      if ((*responder) (stream,pwd,strlen (pwd)) &&
-	  !(challenge = (*challenger) (stream,&clen))) {
-	++*trial;		/* can try again if necessary */
-	return T;		/* check the authentication */
+      if ((*responder) (stream,pwd,strlen (pwd))) {
+	if (challenge = (*challenger) (stream,&clen))
+	  fs_give ((void **) &challenge);
+	else {
+	  ++*trial;		/* can try again if necessary */
+	  ret = LONGT;		/* check the authentication */
+	}
       }
     }
   }
-  *trial = 0;			/* don't retry */
-  return NIL;			/* failed */
+  memset (pwd,0,MAILTMPLEN);	/* erase password */
+  if (!ret) *trial = 65535;	/* don't retry if bad protocol */
+  return ret;
 }
 
 

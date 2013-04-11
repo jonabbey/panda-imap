@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 September 1993
- * Last Edited:	24 October 2000
+ * Last Edited:	20 February 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -22,7 +22,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/dir.h>
+#include <dirent.h>
+#include <time.h>		/* for struct tm */
 #include <fcntl.h>
 #include <syslog.h>
 #include <sys/file.h>
@@ -31,6 +32,8 @@
 /* Linux gets this wrong */
 
 #define setpgrp setpgid
+
+#define direct dirent
 
 
 #include "env_unix.h"

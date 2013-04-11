@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	4 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -59,6 +59,7 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
      *  max	number of days a password is valid if positive
      *  warn	number of days of password expiration warning
      *  expire	date account expires if positive
+     *  inact	number of days an accout can be inactive (not checked!)
      * The expiration day is the *last* day that the password or account
      * is valid.
      */

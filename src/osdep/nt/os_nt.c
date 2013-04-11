@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	24 October 2000
+ * Last Edited:	15 February 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -35,5 +35,6 @@
 #include "ftl_nt.c"
 #include "nl_nt.c"
 #include "env_nt.c"
+#include "ssl_nt.c"
 #include "tcp_nt.c"
 #include "yunchan.c"

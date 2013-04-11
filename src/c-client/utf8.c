@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	24 October 2000
+ * Last Edited:	15 June 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -126,6 +126,7 @@ static const struct utf8_csent utf8_csvalid[] = {
   {"ISO-8859-13",utf8_text_1byte,(void *) iso8859_13tab,SC_LATIN_7,NIL},
   {"ISO-8859-14",utf8_text_1byte,(void *) iso8859_14tab,SC_LATIN_8,NIL},
   {"ISO-8859-15",utf8_text_1byte,(void *) iso8859_15tab,SC_LATIN_9,NIL},
+  {"ISO-8859-16",utf8_text_1byte,(void *) iso8859_16tab,SC_LATIN_10,NIL},
   {"KOI8-R",utf8_text_1byte,(void *) koi8rtab,SC_CYRILLIC,NIL},
   {"KOI8-U",utf8_text_1byte,(void *) koi8utab,SC_CYRILLIC | SC_UKRANIAN,NIL},
   {"KOI8-RU",utf8_text_1byte,(void *) koi8utab,SC_CYRILLIC | SC_UKRANIAN,
@@ -160,9 +161,9 @@ static const struct utf8_csent utf8_csvalid[] = {
 #ifdef KSCTOUNICODE
   {"ISO-2022-JP-2",utf8_text_2022,NIL,
      SC_LATIN_1 | SC_LATIN_2 | SC_LATIN_3 | SC_LATIN_4 | SC_LATIN_5 |
-       SC_LATIN_6 | SC_LATIN_7 | SC_LATIN_8 | SC_LATIN_9 | SC_ARABIC |
-	 SC_CYRILLIC | SC_GREEK | SC_HEBREW | SC_THAI | SC_VIETNAMESE |
-	   SC_CHINESE_TRADITIONAL | SC_JAPANESE | SC_KOREAN
+       SC_LATIN_6 | SC_LATIN_7 | SC_LATIN_8 | SC_LATIN_9 | SC_LATIN_10 |
+	 SC_ARABIC | SC_CYRILLIC | SC_GREEK | SC_HEBREW | SC_THAI |
+	   SC_VIETNAMESE | SC_CHINESE_TRADITIONAL | SC_JAPANESE | SC_KOREAN
 #ifdef CNS1TOUNICODE
 	     | SC_CHINESE_TRADITIONAL
 #endif
@@ -224,18 +225,19 @@ long utf8_text (SIZEDTEXT *text,char *charset,SIZEDTEXT *ret,long flags)
   }
 			
   if (strlen (charset) < 128)	/* otherwise look for charset */
-    for (i = 0, ucase (strcpy (tmp,charset)); utf8_csvalid[i].name; i++)
-      if (!strcmp (tmp,utf8_csvalid[i].name)) {
+    for (i = 0; utf8_csvalid[i].name; i++)
+      if (!compare_cstring (charset,utf8_csvalid[i].name)) {
 	if (ret && utf8_csvalid[i].dsp)
 	  (*utf8_csvalid[i].dsp) (text,ret,utf8_csvalid[i].tab);
 	return LONGT;		/* success */
       }
   if (flags) {			/* charset not found */
     strcpy (tmp,"[BADCHARSET (");
-    for (i = 0, t = tmp + strlen (tmp); utf8_csvalid[i].name;
+    for (i = 0, t = tmp + strlen (tmp);
+	 utf8_csvalid[i].name && (t < (tmp + MAILTMPLEN - 200));
 	 i++,t += strlen (t)) sprintf (t,"%s ",utf8_csvalid[i].name);
     sprintf (t + strlen (t) - 1,")] Unknown charset: %.80s",charset);
-    mm_log (tmp,ERROR);
+    MM_LOG (tmp,ERROR);
   }
   return NIL;			/* failed */
 }
@@ -329,7 +331,7 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
       if ((c = text->data[i++]) & BIT8) {
 				/* yes, must have another high byte */
 	if ((i >= text->size) || !((c1 = text->data[i++]) & BIT8))
-	  c = BOGON;		/* out of space or bogon */
+	  c = UBOGON;		/* out of space or bogon */
 	else switch (c) {	/* check 8bit code set */
 	case EUC_CS2:		/* CS2 */
 	  if (p2->base_ku) {	/* CS2 set up? */
@@ -337,12 +339,12 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	      c = ((i < text->size) && ((c = text->data[i++]) & BIT8) &&
 		   ((ku = (c1 & BITS7) - p2->base_ku) < p2->max_ku) &&
 		   ((ten = (c & BITS7) - p2->base_ten) < p2->max_ten)) ?
-		     t2[(ku*p2->max_ten) + ten] : BOGON;
+		     t2[(ku*p2->max_ten) + ten] : UBOGON;
 	    else c = ((c1 >= p2->base_ku) && (c1 <= p2->max_ku)) ?
-	      c1 + ((unsigned int) p2->tab) : BOGON;
+	      c1 + ((unsigned int) p2->tab) : UBOGON;
 	  }	  
 	  else {		/* CS2 not set up */
-	    c = BOGON;		/* swallow byte, say bogon */
+	    c = UBOGON;		/* swallow byte, say bogon */
 	    if (i < text->size) i++;
 	  }
 	  break;
@@ -352,25 +354,23 @@ void utf8_text_euc (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	      c = ((i < text->size) && ((c = text->data[i++]) & BIT8) &&
 		   ((ku = (c1 & BITS7) - p3->base_ku) < p3->max_ku) &&
 		   ((ten = (c & BITS7) - p3->base_ten) < p3->max_ten)) ?
-		     t3[(ku*p3->max_ten) + ten] : BOGON;
+		     t3[(ku*p3->max_ten) + ten] : UBOGON;
 	    else c = ((c1 >= p3->base_ku) && (c1 <= p3->max_ku)) ?
-	      c1 + ((unsigned int) p3->tab) : BOGON;
+	      c1 + ((unsigned int) p3->tab) : UBOGON;
 	  }	  
 	  else {		/* CS3 not set up */
-	    c = BOGON;		/* swallow byte, say bogon */
+	    c = UBOGON;		/* swallow byte, say bogon */
 	    if (i < text->size) i++;
 	  }
 	  break;
 
 	default:
-	  if (((ku = (c & BITS7) - p1->base_ku) < p1->max_ku) &&
-	       ((ten = (c1 & BITS7) - p1->base_ten) < p1->max_ten)) {
-	    if (!(c = t1[(ku*p1->max_ten) + ten]) &&
-		ku && (ku < 10) && t3 && p3->base_ten)
-		/* special hack for JIS X 0212: merge rows less than 10 */
-	      c = t3[((ku - (p3->base_ku - p1->base_ku))*p3->max_ten) + ten];
-	  }
-	  else c = BOGON;
+	  if (((ku = (c & BITS7) - p1->base_ku) >= p1->max_ku) ||
+	      ((ten = (c1 & BITS7) - p1->base_ten) >= p1->max_ten)) c = UBOGON;
+	  else if (((c = t1[(ku*p1->max_ten) + ten]) == UBOGON) &&
+		   /* special hack for JIS X 0212: merge rows less than 10 */
+		   ku && (ku < 10) && t3 && p3->base_ten)
+	    c = t3[((ku - (p3->base_ku - p1->base_ku))*p3->max_ten) + ten];
 	}
       }
       if (pass) UTF8_PUT (s,c)
@@ -399,14 +399,14 @@ void utf8_text_dbyte (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
       c = ((i < text->size) && (c1 = text->data[i++]) &&
 	   ((ku = c - p1->base_ku) < p1->max_ku) &&
 	   ((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-	     t1[(ku*p1->max_ten) + ten] : BOGON;
+	     t1[(ku*p1->max_ten) + ten] : UBOGON;
   s = ret->data = (unsigned char *) fs_get (ret->size + 1);
   for (i = 0; i < text->size;) {
     if ((c = text->data[i++]) & BIT8)
       c = ((i < text->size) && (c1 = text->data[i++]) &&
 	   ((ku = c - p1->base_ku) < p1->max_ku) &&
 	   ((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-	     t1[(ku*p1->max_ten) + ten] : BOGON;
+	     t1[(ku*p1->max_ten) + ten] : UBOGON;
     UTF8_PUT (s,c)		/* convert Unicode to UTF-8 */
   }
 }
@@ -419,7 +419,7 @@ void utf8_text_dbyte (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 
 void utf8_text_dbyte2 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 {
-  unsigned long i,j;
+  unsigned long i;
   unsigned char *s;
   unsigned int c,c1,ku,ten;
   struct utf8_eucparam *p1 = (struct utf8_eucparam *) tab;
@@ -428,27 +428,27 @@ void utf8_text_dbyte2 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
   for (ret->size = i = 0; i < text->size; ret->size += UTF8_SIZE (c))
     if ((c = text->data[i++]) & BIT8) {
       if ((i >= text->size) || !(c1 = text->data[i++]))
-	c = BOGON;		/* out of space or bogon */
+	c = UBOGON;		/* out of space or bogon */
       else if (c1 & BIT8)	/* high vs. low plane */
 	c = ((ku = c - p2->base_ku) < p2->max_ku &&
 	     ((ten = c1 - p2->base_ten) < p2->max_ten)) ?
-	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] : BOGON;
+	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] :UBOGON;
       else c = ((ku = c - p1->base_ku) < p1->max_ku &&
 		((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : BOGON;
+		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : UBOGON;
     }
   s = ret->data = (unsigned char *) fs_get (ret->size + 1);
-  for (i = j = 0; i < text->size;) {
+  for (i = 0; i < text->size;) {
     if ((c = text->data[i++]) & BIT8) {
       if ((i >= text->size) || !(c1 = text->data[i++]))
-	c = BOGON;		/* out of space or bogon */
+	c = UBOGON;		/* out of space or bogon */
       else if (c1 & BIT8)	/* high vs. low plane */
 	c = ((ku = c - p2->base_ku) < p2->max_ku &&
 	     ((ten = c1 - p2->base_ten) < p2->max_ten)) ?
-	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] : BOGON;
+	       t[(ku*(p1->max_ten + p2->max_ten)) + p1->max_ten + ten] :UBOGON;
       else c = ((ku = c - p1->base_ku) < p1->max_ku &&
 		((ten = c1 - p1->base_ten) < p1->max_ten)) ?
-		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : BOGON;
+		  t[(ku*(p1->max_ten + p2->max_ten)) + ten] : UBOGON;
     }
     UTF8_PUT (s,c)	/* convert Unicode to UTF-8 */
   }
@@ -470,7 +470,7 @@ void utf8_text_sjis (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
     if ((c = text->data[i++]) & BIT8) {
 				/* half-width katakana */
       if ((c >= MIN_KANA_8) && (c <= MAX_KANA_8)) c += KANA_8;
-      else if (i >= text->size) c = BOGON;
+      else if (i >= text->size) c = UBOGON;
       else {		/* Shift-JIS */
 	c1 = text->data[i++];
 	SJISTOJIS (c,c1);
@@ -669,8 +669,11 @@ void utf8_text_2022 (SIZEDTEXT *text,SIZEDTEXT *ret,void *tab)
 	  case I2CS_ISO8859_14:	/* Latin-8 (Celtic) */
 	    c = iso8859_14tab[c];
 	    break;
-	  case I2CS_ISO8859_15:	/* Euro */
+	  case I2CS_ISO8859_15:	/* Latin-9 (Euro) */
 	    c = iso8859_15tab[c];
+	    break;
+	  case I2CS_ISO8859_16:	/* Latin-10 (Baltic) */
+	    c = iso8859_16tab[c];
 	    break;
 
 	  default:		/* all other character sets */
@@ -918,7 +921,7 @@ long utf8_mime2text (SIZEDTEXT *src,SIZEDTEXT *dst)
 	  if (!dst->data) {	/* need to create buffer now? */
 				/* allocate for worst case */
 	    dst->data = (unsigned char *)
-	      fs_get ((size_t) ((src->size / 8) + 1) * 9);
+	      fs_get ((size_t) ((src->size / 4) + 1) * 9);
 	    memcpy (dst->data,src->data,(size_t) (dst->size = s - src->data));
 	  }
 	  for (i=0; i < rtxt.size; i++) dst->data[dst->size++] = rtxt.data[i];

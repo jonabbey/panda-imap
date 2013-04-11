@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	24 October 2000
+ * Last Edited:	14 August 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -23,6 +23,7 @@
 
 long tcp_abort (SOCKET *sock);
 char *tcp_name (struct sockaddr_in *sin,long flag);
+long tcp_name_valid (char *s);
 
 
 /* Private data */
@@ -32,13 +33,7 @@ static int wsa_sock_open = 0;	/* keep track of open sockets */
 static tcptimeout_t tmoh = NIL;	/* TCP timeout handler routine */
 static long ttmo_read = 0;	/* TCP timeouts, in seconds */
 static long ttmo_write = 0;
-static long allowreversedns =	/* allow reverse DNS lookup */
-#ifdef DISABLE_REVERSE_DNS_LOOKUP
-  NIL	/* Not recommended, especially if using Kerberos authentication */
-#else
-  T
-#endif
-  ;
+static long allowreversedns = T;/* allow reverse DNS lookup */
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -80,7 +75,6 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 {
   TCPSTREAM *stream = NIL;
   SOCKET sock;
-  int i;
   char *s;
   struct sockaddr_in sin;
   struct hostent *he;
@@ -165,12 +159,6 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     fs_give ((void **) &hostname);
     return (TCPSTREAM *) tcp_abort (&sock);
   }
-  for (i = 65536; (i > 4096) &&	/* set receive buffer size to 64K */
-       setsockopt (sock,SOL_SOCKET,SO_RCVBUF,(void *) &i,sizeof(i));
-       i -= 1024);
-  for (i = 65536; (i > 4096) &&	/* set send buffer size to 64K */
-       setsockopt (sock,SOL_SOCKET,SO_SNDBUF,(void *) &i,sizeof(i));
-       i -= 1024);
   if (bn) (*bn) (BLOCK_NONE,NIL);
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
@@ -612,7 +600,8 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
     if (bn) (*bn) (BLOCK_DNSLOOKUP,NIL);
 				/* translate address to name */
     if (!(he = gethostbyaddr ((char *) &sin->sin_addr,
-			      sizeof (struct in_addr),sin->sin_family)))
+			      sizeof (struct in_addr),sin->sin_family)) ||
+	!tcp_name_valid (he->h_name))
       sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
     else if (flag) sprintf (s = tmp,"%s [%s]",he->h_name,
 			    inet_ntoa (sin->sin_addr));
@@ -650,8 +639,8 @@ char *mylocalhost (void)
 	(getsockname (sock,(struct sockaddr *) &stmp,&sinlen)!= SOCKET_ERROR)&&
 	(sinlen > 0) &&
 	(he = gethostbyaddr ((char *) &stmp.sin_addr,
-			     sizeof (struct in_addr),stmp.sin_family)))
-      s = he->h_name;
+			     sizeof (struct in_addr),stmp.sin_family)) &&
+	tcp_name_valid (he->h_name)) s = he->h_name;
     else if (gethostname (tmp,MAILTMPLEN-1) == SOCKET_ERROR) s = "random-pc";
     else s = (he = gethostbyname (tmp)) ? he->h_name : tmp;
     myLocalHost = cpystr (s);	/* canonicalize it */
@@ -659,4 +648,19 @@ char *mylocalhost (void)
     if (sock != INVALID_SOCKET) closesocket (sock);
   }
   return myLocalHost;
+}
+
+
+/* Validate name
+ * Accepts: domain name
+ * Returns: T if valid, NIL otherwise
+ */
+
+long tcp_name_valid (char *s)
+{
+  int c;
+  while (c = *s++)		/* must be alnum, dot, or hyphen */
+    if (!((c >= 'A') && (c <= 'Z')) && !((c >= 'a') && (c <= 'z')) &&
+	!((c >= '0') && (c <= '9')) && (c != '-') && (c != '.')) return NIL;
+  return LONGT;
 }

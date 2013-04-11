@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 June 1995
- * Last Edited:	24 October 2000
+ * Last Edited:	2 July 2001
  *
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  *
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
@@ -107,6 +107,26 @@ char *skipfx (s)
     if ((t[0] == 'u') && (t[1] == 'n') && (t[2] == 's') && (t[3] == 'i') &&
 	(t[4] == 'g') && (t[5] == 'n') && (t[6] == 'e') && (t[7] == 'd') &&
 	(tt = fndws (t+7)) && (tt = fndnws (tt))) t = tt;
+    c = *t;			/* save character */
+    *t = '\0';			/* tie off prefix */
+    poot (s);			/* output prefix */
+    *t = c;			/* restore character */
+    s = t;			/* new string pointer */
+  }
+				/* static with known prefix */
+  else if (((s[0] == 's') && (s[1] == 't') && (s[2] == 'a') &&
+	    (s[3] == 't') && (s[4] == 'i') && (s[5] == 'c') &&
+	    (s[6] == ' ')) &&
+	   (((s[7] == 'u') && (s[8] == 'n') && (s[9] == 's') &&
+	     (s[10] == 'i') && (s[11] == 'g') && (s[12] == 'n') &&
+	     (s[13] == 'e') && (s[14] == 'd')) ||
+	    ((s[7] == 's') && (s[8] == 't') && (s[9] == 'r') &&
+	     (s[10] == 'u') && (s[11] == 'c') && (s[12] == 't')) ||
+	    ((s[7] == 'd') && (s[8] == 'o')) ||
+	    ((s[9] == 'e') && (s[10] == 'l') && (s[11] == 's') &&
+	     (s[12] == 'e'))) &&
+	   (t = fndws (s)) && (t = fndnws (t)) &&
+	   (t = fndws (t)) && (t = fndnws (t))) {
     c = *t;			/* save character */
     *t = '\0';			/* tie off prefix */
     poot (s);			/* output prefix */

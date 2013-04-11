@@ -1,13 +1,20 @@
 	   KNOWN BUGS/MISFEATURES/DEFICIENCIES IN THE IMAP TOOLKIT
-			 Last Updated: 6 October 2000
+			Last Updated: 28 June 2001
 
-The following are known problems/deficiencies in the imap-2000 toolkit:
+The following are known problems/deficiencies in the imap-2001 toolkit:
  . Possible problems for some installations:
    . In some versions of Redhat Linux, SVR4-style timezone name lookup
       doesn't work properly due to a bug in glibc.  The workaround is to
       edit os_lnx.c to include tz_bsd.c instead of tz_sv4.c.  Note that
       other versions of Linux don't support BSD-style timezone name
       lookup, so don't make this change unless it's needed on your system.
+   . In some systems, the OpenSSL distribution is installed other than at
+      the standard /usr/local/ssl location.  If this is the case on your
+      system and you want to build with SSL support, you will need to set
+      the SSLDIR variable, either by including a setting of EXTRASPECIALS
+      in the make command line, e.g.
+       build lnp SPECIALAUTHENTICATORS=ssl EXTRASPECIALS="SSLDIR=/usr/ssl"
+      or by editing imap-2001/src/osdep/unix/Makefile.ssl
    . /tmp, /usr/tmp or /var/tmp (if present), and the mail spool directory
       must be protected 1777 (world write with sticky bit); otherwise
       mailbox locking and updates won't work.
@@ -31,19 +38,36 @@ The following are known problems/deficiencies in the imap-2000 toolkit:
        {imap.blurdybloop.com/ssl/novalidate-cert}INBOX
       to get an SSL session instead of just
        {imap.blurdybloop.com/ssl}INBOX
- . Bugs:
+   . GCC 8.x and above on SGI systems does not correct pass/return
+      structures which are smaller than 16 bytes and are not 8 bytes.  The
+      problem is that structures are padded at the wrong end; e.g. a 4 byte
+      structure is loaded into the lower 4 bytes of the register when it
+      should be loaded into the upper 4 bytes of the register.  This affects
+      IRIX 6 the most because it is a 64-bit system and 4 byte structures are
+      common.  This compiler bug impacts the use of inet_ntoa() in c-client
+      and causes syslog messages to show IP addresses as 255.255.255.255
+      instead of the correct values.  The fix is either to use SGI's C compiler
+      instead of GCC or link with an implementation of inet_ntoa() that was
+      built with GCC instead of the standard SGI C library version.
    . By default, the UNIX SSL build assumes that RSAREF is not needed, because
       RSA Security Inc. released the RSA public key encryption algorithm into
       the public domain on September 6, 2000.  There is no longer any need to
       use RSAREF, and since RSAREF is slower than OpenSSL's RSA routines
       there's good reason not to.  If for some reason you still want to use
-      RSAREF, you will need to edit imap-2000/src/osdep/unix/Makefile.ssl to
+      RSAREF, you will need to edit imap-2001/src/osdep/unix/Makefile.ssl to
       change SSLRSA to load libRSAglue and librsaref.
-   . By default, the UNIX SSL build assumes that a name conflict exists
-      between OpenSSL and Kerberos 5, consequently it loads the OpenSSL
-      libcrypto library explicitly as libcrypto.a.  If you use shared
-      libraries, you may need to edit imap-2000/src/osdep/unix/Makefile.ssl
-      to change SSLCRYPTO to use the more normal -lcrypto.
+   . By default, the UNIX SSL build assumes that no name conflict exists
+      between OpenSSL and Kerberos 5.  If you are using an older version
+      of Kerberos, you may need to edit imap-2001/src/osdep/unix/Makefile.ssl
+      to change SSLCRYPTO so that it loads the OpenSSL libcrypto library
+      explicitly as libcrypto.a.
+   . By default, host names are canonicalized via gethostbyname() and
+      gethostbyaddr() for everything except for SSL certificate validation.
+      This can represent a security bug due to DNS spoofing, but is more
+      likely to deliver results that users expect and also may be necessary
+      to get Kerberos to work.  Set variable "trustdns" in mail.c to NIL if
+      you want to disable this.
+ . Bugs:
    . It doesn't work to have a "}" character as a user name in /user= in a
       mailbox name, even if the user name is quoted.  In other words,
       {blurdybloop.com/user="foo}bar"}zap won't work; foo will be interpreted
@@ -53,12 +77,11 @@ The following are known problems/deficiencies in the imap-2000 toolkit:
       not for any other characters
    . The experimental mx driver has performance problems and shouldn't be used
    . docs/internal.txt is out of date (again)
-   . SSL certificate validation doesn't check the host name on UNIX, and
-      doesn't work at all on Win9x and NT.  It works on Windows 2000 and is
-      believed to work on Windows Millenium.
+ . Annoyances:
    . Friendly host names (e.g. "server" instead of "server.foo.com") can't be
       used in a mailbox name with SSL certificate validation; you have to enter
-      the fully-qualified domain name.
+      the fully-qualified domain name.  This is a requirement established by
+      the security gurus.
  . IMAP client limitations:
    . No SASL protection mechanisms (SASL authentication mechanisms are
       supported)
@@ -77,7 +100,7 @@ The following are known problems/deficiencies in the imap-2000 toolkit:
  . UNIX limitations:
    . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
       unix
-   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS, GSSAPI
+   . Supported SASL mechanisms: CRAM-MD5, PLAIN, LOGIN, ANONYMOUS, GSSAPI
    . Sticky UIDs are not supported in the mh, mtx, and tenex drivers
    . Creation of keywords is not supported in the mh, mtx, and tenex drivers
    . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
@@ -86,20 +109,23 @@ The following are known problems/deficiencies in the imap-2000 toolkit:
  . Amiga limitations:
    . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
       unix
-   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
+   . Supported SASL mechanisms: CRAM-MD5, PLAIN, LOGIN, ANONYMOUS
    . Sticky UIDs are not supported in the mh, mtx, and tenex drivers
    . Creation of keywords is not supported in the mh, mtx, and tenex drivers
    . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
       mailboxes to have inferior names
- . NT/Windows 2000 limitations:
+ . Win32 (Win9x/NT/Windows 2000) limitations:
    . Supported local file formats: mbx, mtx, tenex, unix
-   . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS, GSSAPI
+   . Supported SASL mechanisms: CRAM-MD5, PLAIN, LOGIN, ANONYMOUS, GSSAPI
+   . No server SSL or TLS support.
+   . No server authentication for GSSAPI
+   . No server authentication for CRAM-MD5 on NT/Windows 2000.
    . Sticky UIDs are not supported in the mtxnt and tenexnt drivers
    . Creation of keywords is not supported in the mtxnt and tenexnt drivers
    . No support for TCP open timeouts
    . Flat file formats (mbx, mtx, tenex, unix) do not permit mailboxes to have
       inferior names
- . DOS limitations:
+ . Win16 (Win3.1)/DOS limitations:
    . Supported local file formats: bezerk, mtx
    . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
    . Supported TCPs: B&W, Novell, PC-NFs, PC/TCP, Waterloo, Winsock

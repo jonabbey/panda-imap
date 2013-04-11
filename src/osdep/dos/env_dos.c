@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	7 November 2000
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2000 University of Washington.
@@ -125,7 +125,7 @@ static void do_date (char *date,char *prefix,char *fmt,int suffix)
 	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60);
   if (suffix) {			/* append timezone suffix if desired */
     tzset ();			/* get timezone from TZ environment stuff */
-    sprintf (date + strlen (date)," (%s)",
+    sprintf (date + strlen (date)," (%.50s)",
 	     tzname[daylight ? (((struct tm *) t)->tm_isdst > 0) : 0]);
   }
 }

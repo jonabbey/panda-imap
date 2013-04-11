@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	26 January 1992
- * Last Edited:	24 October 2000
+ * Last Edited:	7 February 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -70,4 +70,5 @@ short resolveropen = 0;		/* TCP's resolver open */
 #define MD5ENABLE ""
 
 #include "auth_md5.c"
+#include "auth_pla.c"
 #include "auth_log.c"

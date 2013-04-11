@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	24 October 2000
+ * Last Edited:	10 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -56,6 +56,7 @@ void phile_lsub (MAILSTREAM *stream,char *ref,char *pat);
 long phile_create (MAILSTREAM *stream,char *mailbox);
 long phile_delete (MAILSTREAM *stream,char *mailbox);
 long phile_rename (MAILSTREAM *stream,char *old,char *newname);
+long phile_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *phile_open (MAILSTREAM *stream);
 int phile_type (unsigned char *s,unsigned long i,unsigned long *j);
 void phile_close (MAILSTREAM *stream,long options);

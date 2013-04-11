@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	24 October 2000
+# Last Edited:	7 February 2001
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 2000 University of Washington.
@@ -20,7 +20,7 @@
 
 OS = wsk
 EXTRAAUTHENTICATORS=
-DEFAULTAUTHENTICATORS=md5 log
+DEFAULTAUTHENTICATORS=md5 pla log
 EXTRADRIVERS = 
 DRIVERS = imap nntp pop3 mtx bezerk
 DEFAULTDRIVER = mtx

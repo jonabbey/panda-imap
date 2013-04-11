@@ -1,5 +1,5 @@
 		       .imaprc secrets revealed!
-		    Mark Crispin, December 31, 1997
+		      Mark Crispin, March 14, 2001
 
 The following information describes the format of the /etc/c-client.cf
 and ~/.imaprc file.  The Columbia MM ~/.mminit file is also read by
@@ -391,10 +391,6 @@ matter.  Unrecognized commands are ignored.
 
     The default is zero (fcntl() locking is enabled).
 
-    It is HIGHLY RECOMMENDED that you build c-client using the
-    -DSVR4_DISABLE_FLOCK build option instead.  You should probably
-    also enable EACCES errors (see below).
-
 26) set lock-EACCES-error <number>
     If non-zero, a warning message is given if an attempt to create a
     lock file fails.  Otherwise, EACCES is treated as a "silent failure",
@@ -411,9 +407,6 @@ matter.  Unrecognized commands are ignored.
     then there is no way to win.  Find a different system to use.
 
     The default is non-zero (report EACCESS as an error).
-
-    It is HIGHLY RECOMMENDED that you build c-client using the
-    -DIGNORE_LOCK_EACCES_ERRORS build option instead.
 
 27) set list-maximum-level <number>
     Sets the maximum depth of recursion that a * wildcard list will go
@@ -436,3 +429,129 @@ matter.  Unrecognized commands are ignored.
    There is no protection against setting this to a silly value, and
    doing so is a great way to cause a crash.
 
+29) set chroot-server <number>
+   This option is for closed server systems only.  If defined, a chroot()
+   call to the user's home directory is done as part of the login
+   process.  This has the effect of preventing access to any files
+   outside of the user's home directory (including shared mailboxes).
+
+   Shared mailboxes with other users can't possibly work with this
+   option, because there is no way to export lock information to other
+   users.
+
+   This should be done ONLY on systems which do not permit users to
+   have shell access
+
+   This option should NEVER(!!) be set if users are allowed shell access.
+   Doing so actually makes the system *less* secure, since the user could
+   create an etc subdirectory which would be treated as real /etc by such
+   programs as /bin/su.
+
+   The default is zero (don't do chroot).
+
+   This option is strongly *NOT* recommended.
+
+30) set disable-automatic-shared-namespaces <number>
+   Never look up the "ftp", "imappublic", and "imapshared" users as
+   posssible home directories for the #ftp, #public, and #shared
+   namespaces.  On some systems (reportedly including AIX 4.3.3)
+   getpwnam() of an unknown user name is horrendously slow.
+
+   Note that this does not remove the #ftp, #public, and #shared
+   namespaces, and they can still be set up by other means.
+
+   The default is zero (shared namespaces are automatic).
+
+31) set advertise-the-world <number>
+   Include the UNIX root as a shared namespace.  This is generally a bad
+   idea, since certain IMAP clients (names withheld to protect the guilty)
+   will take this as license to download the entire filesystem tree.
+
+   The default is zero (don't advertise the world).
+
+32) set mail-subdirectory <subdirectory name>
+   Change the default connected directory from the user's home directory
+   to the named subdirectory of the user's home directory.  For example,
+   setting MAILSUBDIR="mail" will cause the POP2 and IMAP servers to
+   connect to the user's ~/mail subdirectory.  This is equivalent to
+   the env_unix.c edit described in Example 2 of the CONFIG file.
+
+   Note that if the subdirectory does not exist, the result is undefined.
+   It is probably an extremely bad idea to set this unless you can
+   guarantee that the subdirectory exists for all users.  If you can not
+   guarantee this, then you should leave the default as the user's home
+   directory and allow them to configure a personal default in their IMAP
+   client.
+
+   The default is not to use any subdirectory.
+
+33) set allow-user-config <number>
+   Allow users to use ~/.imaprc and ~/.mminit files.
+
+   The default is zero (don't allow user config files).
+
+34) set allow-reverse-dns <number>
+   By default, the servers (ipop[23]d and imapd) will do gethostbyaddr()
+   on the local and remote sockets so that imapd can identify itself
+   properly (this is important when the same CPU hosts multiple virtual
+   hosts on different IP addresss) and also includes the client's name
+   when it writes to the syslog.  There are also client gethostbyaddr()
+   calls, used primarily by authentication mechanisms.
+
+   Setting this option to zero disables all gethostbyaddr() calls.  The
+   returned "host name" string for the socket is just the bracketed
+   [12.34.56.78] form, as if the reverse DNS lookup failed.
+
+   WARNING: Some authentication mechanisms, e.g. Kerberos V, depend upon
+   the host names being right, and if you set this option, it won't work.
+
+   You should only do this if you are encountering server performance
+   problems due to a misconfigured DNS, e.g. long startup delays or
+   client timeouts.
+
+   The default is non-zero (allow reverse DNS).
+
+35) set disable-plaintext <number>
+   Disable plaintext password authentication (LOGIN command, AUTH=LOGIN,
+   and AUTH=PLAIN).
+
+   The default is zero (allow plaintext authentication).
+
+36) set trust-dns <number>
+   By default, host names are canonicalized via gethostbyname() for
+    everything except for SSL certificate validation.
+
+   This can represent a security bug due to DNS spoofing, but is more
+    likely to deliver results that users expect.  It also may be necessary
+    for SASL authentication to work right (e.g. generating a correct name
+    for a Kerberos service principal) if the name entered by the user is a
+    CNAME or not a fully-qualified domain name.
+
+   If trust-dns is set to zero, no host name canonicalization is done.
+    The user's actual entered name is used for SASL authentication and
+    will appear in the mailbox name of the open stream.
+
+   The default is non-zero (do DNS canonicalization).
+
+37) set sasl-uses-ptr-name <number>
+   By default, if trust-dns is set, the host names used in authentication
+    (e.g. to generate a Kerberos service principal) are canonicalized via
+    gethostbyaddr() instead of by gethostbyname().  If gethostbyaddr()
+    fails the gethostbyname() canonicalization is used.
+
+   This represents an additional security bug due to DNS spoofing, over and
+    above trust-dns.  It also adds an additional DNS query to starting a
+    session.
+
+   It is necessary for sites which implement a server cluster with multiple
+    A records for a cluster name (instead of a CNAME) but each cluster
+    member has a unique PTR record which it expects for a Kerberos service
+    principal.
+
+   If sasl-uses-ptr-name is set to zero and trust-dns is set non-zero, the
+    gethostbyname() canonicalized name is used for SASL authentication.
+
+   The setting of sasl-uses-ptr-name is irrelevant if trust-dns is set to
+    zero.
+
+   The default is non-zero (use name from PTR record for SASL).

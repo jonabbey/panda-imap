@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	24 October 2000
+ * Last Edited:	9 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -53,7 +53,7 @@ DRIVER philedriver = {
   dummy_create,			/* create mailbox */
   dummy_delete,			/* delete mailbox */
   dummy_rename,			/* rename mailbox */
-  NIL,				/* status of mailbox */
+  phile_status,			/* status of mailbox */
   phile_open,			/* open mailbox */
   phile_close,			/* close mailbox */
   NIL,				/* fetch message "fast" attributes */
@@ -158,6 +158,25 @@ void phile_list (MAILSTREAM *stream,char *ref,char *pat)
 void phile_lsub (MAILSTREAM *stream,char *ref,char *pat)
 {
   if (stream) dummy_lsub (NIL,ref,pat);
+}
+
+
+/* File status
+ * Accepts: mail stream
+ *	    mailbox name
+ *	    status flags
+ * Returns: T on success, NIL on failure
+ */
+
+long phile_status (MAILSTREAM *stream,char *mbx,long flags)
+{
+  MAILSTATUS status;
+  status.flags = flags;		/* return status values */
+  status.unseen = (stream && mail_elt (stream,1)->seen) ? 0 : 1;
+  status.messages = status.recent = status.uidnext = status.uidvalidity = 1;
+				/* pass status to main program */
+  mm_status (stream,mbx,&status);
+  return T;			/* success */
 }
 
 /* File open

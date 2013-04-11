@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	24 October 2000
+ * Last Edited:	14 August 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -67,7 +67,7 @@ DRIVER unixdriver = {
   unix_create,			/* create mailbox */
   unix_delete,			/* delete mailbox */
   unix_rename,			/* rename mailbox */
-  NIL,				/* status of mailbox */
+  mail_status_default,		/* status of mailbox */
   unix_open,			/* open mailbox */
   unix_close,			/* close mailbox */
   NIL,				/* fetch message "fast" attributes */
@@ -136,12 +136,6 @@ DRIVER *unix_valid (char *name)
       utime (file,&times);	/* set the times */
     }
   }
-				/* in case INBOX but not unix format */
-  else if ((errno == ENOENT) && ((name[0] == 'I') || (name[0] == 'i')) &&
-	   ((name[1] == 'N') || (name[1] == 'n')) &&
-	   ((name[2] == 'B') || (name[2] == 'b')) &&
-	   ((name[3] == 'O') || (name[3] == 'o')) &&
-	   ((name[4] == 'X') || (name[4] == 'x')) && !name[5]) errno = -1;
   return ret;			/* return what we should */
 }
 /* UNIX manipulate driver parameters
@@ -216,11 +210,10 @@ long unix_create (MAILSTREAM *stream,char *mailbox)
     mm_log (tmp,ERROR);
   }
 				/* create underlying file */
-  else if (dummy_create_path (stream,s)) {
+  else if (dummy_create_path (stream,s,NIL)) {
 				/* done if made directory */
     if ((s = strrchr (s,'\\')) && !s[1]) return T;
-    if ((fd = open (mbx,O_WRONLY|O_BINARY,
-		    (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
+    if ((fd = open (mbx,O_WRONLY|O_BINARY,NIL)) < 0) {
       sprintf (tmp,"Can't reopen mailbox node %.80s: %s",mbx,strerror (errno));
       mm_log (tmp,ERROR);
       unlink (mbx);		/* delete the file */
@@ -345,7 +338,7 @@ MAILSTREAM *unix_open (MAILSTREAM *stream)
   if (stream->local) fatal ("unix recycle stream");
   stream->local = memset (fs_get (sizeof (UNIXLOCAL)),0,sizeof (UNIXLOCAL));
 				/* note if an INBOX or not */
-  stream->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX");
+  stream->inbox = !compare_cstring (stream->mailbox,"INBOX");
 				/* canonicalize the stream mailbox name */
   dummy_file (tmp,stream->mailbox);
 				/* flush old name */
@@ -695,6 +688,15 @@ long unix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* make sure valid mailbox */
   if (!unix_valid (mailbox)) switch (errno) {
   case ENOENT:			/* no such file? */
+    if (((mailbox[0] == 'I') || (mailbox[0] == 'i')) &&
+	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
+	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
+	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
+	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+      if (pc) return (*pc) (stream,sequence,mailbox,options);
+      unix_create (NIL,"INBOX");/* create empty INBOX */
+      break;
+    }
     mm_notify (stream,"[TRYCREATE] Must create mailbox before copy",NIL);
     return NIL;
   case 0:			/* merely empty file? */
@@ -794,14 +796,13 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 	((mailbox[1] == 'N') || (mailbox[1] == 'n')) &&
 	((mailbox[2] == 'B') || (mailbox[2] == 'b')) &&
 	((mailbox[3] == 'O') || (mailbox[3] == 'o')) &&
-	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5])
-      unix_create (NIL,"INBOX");
-    else {
-      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
-      return NIL;
+	((mailbox[4] == 'X') || (mailbox[4] == 'x')) && !mailbox[5]) {
+      unix_create (NIL,"INBOX");/* create empty INBOX */
+      break;
     }
-				/* falls through */
-  case 0:			/* INBOX ENOENT or empty file? */
+    mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
+    return NIL;
+  case 0:			/* merely empty file? */
     break;
   case EINVAL:
     sprintf (tmp,"Invalid UNIX-format mailbox name: %.80s",mailbox);
@@ -815,8 +816,13 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* get first message */
   if (!(*af) (stream,data,&flags,&date,&message)) return NIL;
   if (!(sf = tmpfile ())) {	/* must have scratch file */
-    sprintf (tmp,"Unable to create scratch file: %.80s",strerror (errno));
-    mm_log (tmp,ERROR);
+    sprintf (tmp,".%lx.%lx",(unsigned long) time (0),(unsigned long)getpid ());
+    if (!stat (tmp,&sbuf) || !(sf = fopen (tmp,"wb+"))) {
+      sprintf (tmp,"Unable to create scratch file: %.80s",strerror (errno));
+      mm_log (tmp,ERROR);
+      return NIL;
+    }
+    unlink (tmp);
   }
 
   do {				/* parse date */
@@ -832,7 +838,8 @@ long unix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
       }
 				/* use POSIX-style date */
       else date = mail_cdate (tmp,&elt);
-      if (!unix_append_msg (stream,sf,flags,date,message)) {
+      if (!SIZE (message)) mm_log ("Append of zero-length message",ERROR);
+      else if (!unix_append_msg (stream,sf,flags,date,message)) {
 	sprintf (tmp,"Error writing scratch file: %.80s",strerror (errno));
 	mm_log (tmp,ERROR);
       }
@@ -1174,7 +1181,7 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 	      else if (s[2] == 'K' && s[3] == 'e' && s[4] == 'y' &&
 		       s[5] == 'w' && s[6] == 'o' && s[7] == 'r' &&
 		       s[8] == 'd' && s[9] == 's' && s[10] == ':') {
-		char uf[MAILTMPLEN];
+		SIZEDTEXT uf;
 		retain = NIL;	/* don't retain continuation */
 		s += 11;	/* flush leading whitespace */
 		while (*s && (*s != '\n') && ((*s != '\r') || (s[1] != '\n'))){
@@ -1183,14 +1190,10 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 		  if (!(u = strpbrk (s," \n\r"))) u = s + strlen (s);
 				/* got a keyword? */
 		  if ((k = (u - s)) && (k < MAXUSERFLAG)) {
-				/* copy keyword */
-		    strncpy (uf,s,k);
-				/* make sure tied off */
-		    uf[k] = '\0';
-		    ucase (uf);	/* coerce upper case */
-		    for (j = 0; (j<NUSERFLAGS) && stream->user_flags[j]; ++j)
-		      if (!strcmp(uf,
-				  ucase (strcpy(tmp,stream->user_flags[j])))) {
+		    uf.data = (unsigned char *) s;
+		    uf.size = k;
+		    for (j = 0; (j < NUSERFLAGS) && stream->user_flags[j]; ++j)
+		      if (!compare_csizedtext (stream->user_flags[j],&uf)) {
 			elt->user_flags |= ((long) 1) << j;
 			break;
 		      }
@@ -1339,15 +1342,18 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 	      char *e,*v;
 				/* must match what mail_filter() does */
 	      for (u = s,v = tmp,e = u + min (i,MAILTMPLEN - 1);
-		   (u < e) && ((c = *u) != ':') &&
+		   (u < e) && ((c = (*u ? *u : (*u = ' '))) != ':') &&
 		   ((c > ' ') || ((c != ' ') && (c != '\t') &&
 				  (c != '\015') && (c != '\012')));
 		   *v++ = *u++);
 	      *v = '\0';	/* tie off */
 				/* matches internal header? */
-	      if (!strcmp (ucase (tmp),"STATUS") || !strcmp (tmp,"X-STATUS") ||
-		  !strcmp (tmp,"X-KEYWORDS") || !strcmp (tmp,"X-UID") ||
-		  !strcmp (tmp,"X-IMAP") || !strcmp (tmp,"X-IMAPBASE")) {
+	      if (!compare_cstring (tmp,"STATUS") ||
+		  !compare_cstring (tmp,"X-STATUS") ||
+		  !compare_cstring (tmp,"X-KEYWORDS") ||
+		  !compare_cstring (tmp,"X-UID") ||
+		  !compare_cstring (tmp,"X-IMAP") ||
+		  !compare_cstring (tmp,"X-IMAPBASE")) {
 		char err[MAILTMPLEN];
 		sprintf (err,"Discarding bogus %s header in message %lu",
 			 tmp,elt->msgno);
@@ -1359,19 +1365,18 @@ int unix_parse (MAILSTREAM *stream,DOTLOCK *lock,int op)
 				/* retain or non-continuation? */
 	    if (retain || ((*s != ' ') && (*s != '\t'))) {
 	      retain = T;	/* retaining continuation now */
+				/* line length in CRLF format newline */
+	      k = i + (((i < 2) || (s[i - 2] != '\r')) ? 1 : 0);
 				/* "internal" header size */
-	      elt->private.data +=
-		i + (((i < 2) || (s[i - 2] != '\r')) ? 1 : 0);
+	      elt->private.data += k;
 				/* message size */
-	      elt->rfc822_size += elt->private.data;	      
+	      elt->rfc822_size += k;
 	    }
 	    else {
 	      char err[MAILTMPLEN];
-	      sprintf (err,"Discarding bogus continuation in message %lu: ",
-		       elt->msgno);
-	      u = strncpy (err + strlen (err),s,(size_t) max (i,80));
-	      u[80] = '\0';	/* make sure tired off */
-	      if (u = strpbrk (u,"\r\n")) *u = '\0';
+	      sprintf (err,"Discarding bogus continuation in msg %lu: %.80s",
+		      elt->msgno,s);
+	      if (u = strpbrk (err,"\r\n")) *u = '\0';
 	      mm_log (err,WARN);
 	      break;		/* different case or something */
 	    }
@@ -1694,11 +1699,11 @@ long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp,DOTLOCK *lock)
       else {			/* preserve this message */
 	i++;			/* advance to next message */
 	if ((flag < 0) ||	/* need to rewrite message? */
-	    (elt->private.dirty ||
-	     (((unsigned long) f.curpos) != elt->private.special.offset) ||
-	     (elt->private.msg.header.text.size !=
-	      (elt->private.data +
-	       unix_xstatus (stream,LOCAL->buf,elt,flag))))) {
+	    elt->private.dirty ||
+	    (((unsigned long) f.curpos) != elt->private.special.offset) ||
+	    (elt->private.msg.header.text.size !=
+	     (elt->private.data +
+	      unix_xstatus (stream,LOCAL->buf,elt,flag)))) {
 	  unsigned long newoffset = f.curpos;
 				/* yes, seek to internal header */
 	  lseek (LOCAL->fd,elt->private.special.offset,L_SET);
@@ -1744,8 +1749,17 @@ long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp,DOTLOCK *lock)
 	  }
 	  else {		/* tie off header and status */
 	    unix_write (&f,NIL,NIL);
-	    f.curpos = f.protect =/* restart everything at end of message */
-	      f.filepos += elt->private.msg.text.text.size + 2;
+				/* protection pointer moves to next message */
+	    f.protect = (i <= stream->nmsgs) ?
+	      mail_elt (stream,i)->private.special.offset : size;
+				/* locate end of message text */
+	    j = f.filepos + elt->private.msg.text.text.size;
+				/* trailing newline already there? */
+	    if (f.protect == (off_t) (j + 2)) f.curpos = f.filepos = f.protect;
+	    else {		/* trailing newline missing, write it */
+	      f.curpos = f.filepos = j;
+	      unix_write (&f,"\r\n",2);
+	    }
 	  }
 				/* new internal header offset */
 	  elt->private.special.offset = newoffset;
@@ -1754,10 +1768,19 @@ long unix_rewrite (MAILSTREAM *stream,unsigned long *nexp,DOTLOCK *lock)
 	else {			/* no need to rewrite this message */
 				/* tie off previous message if needed */
 	  unix_write (&f,NIL,NIL);
-	  f.curpos = f.protect =/* restart everything at end of message */
-	    f.filepos += elt->private.special.text.size +
-	      elt->private.msg.header.text.size +
-		elt->private.msg.text.text.size + 2;
+				/* protection pointer moves to next message */
+	  f.protect = (i <= stream->nmsgs) ?
+	    mail_elt (stream,i)->private.special.offset : size;
+				/* locate end of message text */
+	  j = f.filepos + elt->private.special.text.size +
+	    elt->private.msg.header.text.size +
+	      elt->private.msg.text.text.size;
+				/* trailing newline already there? */
+	  if (f.protect == (off_t) (j + 2)) f.curpos = f.filepos = f.protect;
+	  else {		/* trailing newline missing, write it */
+	    f.curpos = f.filepos = j;
+	    unix_write (&f,"\r\n",2);
+	  }
 	}
       }
     }

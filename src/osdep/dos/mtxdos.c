@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	24 October 2000
+ * Last Edited:	9 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -53,7 +53,7 @@ DRIVER mtxdriver = {
   mtx_create,			/* create mailbox */
   mtx_delete,			/* delete mailbox */
   mtx_rename,			/* rename mailbox */
-  NIL,				/* status of mailbox */
+  mail_status_default,		/* status of mailbox */
   mtx_open,			/* open mailbox */
   mtx_close,			/* close mailbox */
   NIL,				/* fetch message "fast" attributes */
@@ -231,10 +231,10 @@ MAILSTREAM *mtx_open (MAILSTREAM *stream)
   if (stream->local) fatal ("mtx recycle stream");
   if (!mailboxfile (tmp,stream->mailbox))
     return (MAILSTREAM *) mtx_badname (tmp,stream->mailbox);
-  if (((fd = open (tmp,O_BINARY|(stream->rdonly ? O_RDONLY:O_RDWR),NIL)) < 0)
-      && (strcmp (ucase (stream->mailbox),"INBOX") ||
-	  ((fd = open (tmp,O_BINARY|O_RDWR|O_CREAT|O_EXCL,S_IREAD|S_IWRITE))
-	   < 0))) {		/* open, possibly creating INBOX */
+				/* open, possibly creating INBOX */
+  if (((fd = open (tmp,O_BINARY|(stream->rdonly ? O_RDONLY:O_RDWR),NIL)) < 0)&&
+      (compare_cstring (stream->mailbox,"INBOX") ||
+       ((fd = open (tmp,O_BINARY|O_RDWR|O_CREAT|O_EXCL,S_IREAD|S_IWRITE))<0))){
     sprintf (tmp,"Can't open mailbox: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -568,6 +568,11 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   fstat (fd,&sbuf);		/* get current file size */
 
   do {				/* parse flags */
+    if (!SIZE (message)) {	/* guard against zero-length */
+      mm_log ("Append of zero-length message",ERROR);
+      ret = NIL;
+      break;
+    }
     f = mail_parse_flags (stream,flags,&i);
 				/* reverse bits (dontcha wish we had CIRC?) */
     for (uf = 0; i; uf |= 1 << (29 - find_rightmost_bit (&i)));

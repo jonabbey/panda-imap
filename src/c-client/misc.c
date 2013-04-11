@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	8 May 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -360,4 +360,59 @@ void **hash_lookup_and_add (HASHTAB *hashtab,char *key,void *data,long extra)
   ret->name = key;		/* set up hash key */
   ret->data[0] = data;		/* and first data */
   return (hashtab->table[i] = ret)->data;
+}
+
+/* Compare two unsigned longs
+ * Accepts: first value
+ *	    second value
+ * Returns: -1 if l1 < l2, 0 if l1 == l2, 1 if l1 > l2
+ */
+
+int compare_ulong (unsigned long l1,unsigned long l2)
+{
+  if (l1 < l2) return -1;
+  if (l1 > l2) return 1;
+  return 0;
+}
+
+
+/* Compare two case-independent strings
+ * Accepts: first string
+ *	    second string
+ * Returns: -1 if s1 < s2, 0 if s1 == s2, 1 if s1 > s2
+ */
+
+int compare_cstring (char *s1,char *s2)
+{
+  int i;
+  if (!s1) return s2 ? -1 : 0;	/* empty string cases */
+  else if (!s2) return 1;
+  for (; *s1 && *s2; s1++,s2++)
+    if (i = (compare_ulong (isupper (*s1) ? tolower (*s1) : *s1,
+			    isupper (*s2) ? tolower (*s2) : *s2)))
+      return i;			/* found a difference */
+  if (*s1) return 1;		/* first string is longer */
+  return *s2 ? -1 : 0;		/* second string longer : strings identical */
+}
+
+
+/* Compare case-independent string with sized text
+ * Accepts: first string
+ *	    sized text
+ * Returns: -1 if s1 < s2, 0 if s1 == s2, 1 if s1 > s2
+ */
+
+int compare_csizedtext (char *s1,SIZEDTEXT *s2)
+{
+  int i;
+  char *s;
+  unsigned long j;
+  if (!s1) return s2 ? -1 : 0;	/* null string cases */
+  else if (!s2) return 1;
+  for (s = (char *) s2->data,j = s2->size; *s1 && j; ++s1,++s,--j)
+    if (i = (compare_ulong (isupper (*s1) ? tolower (*s1) : *s1,
+			    isupper (*s) ? tolower (*s) : *s)))
+      return i;			/* found a difference */
+  if (*s1) return 1;		/* first string is longer */
+  return j ? -1 : 0;		/* second string longer : strings identical */
 }

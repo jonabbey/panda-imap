@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	8 February 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -27,7 +27,7 @@ void rfc822_date (char *date);
 void rfc822_timezone (char *s,void *t);
 void internal_date (char *date);
 long server_input_wait (long seconds);
-void server_init (char *server,char *service,char *altservice,char *sasl,
+void server_init (char *server,char *service,char *sslservice,char *sasl,
 		  void *clkint,void *kodint,void *hupint,void *trmint);
 long server_login (char *user,char *pass,char *authuser,int argc,char *argv[]);
 long authserver_login (char *user,char *authuser,int argc,char *argv[]);

@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	24 October 2000
+# Last Edited:	7 February 2001
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2000 University of Washington.
+# Copyright 2001 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -65,7 +65,7 @@ RM=rm -f
 
 # Standard distribution build parameters
 
-DEFAULTAUTHENTICATORS=md5 log
+DEFAULTAUTHENTICATORS=md5 pla log
 DEFAULTDRIVERS=imap nntp pop3 mh mx mbx tenex mtx mmdf unix news phile
 
 
@@ -177,7 +177,7 @@ osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	osdep.c env_ami.c fs_ami.c ftl_ami.c nl_ami.c tcp_ami.c \
 	auths.c gethstid.c \
 	gr_waitp.c \
-	auth_log.c \
+	auth_log.c auth_md5.c auth_pla.c \
 	pmatch.c scandir.c \
 	tz_bsd.c \
 	write.c \
@@ -185,9 +185,9 @@ osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	OSCFLAGS
 	$(CC) $(CFLAGS) `cat OSCFLAGS` -c osdep.c
 
-osdep.c: osdepbas.c osdepckp.c osdeplog.c
+osdep.c: osdepbas.c osdepckp.c osdeplog.c osdepssl.c
 	$(RM) osdep.c || true
-	cat osdepbas.c osdepckp.c osdeplog.c > osdep.c
+	cat osdepbas.c osdepckp.c osdeplog.c osdepssl.c > osdep.c
 
 
 # Once-only environment setup
@@ -206,12 +206,10 @@ once:
 	$(LN) os_$(OS).h osdep.h
 	$(LN) os_$(OS).c osdepbas.c
 	$(LN) log_$(LOGINPW).c osdeplog.c
+	$(LN) ssl_none.c osdepssl.c
 
 
 # Password checkers
-
-ckpmd5:	# MD5 database (must have md5 AUTHENTICATOR as well)
-	$(LN) ckp_md5.c osdepckp.c
 
 ckpstd:	# Port standard
 	$(LN) ckp_$(CHECKPW).c osdepckp.c

@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		25 February 1996
-# Last Edited:	24 October 2000
+# Last Edited:	28 August 2001
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2000 University of Washington.
+# Copyright 2001 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -21,7 +21,7 @@
 C = ..\c-client
 CCLIENTLIB = $C\cclient.lib
 LIBS = $(CCLIENTLIB) wsock32.lib winmm.lib advapi32.lib
-CFLAGS= -I$C /MT /W3 /DWIN32 -nologo $(EXTRACFLAGS)
+CFLAGS= -I$C /MT /W3 /DWIN32 /D_WIN32_WINNT=0x0400 -nologo $(EXTRACFLAGS)
 
 mtest: $(CCLIENTLIB) mtest.obj
 	LINK /NOLOGO /DEF:mtest.def mtest.obj $(LIBS)

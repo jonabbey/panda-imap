@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	9 March 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -26,9 +26,9 @@
  * Wasureru mon ka!!!!
  */
 
+#include "mail.h"
 #include <jsys.h>		/* must be before tcp_t20.h */
 #include "tcp_t20.h"		/* must be before osdep include tcp.h */
-#include "mail.h"
 #include <time.h>
 #include "osdep.h"
 #include <sys/time.h>
@@ -47,6 +47,7 @@
 
 #define MD5ENABLE "PS:<SYSTEM>CRAM-MD5.PWD"
 #include "auth_md5.c"
+#include "auth_pla.c"
 #include "auth_log.c"
 
 /* Emulator for UNIX gethostid() call

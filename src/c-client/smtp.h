@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	6 March 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -29,6 +29,7 @@
 
 #define MAXLOGINTRIALS 3	/* maximum number of login trials */
 #define SMTPTCPPORT (long) 25	/* assigned TCP contact port */
+#define SMTPSSLPORT (long) 465	/* former assigned SSL TCP contact port */
 #define SMTPGREET (long) 220	/* SMTP successful greeting */
 #define SMTPAUTHED (long) 235	/* SMTP successful authentication */
 #define SMTPOK (long) 250	/* SMTP OK code */
@@ -52,7 +53,8 @@
 #define SOP_DSN_RETURN_FULL (long) 32
 #define SOP_8BITMIME (long) 64	/* 8-bit MIME requested */
 #define SOP_SECURE (long) 256	/* don't do non-secure authentication */
-#define SOP_TRYALT (long) 512	/* try alternative first */
+#define SOP_TRYSSL (long) 512	/* try SSL first */
+#define SOP_TRYALT SOP_TRYSSL	/* old name */
 
 
 /* Convenient access to protocol-specific data */
@@ -78,11 +80,9 @@ SENDSTREAM *smtp_close (SENDSTREAM *stream);
 long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *msg,BODY *body);
 void smtp_debug (SENDSTREAM *stream);
 void smtp_nodebug (SENDSTREAM *stream);
-void smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error);
+long smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error);
 long smtp_send (SENDSTREAM *stream,char *command,char *args);
-long smtp_send_work (SENDSTREAM *stream,char *command,char *args);
-long smtp_send_auth (SENDSTREAM *stream,long code);
-long smtp_send_auth_work (SENDSTREAM *stream,NETMBX *mb,char *tmp);
+long smtp_send_auth (SENDSTREAM *stream);
 long smtp_reply (SENDSTREAM *stream);
 long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb);
 long smtp_fake (SENDSTREAM *stream,long code,char *text);

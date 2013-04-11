@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	14 June 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <sys/syslog.h>
 #include <sys/file.h>
+#include <ustat.h>
 
 /* Many versions of SysV get this wrong */
 
@@ -46,4 +47,4 @@ int portable_utime (char *file,time_t timep[2]);
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
-#include "lockfix.h"
+#include "flocksim.h"

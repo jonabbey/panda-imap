@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	24 October 2000
+ * Last Edited:	30 May 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -24,6 +24,7 @@
 
 #define MAXLOGINTRIALS 3	/* maximum number of login trials */
 #define POP3TCPPORT (long) 110	/* assigned TCP contact port */
+#define POP3SSLPORT (long) 995	/* assigned SSL TCP contact port */
 
 
 /* POP3 I/O stream local data */
@@ -35,6 +36,21 @@ typedef struct pop3_local {
   unsigned long msgno;		/* current text message number */
   unsigned long hdrsize;	/* current text header size */
   FILE *txt;			/* current text */
+  struct {
+    unsigned int expire : 1;	/* server has EXPIRE */
+    unsigned int logindelay : 1;/* server has LOGIN-DELAY */
+    unsigned int stls : 1;	/* server has STLS */
+    unsigned int pipelining : 1;/* server has PIPELINING */
+    unsigned int respcodes : 1;	/* server has RESP-CODES */
+    unsigned int top : 1;	/* server has TOP */
+    unsigned int uidl : 1;	/* server has UIDL */
+    unsigned int user : 1;	/* server has USER */
+    char *implementation;	/* server implementation string */
+    long delaysecs;		/* minimum time between login (neg variable) */
+    long expiredays;		/* server-guaranteed minimum retention days */
+				/* supported authenticators */
+    unsigned int sasl : MAXAUTHENTICATORS;
+  } cap;
 } POP3LOCAL;
 
 
@@ -56,7 +72,8 @@ long pop3_delete (MAILSTREAM *stream,char *mailbox);
 long pop3_rename (MAILSTREAM *stream,char *old,char *newname);
 long pop3_status (MAILSTREAM *stream,char *mbx,long flags);
 MAILSTREAM *pop3_open (MAILSTREAM *stream);
-long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr);
+long pop3_capa (MAILSTREAM *stream,long flags);
+long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *pwd,char *usr);
 void *pop3_challenge (void *stream,unsigned long *len);
 long pop3_response (void *stream,char *s,unsigned long size);
 void pop3_close (MAILSTREAM *stream,long options);

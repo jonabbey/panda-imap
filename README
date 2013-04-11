@@ -1,11 +1,11 @@
 			   IMAP Toolkit Environment
-			       24 October 2000
+			         21 May 2001
 				 Mark Crispin
 
 
 			    UNIX QUICK BUILD NOTES
 
-1) Look in imap-2000/Makefile and find your system type code, e.g. slx for
+1) Look in imap-2001/Makefile and find your system type code, e.g. slx for
    glibc Linux and/or Linux with shadow password security.
 
 2) Type "make" followed by the system type, e.g. "make slx".
@@ -25,23 +25,6 @@
 Read the file docs/BUILD if you need more detailed information and/or you
 don't understand these quick build instructions.
 
-			     BUG REPORTING ADDRESS
-
-     Bugs or questions regarding this software may be reported to the author:
-
- Internet:	MRC@CAC.Washington.EDU
- Postal mail:	Mark Crispin
-		University of Washington
-		Networks and Distributed Computing
-		4545 15th Avenue NE
-		Seattle, WA  98105-4527
-		USA
- Phone:		+1 (206) 543-5762
- FAX:		+1 (206) 685-4045
-
-     In general, it is best to send email.  You are much more likely to get a
-response via email than by telephone.
-
 			     MISCELLANEOUS NOTES
 
      mtest has been run under UNIX, DOS, Windows, NT, Macintosh, TOPS-20, and
@@ -54,6 +37,6 @@ you a list of commands.
 
      Pine is available separately on the FTP.CAC.Washington.EDU archives.
 
-     The focus of development and support is for UNIX and NT/Win32 (including
-Windows 95/98).  The other ports are not frequently used or tested, and may be
-incomplete.
+     The focus of development and support is for UNIX and Win32 (including
+Windows 95/98/Millenium, Windows NT, and Windows 2000).  The other ports are
+not frequently used or tested, and may be incomplete.

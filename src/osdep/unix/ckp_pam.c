@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 October 2000
+ * Last Edited:	7 June 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -81,9 +81,33 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
       (pam_authenticate (hdl,NIL) != PAM_SUCCESS) ||
       (pam_acct_mgmt (hdl,NIL) != PAM_SUCCESS) ||
       (pam_setcred (hdl,PAM_ESTABLISH_CRED) != PAM_SUCCESS)) {
+				/* clean up */
+    pam_setcred (hdl,PAM_DELETE_CRED);
     pam_end (hdl,PAM_AUTH_ERR);	/* failed */
     return NIL;
   }
+#if 0
+  /*
+   * Some people have reported that this causes a SEGV in strncpy() from
+   * pam_unix.so.1
+   */
+  /*
+   * This pam_open_session() call is inconsistant with how we handle other
+   * platforms, where we don't write [uw]tmp records.  However, unlike our
+   * code on other platforms, pam_acct_mgmt() will check those records for
+   * inactivity and deny the authentication.
+   */
+  pam_open_session (hdl,NIL);	/* make sure account doesn't go inactive */
+#endif
+#if 0
+  /*
+   * This is also a problem.  Apparently doing this breaks access to DFS home
+   * space (hence the #if 0), but there is a report that not doing it causes
+   * the credentials to stick around long after the server process is gone.
+   */
+				/* clean up */
+  pam_setcred (hdl,PAM_DELETE_CRED);
+#endif
   pam_end (hdl,PAM_SUCCESS);	/* return success */
   return pw;
 }

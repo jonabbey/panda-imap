@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 December 1992
- * Last Edited:	24 October 2000
+ * Last Edited:	11 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -39,8 +39,8 @@ long sm_subscribe (char *mailbox)
     while (fgets (tmp,MAILTMPLEN,f)) {
       if (s = strchr (tmp,'\n')) *s = '\0';
       if (!strcmp (tmp,mailbox)) {/* already subscribed? */
-	sprintf (tmp,"Already subscribed to mailbox %s",mailbox);
-	mm_log (tmp,ERROR);
+	sprintf (tmp,"Already subscribed to mailbox %.80s",mailbox);
+	MM_LOG (tmp,ERROR);
 	fclose (f);
 	return NIL;
       }
@@ -48,7 +48,7 @@ long sm_subscribe (char *mailbox)
     fclose (f);
   }
   if (!(f = fopen (db,"a"))) {	/* append new entry */
-    mm_log ("Can't create subscription database",ERROR);
+    MM_LOG ("Can't append to subscription database",ERROR);
     return NIL;
   }
   fprintf (f,"%s\n",mailbox);
@@ -64,34 +64,33 @@ long sm_unsubscribe (char *mailbox)
 {
   FILE *f,*tf;
   char *s,tmp[MAILTMPLEN],old[MAILTMPLEN],newname[MAILTMPLEN];
-  long ret = NIL;
-  SUBSCRIPTIONFILE (old);	/* open subscription database */
-  if (!(f = fopen (old,"r"))) {	/* can we? */
-    mm_log ("No subscriptions",ERROR);
-    return NIL;
-  }
-  SUBSCRIPTIONTEMP (newname);	/* make tmp file name */
-  if (!(tf = fopen (newname,"w"))) {
-    mm_log ("Can't create subscription temporary file",ERROR);
+  int found = NIL;
+  SUBSCRIPTIONFILE (old);	/* make file names */
+  SUBSCRIPTIONTEMP (newname);
+  if (!(f = fopen (old,"r")))	/* open subscription database */
+    MM_LOG ("No subscriptions",ERROR);
+  else if (!(tf = fopen (newname,"w"))) {
+    MM_LOG ("Can't create subscription temporary file",ERROR);
     fclose (f);
-    return NIL;
   }
-  while (fgets (tmp,MAILTMPLEN,f)) {
-    if (s = strchr (tmp,'\n')) *s = '\0';
-    if (strcmp (tmp,mailbox)) fprintf (tf,"%s\n",tmp);
-    else ret = T;		/* found the name */
+  else {
+    while (fgets (tmp,MAILTMPLEN,f)) {
+      if (s = strchr (tmp,'\n')) *s = '\0';
+      if (strcmp (tmp,mailbox)) fprintf (tf,"%s\n",tmp);
+      else found = T;		/* found the name */
+    }
+    fclose (f);
+    if (fclose (tf) == EOF)
+      MM_LOG ("Can't write subscription temporary file",ERROR);
+    else if (!found) {
+      sprintf (tmp,"Not subscribed to mailbox %.80s",mailbox);
+      MM_LOG (tmp,ERROR);	/* error if at end */
+    }
+    else if (!rename (newname,old)) return LONGT;
+    else MM_LOG ("Can't update subscription database",ERROR);
+    unlink (newname);		/* flush temporary file if error */
   }
-  fclose (f);
-  if (fclose (tf) == EOF) {
-    mm_log ("Can't write subscription temporary file",ERROR);
-    return NIL;
-  }
-  if (!ret) {
-    sprintf (tmp,"Not subscribed to mailbox %s",mailbox);
-    mm_log (tmp,ERROR);		/* error if at end */
-  }
-  else rename (newname,old);
-  return ret;
+  return NIL;
 }
 
 /* Read subscription database

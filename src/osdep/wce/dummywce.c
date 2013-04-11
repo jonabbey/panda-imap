@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	24 October 2000
+ * Last Edited:	9 April 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -50,7 +50,7 @@ DRIVER dummydriver = {
   dummy_create,			/* create mailbox */
   dummy_delete,			/* delete mailbox */
   dummy_rename,			/* rename mailbox */
-  NIL,				/* status of mailbox */
+  mail_status_default,		/* status of mailbox */
   dummy_open,			/* open mailbox */
   dummy_close,			/* close mailbox */
   NIL,				/* fetch message "fast" attributes */
@@ -189,7 +189,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
   char tmp[MAILTMPLEN];
 				/* OP_PROTOTYPE call or silence */
   if (!stream || stream->silent) return NIL;
-  if (strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX")) {
+  if (compare_cstring (stream->mailbox,"INBOX")) {
     sprintf (tmp,"Not a mailbox: %s",stream->mailbox);
     mm_log (tmp,ERROR);
     return NIL;			/* always fails */
