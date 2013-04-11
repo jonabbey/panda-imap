@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	9November 2007
+ * Last Edited:	13 March 2008
  */
 
 
@@ -2611,8 +2611,12 @@ long mail_append_multiple (MAILSTREAM *stream,char *mailbox,append_t af,
   }
   else if (d = mail_valid (stream,mailbox,NIL))
     ret = SAFE_APPEND (d,stream,mailbox,af,data);
-				/* no driver, try for TRYCREATE if no stream */
-  else if (!stream && (stream = default_proto (T)) &&
+  /* No driver, try for TRYCREATE if no stream.  Note that we use the
+   * createProto here, not the appendProto, since the dummy driver already
+   * took care of the appendProto case.  Otherwise, if appendProto is set to
+   * NIL, we won't get a TRYCREATE.
+   */
+  else if (!stream && (stream = default_proto (NIL)) &&
 	   SAFE_APPEND (stream->dtb,stream,mailbox,af,data))
 				/* timing race? */
     MM_NOTIFY (stream,"Append validity confusion",WARN);
@@ -4538,8 +4542,10 @@ unsigned int mail_strip_subject (char *t,char **ret)
       case 'r': case 'R':	/* possible "re" */
 	if (((s[1] == 'E') || (s[1] == 'e')) &&
 	    (t = mail_strip_subject_wsp (s + 2)) &&
-	    (t = mail_strip_subject_blob (t)) && (*t == ':'))
+	    (t = mail_strip_subject_blob (t)) && (*t == ':')) {
 	  s = ++t;		/* found "re" */
+	  refwd = T;		/* definitely a re/fwd at this point */
+	}
 	else t = NIL;		/* found subj-middle */
 	break;
       case 'f': case 'F':	/* possible "fw" or "fwd" */
@@ -4547,8 +4553,10 @@ unsigned int mail_strip_subject (char *t,char **ret)
 	    (((s[2] == 'd') || (s[2] == 'D')) ?
 	     (t = mail_strip_subject_wsp (s + 3)) :
 	     (t = mail_strip_subject_wsp (s + 2))) &&
-	    (t = mail_strip_subject_blob (t)) && (*t == ':'))
-	  s = ++t;		/* found "re" */
+	    (t = mail_strip_subject_blob (t)) && (*t == ':')) {
+	  s = ++t;		/* found "fwd" */
+	  refwd = T;		/* definitely a re/fwd at this point */
+	}
 	else t = NIL;		/* found subj-middle */
 	break;
       case '[':			/* possible subj-blob */
@@ -5329,8 +5337,11 @@ int mail_thread_compare_date (const void *a1,const void *a2)
 {
   THREADNODE *t1 = *(THREADNODE **) a1;
   THREADNODE *t2 = *(THREADNODE **) a2;
-  return compare_ulong ((t1->sc ? t1->sc : t1->next->sc)->date,
-			(t2->sc ? t2->sc : t2->next->sc)->date);
+  SORTCACHE *s1 = t1->sc ? t1->sc : t1->next->sc;
+  SORTCACHE *s2 = t2->sc ? t2->sc : t2->next->sc;
+  int ret = compare_ulong (s1->date,s2->date);
+				/* use number as final tie-breaker */
+  return ret ? ret : compare_ulong (s1->num,s2->num);
 }
 
 /* Mail parse sequence
@@ -5753,7 +5764,7 @@ void mail_free_body_data (BODY *body)
   mail_free_body_parameter (&body->parameter);
   if (body->id) fs_give ((void **) &body->id);
   if (body->description) fs_give ((void **) &body->description);
-  if (body->disposition.type) fs_give ((void **) &body->disposition);
+  if (body->disposition.type) fs_give ((void **) &body->disposition.type);
   if (body->disposition.parameter)
     mail_free_body_parameter (&body->disposition.parameter);
   if (body->language) mail_free_stringlist (&body->language);

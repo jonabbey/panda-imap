@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	14 November 2007
+ * Last Edited:	17 January 2008
  */
 
 /* UTF-8 size and conversion routines from UCS-2 values (thus in the BMP).
@@ -457,6 +457,7 @@
 #define SC_JAPANESE 0x4000000
 #define SC_KOREAN 0x8000000
 
+
 /* Script table */
 
 typedef struct utf8_scent {
@@ -469,7 +470,8 @@ typedef struct utf8_scent {
 
 typedef struct utf8_csent {
   char *name;			/* charset name */
-  unsigned long type;		/* type of charset */
+  unsigned short type;		/* type of charset */
+  unsigned short flags;		/* charset flags */
   void *tab;			/* additional data */
   unsigned long script;		/* script(s) implemented by this charset */
   char *preferred;		/* preferred charset over this one */
@@ -502,6 +504,15 @@ struct utf8_eucparam {
 #define CT_UTF7 1002		/* variable UTF-7 encoded Unicode no table */
 #define CT_2022 10000		/* variable ISO-2022 encoded no table */
 #define CT_SJIS 10001		/* 2 byte Shift-JIS encoded JIS no table */
+
+
+/* Character set flags */
+
+#define CF_PRIMARY 0x1		/* primary name for this charset */
+#define CF_DISPLAY 0x2		/* charset used in displays */
+#define CF_POSTING 0x4		/* charset used in email posting */
+#define CF_UNSUPRT 0x8		/* charset unsupported (can't convert to it) */
+#define CF_NOEMAIL 0x10		/* charset not used in email */
 
 
 /* UTF-7 engine states */

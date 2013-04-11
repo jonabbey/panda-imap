@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,20 +15,18 @@
  * Program:	Mailbox Access routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	19 November 2007
+ * Last Edited:	14 January 2008
  */
 
 /* The Version */
 
-#define CCLIENTVERSION "2007"
+#define CCLIENTVERSION "2007a"
 
 /* Build parameters */
 
@@ -143,6 +141,8 @@
 #define SET_APPENDUID (long) 158
 #define GET_RFC822OUTPUTFULL (long) 159
 #define SET_RFC822OUTPUTFULL (long) 160
+#define GET_BLOCKENVINIT (long) 161
+#define SET_BLOCKENVINIT (long) 162
 
 	/* 2xx: environment */
 #define GET_USERNAME (long) 201
@@ -825,6 +825,7 @@ typedef struct message_cache {
     unsigned int sequence : 1;	/* saved sequence bit */
     unsigned int dirty : 1;	/* driver internal use */
     unsigned int filter : 1;	/* driver internal use */
+    unsigned int ghost : 1;	/* driver internal use */
   } private;
 			/* internal date */
   unsigned int day : 5;		/* day of month (1-31) */

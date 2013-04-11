@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,13 @@
  * Program:	IPOP2D - IMAP to POP2 conversion server
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	21 May 2007
+ * Last Edited:	13 February 2008
  */
 
 
@@ -59,7 +57,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "74";		/* edit number of this server */
+char *version = "75";		/* edit number of this server */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -108,7 +106,7 @@ int main (int argc,char *argv[])
     sayonara (1);
   }
 				/* initialize server */
-  server_init (pgmname,"pop",NIL,clkint,kodint,hupint,trmint);
+  server_init (pgmname,"pop",NIL,clkint,kodint,hupint,trmint,NIL);
   /* There are reports of POP2 clients which get upset if anything appears
    * between the "+" and the "POP2" in the greeting.
    */
@@ -126,7 +124,7 @@ int main (int argc,char *argv[])
 	char *e = ferror (stdin) ?
 	  strerror (errno) : "Unexpected client disconnect";
 	alarm (0);		/* disable all interrupts */
-	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	sprintf (logout = cmdbuf,"%.80s while reading line",e);
 	state = DONE;
 	stream = mail_close (stream);
@@ -138,12 +136,12 @@ int main (int argc,char *argv[])
     idletime = 0;		/* no longer idle */
 				/* find end of line */
     if (!strchr (cmdbuf,'\012')) {
-      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
       logout = "- Command line too long\015\012";
       state = DONE;
     }
     else if (!(s = strtok (cmdbuf," \015\012"))) {
-      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
       goodbye = "- Missing or null command\015\012";
       state = DONE;
     }
@@ -162,7 +160,7 @@ int main (int argc,char *argv[])
       else if ((state == NEXT) && !strcmp (s,"NACK")) state = c_nack (t);
       else if ((state == AUTH || state == MBOX || state == ITEM) &&
 	       !strcmp (s,"QUIT")) {
-	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	state = DONE;		/* done in either case */
 	if (t) goodbye = "- Bogus argument given to QUIT\015\012";
 	else {			/* expunge the stream */
@@ -171,7 +169,7 @@ int main (int argc,char *argv[])
 	}
       }
       else {			/* some other or inappropriate command */
-	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	goodbye = "- Bogus or out of sequence command\015\012";
 	state = DONE;
       }
@@ -211,7 +209,7 @@ void sayonara (int status)
 void clkint ()
 {
   alarm (0);		/* disable all interrupts */
-  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   goodbye = "- Autologout; idle for too long\015\012";
   logout = "Autologout";
   state = DONE;			/* mark state done in either case */
@@ -231,7 +229,7 @@ void kodint ()
 				/* only if in command wait */
   if (idletime && ((time (0) - idletime) > KODTIMEOUT)) {
     alarm (0);		/* disable all interrupts */
-    server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+    server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
     goodbye = "- Killed (lost mailbox lock)\015\012";
     logout = "Killed (lost mailbox lock)";
     state = DONE;		/* mark state done in either case */
@@ -250,7 +248,7 @@ void kodint ()
 void hupint ()
 {
   alarm (0);		/* disable all interrupts */
-  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   goodbye = NIL;
   logout = "Hangup";
   state = DONE;			/* mark state done in either case */
@@ -268,7 +266,7 @@ void hupint ()
 void trmint ()
 {
   alarm (0);		/* disable all interrupts */
-  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   goodbye = "- Killed (terminated)\015\012";
   logout = "Killed (terminated)";
   if (critical) state = DONE;	/* mark state done in either case */
@@ -618,7 +616,7 @@ void mm_log (char *string,long errflg)
     if (state != DONE) {
       char tmp[MAILTMPLEN];
       alarm (0);		/* disable all interrupts */
-      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
       sprintf (logout = tmp,"Mailbox closed (%.80s)",string);
       sayonara (1);
     }

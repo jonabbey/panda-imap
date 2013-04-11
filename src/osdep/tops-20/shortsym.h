@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	25 May 2007
+ * Last Edited:	1 January 2008
  */
 
 #define auth_link a_link
@@ -328,9 +328,13 @@
 #define mail_uid_sequence mu_seq
 #define mail_unlock m_unl
 #define mail_unsubscribe m_uns
+#define mail_usable_network_stream m_usns
+#define mail_utf7_valid m_ut7v
 #define mail_valid m_val
 #define mail_valid_net mv_net
 #define mail_valid_net_parse mvn_pr
+#define mail_valid_net_parse_work mvn_pw
+#define mail_versioncheck m_vers
 #define mailboxfile mbxfil
 #define md5_init m5_ini
 #define md5_update m5_upd
@@ -568,6 +572,7 @@
 #define utf8_charset u8_chs
 #define utf8_cstext u8_cst
 #define utf8_cstocstext u8_cct
+#define utf8_from_mutf7 u8fmu7
 #define utf8_get u8_get
 #define utf8_get_raw u8_gtr
 #define utf8_iso2022text u8_i22
@@ -595,7 +600,9 @@
 #define utf8_text_sjis u8t_sj
 #define utf8_text_ucs2 u8t_u2
 #define utf8_text_ucs4 ut8_u4
+#define utf8_text_utf7 ut8_u7
 #define utf8_text_utf8 ut8_u8
 #define utf8_text_utf16 ut8_16
+#define utf8_to_mutf7 u8tmu7
 #define utf8_validate u8_val
 #define utf8_textwidth u8_twd

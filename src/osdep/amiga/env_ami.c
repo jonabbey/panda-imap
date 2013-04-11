@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,12 @@
  * Program:	Amiga environment routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
- *		University of Washington
- *		Administration Building, AG-44
+ *		UW Technology
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	9 January 2007
+ * Last Edited:	15 February 2008
  */
 
 #include <grp.h>
@@ -49,6 +46,8 @@ static char *sharedHome = NIL;	/* shared home directory */
 static short anonymous = NIL;	/* is anonymous */
 static short restrictBox = NIL;	/* is a restricted box */
 static short has_no_life = NIL;	/* is a cretin with no life */
+				/* block environment init */
+static short block_env_init = NIL;
 static short hideDotFiles = NIL;/* hide files whose names start with . */
 				/* advertise filesystem root */
 static short advertisetheworld = NIL;
@@ -288,6 +287,11 @@ void *env_parameters (long function,void *value)
   case GET_NETFSSTATBUG:
     ret = (void *) (netfsstatbug ? VOIDT : NIL);
     break;
+  case SET_BLOCKENVINIT:
+    block_env_init = value ? T : NIL;
+  case GET_BLOCKENVINIT:
+    ret = (void *) (block_env_init ? VOIDT : NIL);
+    break;
   case SET_BLOCKNOTIFY:
     mailblocknotify = (blocknotify_t) value;
   case GET_BLOCKNOTIFY:
@@ -374,49 +378,50 @@ void internal_date (char *date)
  */
 
 void server_init (char *server,char *service,char *sslservice,
-		  void *clkint,void *kodint,void *hupint,void *trmint)
+		  void *clkint,void *kodint,void *hupint,void *trmint,
+		  void *staint)
 {
-				/* only do this if for init call */
-  if (server && service && sslservice) {
-    long port;
-    struct servent *sv;
-    struct sockaddr_in sin;
-    int i = sizeof (struct sockaddr_in);
-    /* Don't use tcp_clienthost() since reverse DNS problems may slow down the
-     * greeting message and cause the client to time out.
-     */
-    char *client =
-      getpeername (0,(struct sockaddr *) &sin,(void *) &i) ? "UNKNOWN" :
-	((sin.sin_family == AF_INET) ? inet_ntoa (sin.sin_addr) : "NON-IPv4");
-				/* set server name in syslog */
-    openlog (server,LOG_PID,LOG_MAIL);
+  int onceonly = server && service && sslservice;
+  if (onceonly) {		/* set server name in syslog */
+    int mask;
+    openlog (myServerName = cpystr (server),LOG_PID,syslog_facility);
     fclose (stderr);		/* possibly save a process ID */
-    /* Use SSL if SSL service, or if server starts with "s" and not service */
-    if (((port = tcp_serverport ()) >= 0)) {
-      if ((sv = getservbyname (service,"tcp")) && (port == ntohs (sv->s_port)))
-	syslog (LOG_DEBUG,"%s service init from %s",service,client);
-      else if ((sv = getservbyname (sslservice,"tcp")) &&
-	       (port == ntohs (sv->s_port))) {
-	syslog (LOG_DEBUG,"%s SSL service init from %s",sslservice,client);
-	ssl_server_init (server);
-      }
-      else {			/* not service or SSL service port */
-	syslog (LOG_DEBUG,"port %ld service init from %s",port,client);
-	if (*server == 's') ssl_server_init (server);
-      }
-    }
-    switch (i = umask (022)) {	/* check old umask */
+
+    switch (mask = umask (022)){/* check old umask */
     case 0:			/* definitely unreasonable */
     case 022:			/* don't need to change it */
       break;
     default:			/* already was a reasonable value */
-      umask (i);		/* so change it back */
+      umask (mask);		/* so change it back */
     }
   }
-  signal (SIGALRM,clkint);	/* prepare for clock interrupt */
-  signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
-  signal (SIGHUP,hupint);	/* prepare for hangup */
-  signal (SIGTERM,trmint);	/* prepare for termination */
+  arm_signal (SIGALRM,clkint);	/* prepare for clock interrupt */
+  arm_signal (SIGUSR2,kodint);	/* prepare for Kiss Of Death */
+  arm_signal (SIGHUP,hupint);	/* prepare for hangup */
+  arm_signal (SIGPIPE,hupint);	/* alternative hangup */
+  arm_signal (SIGTERM,trmint);	/* prepare for termination */
+				/* status dump */
+  if (staint) arm_signal (SIGUSR1,staint);
+  if (onceonly) {		/* set up network and maybe SSL */
+    long port;
+    struct servent *sv;
+    /* Use SSL if SSL service, or if server starts with "s" and not service */
+    if (((port = tcp_serverport ()) >= 0)) {
+      if ((sv = getservbyname (service,"tcp")) && (port == ntohs (sv->s_port)))
+	syslog (LOG_DEBUG,"%s service init from %s",service,tcp_clientaddr ());
+      else if ((sv = getservbyname (sslservice,"tcp")) &&
+	       (port == ntohs (sv->s_port))) {
+	syslog (LOG_DEBUG,"%s SSL service init from %s",sslservice,
+		tcp_clientaddr ());
+	ssl_server_init (server);
+      }
+      else {			/* not service or SSL service port */
+	syslog (LOG_DEBUG,"port %ld service init from %s",port,
+		tcp_clientaddr ());
+	if (*server == 's') ssl_server_init (server);
+      }
+    }
+  }
 }
 
 /* Wait for stdin input
@@ -602,6 +607,8 @@ long env_init (char *user,char *home)
   struct passwd *pw;
   struct stat sbuf;
   char tmp[MAILTMPLEN];
+				/* don't init if blocked */
+  if (block_env_init) return LONGT;
   if (myUserName) fatal ("env_init called twice!");
 				/* set up user name */
   myUserName = cpystr (user ? user : ANONYMOUSUSER);
@@ -648,23 +655,27 @@ long env_init (char *user,char *home)
 
 char *myusername_full (unsigned long *flags)
 {
+  struct passwd *pw;
+  struct stat sbuf;
+  char *s;
+  unsigned long euid;
   char *ret = UNLOGGEDUSER;
-  if (!myUserName) {		/* get user name if don't have it yet */
-    struct passwd *pw;
-    struct stat sbuf;
-    unsigned long euid = geteuid ();
-    char *s = (char *) (euid ? getlogin () : NIL);
-				/* look up getlogin() user name or EUID */
-    if (!((s && *s && (strlen (s) < NETMAXUSER) && (pw = getpwnam (s)) &&
-	   (pw->pw_uid == euid)) || (pw = getpwuid (euid))))
-      fatal ("Unable to look up user name");
-				/* init environment if not root */
-    if (euid) env_init (pw->pw_name,((s = getenv ("HOME")) && *s &&
-				     (strlen (s) < NETMAXMBX) &&
-				     !stat (s,&sbuf) &&
-				     ((sbuf.st_mode & S_IFMT) == S_IFDIR)) ?
-			s : pw->pw_dir);
-    else ret = pw->pw_name;	/* in case UID 0 user is other than root */
+				/* no user name yet and not root? */
+  if (!myUserName && (euid = geteuid ())) {
+				/* yes, look up getlogin() user name or EUID */
+    if (((s = (char *) getlogin ()) && *s && (strlen (s) < NETMAXUSER) &&
+	 (pw = getpwnam (s)) && (pw->pw_uid == euid)) ||
+	(pw = getpwuid (euid))) {
+      if (block_env_init) {	/* don't env_init if blocked */
+	if (flags) *flags = MU_LOGGEDIN;
+	return pw->pw_name;
+      }
+      env_init (pw->pw_name,
+		((s = getenv ("HOME")) && *s && (strlen (s) < NETMAXMBX) &&
+		 !stat (s,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR)) ?
+		s : pw->pw_dir);
+    }
+    else fatal ("Unable to look up user name");
   }
   if (myUserName) {		/* logged in? */
     if (flags) *flags = anonymous ? MU_ANONYMOUS : MU_LOGGEDIN;
@@ -673,8 +684,6 @@ char *myusername_full (unsigned long *flags)
   else if (flags) *flags = MU_NOTLOGGEDIN;
   return ret;
 }
-
-
 /* Return my local host name
  * Returns: my local host name
  */

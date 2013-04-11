@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	11 October 2007
+ * Last Edited:	6 January 2008
  */
 
 
@@ -183,6 +183,7 @@ int mx_isvalid (char *name,char *tmp)
 	((sbuf.st_mode & S_IFMT) == S_IFREG)) return T;
     errno = NIL;		/* directory but not mx */
   }
+  else if (!compare_cstring (name,"INBOX")) errno = NIL;
   return NIL;
 }
 

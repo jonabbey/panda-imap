@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,13 @@
  * Program:	Interactive Message Access Protocol 4rev1 (IMAP4R1) routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	19 November 2007
+ * Last Edited:	19 February 2008
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -2609,7 +2607,7 @@ IMAPPARSEDREPLY *imap_append_single (MAILSTREAM *stream,char *mailbox,
     aflg.type = FLAGS; aflg.text = (void *) flags;
     args[++i] = &aflg;
   }
-  if (date) {		/* ensure date in INTERNALDATE format */
+  if (date) {			/* ensure date in INTERNALDATE format */
     if (!mail_parse_date (&elt,date)) {
 				/* flush previous reply */
       if (LOCAL->reply.line) fs_give ((void **) &LOCAL->reply.line);
@@ -2626,9 +2624,9 @@ IMAPPARSEDREPLY *imap_append_single (MAILSTREAM *stream,char *mailbox,
   amsg.type = LITERAL; amsg.text = (void *) message;
   args[++i] = &amsg;
   args[++i] = NIL;
-  if (!strcmp ((reply = imap_send (stream,"APPEND",args))->key,"BAD") &&
-      (flags || date)) {	/* full form and got a BAD? */
-				/* yes, retry with old IMAP2bis form */
+				/* easy if IMAP4[rev1] */
+  if (LEVELIMAP4 (stream)) reply = imap_send (stream,"APPEND",args);
+  else {			/* try the IMAP2bis way */
     args[1] = &amsg; args[2] = NIL;
     reply = imap_send (stream,"APPEND",args);
   }

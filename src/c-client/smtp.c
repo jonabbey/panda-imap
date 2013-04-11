@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	15 August 2007
+ * Last Edited:	28 January 2008
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -67,7 +67,8 @@ long smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error);
 long smtp_send (SENDSTREAM *stream,char *command,char *args);
 long smtp_reply (SENDSTREAM *stream);
 long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb);
-long smtp_fake (SENDSTREAM *stream,long code,char *text);
+long smtp_fake (SENDSTREAM *stream,char *text);
+static long smtp_seterror (SENDSTREAM *stream,long code,char *text);
 long smtp_soutr (void *stream,char *s);
 
 /* Mailer parameters */
@@ -427,7 +428,7 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
   tmp[SENDBUFLEN] = '\0';	/* must have additional null guard byte */
   if (!(env->to || env->cc || env->bcc)) {
   				/* no recipients in request */
-    smtp_fake (stream,SMTPHARDERROR,"No recipients specified");
+    smtp_seterror (stream,SMTPHARDERROR,"No recipients specified");
     return NIL;
   }
   do {				/* make sure stream is in good shape */
@@ -492,18 +493,20 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
     if (!retry && env->bcc) retry = smtp_rcpt (stream,env->bcc,&error);
     if (!retry && error) {	/* any recipients failed? */
       smtp_send (stream,"RSET",NIL);
-      smtp_fake (stream,SMTPHARDERROR,"One or more recipients failed");
+      smtp_seterror (stream,SMTPHARDERROR,"One or more recipients failed");
       return NIL;
     }
   } while (retry);
 				/* negotiate data command */
   if (!(smtp_send (stream,"DATA",NIL) == SMTPREADY)) return NIL;
-				/* set up error in case failure */
-  smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection went away!");
-				/* output data, return success status */
-  return rfc822_output_full (&buf,env,body,
-			     ESMTP.eightbit.ok && ESMTP.eightbit.want) &&
-    (smtp_send (stream,".",NIL) == SMTPOK);
+				/* send message data */
+  if (!rfc822_output_full (&buf,env,body,
+			   ESMTP.eightbit.ok && ESMTP.eightbit.want)) {
+    smtp_fake (stream,"SMTP connection broken (message data)");
+    return NIL;			/* can't do much else here */
+  }
+				/* send trailing dot */
+  return (smtp_send (stream,".",NIL) == SMTPOK) ? LONGT : NIL;
 }
 
 /* Simple Mail Transfer Protocol send VERBose
@@ -618,13 +621,12 @@ long smtp_send (SENDSTREAM *stream,char *command,char *args)
   if (stream->debug) mail_dlog (s,stream->sensitive);
   strcat (s,"\015\012");
 				/* send the command */
-  if (!net_soutr (stream->netstream,s))
-    ret = smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection broken (command)");
-  else {
+  if (stream->netstream && net_soutr (stream->netstream,s)) {
     do stream->replycode = smtp_reply (stream);
     while ((stream->replycode < 100) || (stream->reply[3] == '-'));
     ret = stream->replycode;
   }
+  else ret = smtp_fake (stream,"SMTP connection broken (command)");
   fs_give ((void **) &s);
   return ret;
 }
@@ -642,11 +644,13 @@ long smtp_reply (SENDSTREAM *stream)
 				/* flush old reply */
   if (stream->reply) fs_give ((void **) &stream->reply);
   				/* get reply */
-  if (!(stream->reply = net_getline (stream->netstream)))
-    return smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection went away!");
-  if (stream->debug) mm_dlog (stream->reply);
-  reply = atol (stream->reply);	/* return response code */
-  if (pv && (reply < 100)) (*pv) (stream->reply);
+  if (stream->netstream && (stream->reply = net_getline (stream->netstream))) {
+    if (stream->debug) mm_dlog (stream->reply);
+				/* return response code */
+    reply = atol (stream->reply);
+    if (pv && (reply < 100)) (*pv) (stream->reply);
+  }
+  else reply = smtp_fake (stream,"SMTP connection broken (reply)");
   return reply;
 }
 
@@ -671,7 +675,7 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
   strcat (tmp,"\015\012");
 				/* send the command */
   if (!net_soutr (stream->netstream,tmp))
-    return smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection broken (EHLO)");
+    return smtp_fake (stream,"SMTP connection broken (EHLO)");
 				/* got an OK reply? */
   do if ((i = smtp_reply (stream)) == SMTPOK) {
 				/* hack for AUTH= */
@@ -728,14 +732,31 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
   return i;			/* return the response code */
 }
 
-/* Simple Mail Transfer Protocol set fake error
+/* Simple Mail Transfer Protocol set fake error and abort
+ * Accepts: SMTP stream
+ *	    error text
+ * Returns: SMTPSOFTFATAL, always
+ */
+
+long smtp_fake (SENDSTREAM *stream,char *text)
+{
+  if (stream->netstream) {	/* close net connection if still open */
+    net_close (stream->netstream);
+    stream->netstream = NIL;
+  }
+				/* set last error */
+  return smtp_seterror (stream,SMTPSOFTFATAL,text);
+}
+
+
+/* Simple Mail Transfer Protocol set error
  * Accepts: SMTP stream
  *	    SMTP error code
  *	    error text
  * Returns: error code
  */
 
-long smtp_fake (SENDSTREAM *stream,long code,char *text)
+static long smtp_seterror (SENDSTREAM *stream,long code,char *text)
 {
 				/* flush any old reply */
   if (stream->reply ) fs_give ((void **) &stream->reply);

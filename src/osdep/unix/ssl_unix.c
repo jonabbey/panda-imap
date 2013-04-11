@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	9 January 2007
+ * Last Edited:	13 January 2007
  */
 
 #define crypt ssl_private_crypt
@@ -61,6 +61,8 @@ static char *ssl_start_work (SSLSTREAM *stream,char *host,unsigned long flags);
 static int ssl_open_verify (int ok,X509_STORE_CTX *ctx);
 static char *ssl_validate_cert (X509 *cert,char *host);
 static long ssl_compare_hostnames (unsigned char *s,unsigned char *pat);
+static char *ssl_getline_work (SSLSTREAM *stream,unsigned long *size,
+			       long *contd);
 static long ssl_abort (SSLSTREAM *stream);
 static RSA *ssl_genkey (SSL *con,int export,int keylength);
 
@@ -375,44 +377,67 @@ static long ssl_compare_hostnames (unsigned char *s,unsigned char *pat)
 
 char *ssl_getline (SSLSTREAM *stream)
 {
-  int n,m;
-  char *st,*ret,*stp;
-  char c = '\0';
-  char d;
+  unsigned long n,contd;
+  char *ret = ssl_getline_work (stream,&n,&contd);
+  if (ret && contd) {		/* got a line needing continuation? */
+    STRINGLIST *stl = mail_newstringlist ();
+    STRINGLIST *stc = stl;
+    do {			/* collect additional lines */
+      stc->text.data = (unsigned char *) ret;
+      stc->text.size = n;
+      stc = stc->next = mail_newstringlist ();
+      ret = ssl_getline_work (stream,&n,&contd);
+    } while (ret && contd);
+    if (ret) {			/* stash final part of line on list */
+      stc->text.data = (unsigned char *) ret;
+      stc->text.size = n;
+				/* determine how large a buffer we need */
+      for (n = 0, stc = stl; stc; stc = stc->next) n += stc->text.size;
+      ret = fs_get (n + 1);	/* copy parts into buffer */
+      for (n = 0, stc = stl; stc; n += stc->text.size, stc = stc->next)
+	memcpy (ret + n,stc->text.data,stc->text.size);
+      ret[n] = '\0';
+    }
+    mail_free_stringlist (&stl);/* either way, done with list */
+  }
+  return ret;
+}
+
+/* SSL receive line or partial line
+ * Accepts: SSL stream
+ *	    pointer to return size
+ *	    pointer to return continuation flag
+ * Returns: text line string, size and continuation flag, or NIL if failure
+ */
+
+static char *ssl_getline_work (SSLSTREAM *stream,unsigned long *size,
+			       long *contd)
+{
+  unsigned long n;
+  char *s,*ret,c,d;
+  *contd = NIL;			/* assume no continuation */
 				/* make sure have data */
   if (!ssl_getdata (stream)) return NIL;
-  st = stream->iptr;		/* save start of string */
-  n = 0;			/* init string count */
-  while (stream->ictr--) {	/* look for end of line */
+  for (s = stream->iptr, n = 0, c = '\0'; stream->ictr--; n++, c = d) {
     d = *stream->iptr++;	/* slurp another character */
     if ((c == '\015') && (d == '\012')) {
       ret = (char *) fs_get (n--);
-      memcpy (ret,st,n);	/* copy into a free storage string */
+      memcpy (ret,s,*size = n);	/* copy into a free storage string */
       ret[n] = '\0';		/* tie off string with null */
       return ret;
     }
-    n++;			/* count another character searched */
-    c = d;			/* remember previous character */
   }
 				/* copy partial string from buffer */
-  memcpy ((ret = stp = (char *) fs_get (n)),st,n);
+  memcpy ((ret = (char *) fs_get (n)),s,*size = n);
 				/* get more data from the net */
   if (!ssl_getdata (stream)) fs_give ((void **) &ret);
 				/* special case of newline broken by buffer */
   else if ((c == '\015') && (*stream->iptr == '\012')) {
     stream->iptr++;		/* eat the line feed */
     stream->ictr--;
-    ret[n - 1] = '\0';		/* tie off string with null */
+    ret[*size = --n] = '\0';	/* tie off string with null */
   }
-				/* else recurse to get remainder */
-  else if (st = ssl_getline (stream)) {
-    ret = (char *) fs_get (n + 1 + (m = strlen (st)));
-    memcpy (ret,stp,n);		/* copy first part */
-    memcpy (ret + n,st,m);	/* and second part */
-    fs_give ((void **) &stp);	/* flush first part */
-    fs_give ((void **) &st);	/* flush second part */
-    ret[n + m] = '\0';		/* tie off string with null */
-  }
+  else *contd = LONGT;		/* continuation needed */
   return ret;
 }
 

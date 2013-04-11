@@ -5,10 +5,10 @@
 
 
 Network Working Group                                    D. Crocker, Ed.
-Request for Comments: 4234                   Brandenburg InternetWorking
-Obsoletes: 2234                                               P. Overell
-Category: Standards Track                                      THUS plc.
-                                                            October 2005
+Request for Comments: 5234                   Brandenburg InternetWorking
+STD: 68                                                       P. Overell
+Obsoletes: 4234                                                THUS plc.
+Category: Standards Track                                   January 2008
 
 
              Augmented BNF for Syntax Specifications: ABNF
@@ -21,17 +21,13 @@ Status of This Memo
    Official Protocol Standards" (STD 1) for the standardization state
    and status of this protocol.  Distribution of this memo is unlimited.
 
-Copyright Notice
-
-   Copyright (C) The Internet Society (2005).
-
 Abstract
 
    Internet technical specifications often need to define a formal
    syntax.  Over the years, a modified version of Backus-Naur Form
    (BNF), called Augmented BNF (ABNF), has been popular among many
    Internet specifications.  The current specification documents ABNF.
-   It balances compactness and simplicity, with reasonable
+   It balances compactness and simplicity with reasonable
    representational power.  The differences between standard BNF and
    ABNF involve naming rules, repetition, alternatives, order-
    independence, and value ranges.  This specification also supplies
@@ -55,51 +51,82 @@ Abstract
 
 
 
+
+
+
+
 Crocker & Overell           Standards Track                     [Page 1]
 
-RFC 4234                          ABNF                      October 2005
+RFC 5234                          ABNF                      January 2008
 
 
 Table of Contents
 
-   1. INTRODUCTION ....................................................2
-   2. RULE DEFINITION .................................................3
-      2.1. Rule Naming ................................................3
-      2.2. Rule Form ..................................................3
-      2.3. Terminal Values ............................................4
-      2.4. External Encodings .........................................5
-   3. OPERATORS .......................................................6
-      3.1. Concatenation:  Rule1 Rule2 ................................6
-      3.2. Alternatives:  Rule1 / Rule2 ...............................6
-      3.3. Incremental Alternatives: Rule1 =/ Rule2 ...................7
-      3.4. Value Range Alternatives:  %c##-## .........................7
-      3.5. Sequence Group:  (Rule1 Rule2) .............................8
-      3.6. Variable Repetition:  *Rule ................................8
-      3.7. Specific Repetition:  nRule ................................9
-      3.8. Optional Sequence:  [RULE] .................................9
-      3.9. Comment:  ; Comment ........................................9
-      3.10. Operator Precedence .......................................9
-   4. ABNF DEFINITION OF ABNF ........................................10
-   5. SECURITY CONSIDERATIONS ........................................11
-   6. References .....................................................11
-      6.1. Normative References ......................................11
-      6.2. Informative References ....................................11
-   Appendix A.  ACKNOWLEDGEMENTS .....................................13
-   Appendix B.  APPENDIX - CORE ABNF OF ABNF .........................13
-      B.1.  Core Rules ...............................................13
-      B.2.  Common Encoding ..........................................14
+   1.  Introduction . . . . . . . . . . . . . . . . . . . . . . . . .  3
+   2.  Rule Definition  . . . . . . . . . . . . . . . . . . . . . . .  3
+     2.1.  Rule Naming  . . . . . . . . . . . . . . . . . . . . . . .  3
+     2.2.  Rule Form  . . . . . . . . . . . . . . . . . . . . . . . .  4
+     2.3.  Terminal Values  . . . . . . . . . . . . . . . . . . . . .  4
+     2.4.  External Encodings . . . . . . . . . . . . . . . . . . . .  6
+   3.  Operators  . . . . . . . . . . . . . . . . . . . . . . . . . .  6
+     3.1.  Concatenation:  Rule1 Rule2  . . . . . . . . . . . . . . .  6
+     3.2.  Alternatives:  Rule1 / Rule2 . . . . . . . . . . . . . . .  7
+     3.3.  Incremental Alternatives: Rule1 =/ Rule2 . . . . . . . . .  7
+     3.4.  Value Range Alternatives:  %c##-## . . . . . . . . . . . .  8
+     3.5.  Sequence Group:  (Rule1 Rule2) . . . . . . . . . . . . . .  8
+     3.6.  Variable Repetition:  *Rule  . . . . . . . . . . . . . . .  9
+     3.7.  Specific Repetition:  nRule  . . . . . . . . . . . . . . .  9
+     3.8.  Optional Sequence:  [RULE] . . . . . . . . . . . . . . . .  9
+     3.9.  Comment:  ; Comment  . . . . . . . . . . . . . . . . . . .  9
+     3.10. Operator Precedence  . . . . . . . . . . . . . . . . . . . 10
+   4.  ABNF Definition of ABNF  . . . . . . . . . . . . . . . . . . . 10
+   5.  Security Considerations  . . . . . . . . . . . . . . . . . . . 12
+   6.  References . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+     6.1.  Normative References . . . . . . . . . . . . . . . . . . . 12
+     6.2.  Informative References . . . . . . . . . . . . . . . . . . 12
+   Appendix A.  Acknowledgements  . . . . . . . . . . . . . . . . . . 13
+   Appendix B.  Core ABNF of ABNF . . . . . . . . . . . . . . . . . . 13
+     B.1.  Core Rules . . . . . . . . . . . . . . . . . . . . . . . . 13
+     B.2.  Common Encoding  . . . . . . . . . . . . . . . . . . . . . 15
 
-1.  INTRODUCTION
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Crocker & Overell           Standards Track                     [Page 2]
+
+RFC 5234                          ABNF                      January 2008
+
+
+1.  Introduction
 
    Internet technical specifications often need to define a formal
    syntax and are free to employ whatever notation their authors deem
    useful.  Over the years, a modified version of Backus-Naur Form
    (BNF), called Augmented BNF (ABNF), has been popular among many
-   Internet specifications.  It balances compactness and simplicity,
-   with reasonable representational power.  In the early days of the
-   Arpanet, each specification contained its own definition of ABNF.
-   This included the email specifications, [RFC733] and then [RFC822],
-   which came to be the common citations for defining ABNF.  The current
+   Internet specifications.  It balances compactness and simplicity with
+   reasonable representational power.  In the early days of the Arpanet,
+   each specification contained its own definition of ABNF.  This
+   included the email specifications, [RFC733] and then [RFC822], which
+   came to be the common citations for defining ABNF.  The current
    document separates those definitions to permit selective reference.
    Predictably, it also provides some modifications and enhancements.
 
@@ -108,37 +135,20 @@ Table of Contents
    Appendix B supplies rule definitions and encoding for a core lexical
    analyzer of the type common to several Internet specifications.  It
    is provided as a convenience and is otherwise separate from the meta
-
-
-
-Crocker & Overell           Standards Track                     [Page 2]
-
-RFC 4234                          ABNF                      October 2005
-
-
    language defined in the body of this document, and separate from its
    formal status.
 
-   Changes since [RFC2234]:
-
-      In Section 3.7, the phrase: "That is, exactly <N> occurrences of
-      <element>." was corrected to: "That is, exactly <n> occurrences of
-      <element>."
-
-      Some continuation comment lines needed to be corrected to begin
-      with comment character (";").
-
-2.  RULE DEFINITION
+2.  Rule Definition
 
 2.1.  Rule Naming
 
-   The name of a rule is simply the name itself; that is, a sequence of
+   The name of a rule is simply the name itself, that is, a sequence of
    characters, beginning with an alphabetic character, and followed by a
    combination of alphabetics, digits, and hyphens (dashes).
 
    NOTE:
 
-      Rule names are case-insensitive
+      Rule names are case insensitive.
 
    The names <rulename>, <Rulename>, <RULENAME>, and <rUlENamE> all
    refer to the same rule.
@@ -150,6 +160,17 @@ RFC 4234                          ABNF                      October 2005
    to distinguish partial rules that combine into a string not separated
    by white space, such as shown in the discussion about repetition,
    below.
+
+
+
+
+
+
+
+Crocker & Overell           Standards Track                     [Page 3]
+
+RFC 5234                          ABNF                      January 2008
+
 
 2.2.  Rule Form
 
@@ -164,13 +185,6 @@ RFC 4234                          ABNF                      October 2005
    form a sequence of one or more rule names and/or value definitions,
    combined according to the various operators defined in this document,
    such as alternative and repetition.
-
-
-
-Crocker & Overell           Standards Track                     [Page 3]
-
-RFC 4234                          ABNF                      October 2005
-
 
    For visual ease, rule definitions are left aligned.  When a rule
    requires multiple lines, the continuation lines are indented.  The
@@ -203,20 +217,6 @@ RFC 4234                          ABNF                      October 2005
    respectively specify the decimal and hexadecimal representation of
    [US-ASCII] for carriage return.
 
-   A concatenated string of such values is specified compactly, using a
-   period (".") to indicate a separation of characters within that
-   value.  Hence:
-
-         CRLF        =  %d13.10
-
-   ABNF permits the specification of literal text strings directly,
-   enclosed in quotation-marks.  Hence:
-
-         command     =  "command string"
-
-   Literal text strings are interpreted as a concatenated set of
-   printable characters.
-
 
 
 
@@ -225,13 +225,27 @@ RFC 4234                          ABNF                      October 2005
 
 Crocker & Overell           Standards Track                     [Page 4]
 
-RFC 4234                          ABNF                      October 2005
+RFC 5234                          ABNF                      January 2008
 
+
+   A concatenated string of such values is specified compactly, using a
+   period (".") to indicate a separation of characters within that
+   value.  Hence:
+
+         CRLF        =  %d13.10
+
+   ABNF permits the specification of literal text strings directly,
+   enclosed in quotation marks.  Hence:
+
+         command     =  "command string"
+
+   Literal text strings are interpreted as a concatenated set of
+   printable characters.
 
    NOTE:
 
-      ABNF strings are case-insensitive and the character set for these
-      strings is us-ascii.
+      ABNF strings are case insensitive and the character set for these
+      strings is US-ASCII.
 
    Hence:
 
@@ -244,7 +258,7 @@ RFC 4234                          ABNF                      October 2005
    will match "abc", "Abc", "aBc", "abC", "ABc", "aBC", "AbC", and
    "ABC".
 
-      To specify a rule that IS case SENSITIVE, specify the characters
+      To specify a rule that is case sensitive, specify the characters
       individually.
 
    For example:
@@ -255,22 +269,8 @@ RFC 4234                          ABNF                      October 2005
 
          rulename    =  %d97.98.99
 
-   will match only the string that comprises only the lowercased
+   will match only the string that comprises only the lowercase
    characters, abc.
-
-2.4.  External Encodings
-
-   External representations of terminal value characters will vary
-   according to constraints in the storage or transmission environment.
-   Hence, the same ABNF-based grammar may have multiple external
-   encodings, such as one for a 7-bit US-ASCII environment, another for
-   a binary octet environment, and still a different one when 16-bit
-   Unicode is used.  Encoding details are beyond the scope of ABNF,
-   although Appendix A (Core) provides definitions for a 7-bit US-ASCII
-   environment as has been common to much of the Internet.
-
-   By separating external encoding from the syntax, it is intended that
-   alternate encoding environments can be used for the same syntax.
 
 
 
@@ -281,10 +281,24 @@ RFC 4234                          ABNF                      October 2005
 
 Crocker & Overell           Standards Track                     [Page 5]
 
-RFC 4234                          ABNF                      October 2005
+RFC 5234                          ABNF                      January 2008
 
 
-3.  OPERATORS
+2.4.  External Encodings
+
+   External representations of terminal value characters will vary
+   according to constraints in the storage or transmission environment.
+   Hence, the same ABNF-based grammar may have multiple external
+   encodings, such as one for a 7-bit US-ASCII environment, another for
+   a binary octet environment, and still a different one when 16-bit
+   Unicode is used.  Encoding details are beyond the scope of ABNF,
+   although Appendix B provides definitions for a 7-bit US-ASCII
+   environment as has been common to much of the Internet.
+
+   By separating external encoding from the syntax, it is intended that
+   alternate encoding environments can be used for the same syntax.
+
+3.  Operators
 
 3.1.  Concatenation:  Rule1 Rule2
 
@@ -300,7 +314,7 @@ RFC 4234                          ABNF                      October 2005
 
    So that the rule <mumble> matches the lowercase string "aba".
 
-   LINEAR WHITE SPACE: Concatenation is at the core of the ABNF parsing
+   Linear white space: Concatenation is at the core of the ABNF parsing
    model.  A string of contiguous characters (values) is parsed
    according to the rules defined in ABNF.  For Internet specifications,
    there is some history of permitting linear white space (space and
@@ -319,6 +333,13 @@ RFC 4234                          ABNF                      October 2005
    be formed into a lexical analyzer or simply be part of the main
    ruleset.
 
+
+
+Crocker & Overell           Standards Track                     [Page 6]
+
+RFC 5234                          ABNF                      January 2008
+
+
 3.2.  Alternatives:  Rule1 / Rule2
 
    Elements separated by a forward slash ("/") are alternatives.
@@ -328,39 +349,27 @@ RFC 4234                          ABNF                      October 2005
 
    will accept <foo> or <bar>.
 
-
-
-
-
-
-
-
-Crocker & Overell           Standards Track                     [Page 6]
-
-RFC 4234                          ABNF                      October 2005
-
-
    NOTE:
 
       A quoted string containing alphabetic characters is a special form
-      for specifying alternative characters and is interpreted as a
-      non-terminal representing the set of combinatorial strings with
-      the contained characters, in the specified order but with any
-      mixture of upper and lower case.
+      for specifying alternative characters and is interpreted as a non-
+      terminal representing the set of combinatorial strings with the
+      contained characters, in the specified order but with any mixture
+      of upper- and lowercase.
 
 3.3.  Incremental Alternatives: Rule1 =/ Rule2
 
    It is sometimes convenient to specify a list of alternatives in
    fragments.  That is, an initial rule may match one or more
    alternatives, with later rule definitions adding to the set of
-   alternatives.  This is particularly useful for otherwise, independent
-   specifications that derive from the same parent rule set, such as
+   alternatives.  This is particularly useful for otherwise independent
+   specifications that derive from the same parent ruleset, such as
    often occurs with parameter lists.  ABNF permits this incremental
    definition through the construct:
 
          oldrule     =/ additional-alternatives
 
-   So that the rule set
+   So that the ruleset
 
          ruleset     =  alt1 / alt2
 
@@ -372,10 +381,26 @@ RFC 4234                          ABNF                      October 2005
 
          ruleset     =  alt1 / alt2 / alt3 / alt4 / alt5
 
+
+
+
+
+
+
+
+
+
+
+Crocker & Overell           Standards Track                     [Page 7]
+
+RFC 5234                          ABNF                      January 2008
+
+
 3.4.  Value Range Alternatives:  %c##-##
 
    A range of alternative numeric values can be specified compactly,
-   using dash ("-") to indicate the range of alternative values.  Hence:
+   using a dash ("-") to indicate the range of alternative values.
+   Hence:
 
          DIGIT       =  %x30-39
 
@@ -388,23 +413,15 @@ RFC 4234                          ABNF                      October 2005
    Concatenated numeric values and numeric value ranges cannot be
    specified in the same string.  A numeric value may use the dotted
    notation for concatenation or it may use the dash notation to specify
-
-
-
-Crocker & Overell           Standards Track                     [Page 7]
-
-RFC 4234                          ABNF                      October 2005
-
-
    one value range.  Hence, to specify one printable character between
-   end of line sequences, the specification could be:
+   end-of-line sequences, the specification could be:
 
          char-line = %x0D.0A %x20-7E %x0D.0A
 
 3.5.  Sequence Group:  (Rule1 Rule2)
 
    Elements enclosed in parentheses are treated as a single element,
-   whose contents are STRICTLY ORDERED.  Thus,
+   whose contents are strictly ordered.  Thus,
 
          elem (foo / bar) blat
 
@@ -426,6 +443,15 @@ RFC 4234                          ABNF                      October 2005
 
    It will avoid misinterpretation by casual readers.
 
+
+
+
+
+Crocker & Overell           Standards Track                     [Page 8]
+
+RFC 5234                          ABNF                      January 2008
+
+
    The sequence group notation is also used within free text to set off
    an element sequence from the prose.
 
@@ -441,16 +467,7 @@ RFC 4234                          ABNF                      October 2005
 
    Default values are 0 and infinity so that *<element> allows any
    number, including zero; 1*<element> requires at least one;
-   3*3<element> allows exactly 3 and 1*2<element> allows one or two.
-
-
-
-
-
-Crocker & Overell           Standards Track                     [Page 8]
-
-RFC 4234                          ABNF                      October 2005
-
+   3*3<element> allows exactly 3; and 1*2<element> allows one or two.
 
 3.7.  Specific Repetition:  nRule
 
@@ -462,8 +479,9 @@ RFC 4234                          ABNF                      October 2005
 
          <n>*<n>element
 
-   That is, exactly <n> occurrences of <element>.  Thus, 2DIGIT is a 2-
-   digit number, and 3ALPHA is a string of three alphabetic characters.
+   That is, exactly <n> occurrences of <element>.  Thus, 2DIGIT is a
+   2-digit number, and 3ALPHA is a string of three alphabetic
+   characters.
 
 3.8.  Optional Sequence:  [RULE]
 
@@ -477,9 +495,18 @@ RFC 4234                          ABNF                      October 2005
 
 3.9.  Comment:  ; Comment
 
-   A semi-colon starts a comment that continues to the end of line.
-   This is a simple way of including useful notes in parallel with the
+   A semicolon starts a comment that continues to the end of line.  This
+   is a simple way of including useful notes in parallel with the
    specifications.
+
+
+
+
+
+Crocker & Overell           Standards Track                     [Page 9]
+
+RFC 5234                          ABNF                      January 2008
+
 
 3.10.  Operator Precedence
 
@@ -487,26 +514,19 @@ RFC 4234                          ABNF                      October 2005
    from highest (binding tightest) at the top, to lowest (loosest) at
    the bottom:
 
-         Strings, Names formation
+      Rule name, prose-val, Terminal value
 
-         Comment
+      Comment
 
-         Value range
+      Value range
 
-         Repetition
+      Repetition
 
-         Grouping, Optional
+      Grouping, Optional
 
-         Concatenation
+      Concatenation
 
-         Alternative
-
-
-
-Crocker & Overell           Standards Track                     [Page 9]
-
-RFC 4234                          ABNF                      October 2005
-
+      Alternative
 
    Use of the alternative operator, freely mixed with concatenations,
    can be confusing.
@@ -514,16 +534,17 @@ RFC 4234                          ABNF                      October 2005
       Again, it is recommended that the grouping operator be used to
       make explicit concatenation groups.
 
-4.  ABNF DEFINITION OF ABNF
+4.  ABNF Definition of ABNF
 
    NOTES:
 
-      1. This syntax requires a formatting of rules that is relatively
-         strict.  Hence, the version of a ruleset included in a
-         specification might need preprocessing to ensure that it can be
-         interpreted by an ABNF parser.
+      1.  This syntax requires a formatting of rules that is relatively
+          strict.  Hence, the version of a ruleset included in a
+          specification might need preprocessing to ensure that it can
+          be interpreted by an ABNF parser.
 
-      2. This syntax uses the rules provided in Appendix B (Core).
+      2.  This syntax uses the rules provided in Appendix B.
+
 
          rulelist       =  1*( rule / (*c-wsp c-nl) )
 
@@ -532,6 +553,16 @@ RFC 4234                          ABNF                      October 2005
                                 ;  with white space
 
          rulename       =  ALPHA *(ALPHA / DIGIT / "-")
+
+
+
+
+
+
+Crocker & Overell           Standards Track                    [Page 10]
+
+RFC 5234                          ABNF                      January 2008
+
 
          defined-as     =  *c-wsp ("=" / "=/") *c-wsp
                                 ; basic rules definition and
@@ -554,15 +585,6 @@ RFC 4234                          ABNF                      October 2005
          repetition     =  [repeat] element
 
          repeat         =  1*DIGIT / (*DIGIT "*" *DIGIT)
-
-
-
-
-
-Crocker & Overell           Standards Track                    [Page 10]
-
-RFC 4234                          ABNF                      October 2005
-
 
          element        =  rulename / group / option /
                            char-val / num-val / prose-val
@@ -588,28 +610,6 @@ RFC 4234                          ABNF                      October 2005
          hex-val        =  "x" 1*HEXDIG
                            [ 1*("." 1*HEXDIG) / ("-" 1*HEXDIG) ]
 
-         prose-val      =  "<" *(%x20-3D / %x3F-7E) ">"
-                                ; bracketed string of SP and VCHAR
-                                ;  without angles
-                                ; prose description, to be used as
-                                ;  last resort
-
-5.  SECURITY CONSIDERATIONS
-
-   Security is truly believed to be irrelevant to this document.
-
-6.  References
-
-6.1.  Normative References
-
-   [US-ASCII] American National Standards Institute, "Coded Character
-              Set -- 7-bit American Standard Code for Information
-              Interchange", ANSI X3.4, 1986.
-
-6.2.  Informative References
-
-   [RFC2234]  Crocker, D. and P. Overell, "Augmented BNF for Syntax
-              Specifications: ABNF", RFC 2234, November 1997.
 
 
 
@@ -617,35 +617,35 @@ RFC 4234                          ABNF                      October 2005
 
 Crocker & Overell           Standards Track                    [Page 11]
 
-RFC 4234                          ABNF                      October 2005
+RFC 5234                          ABNF                      January 2008
 
 
-   [RFC733]   Crocker, D., Vittal, J., Pogran, K., and D. Henderson,
-              "Standard for the format of ARPA network text messages",
-              RFC 733, November 1977.
+         prose-val      =  "<" *(%x20-3D / %x3F-7E) ">"
+                                ; bracketed string of SP and VCHAR
+                                ;  without angles
+                                ; prose description, to be used as
+                                ;  last resort
 
-   [RFC822]   Crocker, D., "Standard for the format of ARPA Internet
-              text messages", STD 11, RFC 822, August 1982.
+5.  Security Considerations
 
+   Security is truly believed to be irrelevant to this document.
 
+6.  References
 
+6.1.  Normative References
 
+   [US-ASCII]  American National Standards Institute, "Coded Character
+               Set -- 7-bit American Standard Code for Information
+               Interchange", ANSI X3.4, 1986.
 
+6.2.  Informative References
 
+   [RFC733]    Crocker, D., Vittal, J., Pogran, K., and D. Henderson,
+               "Standard for the format of ARPA network text messages",
+               RFC 733, November 1977.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+   [RFC822]    Crocker, D., "Standard for the format of ARPA Internet
+               text messages", STD 11, RFC 822, August 1982.
 
 
 
@@ -673,19 +673,19 @@ RFC 4234                          ABNF                      October 2005
 
 Crocker & Overell           Standards Track                    [Page 12]
 
-RFC 4234                          ABNF                      October 2005
+RFC 5234                          ABNF                      January 2008
 
 
-Appendix A.  ACKNOWLEDGEMENTS
+Appendix A.  Acknowledgements
 
    The syntax for ABNF was originally specified in RFC 733.  Ken L.
    Harrenstien, of SRI International, was responsible for re-coding the
-   BNF into an augmented BNF that makes the representation smaller and
+   BNF into an Augmented BNF that makes the representation smaller and
    easier to understand.
 
    This recent project began as a simple effort to cull out the portion
    of RFC 822 that has been repeatedly cited by non-email specification
-   writers, namely the description of augmented BNF.  Rather than simply
+   writers, namely the description of Augmented BNF.  Rather than simply
    and blindly converting the existing text into a separate document,
    the working group chose to give careful consideration to the
    deficiencies, as well as benefits, of the existing specification and
@@ -705,10 +705,12 @@ Appendix A.  ACKNOWLEDGEMENTS
    Julian Reschke warrants a special thanks for converting the Draft
    Standard version to XML source form.
 
-Appendix B.  APPENDIX - CORE ABNF OF ABNF
+Appendix B.  Core ABNF of ABNF
 
-   This Appendix is provided as a convenient core for specific grammars.
-   The definitions may be used as a core set of rules.
+   This appendix contains some basic rules that are in common use.
+   Basic rules are in uppercase.  Note that these rules are only valid
+   for ABNF encoded in 7-bit ASCII or in characters sets that are a
+   superset of 7-bit ASCII.
 
 B.1.  Core Rules
 
@@ -725,11 +727,9 @@ B.1.  Core Rules
 
 
 
-
-
 Crocker & Overell           Standards Track                    [Page 13]
 
-RFC 4234                          ABNF                      October 2005
+RFC 5234                          ABNF                      January 2008
 
 
          CR             =  %x0D
@@ -756,7 +756,15 @@ RFC 4234                          ABNF                      October 2005
                                 ; linefeed
 
          LWSP           =  *(WSP / CRLF WSP)
-                                ; linear white space (past newline)
+                                ; Use of this linear-white-space rule
+                                ;  permits lines containing only white
+                                ;  space that are no longer legal in
+                                ;  mail headers and have caused
+                                ;  interoperability problems in other
+                                ;  contexts.
+                                ; Do not use when defining mail
+                                ;  headers and use with caution in
+                                ;  other contexts.
 
          OCTET          =  %x00-FF
                                 ; 8 bits of data
@@ -769,14 +777,6 @@ RFC 4234                          ABNF                      October 2005
          WSP            =  SP / HTAB
                                 ; white space
 
-B.2.  Common Encoding
-
-   Externally, data are represented as "network virtual ASCII" (namely,
-   7-bit US-ASCII in an 8-bit field), with the high (8th) bit set to
-   zero.  A string of values is in "network byte order", in which the
-   higher-valued bytes are represented on the left-hand side and are
-   sent over the network first.
-
 
 
 
@@ -785,8 +785,16 @@ B.2.  Common Encoding
 
 Crocker & Overell           Standards Track                    [Page 14]
 
-RFC 4234                          ABNF                      October 2005
+RFC 5234                          ABNF                      January 2008
 
+
+B.2.  Common Encoding
+
+   Externally, data are represented as "network virtual ASCII" (namely,
+   7-bit US-ASCII in an 8-bit field), with the high (8th) bit set to
+   zero.  A string of values is in "network byte order", in which the
+   higher-valued bytes are represented on the left-hand side and are
+   sent over the network first.
 
 Authors' Addresses
 
@@ -802,10 +810,9 @@ Authors' Addresses
 
    Paul Overell
    THUS plc.
-   1/2 Berkeley Square
+   1/2 Berkeley Square,
    99 Berkeley Street
-   Glasgow
-   G3 7HR
+   Glasgow  G3 7HR
    UK
 
    EMail: paul.overell@thus.net
@@ -832,21 +839,14 @@ Authors' Addresses
 
 
 
-
-
-
-
-
-
-
 Crocker & Overell           Standards Track                    [Page 15]
 
-RFC 4234                          ABNF                      October 2005
+RFC 5234                          ABNF                      January 2008
 
 
 Full Copyright Statement
 
-   Copyright (C) The Internet Society (2005).
+   Copyright (C) The IETF Trust (2008).
 
    This document is subject to the rights, licenses and restrictions
    contained in BCP 78, and except as set forth therein, the authors
@@ -854,10 +854,10 @@ Full Copyright Statement
 
    This document and the information contained herein are provided on an
    "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
-   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY AND THE INTERNET
-   ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED,
-   INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE
-   INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY, THE IETF TRUST AND
+   THE INTERNET ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF
+   THE INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
    WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 
 Intellectual Property
@@ -881,13 +881,13 @@ Intellectual Property
    The IETF invites any interested party to bring to its attention any
    copyrights, patents or patent applications, or other proprietary
    rights that may cover technology that may be required to implement
-   this standard.  Please address the information to the IETF at ietf-
-   ipr@ietf.org.
+   this standard.  Please address the information to the IETF at
+   ietf-ipr@ietf.org.
 
-Acknowledgement
 
-   Funding for the RFC Editor function is currently provided by the
-   Internet Society.
+
+
+
 
 
 

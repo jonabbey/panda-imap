@@ -1,7 +1,7 @@
 The following documents are necessary to understand the syntax rules
 most of the remaining documents.  Note that some documents refer to
-RFC 2234 which has been replaced by RFC 4234:
-   rfc4234.txt	Augmented BNF for Syntax Specifications - ABNF
+RFC 2234 which has been replaced by RFC 5234:
+   rfc5234.txt	Augmented BNF for Syntax Specifications - ABNF
    rfc4466.txt	Collected Extensions to IMAP4 ABNF
 
 
@@ -25,6 +25,7 @@ Items marked with "*" are supported in this distribution:
  * rfc3348.txt	CHILDREN
    rfc4978.txt	COMPRESS
    rfc4551.txt	CONDSTORE
+   rfc5161.txt	ENABLE
  * rfc4731.txt	ESEARCH
    rfc2971.txt	ID
  * rfc2177.txt	IDLE
@@ -33,6 +34,7 @@ Items marked with "*" are supported in this distribution:
  * rfc2193.txt	MAILBOX-REFERRALS
  * rfc3502.txt	MULTIAPPEND
  * rfc2342.txt	NAMESPACE
+   rfc5162.txt	QRESYNC
    rfc2087.txt	QUOTA
  * rfc4959.txt	SASL-IR
  * rfc4315.txt	UIDPLUS

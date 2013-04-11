@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,13 @@
  * Program:	NT environment routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	3 December 2006
+ * Last Edited:	15 February 2008
  */
 
 static char *myUserName = NIL;	/* user name */
@@ -32,6 +30,8 @@ static char *myHomeDir = NIL;	/* home directory name */
 static char *myNewsrc = NIL;	/* newsrc file name */
 static char *sysInbox = NIL;	/* system inbox name */
 static long list_max_level = 5;	/* maximum level of list recursion */
+				/* block environment init */
+static short block_env_init = NIL;
 static short no822tztext = NIL;	/* disable RFC [2]822 timezone text */
 				/* home namespace */
 static NAMESPACE nshome = {"",'\\',NIL,NIL};
@@ -117,6 +117,11 @@ void *env_parameters (long function,void *value)
     no822tztext = value ? T : NIL;
   case GET_DISABLE822TZTEXT:
     ret = (void *) (no822tztext ? VOIDT : NIL);
+    break;
+  case SET_BLOCKENVINIT:
+    block_env_init = value ? T : NIL;
+  case GET_BLOCKENVINIT:
+    ret = (void *) (block_env_init ? VOIDT : NIL);
     break;
   case SET_BLOCKNOTIFY:
     mailblocknotify = (blocknotify_t) value;
@@ -245,7 +250,8 @@ void CALLBACK clock_ticked (UINT IDEvent,UINT uReserved,DWORD dwUser,
  */
 
 void server_init (char *server,char *service,char *sslservice,
-		  void *clkint,void *kodint,void *hupint,void *trmint)
+		  void *clkint,void *kodint,void *hupint,void *trmint,
+		  void *staint)
 {
   if (!check_nt ()) {
     if (!auth_md5.server) fatal ("Can't run on Windows without MD5 database");
@@ -414,6 +420,8 @@ long anonymous_login (int argc,char *argv[])
 
 long env_init (char *user,char *home)
 {
+				/* don't init if blocked */
+  if (block_env_init) return LONGT;
   if (myUserName) fatal ("env_init called twice!");
   myUserName = cpystr (user);	/* remember user name */
   if (!myHomeDir)		/* only if home directory not set up yet */
@@ -497,6 +505,10 @@ char *myusername_full (unsigned long *flags)
 				/* use callback, else logon name */
       ((mailusername && (user = (char *) (*mailusername) ())) ||
        (GetUserName (usr,&len) && _stricmp (user = (char *) usr,"SYSTEM")))) {
+    if (block_env_init) {	/* don't env_init if blocked */
+      if (flags) *flags = MU_LOGGEDIN;
+      return user;
+    }
 				/* try HOMEPATH, then HOME */
     if (p = getenv ("HOMEPATH"))
       sprintf (path = pth,"%s%s",

@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	30 August 2006
+ * Last Edited:	21 December 2007
  */
 
 #include "tcp_nt.h"		/* must be before osdep includes tcp.h */
@@ -43,6 +43,6 @@
 #include "ftl_nt.c"
 #include "nl_nt.c"
 #include "yunchan.c"
+#include "tcp_nt.c"		/* must be before env_nt.c */
 #include "env_nt.c"
 #include "ssl_old.c"
-#include "tcp_nt.c"

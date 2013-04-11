@@ -1,6 +1,6 @@
 .ig
  * ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,32 +11,35 @@
  * 
  * ========================================================================
 ..
-.TH mailutil 1 "December 6, 2006" 
+.TH mailutil 1 "March 3, 2008" 
 .SH NAME
 mailutil - mail utility program
 .nh
 .SH SYNTAX
-.B mailutil check [-d] [-v]
-.B [mailbox]
+.B mailutil command [switches] [arguments]
 .PP
-.B mailutil create [-d] [-v] mailbox
+All commands accept the -d, -v, and -u switches in addition to any
+command-specific switches.
 .PP
-.B mailutil delete [-d] [-v] mailbox
+.B mailutil check [MAILBOX]
 .PP
-.B mailutil rename [-d] [-v] src dst
+.B mailutil create MAILBOX
 .PP
-.B mailutil copy [-d] [-v] [-rw] [-kw] src dst
+.B mailutil delete MAILBOX
 .PP
-.B mailutil move [-d] [-v] [-rw] [-kw] src dst
+.B mailutil rename SOURCE DESTINATION
 .PP
-.B mailutil append [-d] [-v] [-rw] [-kw] src dst
+.B mailutil copy [-rw] [-kw] [-ig] SOURCE DESTINATION
 .PP
-.B mailutil appenddelete [-d] [-v] [-rw] [-kw] src dst
+.B mailutil move [-rw] [-kw] [-ig] SOURCE DESTINATION
 .PP
-.B mailutil prune [-d] [-v]
-.B mailbox criteria
+.B mailutil append [-rw] [-kw] [-ig] SOURCE DESTINATION
 .PP
-.B mailutil transfer [-d] [-v] [-m mode] [-rw] [-kw] src dst
+.B mailutil appenddelete [-rw] [-kw] [-ig] SOURCE DESTINATION
+.PP
+.B mailutil prune MAILBOX CRITERIA
+.PP
+.B mailutil transfer [-m mode] [-rw] [-kw] [-ig] SOURCE DESTINATION
 .SH DESCRIPTION
 .B mailutil
 replaces the old chkmail, imapcopy, imapmove, imapxfer, mbxcopy,
@@ -115,6 +118,10 @@ command.
 .br
 will delete and expunge all messages written before January 1, 2004.
 .PP
+Note that mailutil implements pruning by deleting the matching messages,
+and then expunging the mailbox.  Consequently, mailutil will also expunge
+any messages which were deleted at the time of the pruning.
+.PP
 .B mailutil transfer
 copies an entire hierarchy of mailboxes from the named source to the
 named destination.  Mailboxes are created on the destination as
@@ -122,12 +129,12 @@ needed.  Any error in copying messages will cause the transfer to stop.
 .PP
 Normally, any error in creation will cause the transfer to stop.
 However, if
-.B -m mode 
+.B -m MODE
 or
-.B -merge mode 
+.B -merge MODE
 is specified, a merging transfer is performed.  The
-.B mode
-argument the type of merge.
+.B MODE
+argument indicats the type of merge:
 .PP
 .B -m[erge] prompt
 indicates that the user should be asked for an alternative name to create.
@@ -173,6 +180,14 @@ or
 flag prints verbose (non-error) telemetry.
 .PP
 The
+.B -u USERID
+or
+.B -user USERID
+switch attempts to become the indicated user.  This is for the benefit of
+system administrators who want to do mailutil operations on a userid that
+does not normally have shell access.
+.PP
+The
 .B -rw
 or
 .B -rwcopy
@@ -190,6 +205,19 @@ destination mailbox.  Normally, mailutil does not create keywords in
 the destination mailbox so only those keywords that are already defined
 in the destination mailbox will be preserved.  Note that some IMAP servers
 may automatically create keywords, so this flag may not be necessary.
+.PP
+The
+.B -ig
+or
+.B -ignore
+flag causes the keywords of the source mailbox to be ignored completely
+and no attempt is made to copy them to the destination mailbox.
+.PP
+The
+.B -ig[nore]
+and
+.B -kw[copy]
+flags are mutually exclusive.
 .SH ARGUMENTS
 The arguments are standard c-client mailbox names.  A
 variety of mailbox name formats and types of mailboxes are supported
@@ -233,4 +261,4 @@ argument with quotation marks if you run
 .B mailutil
 from a shell in which "#" is the comment character.
 .SH AUTHOR
-Mark Crispin, MRC@CAC.Washington.EDU
+Mark Crispin, MRC@Washington.EDU

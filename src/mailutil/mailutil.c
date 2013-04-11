@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,33 +15,32 @@
  * Program:	Mail utility
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	2 February 1994
- * Last Edited:	5 November 2007
+ * Last Edited:	19 February 2008
  */
 
 
 #include <stdio.h>
 #include <errno.h>
 extern int errno;		/* just in case */
-#include "mail.h"
-#include "osdep.h"
-#include "misc.h"
-#include "linkage.h"
+#include "c-client.h"
+#ifdef SYSCONFIG		/* defined in env_unix.h */
+#include <pwd.h>
+#endif
 
 /* Globals */
 
-char *version = "9";		/* edit number */
+char *version = "13";		/* edit number */
 int debugp = NIL;		/* flag saying debug */
 int verbosep = NIL;		/* flag saying verbose */
 int rwcopyp = NIL;		/* flag saying readwrite copy (for POP) */
 int kwcopyp = NIL;		/* flag saying keyword copy */
+int ignorep = NIL;		/* flag saying ignore keywords */
 int critical = NIL;		/* flag saying in critical code */
 int trycreate = NIL;		/* [TRYCREATE] seen */
 char *suffix = NIL;		/* suffer merge mode suffix text */
@@ -50,16 +49,21 @@ FILE *f = NIL;
 
 /* Usage strings */
 
-char *usage2 = "usage: %s %s\n";
-char *usage3 = "usage: %s %s %s\n";
-char *usgchk = "check [-d[ebug]] [-v[erbose]] [mailbox]";
-char *usgcre = "create [-d[ebug]] [-v[erbose]] mailbox";
-char *usgdel = "delete [-d[ebug]] [-v[erbose]] mailbox";
-char *usgren = "rename [-d[ebug]] [-v[erbose]] src dst";
-char *usgcpymov = "[-d[ebug]] [-v[erbose]] [-rw[copy]] [-kw[copy]] src dst";
-char *usgappdel = "[-d[ebug]] [-v[erbose]] [-rw[copy]] [-kw[copy]] src dst";
-char *usgprn = "prune [-d[ebug]] [-v[erbose]] mailbox search_criteria";
-char *usgxfr = "transfer [-d[ebug]] [-v[erbose]] [-rw[copy]] [-kw[copy]] [-m[erge] m] src dst";
+char *usage2 = "usage: %s %s\n\n%s\n";
+char *usage3 = "usage: %s %s %s\n\n%s\n";
+char *usgchk = "check [MAILBOX]";
+char *usgcre = "create MAILBOX";
+char *usgdel = "delete MAILBOX";
+char *usgren = "rename SOURCE DESTINATION";
+char *usgcpymov = "[-rw[copy]] [-kw[copy]] [-ig[nore]] SOURCE DESTINATION";
+char *usgappdel = "[-rw[copy]] [-kw[copy]] [-ig[nore]] SOURCE DESTINATION";
+char *usgprn = "prune mailbox SEARCH_CRITERIA";
+char *usgxfr = "transfer [-rw[copy]] [-kw[copy]] [-ig[nore]] [-m[erge] m] SOURCE DEST";
+#ifdef SYSCONFIG
+char *stdsw = "Standard switches valid with any command:\n\t[-d[ebug]] [-v[erbose]] [-u[ser] userid] [--]";
+#else
+char *stdsw = "Standard switches valid with any command:\n\t[-d[ebug]] [-v[erbose]]";
+#endif
 
 /* Merge modes */
 
@@ -74,6 +78,8 @@ void ms_init (STRING *s,void *data,unsigned long size);
 char ms_next (STRING *s);
 void ms_setpos (STRING *s,unsigned long i);
 int main (int argc,char *argv[]);
+SEARCHPGM *prune_criteria (char *criteria);
+int prune_criteria_number (unsigned long *number,char **r);
 int mbxcopy (MAILSTREAM *source,MAILSTREAM *dest,char *dst,int create,int del,
 	     int mode);
 long mm_append (MAILSTREAM *stream,void *data,char **flags,char **date,
@@ -189,6 +195,7 @@ int main (int argc,char *argv[])
       else if (!strcmp (s,"-verbose") || !strcmp (s,"-v")) verbosep = T;
       else if (!strcmp (s,"-rwcopy") || !strcmp (s,"-rw")) rwcopyp = T;
       else if (!strcmp (s,"-kwcopy") || !strcmp (s,"-kw")) kwcopyp = T;
+      else if (!strcmp (s,"-ignore") || !strcmp (s,"-ig")) ignorep = T;
       else if ((!strcmp (s,"-merge") || !strcmp (s,"-m")) && (++i < argc)) {
 	if (!strcmp (s = argv[i],"prompt")) merge = mPROMPT;
 	else if (!strcmp (s,"append")) merge = mAPPEND;
@@ -201,6 +208,20 @@ int main (int argc,char *argv[])
 	  exit (retcode);
 	}
       }
+
+#ifdef SYSCONFIG
+      else if ((!strcmp (s,"-user") || !strcmp (s,"-u")) && (++i < argc)) {
+	struct passwd *pw = getpwnam (s = argv[i]);
+	if (!pw) {
+	  printf ("unknown user id: %s\n",argv[i]);
+	  exit (retcode);
+	}
+	else if (setuid (pw->pw_uid)) {
+	  perror ("unable to change user id");
+	  exit (retcode);
+	}
+      }
+#endif
 				/* -- means no more switches, so mailbox
 				   name can start with "-" */
       else if ((s[1] == '-') && !s[2]) moreswitchp = NIL;
@@ -217,11 +238,16 @@ int main (int argc,char *argv[])
       exit (retcode);
     }
   }
+  if (kwcopyp && ignorep) {
+    puts ("-kwcopy and -ignore are mutually exclusive");
+    exit (retcode);
+  }
   if (!cmd) cmd = "";		/* prevent SEGV */
 
   if (!strcmp (cmd,"check")) {	/* check for new messages */
     if (!src) src = "INBOX";
-    if (dst || merge || rwcopyp || kwcopyp) printf (usage2,pgm,usgchk);
+    if (dst || merge || rwcopyp || kwcopyp || ignorep)
+      printf (usage2,pgm,usgchk,stdsw);
     else if (mail_status (source = (*src == '{') ?
 			  mail_open (NIL,src,OP_HALFOPEN |
 				     (debugp ? OP_DEBUG : NIL)) : NIL,
@@ -229,21 +255,24 @@ int main (int argc,char *argv[])
       retcode = 0;
   }
   else if (!strcmp (cmd,"create")) {
-    if (!src || dst || merge || rwcopyp || kwcopyp) printf (usage2,pgm,usgcre);
+    if (!src || dst || merge || rwcopyp || kwcopyp || ignorep)
+      printf (usage2,pgm,usgcre,stdsw);
     else if (mail_create (source = (*src == '{') ?
 			  mail_open (NIL,src,OP_HALFOPEN |
 				     (debugp ? OP_DEBUG : NIL)) : NIL,src))
       retcode = 0;
   }
   else if (!strcmp (cmd,"delete")) {
-    if (!src || dst || merge || rwcopyp || kwcopyp) printf (usage2,pgm,usgdel);
+    if (!src || dst || merge || rwcopyp || kwcopyp || ignorep)
+      printf (usage2,pgm,usgdel,stdsw);
     else if (mail_delete (source = (*src == '{') ?
 			  mail_open (NIL,src,OP_HALFOPEN |
 				     (debugp ? OP_DEBUG : NIL)) : NIL,src))
       retcode = 0;
   }
   else if (!strcmp (cmd,"rename")) {
-    if (!src || !dst || merge || rwcopyp || kwcopyp) printf(usage2,pgm,usgren);
+    if (!src || !dst || merge || rwcopyp || kwcopyp || ignorep)
+      printf (usage2,pgm,usgren,stdsw);
     else if (mail_rename (source = (*src == '{') ?
 			  mail_open (NIL,src,OP_HALFOPEN |
 				     (debugp ? OP_DEBUG : NIL)) : NIL,src,dst))
@@ -251,7 +280,7 @@ int main (int argc,char *argv[])
   }
 
   else if ((i = !strcmp (cmd,"move")) || !strcmp (cmd,"copy")) {
-    if (!src || !dst || merge) printf (usage3,pgm,cmd,usgcpymov);
+    if (!src || !dst || merge) printf (usage3,pgm,cmd,usgcpymov,stdsw);
     else if (source = mail_open (NIL,src,((i || rwcopyp) ? NIL : OP_READONLY) |
 				 (debugp ? OP_DEBUG : NIL))) {
       dest = NIL;		/* open destination stream if network */
@@ -262,7 +291,7 @@ int main (int argc,char *argv[])
     }
   }
   else if ((i = !strcmp (cmd,"appenddelete")) || !strcmp (cmd,"append")) {
-    if (!src || !dst || merge) printf (usage3,pgm,cmd,usgappdel);
+    if (!src || !dst || merge) printf (usage3,pgm,cmd,usgappdel,stdsw);
     else if (source = mail_open (NIL,src,((i || rwcopyp) ? NIL : OP_READONLY) |
 				 (debugp ? OP_DEBUG : NIL))) {
       dest = NIL;		/* open destination stream if network */
@@ -274,8 +303,8 @@ int main (int argc,char *argv[])
   }
 
   else if (!strcmp (cmd,"prune")) {
-    if (!src || !dst || merge || rwcopyp || kwcopyp ||
-	!(criteria = mail_criteria (dst))) printf (usage2,pgm,usgprn);
+    if (!src || !dst || merge || rwcopyp || kwcopyp || ignorep ||
+	!(criteria = prune_criteria (dst))) printf (usage2,pgm,usgprn,stdsw);
     else if ((source = mail_open (NIL,src,(debugp ? OP_DEBUG : NIL))) &&
 	     mail_search_full (source,NIL,criteria,SE_FREE)) {
       for (m = 1, s = t = NIL, len = start = last = 0; m <= source->nmsgs; m++)
@@ -315,7 +344,7 @@ int main (int argc,char *argv[])
   }
 
   else if (!strcmp (cmd,"transfer")) {
-    if (!src || !dst) printf (usage2,pgm,usgxfr);
+    if (!src || !dst) printf (usage2,pgm,usgxfr,stdsw);
     else if ((*src == '{') &&	/* open source mailbox */
 	     !(source = mail_open (NIL,src,OP_HALFOPEN |
 				   (debugp ? OP_DEBUG : NIL))));
@@ -376,8 +405,8 @@ int main (int argc,char *argv[])
 
   else {
     printf ("%s version %s.%s\n\n",pgm,CCLIENTVERSION,version);
-    printf (usage2,pgm,"command [switches] arguments",pgm);
-    printf (" %s\n",usgchk);
+    printf (usage2,pgm,"command [switches] arguments",stdsw);
+    printf ("\nCommands:\n %s\n",usgchk);
     puts   ("   ;; report number of messages and new messages");
     printf (" %s\n",usgcre);
     puts   ("   ;; create new mailbox");
@@ -402,6 +431,138 @@ int main (int argc,char *argv[])
   if (dest) mail_close (dest);
   exit (retcode);
   return retcode;		/* stupid compilers */
+}
+
+/* Pruning criteria, somewhat extended from mail_criteria()
+ * Accepts: criteria
+ * Returns: search program if parse successful, else NIL
+ */
+
+SEARCHPGM *prune_criteria (char *criteria)
+{
+  SEARCHPGM *pgm = NIL;
+  char *criterion,*r,tmp[MAILTMPLEN];
+  int f;
+  if (criteria) {		/* only if criteria defined */
+				/* make writeable copy of criteria */
+    criteria = cpystr (criteria);
+				/* for each criterion */
+    for (pgm = mail_newsearchpgm (), criterion = strtok_r (criteria," ",&r);
+	 criterion; (criterion = strtok_r (NIL," ",&r))) {
+      f = NIL;			/* init then scan the criterion */
+      switch (*ucase (criterion)) {
+      case 'A':			/* possible ALL, ANSWERED */
+	if (!strcmp (criterion+1,"LL")) f = T;
+	else if (!strcmp (criterion+1,"NSWERED")) f = pgm->answered = T;
+	break;
+      case 'B':			/* possible BCC, BEFORE, BODY */
+	if (!strcmp (criterion+1,"CC"))
+	  f = mail_criteria_string (&pgm->bcc,&r);
+	else if (!strcmp (criterion+1,"EFORE"))
+	  f = mail_criteria_date (&pgm->before,&r);
+	else if (!strcmp (criterion+1,"ODY"))
+	  f = mail_criteria_string (&pgm->body,&r);
+	break;
+      case 'C':			/* possible CC */
+	if (!strcmp (criterion+1,"C")) f = mail_criteria_string (&pgm->cc,&r);
+	break;
+      case 'D':			/* possible DELETED, DRAFT */
+	if (!strcmp (criterion+1,"ELETED")) f = pgm->deleted = T;
+	else if (!strcmp (criterion+1,"RAFT")) f = pgm->draft = T;
+	break;
+      case 'F':			/* possible FLAGGED, FROM */
+	if (!strcmp (criterion+1,"LAGGED")) f = pgm->flagged = T;
+	else if (!strcmp (criterion+1,"ROM"))
+	  f = mail_criteria_string (&pgm->from,&r);
+	break;
+      case 'K':			/* possible KEYWORD */
+	if (!strcmp (criterion+1,"EYWORD"))
+	  f = mail_criteria_string (&pgm->keyword,&r);
+	break;
+      case 'L':			/* possible LARGER */
+	if (!strcmp (criterion+1,"ARGER"))
+	  f = prune_criteria_number (&pgm->larger,&r);
+
+      case 'N':			/* possible NEW */
+	if (!strcmp (criterion+1,"EW")) f = pgm->recent = pgm->unseen = T;
+	break;
+      case 'O':			/* possible OLD, ON */
+	if (!strcmp (criterion+1,"LD")) f = pgm->old = T;
+	else if (!strcmp (criterion+1,"N"))
+	  f = mail_criteria_date (&pgm->on,&r);
+	break;
+      case 'R':			/* possible RECENT */
+	if (!strcmp (criterion+1,"ECENT")) f = pgm->recent = T;
+	break;
+      case 'S':			/* possible SEEN, SENT*, SINCE, SMALLER,
+				   SUBJECT */
+	if (!strcmp (criterion+1,"EEN")) f = pgm->seen = T;
+	else if (!strncmp (criterion+1,"ENT",3)) {
+	  if (!strcmp (criterion+4,"BEFORE"))
+	    f = mail_criteria_date (&pgm->sentbefore,&r);
+	  else if (!strcmp (criterion+4,"ON"))
+	    f = mail_criteria_date (&pgm->senton,&r);
+	  else if (!strcmp (criterion+4,"SINCE"))
+	    f = mail_criteria_date (&pgm->sentsince,&r);
+	}
+	else if (!strcmp (criterion+1,"INCE"))
+	  f = mail_criteria_date (&pgm->since,&r);
+	else if (!strcmp (criterion+1,"MALLER"))
+	  f = prune_criteria_number (&pgm->smaller,&r);
+	else if (!strcmp (criterion+1,"UBJECT"))
+	  f = mail_criteria_string (&pgm->subject,&r);
+	break;
+      case 'T':			/* possible TEXT, TO */
+	if (!strcmp (criterion+1,"EXT"))
+	  f = mail_criteria_string (&pgm->text,&r);
+	else if (!strcmp (criterion+1,"O"))
+	  f = mail_criteria_string (&pgm->to,&r);
+	break;
+      case 'U':			/* possible UN* */
+	if (criterion[1] == 'N') {
+	  if (!strcmp (criterion+2,"ANSWERED")) f = pgm->unanswered = T;
+	  else if (!strcmp (criterion+2,"DELETED")) f = pgm->undeleted = T;
+	  else if (!strcmp (criterion+2,"DRAFT")) f = pgm->undraft = T;
+	  else if (!strcmp (criterion+2,"FLAGGED")) f = pgm->unflagged = T;
+	  else if (!strcmp (criterion+2,"KEYWORD"))
+	    f = mail_criteria_string (&pgm->unkeyword,&r);
+	  else if (!strcmp (criterion+2,"SEEN")) f = pgm->unseen = T;
+	}
+	break;
+      default:			/* we will barf below */
+	break;
+      }
+
+      if (!f) {			/* if can't identify criterion */
+	sprintf (tmp,"Unknown search criterion: %.30s",criterion);
+	MM_LOG (tmp,ERROR);
+	mail_free_searchpgm (&pgm);
+	break;
+      }
+    }
+				/* no longer need copy of criteria */
+    fs_give ((void **) &criteria);
+  }
+  return pgm;
+}
+
+
+/* Parse a number
+ * Accepts: pointer to integer to return
+ *	    pointer to strtok state
+ * Returns: T if successful, else NIL
+ */
+
+int prune_criteria_number (unsigned long *number,char **r)
+{
+  char *t;
+  STRINGLIST *s = NIL;
+				/* parse the date and return fn if OK */
+  int ret = (mail_criteria_string (&s,r) &&
+	     (*number = strtoul ((char *) s->text.data,&t,10)) && !*t) ?
+	       T : NIL;
+  if (s) mail_free_stringlist (&s);
+  return ret;
 }
 
 /* Copy mailbox
@@ -548,7 +709,8 @@ long mm_append (MAILSTREAM *stream,void *data,char **flags,char **date,
     if (elt->flagged) strcat (t," \\Flagged");
     if (elt->answered) strcat (t," \\Answered");
     if (elt->draft) strcat (t," \\Draft");
-    if (u = elt->user_flags) do	/* any user flags? */
+				/* any user flags? */
+    if (!ignorep && (u = elt->user_flags)) do
       if ((t1 = ap->stream->user_flags[find_rightmost_bit (&u)]) &&
 	  (MAILTMPLEN - ((t += strlen (t)) - tmp)) > (long) (2 + strlen (t1))){
 	*t++ = ' ';		/* space delimiter */

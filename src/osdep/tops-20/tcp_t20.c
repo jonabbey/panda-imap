@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	13 January 2008
  */
 
 
@@ -33,6 +33,9 @@
  * equaled by more `modern' operating systems.
  * Wasureru mon ka!!!!
  */
+
+static char *tcp_getline_work (TCPSTREAM *stream,unsigned long *size,
+			       long *contd);
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -136,45 +139,76 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   return NIL;
 }
 
-/* TCP/IP receive line
- * Accepts: TCP/IP stream
+/* TCP receive line
+ * Accepts: TCP stream
  * Returns: text line string or NIL if failure
  */
 
 char *tcp_getline (TCPSTREAM *stream)
 {
+  unsigned long n,contd;
+  char *ret = tcp_getline_work (stream,&n,&contd);
+  if (ret && contd) {		/* got a line needing continuation? */
+    STRINGLIST *stl = mail_newstringlist ();
+    STRINGLIST *stc = stl;
+    do {			/* collect additional lines */
+      stc->text.data = (unsigned char *) ret;
+      stc->text.size = n;
+      stc = stc->next = mail_newstringlist ();
+      ret = tcp_getline_work (stream,&n,&contd);
+    } while (ret && contd);
+    if (ret) {			/* stash final part of line on list */
+      stc->text.data = (unsigned char *) ret;
+      stc->text.size = n;
+				/* determine how large a buffer we need */
+      for (n = 0, stc = stl; stc; stc = stc->next) n += stc->text.size;
+      ret = fs_get (n + 1);	/* copy parts into buffer */
+      for (n = 0, stc = stl; stc; n += stc->text.size, stc = stc->next)
+	memcpy (ret + n,stc->text.data,stc->text.size);
+      ret[n] = '\0';
+    }
+    mail_free_stringlist (&stl);/* either way, done with list */
+  }
+  return ret;
+}
+
+/* TCP receive line or partial line
+ * Accepts: TCP stream
+ *	    pointer to return size
+ *	    pointer to return continuation flag
+ * Returns: text line string, size and continuation flag, or NIL if failure
+ */
+
+static char *tcp_getline_work (TCPSTREAM *stream,unsigned long *size,
+			       long *contd)
+{
   int argblk[5];
-  int n,m;
+  unsigned long n,m;
   char *ret,*stp,*st;
+  *contd = NIL;			/* assume no continuation */
   argblk[1] = stream->jfn;	/* read from TCP */
 				/* pointer to buffer */
-  argblk[2] = (int) (stream->ibuf-1);
+  argblk[2] = (int) (stream->ibuf - 1);
   argblk[3] = BUFLEN;		/* max number of bytes to read */
   argblk[4] = '\012';		/* terminate on LF */
   if (!jsys (SIN,argblk)) return NIL;
   n = BUFLEN - argblk[3];	/* number of bytes read */
 				/* got a complete line? */
   if ((stream->ibuf[n - 2] == '\015') && (stream->ibuf[n - 1] == '\012')) {
-    memcpy ((ret = (char *) fs_get (n)),stream->ibuf,n - 2);
-    ret[n - 2] = '\0';	/* tie off string with null */
+    memcpy ((ret = (char *) fs_get (n)),stream->ibuf,*size = n - 2);
+    ret[n - 2] = '\0';		/* tie off string with null */
     return ret;
   }
 				/* copy partial string */
-  memcpy ((stp = ret = (char *) fs_get (n)),stream->ibuf,n);
+  memcpy ((ret = (char *) fs_get (n)),stream->ibuf,*size = n);
 				/* special case of newline broken by buffer */
   if ((stream->ibuf[n - 1] == '\015') && jsys (BIN,argblk) &&
       (argblk[2] == '\012')) {	/* was it? */
     ret[n - 1] = '\0';		/* tie off string with null */
   }
-				/* recurse to get remainder */
-  else if (jsys (BKJFN,argblk) && (st = tcp_getline (stream))) {
-    ret = (char *) fs_get (n + 1 + (m = strlen (st)));
-    memcpy (ret,stp,n);		/* copy first part */
-    memcpy (ret + n,st,m);	/* and second part */
-    fs_give ((void **) &stp);	/* flush first part */
-    fs_give ((void **) &st);	/* flush second part */
-    ret[n + m] = '\0';		/* tie off string with null */
-  }
+				/* otherwise back up */
+  else if (!jsys (BKJFN,argblk)) fs_give ((void **) &ret);
+  else *contd = LONGT;		/* continuation needed */
   return ret;
 }
 

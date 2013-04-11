@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,13 @@
  * Program:	Environment routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	13 February 2008
  */
 
 /* Function prototypes */
@@ -36,7 +34,8 @@ void rfc822_timezone (char *s,void *t);
 void internal_date (char *date);
 long server_input_wait (long seconds);
 void server_init (char *server,char *service,char *sasl,
-		  void *clkint,void *kodint,void *hupint,void *trmint);
+		  void *clkint,void *kodint,void *hupint,void *trmint,
+		  void *staint);
 long server_login (char *user,char *pass,char *authuser,int argc,char *argv[]);
 long authserver_login (char *user,char *authuser,int argc,char *argv[]);
 long anonymous_login (int argc,char *argv[]);

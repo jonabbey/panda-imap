@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,13 @@
  * Program:	IPOP3D - IMAP to POP3 conversion server
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	17 September 2007
+ * Last Edited:	19 February 2008
  */
 
 /* Parameter files */
@@ -61,7 +59,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "101";		/* edit number of this server */
+char *version = "104";		/* edit number of this server */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -118,7 +116,14 @@ int main (int argc,char *argv[])
   mail_parameters (NIL,SET_SERVICENAME,(void *) "pop");
 #include "linkage.c"
 				/* initialize server */
-  server_init (pgmname,"pop3","pop3s",clkint,kodint,hupint,trmint);
+  server_init (pgmname,"pop3","pop3s",clkint,kodint,hupint,trmint,NIL);
+  mail_parameters (NIL,SET_BLOCKENVINIT,VOIDT);
+  s = myusername_full (&i);	/* get user name and flags */
+  mail_parameters (NIL,SET_BLOCKENVINIT,NIL);
+  if (i == MU_LOGGEDIN) {	/* allow EXTERNAL if logged in already */
+    mail_parameters (NIL,UNHIDE_AUTHENTICATOR,(void *) "EXTERNAL");
+    mail_parameters (NIL,SET_EXTERNALAUTHID,(void *) s);
+  }
   {				/* set up MD5 challenge */
     AUTHENTICATOR *auth = mail_lookup_auth (1);
     while (auth && compare_cstring (auth->name,"CRAM-MD5")) auth = auth->next;
@@ -160,7 +165,7 @@ int main (int argc,char *argv[])
 	char *e = ferror (stdin) ?
 	  strerror (errno) : "Unexpected client disconnect";
 	alarm (0);		/* disable all interrupts */
-	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	sprintf (logout = tmp,"%.80s, while reading line",e);
 	goodbye = NIL;
 	rset ();		/* try to gracefully close the stream */
@@ -214,7 +219,10 @@ int main (int argc,char *argv[])
 	    if (pass) fs_give ((void **) &pass);
 	    s = strtok (t," ");	/* get mechanism name */
 				/* get initial response */
-	    initial = strtok (NIL,"\015\012");
+	    if (initial = strtok (NIL,"\015\012")) {
+	      if ((*initial == '=') && !initial[1]) ++initial;
+	      else if (!*initial) initial = NIL;
+	    }
 	    if (!(user = cpystr (mail_auth (s,responder,argc,argv)))) {
 	      PSOUT ("-ERR Bad authentication\015\012");
 	      syslog (LOG_INFO,"AUTHENTICATE %s failure host=%.80s",s,
@@ -557,7 +565,7 @@ void sayonara (int status)
 void clkint ()
 {
   alarm (0);			/* disable all interrupts */
-  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   goodbye = "-ERR Autologout; idle for too long\015\012";
   logout = "Autologout";
   if (critical) state = LOGOUT;	/* badly hosed if in critical code */
@@ -581,7 +589,7 @@ void kodint ()
 				/* only if idle */
   if (idletime && ((time (0) - idletime) > KODTIMEOUT)) {
     alarm (0);			/* disable all interrupts */
-    server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+    server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
     goodbye = "-ERR Received Kiss of Death\015\012";
     logout = "Killed (lost mailbox lock)";
     if (critical) state =LOGOUT;/* must defer if in critical code */
@@ -604,7 +612,7 @@ void kodint ()
 void hupint ()
 {
   alarm (0);			/* disable all interrupts */
-  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   goodbye = NIL;		/* nobody left to talk to */
   logout = "Hangup";
   if (critical) state = LOGOUT;	/* must defer if in critical code */
@@ -626,7 +634,7 @@ void hupint ()
 void trmint ()
 {
   alarm (0);			/* disable all interrupts */
-  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+  server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   goodbye = "-ERR Killed\015\012";
   logout = "Killed";
   if (critical) state = LOGOUT;	/* must defer if in critical code */
@@ -719,7 +727,7 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
       char *e = ferror (stdin) ?
 	strerror (errno) : "Command stream end of file";
       alarm (0);		/* disable all interrupts */
-      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
       sprintf (logout = tmp,"%.80s, while reading authentication",e);
       goodbye = NIL;
       state = LOGOUT;
@@ -735,7 +743,7 @@ char *responder (void *challenge,unsigned long clen,unsigned long *rlen)
 	char *e = ferror (stdin) ?
 	  strerror (errno) : "Command stream end of file";
 	alarm (0);		/* disable all interrupts */
-	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+	server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
 	sprintf (logout = tmp,"%.80s, while reading auth char",e);
 	goodbye = NIL;
 	state = LOGOUT;
@@ -973,7 +981,7 @@ void mm_log (char *string,long errflg)
     if (state != UPDATE) {
       char tmp[MAILTMPLEN];
       alarm (0);		/* disable all interrupts */
-      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
+      server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
       sprintf (logout = tmp,"Mailbox closed (%.80s)",string);
       goodbye = NIL;
       state = LOGOUT;

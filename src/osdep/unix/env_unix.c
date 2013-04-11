@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2008 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,13 @@
  * Program:	UNIX environment routines
  *
  * Author:	Mark Crispin
- *		Networks and Distributed Computing
- *		Computing & Communications
+ *		UW Technology
  *		University of Washington
- *		Administration Building, AG-44
  *		Seattle, WA  98195
- *		Internet: MRC@CAC.Washington.EDU
+ *		Internet: MRC@Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	17 December 2007
+ * Last Edited:	15 February 2008
  */
 
 #include <grp.h>
@@ -81,6 +79,8 @@ static short blackBox = NIL;	/* is a black box */
 static short closedBox = NIL;	/* is a closed box (uses chroot() jail) */
 static short restrictBox = NIL;	/* is a restricted box */
 static short has_no_life = NIL;	/* is a cretin with no life */
+				/* block environment init */
+static short block_env_init = NIL;
 static short hideDotFiles = NIL;/* hide files whose names start with . */
 				/* advertise filesystem root */
 static short advertisetheworld = NIL;
@@ -465,6 +465,11 @@ void *env_parameters (long function,void *value)
   case GET_NETFSSTATBUG:
     ret = (void *) (netfsstatbug ? VOIDT : NIL);
     break;
+  case SET_BLOCKENVINIT:
+    block_env_init = value ? T : NIL;
+  case GET_BLOCKENVINIT:
+    ret = (void *) (block_env_init ? VOIDT : NIL);
+    break;
   case SET_BLOCKNOTIFY:
     mailblocknotify = (blocknotify_t) value;
   case GET_BLOCKNOTIFY:
@@ -560,7 +565,8 @@ void internal_date (char *date)
  */
 
 void server_init (char *server,char *service,char *sslservice,
-		  void *clkint,void *kodint,void *hupint,void *trmint)
+		  void *clkint,void *kodint,void *hupint,void *trmint,
+		  void *staint)
 {
   int onceonly = server && service && sslservice;
   if (onceonly) {		/* set server name in syslog */
@@ -581,6 +587,8 @@ void server_init (char *server,char *service,char *sslservice,
   arm_signal (SIGHUP,hupint);	/* prepare for hangup */
   arm_signal (SIGPIPE,hupint);	/* alternative hangup */
   arm_signal (SIGTERM,trmint);	/* prepare for termination */
+				/* status dump */
+  if (staint) arm_signal (SIGUSR1,staint);
   if (onceonly) {		/* set up network and maybe SSL */
     long port;
     struct servent *sv;
@@ -795,6 +803,8 @@ long env_init (char *user,char *home)
   struct passwd *pw;
   struct stat sbuf;
   char tmp[MAILTMPLEN];
+				/* don't init if blocked */
+  if (block_env_init) return LONGT;
   if (myUserName) fatal ("env_init called twice!");
 				/* initially nothing in namespace list */
   nslist[0] = nslist[1] = nslist[2] = NIL;
@@ -894,11 +904,16 @@ char *myusername_full (unsigned long *flags)
 				/* yes, look up getlogin() user name or EUID */
     if (((s = (char *) getlogin ()) && *s && (strlen (s) < NETMAXUSER) &&
 	 (pw = getpwnam (s)) && (pw->pw_uid == euid)) ||
-	(pw = getpwuid (euid)))
+	(pw = getpwuid (euid))) {
+      if (block_env_init) {	/* don't env_init if blocked */
+	if (flags) *flags = MU_LOGGEDIN;
+	return pw->pw_name;
+      }
       env_init (pw->pw_name,
 		((s = getenv ("HOME")) && *s && (strlen (s) < NETMAXMBX) &&
 		 !stat (s,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR)) ?
 		s : pw->pw_dir);
+    }
     else fatal ("Unable to look up user name");
   }
   if (myUserName) {		/* logged in? */

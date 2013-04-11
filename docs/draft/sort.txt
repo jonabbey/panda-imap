@@ -1,14 +1,8 @@
-
-
-
-
-
 IMAP Extensions Working Group                                 M. Crispin
 Internet-Draft                                              K. Murchison
-Intended status: Proposed Standard                     September 5, 2007
-Expires: March 5, 2008
-Document: internet-drafts/draft-ietf-imapext-sort-19.txt
-
+Intended status: Proposed Standard                        March 10, 2008
+Expires: September 10, 2008
+Document: internet-drafts/draft-ietf-imapext-sort-20.txt
 
      INTERNET MESSAGE ACCESS PROTOCOL - SORT AND THREAD EXTENSIONS
 
@@ -43,14 +37,12 @@ Status of this Memo
 
    Distribution of this memo is unlimited.
 
-
 Abstract
 
    This document describes the base-level server-based sorting and
    threading extensions to the [IMAP] protocol.  These extensions
    provide substantial performance improvements for IMAP clients which
    offer sorted and threaded views.
-
 
 1. Introduction
 
@@ -69,9 +61,22 @@ Abstract
    supported threading algorithm name as described in this document.
    This provides for future upwards-compatible extensions.
 
-   A server which implements the SORT and/or THREAD extensions SHOULD
-   also implement the COMPARATOR extension as described in [IMAP-I18N].
+   A server which implements the SORT and/or THREAD extensions MUST
+   collate strings in accordance with the requirements of I18NLEVEL=1,
+   as described in [IMAP-I18N], and SHOULD implement and advertise the
+   I18NLEVEL=1 extension.  Alternatively, a server MAY implement
+   I18NLEVEL=2 (or higher) and comply with the rules of that level.
 
+      Discussion: the SORT and THREAD extensions predate [IMAP-I18N] by
+      several years.  At the time of this writing, all known server
+      implementations of SORT and THREAD comply with the rules of
+      I18NLEVEL=1, but do not necessarily advertise it.  As discussed
+      in [IMAP-I18N] section 4.5, all server implementations should
+      eventually be updated to comply with the I18NLEVEL=2 extension.
+
+   Historical note: the REFERENCES threading algorithm is based on the
+   [THREADING] algorithm written used in "Netscape Mail and News"
+   versions 2.0 through 3.0.  
 
 2. Terminology
 
@@ -88,7 +93,6 @@ Abstract
 
    In examples, "C:" and "S:" indicate lines sent by the client and
    server respectively.
-
 
 2.1 Base Subject
 
@@ -132,7 +136,6 @@ Abstract
    Otherwise there is potential for a user to get inconsistent results
    based on whether they are running in connected or disconnected mode.
 
-
 2.2 Sent Date
 
    As used in this document, the term "sent date" refers to the date and
@@ -149,6 +152,13 @@ Abstract
    (described in [IMAP] section 6.4.4), which use just the date and not
    the time, and are not adjusted by time zone.
 
+   If the sent date can not be determined (a Date: header is missing or
+   can not be parsed), the INTERNALDATE for that message is used as the
+   sent date.
+
+   When comparing two sent dates that match exactly, the order in which
+   the two messages appear in the mailbox (that is, by sequence number)
+   is used as a tie-breaker to determine the order.
 
 3. Additional Commands
 
@@ -229,12 +239,7 @@ BASE.6.4.SORT. SORT Command
          [IMAP] addr-mailbox of the first "cc" address.
 
       DATE
-         Sent date and time from the Date: header, adjusted by time
-         zone.  This differs from the SENTON criteria in SEARCH, which
-         uses just the date and not the time, nor adjusts by time zone.
-         If the sent date can not be determined (a Date: header is
-         missing or can not be parsed), the INTERNALDATE for that
-         message is used as the sent date.
+         Sent date and time, as described in section 2.2.
 
       FROM
          [IMAP] addr-mailbox of the first "From" address.
@@ -261,7 +266,6 @@ BASE.6.4.SORT. SORT Command
       TO
          [IMAP] addr-mailbox of the first "To" address.
 
-
    Example:    C: A282 SORT (SUBJECT) UTF-8 SINCE 1-Feb-1994
                S: * SORT 2 84 882
                S: A282 OK SORT completed
@@ -271,7 +275,6 @@ BASE.6.4.SORT. SORT Command
                C: A284 SORT (SUBJECT) US-ASCII TEXT "not in mailbox"
                S: * SORT
                S: A284 OK SORT completed
-
 
 BASE.6.4.THREAD. THREAD Command
 
@@ -336,34 +339,20 @@ Result:     OK - thread completed
          message at the root.  Hence, there are no grandchildren in
          ORDEREDSUBJECT threading.
 
-           Note: early drafts of this specification specified
-           that each message in an ORDEREDSUBJECT thread is a child
-           (as opposed to a sibling) of the previous message.  This
-           is now deprecated.  For compatibility with servers which
-           may still use the old definition, client implementations
-           SHOULD treat descendents of a child as being siblings of
-           that child.
-
-           This is because the old definition mistakenly indicated
-           that there was a parent/child relationship between
-           successive messages in a thread; when in fact there was
-           only a chronological relationship.  In clients which
-           indicate parent/child relationships in a thread tree,
-           this would indicate levels of descent which did not
-           exist.
-
+         Children in ORDEREDSUBJECT threading do not have descendents.
+         Client implementations SHOULD treat descendents of a child in
+         a server response as being siblings of that child.
 
       REFERENCES
 
-         The REFERENCES threading algorithm is based on the [THREADING]
-         algorithm written used in "Netscape Mail and News" versions 2.0
-         through 3.0.  This algorithm threads the searched messages by
-         grouping them together in parent/child relationships based on
-         which messages are replies to others.  The parent/child
-         relationships are built using two methods: reconstructing a
-         message's ancestry using the references contained within it;
-         and checking the original (not base) subject of a message to
-         see if it is a reply to (or forward of) another message.
+         The REFERENCES threading algorithm threads the searched
+         messages by grouping them together in parent/child
+         relationships based on which messages are replies to others.
+         The parent/child relationships are built using two methods:
+         reconstructing a message's ancestry using the references
+         contained within it; and checking the original (not base)
+         subject of a message to see if it is a reply to (or forward of)
+         another message.
 
             Note: "Message ID" in the following description refers to a
             normalized form of the msg-id in [RFC-2822].  The actual
@@ -483,13 +472,9 @@ Result:     OK - thread completed
             children of the root, unless there is only one child.
 
          (4) Sort the messages under the root (top-level siblings only)
-         by sent date.  In the case of an exact match on sent date, use
-         the order in which the messages appear in the mailbox (that is,
-         by sequence number) to determine the order.  In the case of a
+         by sent date as described in section 2.2.  In the case of a
          dummy message, sort its children by sent date and then use the
-         first child for the top-level sort.  If the sent date can not
-         be determined (a Date: header is missing or can not be parsed),
-         the INTERNALDATE for that message is used as the sent date.
+         first child for the top-level sort.
 
          (5) Gather together messages under the root that have the same
          base subject text.
@@ -567,17 +552,12 @@ Result:     OK - thread completed
                      Considerations."
 
          (6) Traverse the messages under the root and sort each set of
-         siblings by sent date.  Traverse the messages in such a way
-         that the "youngest" set of siblings are sorted first, and the
-         "oldest" set of siblings are sorted last (grandchildren are
-         sorted before children, etc).  In the case of an exact match on
-         sent date or if either of the Date: headers used in a
-         comparison can not be parsed, use the order in which the
-         messages appear in the mailbox (that is, by sequence number) to
-         determine the order.  In the case of a dummy message (which can
-         only occur with top-level siblings), use its first child for
-         sorting.
-
+         siblings by sent date as described in section 2.2.  Traverse
+         the messages in such a way that the "youngest" set of siblings
+         are sorted first, and the "oldest" set of siblings are sorted
+         last (grandchildren are sorted before children, etc).  In the
+         case of a dummy message (which can only occur with top-level
+         siblings), use its first child for sorting.
 
    Example:    C: A283 THREAD ORDEREDSUBJECT UTF-8 SINCE 5-MAR-2000
                S: * THREAD (166)(167)(168)(169)(172)(170)(171)
@@ -597,11 +577,9 @@ Result:     OK - thread completed
                   (199)(200 202)(201)(203)(204)(205 206 207)(208)
                S: A285 OK THREAD completed
 
-
         Note: The line breaks in the first and third server
         responses are for editorial clarity and do not appear in
         real THREAD responses.
-
 
 4. Additional Responses
 
@@ -621,7 +599,6 @@ BASE.7.2.SORT. SORT Response
       delimited by a space.
 
    Example:    S: * SORT 2 3 6
-
 
 BASE.7.2.THREAD. THREAD Response
 
@@ -670,7 +647,6 @@ BASE.7.2.THREAD. THREAD Response
       match the search criteria (and/or does not exist in the mailbox);
       however they are members of the same thread.
 
-
 5. Formal Syntax of SORT and THREAD Commands and Responses
 
    The following syntax specification uses the Augmented Backus-Naur
@@ -708,7 +684,6 @@ thread-members  = nz-number *(SP nz-number) [SP thread-nested]
 
 thread-nested   = 2*thread-list
 
-
    The following syntax describes base subject extraction rules (2)-(6):
 
 subject         = *subj-leader [subj-middle] *subj-trailer
@@ -740,7 +715,6 @@ BLOBCHAR        = %x01-5a / %x5c / %x5e-ff
 NONWSP          = %x01-08 / %x0a-1f / %x21-ff
                     ; any CHAR8 other than WSP
 
-
 6. Security Considerations
 
    The SORT and THREAD extensions do not raise any security
@@ -750,25 +724,29 @@ NONWSP          = %x01-08 / %x0a-1f / %x21-ff
    data, are sent in the clear over the network unless protection from
    snooping is negotiated, either by the use of STARTTLS, privacy
    protection is negotiated in the AUTHENTICATE command, or some other
-   protection mechanism is in effect.
+   protection mechanism.
 
+   Although not a security consideration, it is important to recognize
+   that sorting by REFERENCES can lead to misleading threading trees.
+   For example, a message with false References: header data will cause
+   a thread to be incorporated into another thread.
+
+   The process of extracting the base subject may lead to incorrect
+   collation if the extracted data was significant text as opposed to
+   a subject artifact.
 
 7. Internationalization Considerations
 
-   As stated in the introduction, the server SHOULD support the
-   [IMAP-I18N] COMPARATOR extension and follow its rules to perform
-   collations in the SORT and THREAD extensions.
+   As stated in the introduction, the rules of I18NLEVEL=1 as described
+   in [IMAP-I18N] MUST be followed; that is, the SORT and THREAD
+   extensions MUST collate strings according to the i;unicode-casemap
+   collation described in [UNICASEMAP].  Servers SHOULD also advertise
+   the I18NLEVEL=1 extension.  Alternatively, a server MAY implement
+   I18NLEVEL=2 (or higher) and comply with the rules of that level.
 
-   If the server does not support COMPARATOR, strings MUST be collated
-   according to the i;unicode-casemap collation described in
-   [UNICASEMAP].
-
-   As described in [IMAP-I18N], strings in charsets other than US-ASCII
-   and UTF-8 MUST be converted to UTF-8 and compared in ascending order
-   according to the selected or active collation algorithm.  If the
-   server does not support the [IMAP-I18N] COMPARATOR extension, the
-   collation algorithm used is the "en;ascii-casemap" collation
-   described in [COMPARATOR].
+   As discussed in [IMAP-I18N] section 4.5, all server implementations
+   should eventually be updated to support the [IMAP-I18N] I18NLEVEL=2
+   extension.
 
    Translations of the "re" or "fw"/"fwd" tokens are not specified for
    removal in the base subject extraction process.  An attempt to add
@@ -785,7 +763,6 @@ NONWSP          = %x01-08 / %x0a-1f / %x21-ff
    Internet mail messages, since doing so makes it a simple display time
    task to localize the token language for the user.
 
-
 8. IANA Considerations
 
    [IMAP] capabilities are registered by publishing a standards track or
@@ -799,22 +776,17 @@ NONWSP          = %x01-08 / %x0a-1f / %x21-ff
    registration of the ORDEREDSUBJECT and REFERENCES algorithms in that
    registry.
 
-
 9. Normative References
 
    The following documents are normative to this document:
 
    [ABNF]                Crocker, D. and Overell, P. "Augmented BNF
-                         for Syntax Specifications: ABNF", RFC 4234
-                         October 2005.
+                         for Syntax Specifications: ABNF", RFC 5234
+                         January 2008
 
    [CHARSET]             Freed, N. and Postel, J. "IANA Character Set
                          Registration Procedures", RFC 2978, October
                          2000.
-
-   [COMPARATOR]          Newman, C. and Duerst, M. "Internet
-                         Appplication Protocol Collation Registry",
-                         RFC 4790, March 2007
 
    [IMAP]                Crispin, M. "Internet Message Access Protocol -
                          Version 4rev1", RFC 3501, March 2003.
@@ -831,8 +803,7 @@ NONWSP          = %x01-08 / %x0a-1f / %x21-ff
                          2822, April 2001.
 
    [UNICASEMAP]          Crispin, M. "i;unicode-casemap - Simple Unicode
-                         Collation Algorithm", Work in Progress.
-
+                         Collation Algorithm", RFC 5051.
 
 10. Informative References
 
@@ -859,7 +830,6 @@ Author's Address
 
    EMail: MRC@CAC.Washington.EDU
 
-
    Kenneth Murchison
    Carnegie Mellon University
    5000 Forbes Avenue
@@ -869,10 +839,9 @@ Author's Address
    Phone: +1 (412) 268-2638
    Email: murch@andrew.cmu.edu
 
-
 Full Copyright Statement
 
-   Copyright (C) The IETF Trust (2007).
+   Copyright (C) The IETF Trust (2008).
 
    This document is subject to the rights, licenses and restrictions
    contained in BCP 78, and except as set forth therein, the authors
