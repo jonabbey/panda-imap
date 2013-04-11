@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 October 2002
+ * Last Edited:	16 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -48,8 +48,6 @@ static short restrictBox = NIL;	/* is a restricted box */
 static short has_no_life = NIL;	/* is a cretin with no life */
 				/* flock() emulator is a no-op */
 static short disableFcntlLock = NIL;
-				/* warning on EACCES errors on .lock files */
-static short lockEaccesError = T;
 static short hideDotFiles = NIL;/* hide files whose names start with . */
 				/* advertise filesystem root */
 static short advertisetheworld = NIL;
@@ -90,6 +88,18 @@ static NAMESPACE *nslist[3];	/* namespace list */
 static int logtry = 3;		/* number of server login tries */
 				/* block notification */
 static blocknotify_t mailblocknotify = mm_blocknotify;
+
+/* Note: setting disableLockWarning means that you assert that the
+ * so-modified copy of this software will NEVER be used:
+ *  1) in conjunction with any software which expects .lock files
+ *  2) to access NFS-mounted files and directories
+ *
+ * Unless both of these conditions apply, then do not set this flag.
+ * Instead, read the FAQ (item 7.10) and either use 1777 protection
+ * on the mail spool, or install mlock.
+ */
+				/* disable warning if can't make .lock file */
+static short disableLockWarning = NIL;
 
 /* UNIX namespaces */
 
@@ -267,9 +277,9 @@ void *env_parameters (long function,void *value)
     ret = (void *) (disableFcntlLock ? VOIDT : NIL);
     break;
   case SET_LOCKEACCESERROR:
-    lockEaccesError = value ? T : NIL;
+    disableLockWarning = value ? NIL : T;
   case GET_LOCKEACCESERROR:
-    ret = (void *) (lockEaccesError ? VOIDT : NIL);
+    ret = (void *) (disableLockWarning ? NIL : VOIDT);
     break;
   case SET_HIDEDOTFILES:
     hideDotFiles = value ? T : NIL;
@@ -773,7 +783,8 @@ char *myhomedir ()
 static char *mymailboxdir ()
 {
   char *home = myhomedir ();
-  if (!myMailboxDir && home) {	/* initialize if first time */
+				/* initialize if first time */
+  if (!myMailboxDir && myHomeDir) {
     if (mailsubdir) {
       char tmp[MAILTMPLEN];
       sprintf (tmp,"%s/%s",home,mailsubdir);
@@ -985,6 +996,7 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
       MM_LOG (tmp,WARN);
     }
     mask = umask (0);		/* want our lock protection */
+    unlink (base->lock);	/* try to remove the old file */
 				/* seize the lock */
     if ((i = open (base->lock,O_WRONLY|O_CREAT,(int) lock_protection)) >= 0) {
       close (i);		/* don't need descriptor any more */
@@ -1036,17 +1048,24 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
       }
       close (pi[0]); close (pi[1]);
     }
-    if (lockEaccesError) {	/* punt silently if paranoid site */
-      sprintf (tmp,"Mailbox vulnerable - directory %.80s",base->lock);
-      if (s = strrchr (tmp,'/')) *s = '\0';
-      strcat (tmp," must have 1777 protection");
-      MM_LOG (tmp,WARN);
+				/* find directory/file delimiter */
+    if (s = strrchr (base->lock,'/')) {
+      *s = '\0';		/* tie off at directory */
+      sprintf(tmp,		/* generate default message */
+	      "Mailbox vulnerable - directory %.80s must have 1777 protection",
+	      base->lock);
+				/* definitely not 1777 if can't stat */
+      mask = stat (base->lock,&sb) ? 0 : (sb.st_mode & 1777);
+      *s = '/';			/* restore lock name */
+      if (mask != 1777) {	/* default warning if not 1777 */
+	if (!disableLockWarning) MM_LOG (tmp,WARN);
+	break;
+      }
     }
-    break;
   default:
     sprintf (tmp,"Mailbox vulnerable - error creating %.80s: %s",
 	     base->lock,strerror (errno));
-    MM_LOG (tmp,WARN);		/* this is probably not good */
+    if (!disableLockWarning) MM_LOG (tmp,WARN);
     break;
   }
   base->lock[0] = '\0';		/* don't use lock files */
@@ -1485,8 +1504,8 @@ void dorc (char *file,long flag)
 	  locktimeout = atoi (k);
 	else if (!compare_cstring (s,"set disable-fcntl-locking"))
 	  disableFcntlLock = atoi (k);
-	else if (!compare_cstring (s,"set lock-eacces-error"))
-	  lockEaccesError = atoi (k);
+	else if (!compare_cstring (s,"set disable-lock-warning"))
+	  disableLockWarning = atoi (k);
 	else if (!compare_cstring (s,"set hide-dot-files"))
 	  hideDotFiles = atoi (k);
 	else if (!compare_cstring (s,"set list-maximum-level"))

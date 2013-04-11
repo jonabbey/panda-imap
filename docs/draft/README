@@ -1,4 +1,4 @@
-Last Updated: 18 November 2002
+Last Updated: 7 March 2003
 
 This directory contains Internet Drafts which, at the time of release of
 this software, were not yet been published as RFCs.  These documents are
@@ -15,20 +15,7 @@ binary.txt	draft-nerenberg-imap-binary-07.txt
 		;; BINARY extension
 		;; Status: RFC editor queue
 
-imapbase.txt	draft-crispin-imapv-20.txt
-		;; update/replacement for RFC 2060
-		;; Status: RFC editor queue
-
-multapnd.txt	draft-crispin-imap-multiappend-07.txt
-		;; MULTIAPPEND extension to APPEND command
-		;; Status: RFC editor queue
-
-sort.txt	draft-ietf-imapext-sort-10.txt
-		;; SORT command
-		;; Status: further work needed on i18n collation,
-		;;  per IESG request
-
-thread.txt	draft-ietf-imapext-thread-12.txt
-		;; THREAD command
+sort.txt	draft-ietf-imapext-sort-12.txt
+		;; SORT and THREAD commands
 		;; Status: further work needed on i18n collation,
 		;;  per IESG request

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	2 December 2002
+ * Last Edited:	17 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -57,7 +57,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2002.81";	/* server version */
+char *version = "2003.83";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -463,7 +463,8 @@ int main (int argc,char *argv[])
 	       tcp_clienthost ());
   PSOUT (sayonara);		/* "now it's time to say sayonara..." */
   PFLUSH ();			/* make sure output finished */
-  return 0;			/* all done */
+  exit (0);			/* all done */
+  return 0;			/* stupid compilers */
 }
 
 /* Clock interrupt

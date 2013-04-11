@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	28 October 2002
+ * Last Edited:	11 February 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -113,14 +113,20 @@ typedef struct imap_local {
 
 /* Protocol levels */
 
-/* As of October 14, 2002, it is believed that:
- * IMAP1		extinct
- * IMAP2 (RFC 1064)	extinct
- * IMAP2 (RFC 1176)	rarely encountered (TOPS-20 server)
- * IMAP2bis		uncommon (old UW servers)
- * IMAP3 (RFC 1203)	stillborn; never implemented
- * IMAP4 (RFC 1730)	rarely encountered
- * IMAP4rev1		ubiquitous
+/* As of February 11, 2003, it is believed that:
+ *
+ * Version	RFC		Status		Known Implementations
+ * -------	---		------		---------------------
+ * IMAP1	none		extinct		experimental TOPS-20 server
+ * IMAP2	1064, 1176	rare		TOPS-20, SUMEX, old UW servers
+ * IMAP2bis	I-D		uncommon	old UW, Cyrus servers
+ * IMAP3	1203		extinct		none (never implemented)
+ * IMAP4	1730		rare		old UW, Cyrus, Netscape servers
+ * IMAP4rev1	2060, I-D	ubiquitous	UW, Cyrus, and many others
+ *
+ * Most client implementations will only interoperate with an IMAP4rev1
+ * server.  c-client based client implementations can interoperate with IMAP2,
+ * IMAP2bis, IMAP4, and IMAP4rev1 servers, but only if they are very careful.
  */
 
 /* IMAP4rev1 level or better */
@@ -154,8 +160,7 @@ typedef struct imap_local {
 /* IMAP2 RFC-1064 or better */
 
 #define LEVEL1064(stream) 1
-
-
+
 /* Body structure extension levels */
 
 /* These are in BODYSTRUCTURE order.  Note that multipart bodies do not have
@@ -168,7 +173,8 @@ typedef struct imap_local {
 #define BODYEXTDSP 2		/* body-fld-dsp */
 #define BODYEXTLANG 3		/* body-fld-lang */
 #define BODYEXTLOC 4		/* body-fld-loc */
-
+
+
 /* Has ACL extension */
 
 #define LEVELACL(stream) ((IMAPLOCAL *) stream->local)->cap.acl
@@ -207,8 +213,7 @@ typedef struct imap_local {
 /* Has UIDPLUS extension */
 
 #define LEVELUIDPLUS(stream) ((IMAPLOCAL *) stream->local)->cap.uidplus
-
-
+
 /* Has ID extension */
 
 #define LEVELID(stream) ((IMAPLOCAL *) stream->local)->cap.id

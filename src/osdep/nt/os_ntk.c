@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- NT version
+ * Program:	Operating-system dependent routines -- NT version + Kerberos
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -31,10 +31,13 @@
 #include "misc.h"
 #include "mailfile.h"
 
+#define GSS_C_NT_HOSTBASED_SERVICE gss_nt_service_name
+
 #include "fs_nt.c"
 #include "ftl_nt.c"
 #include "nl_nt.c"
 #include "yunchan.c"
+#include "kerb_mit.c"
 #include "env_nt.c"
-#include "ssl_old.c"
+#include "ssl_nt.c"
 #include "tcp_nt.c"

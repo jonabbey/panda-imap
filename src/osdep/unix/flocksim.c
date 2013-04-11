@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	7 February 2002
+ * Last Edited:	16 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -318,9 +318,11 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
       switch (tmp[0]) {		/* analyze event */
       case 'A':			/* append callback */
 	if ((*af) (NIL,data,&s,&t,&message)) {
-	  if (!s) s = "";	/* default values */
-	  if (!t) t = "";
-	  i = message ? SIZE (message) : 0;
+	  if (i = message ? SIZE (message) : 0) {
+	    if (!s) s = "";	/* default values */
+	    if (!t) t = "";
+	  }
+	  else s = t = "";	/* no flags or date if no message */
 	  errno = NIL;		/* reset last error */
 				/* build response */
 	  sprintf (tmp,"+%lu %s%lu %s%lu ",strlen (s),s,strlen (t),t,i);
@@ -329,17 +331,14 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
 		     strlen (s),s,strlen (t),t,i,strerror (errno));
 	    fatal (tmp);
 	  }
-	  if (message) for (; i; --i) {
-	    c = 0xff & SNX (message);
-	    if (putc (c,po) == EOF) {
-	      sprintf (tmp,"Failed to pipe %lu bytes (of %lu), last=%u: %s",
-		       i,message->size,c,strerror (errno));
-	      fatal (tmp);
-	    }
-	  }
-	  else fputs ("0 ",po);
+				/* write message text */
+	  if (i) do if (putc (c = 0xff & SNX (message),po) == EOF) {
+	    sprintf (tmp,"Failed to pipe %lu bytes (of %lu), last=%u: %s",
+		     i,message->size,c,strerror (errno));
+	    fatal (tmp);
+	  } while (--i);
 	}
-	else fputc ('-',po);	/* append error */
+	else putc ('-',po);	/* append error */
 	fflush (po);
 	break;
       case '&':			/* slave wants a proxycopy? */
@@ -413,17 +412,16 @@ static long master (MAILSTREAM *stream,append_t af,void *data)
 	  i = strtoul (s,&s,10);
 	  if (s && (*s++ == ' ')) {
 	    j = (long) strtoul (s,NIL,10);
-	    if (st == stream) {	/* let's hope it's on usable stream */
-	      fputc (mm_diskerror (stream,(long) i,j) ? '+' : '-',po);
-	    }
+	    if (st == stream)	/* let's hope it's on usable stream */
+	      putc (mm_diskerror (stream,(long) i,j) ? '+' : '-',po);
 	    else if (j) {	/* serious diskerror on slave-created stream */
 	      mm_log ("Retrying disk write to avoid mailbox corruption!",WARN);
 	      sleep (5);	/* give some time for it to clear up */
-	      fputc ('-',po);	/* don't abort */
+	      putc ('-',po);	/* don't abort */
 	    }
 	    else {		/* recoverable on slave-created stream */
 	      mm_log ("Error on disk write",ERROR);
-	      fputc ('+',po);	/* so abort it */
+	      putc ('+',po);	/* so abort it */
 	    }
 	    fflush (po);	/* force it out either way */
 	    break;
@@ -762,21 +760,21 @@ long slave_append (MAILSTREAM *stream,void *data,char **flags,char **date,
   case '+':			/* have message, get size of flags */
     for (n = 0; isdigit (c = getchar ()); n *= 10, n += (c - '0'));
     if (c != ' ') {
-      sprintf (tmp,"Missing delimiter after flag size: %c",c);
+      sprintf (tmp,"Missing delimiter after flag size %lu: %c",n,c);
       slave_fatal (tmp);
     }
     if (n) *flags = ad->flags = slave_append_read (n,"flags");
 				/* get size of date */
     for (n = 0; isdigit (c = getchar ()); n *= 10, n += (c - '0'));
     if (c != ' ') {
-      sprintf (tmp,"Missing delimiter after date size: %c",c);
+      sprintf (tmp,"Missing delimiter after date size %lu: %c",n,c);
       slave_fatal (tmp);
     }
     if (n) *date = ad->date = slave_append_read (n,"date");
 				/* get size of message */
     for (n = 0; isdigit (c = getchar ()); n *= 10, n += (c - '0'));
     if (c != ' ') {
-      sprintf (tmp,"Missing delimiter after message size: %c",c);
+      sprintf (tmp,"Missing delimiter after message size %lu: %c",n,c);
       slave_fatal (tmp);
     }
     if (n) {			/* make buffer for message */
@@ -790,13 +788,12 @@ long slave_append (MAILSTREAM *stream,void *data,char **flags,char **date,
     return LONGT;
   case '-':			/* error */
     *message = NIL;		/* set stop */
-    return NIL;			/* return failure */
-  }
-  if (c != ' ') {
+    break;
+  default:			/* unknown event */
     sprintf (tmp,"Unknown master response for append: %c",c);
     slave_fatal (tmp);
   }
-  return NIL;
+  return NIL;			/* return failure */
 }
 
 /* Proxy copy across mailbox formats

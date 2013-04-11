@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	5 October 2001
+ * Last Edited:	18 February 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -33,10 +33,11 @@ typedef struct pop3_local {
   NETSTREAM *netstream;		/* TCP I/O stream */
   char *response;		/* last server reply */
   char *reply;			/* text of last server reply */
-  unsigned long msgno;		/* current text message number */
-  unsigned long hdrsize;	/* current text header size */
-  FILE *txt;			/* current text */
+  unsigned long cached;		/* current cached message uid */
+  unsigned long hdrsize;	/* current cached header size */
+  FILE *txt;			/* current cached file descriptor */
   struct {
+    unsigned int capa : 1;	/* server has CAPA, definitely new */
     unsigned int expire : 1;	/* server has EXPIRE */
     unsigned int logindelay : 1;/* server has LOGIN-DELAY */
     unsigned int stls : 1;	/* server has STLS */
@@ -52,6 +53,7 @@ typedef struct pop3_local {
     unsigned int sasl : MAXAUTHENTICATORS;
   } cap;
   unsigned int sensitive : 1;	/* sensitive data in progress */
+  unsigned int loser : 1;	/* server is a loser */
 } POP3LOCAL;
 
 

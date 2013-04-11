@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	7 January 2003
+ * Last Edited:	18 March 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -297,8 +297,8 @@ long pop3_status (MAILSTREAM *stream,char *mbx,long flags)
 
 MAILSTREAM *pop3_open (MAILSTREAM *stream)
 {
-  unsigned long i;
-  char tmp[MAILTMPLEN],usr[MAILTMPLEN];
+  unsigned long i,j;
+  char *s,*t,tmp[MAILTMPLEN],usr[MAILTMPLEN];
   NETMBX mb;
   MESSAGECACHE *elt;
 				/* return prototype for OP_PROTOTYPE call */
@@ -343,6 +343,7 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
       if (mb.notlsflag) strcat (tmp,"/notls");
       if (mb.sslflag) strcat (tmp,"/ssl");
       if (mb.novalidate) strcat (tmp,"/novalidate-cert");
+      if (LOCAL->loser = mb.loser) strcat (tmp,"/loser");
       if (stream->secure) strcat (tmp,"/secure");
       sprintf (tmp + strlen (tmp),"/user=\"%s\"}%s",usr,mb.mailbox);
       stream->inbox = T;	/* always INBOX */
@@ -356,6 +357,22 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
 	elt = mail_elt (stream,++i);
 	elt->valid = elt->recent = T;
 	elt->private.uid = i;
+      }
+
+				/* trust LIST output if new server */
+      if (!LOCAL->loser && LOCAL->cap.capa && pop3_send (stream,"LIST",NIL)) {
+	while ((s = net_getline (LOCAL->netstream)) && (*s != '.')) {
+	  if ((i = strtoul (s,&t,10)) && (i <= stream->nmsgs) &&
+	      (j = strtoul (t,NIL,10))) mail_elt (stream,i)->rfc822_size = j;
+	  fs_give ((void **) &s);
+	}
+				/* flush final dot */
+	if (s) fs_give ((void **) &s);
+	else {			/* lost connection */
+	  mm_log ("POP3 connection broken while itemizing messages",ERROR);
+	  pop3_close (stream,NIL);
+	  return NIL;
+	}
       }
       stream->silent = silent;	/* notify main program */
       mail_exists (stream,stream->nmsgs);
@@ -388,9 +405,9 @@ long pop3_capa (MAILSTREAM *stream,long flags)
     fs_give ((void **) &LOCAL->cap.implementation);
   memset (&LOCAL->cap,0,sizeof (LOCAL->cap));
 				/* get server capabilities */
-  if (!pop3_send (stream,"CAPA",NIL)) {
-				/* guess at them */
-    LOCAL->cap.top = LOCAL->cap.uidl = LOCAL->cap.user = T;
+  if (pop3_send (stream,"CAPA",NIL)) LOCAL->cap.capa = T;
+  else {
+    LOCAL->cap.user = T;	/* guess worst-case old server */
     return NIL;			/* no CAPA on this server */
   }
   while ((t = net_getline (LOCAL->netstream)) && (t[1] || (*t != '.'))) {
@@ -519,7 +536,7 @@ long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *pwd,char *usr)
       trial = 0;		/* initial trial count */
       do {
 	if (t) {
-	  sprintf (pwd,"Retrying %s authentication after %s",at->name,t);
+	  sprintf (pwd,"Retrying %s authentication after %.80s",at->name,t);
 	  mm_log (pwd,WARN);
 	  fs_give ((void **) &t);
 	}
@@ -711,17 +728,36 @@ void pop3_fetchfast (MAILSTREAM *stream,char *sequence,long flags)
 char *pop3_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
 		   long flags)
 {
+  unsigned long i;
+  char tmp[MAILTMPLEN];
   MESSAGECACHE *elt;
+  FILE *f = NIL;
   *size = 0;			/* initially no header size */
   if ((flags & FT_UID) && !(msgno = mail_msgno (stream,msgno))) return "";
-				/* have header text? */
-  if (!(elt = mail_elt (stream,msgno))->private.msg.header.text.data &&
-      (elt->private.msg.header.text.size = pop3_cache (stream,elt)) &&
-      LOCAL->txt) {		/* read the header */
-    fread (elt->private.msg.header.text.data = (unsigned char *)
-	   fs_get ((size_t) elt->private.msg.header.text.size + 1),
-	   (size_t) 1,(size_t) elt->private.msg.header.text.size,LOCAL->txt);
-    elt->private.msg.header.text.data[elt->private.msg.header.text.size] ='\0';
+				/* have header text already? */
+  if (!(elt = mail_elt (stream,msgno))->private.msg.header.text.data) {
+				/* if have CAPA and TOP, assume good TOP */
+    if (!LOCAL->loser && LOCAL->cap.top) {
+      sprintf (tmp,"TOP %lu 0",mail_uid (stream,msgno));
+      if (pop3_send (stream,tmp,NIL))
+	f = netmsg_slurp (LOCAL->netstream,&i,
+			  &elt->private.msg.header.text.size);
+    }
+				/* otherwise load the cache with the message */
+    else if (elt->private.msg.header.text.size = pop3_cache (stream,elt))
+      f = LOCAL->txt;
+    if (f) {			/* got it, make sure at start of file */
+      fseek (f,(unsigned long) 0,L_SET);
+				/* read header from the cache */
+      fread (elt->private.msg.header.text.data = (unsigned char *)
+	     fs_get ((size_t) elt->private.msg.header.text.size + 1),
+	     (size_t) 1,(size_t) elt->private.msg.header.text.size,f);
+				/* tie off header text */
+      elt->private.msg.header.text.data[elt->private.msg.header.text.size] =
+	'\0';
+				/* close if not the cache */
+      if (f != LOCAL->txt) fclose (f);
+    }
   }
 				/* return size of text */
   if (size) *size = elt->private.msg.header.text.size;
@@ -763,15 +799,16 @@ long pop3_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 unsigned long pop3_cache (MAILSTREAM *stream,MESSAGECACHE *elt)
 {
 				/* already cached? */
-  if (LOCAL->msgno != elt->msgno) {
+  if (LOCAL->cached != mail_uid (stream,elt->msgno)) {
 				/* no, close current file */
     if (LOCAL->txt) fclose (LOCAL->txt);
     LOCAL->txt = NIL;
-    LOCAL->msgno = LOCAL->hdrsize = 0;
+    LOCAL->cached = LOCAL->hdrsize = 0;
     if (pop3_send_num (stream,"RETR",elt->msgno) &&
 	(LOCAL->txt = netmsg_slurp (LOCAL->netstream,&elt->rfc822_size,
 				    &LOCAL->hdrsize)))
-      LOCAL->msgno = elt->msgno;/* set as current message number */
+				/* set as current message number */
+      LOCAL->cached = mail_uid (stream,elt->msgno);
     else elt->deleted = T;
   }
   return LOCAL->hdrsize;
@@ -808,6 +845,13 @@ void pop3_expunge (MAILSTREAM *stream)
   unsigned long i = 1,n = 0;
   while (i <= stream->nmsgs) {
     if (mail_elt (stream,i)->deleted && pop3_send_num (stream,"DELE",i)) {
+				/* expunging currently cached message? */
+      if (LOCAL->cached == mail_uid (stream,i)) {
+				/* yes, close current file */
+	if (LOCAL->txt) fclose (LOCAL->txt);
+	LOCAL->txt = NIL;
+	LOCAL->cached = LOCAL->hdrsize = 0;
+      }
       mail_expunged (stream,i);
       n++;
     }

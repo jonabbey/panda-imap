@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	5 April 2002
+ * Last Edited:	3 March 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -25,6 +25,7 @@
 #define NNTPSSLPORT (long) 563	/* assigned(?) SSL TCP contact port */
 #define NNTPGREET (long) 200	/* NNTP successful greeting */
 #define NNTPGREETNOPOST (long) 201
+#define NNTPEXTOK (long) 202	/* NNTP extensions OK */
 #define NNTPGOK (long) 211	/* NNTP group selection OK */
 #define NNTPGLIST (long) 215	/* NNTP group list being returned */
 #define NNTPARTICLE (long) 220	/* NNTP article file */
@@ -32,12 +33,15 @@
 #define NNTPBODY (long) 222	/* NNTP body text */
 #define NNTPOVER (long) 224	/* NNTP overview text */
 #define NNTPOK (long) 240	/* NNTP OK code */
+#define NNTPSASLED (long) 250	/* NNTP successful SASL authentication */
 #define NNTPAUTHED (long) 281	/* NNTP successful authentication */
 #define NNTPREADY (long) 340	/* NNTP ready for data */
+#define NNTPCHALLENGE (long) 351/* NNTP challenge, want response */
 #define NNTPWANTAUTH (long) 380	/* NNTP authentication needed */
 #define NNTPWANTPASS (long) 381	/* NNTP password needed */
 #define NNTPSOFTFATAL (long) 400/* NNTP soft fatal code */
 #define NNTPWANTAUTH2 (long) 480/* NNTP authentication needed (alternate) */
+#define NNTPBADCMD (long) 500	/* NNTP unrecognized command */
 
 
 /* NNTP I/O stream local data */
@@ -45,13 +49,13 @@
 typedef struct nntp_local {
   SENDSTREAM *nntpstream;	/* NNTP stream for I/O */
   unsigned int dirty : 1;	/* disk copy of .newsrc needs updating */
-  unsigned int tlsflag : 1;	/* TLS session */
-  unsigned int notlsflag : 1;	/* TLS not used in session */
   unsigned int sslflag : 1;	/* SSL session */
   unsigned int novalidate : 1;	/* certificate not validated */
+  unsigned int xover : 1;	/* supports XOVER */
   char *name;			/* remote newsgroup name */
   char *user;			/* mailbox user */
   char *newsrc;			/* newsrc file */
+  char *over_fmt;		/* overview format */
   unsigned long msgno;		/* current text message number */
   FILE *txt;			/* current text */
   unsigned long txtsize;	/* current text size */
@@ -66,6 +70,11 @@ typedef struct nntp_local {
 /* Convenient access to protocol-specific data */
 
 #define NNTP stream->protocol.nntp
+
+
+/* Convenient access to extensions */
+
+#define EXTENSION LOCAL->nntpstream->protocol.nntp.ext
 
 /* Compatibility support names */
 
@@ -94,6 +103,7 @@ void nntp_fetchfast (MAILSTREAM *stream,char *sequence,long flags);
 void nntp_flags (MAILSTREAM *stream,char *sequence,long flags);
 long nntp_overview (MAILSTREAM *stream,overview_t ofn);
 long nntp_parse_overview (OVERVIEW *ov,char *text,MESSAGECACHE *elt);
+long nntp_over (MAILSTREAM *stream,char *sequence);
 char *nntp_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
 		   long flags);
 long nntp_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
@@ -119,6 +129,8 @@ long nntp_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
 SENDSTREAM *nntp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 			    unsigned long port,long options);
+SENDSTREAM *nntp_greet (SENDSTREAM *stream,long options);
+long nntp_extensions (SENDSTREAM *stream,long flags);
 SENDSTREAM *nntp_close (SENDSTREAM *stream);
 long nntp_mail (SENDSTREAM *stream,ENVELOPE *msg,BODY *body);
 long nntp_send (SENDSTREAM *stream,char *command,char *args);

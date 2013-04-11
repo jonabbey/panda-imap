@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 February 1994
- * Last Edited:	19 December 2002
+ * Last Edited:	18 March 2003
  *
  * The IMAP tools software provided in this Distribution is
- * Copyright 2002 by the University of Washington
+ * Copyright 1988-2003 by the University of Washington
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -32,6 +32,7 @@ char *getpass ();		/* let's all do the cretin hop */
 
 int debugp = NIL;		/* flag saying debug */
 int verbosep = NIL;		/* flag saying verbose */
+int rwcopyp = NIL;		/* flag saying readwrite copy (for POP) */
 int critical = NIL;		/* flag saying in critical code */
 int trycreate = NIL;		/* [TRYCREATE] seen */
 char *suffix = NIL;		/* suffer merge mode suffix text */
@@ -158,6 +159,7 @@ int main (int argc,char *argv[])
     if (*(s = *args) == '-') {	/* parse switches */
       if (!strcmp (s,"-debug") || !strcmp (s,"-d")) debugp = T;
       else if (!strcmp (s,"-verbose") || !strcmp (s,"-v")) verbosep = T;
+      else if (!strcmp (s,"-rwcopy") || !strcmp (s,"-rw")) rwcopyp = T;
       else if ((nargs > 1) && (!strcmp (s,"-merge") || !strcmp (s,"-m"))) {
 	args++,nargs--;		/* advance to next argument */
 	if (!strcmp (s = *args,"prompt")) merge = mPROMPT;
@@ -168,12 +170,12 @@ int main (int argc,char *argv[])
 	}
 	else {
 	  printf ("unknown merge option: %s\n",s);
-	  return ret;
+	  exit (ret);
 	}
       }
       else {
 	printf ("unknown switch: %s\n",s);
-	return ret;
+	exit (ret);
       }
     }
     else if (!cmd) cmd = s;	/* first non-switch is command */
@@ -181,22 +183,22 @@ int main (int argc,char *argv[])
     else if (!dst) dst = s;	/* third non-switch is destination */
     else {
       printf ("unknown argument: %s\n",s);
-      return ret;
+      exit (ret);
     }
   }
   if (!cmd) cmd = "";		/* prevent SEGV */
 
   if (!strcmp (cmd,"check")) {	/* check for new messages */
     if (!src) src = "INBOX";
-    if (dst || merge)
+    if (dst || merge || rwcopyp)
       printf ("usage: %s check [-debug] [-verbose] [mailbox]\n",pgm);
     else if (mail_status (source = (*src == '{') ?
 			  mail_open (NIL,src,OP_HALFOPEN |
 				     (debugp ? OP_DEBUG : NIL)) : NIL,
-			  src,SA_MESSAGES | SA_RECENT)) ret = 0;
+			  src,SA_MESSAGES | SA_RECENT | SA_UNSEEN)) ret = 0;
   }
   else if (!strcmp (cmd,"create")) {
-    if (!src || dst || merge)
+    if (!src || dst || merge || rwcopyp)
       printf ("usage: %s create [-debug] [-verbose] mailbox\n",pgm);
     else if (mail_create (source = (*src == '{') ?
 			  mail_open (NIL,src,OP_HALFOPEN |
@@ -206,7 +208,7 @@ int main (int argc,char *argv[])
   else if ((i = !strcmp (cmd,"move")) || !strcmp (cmd,"copy")) {
     if (!src || !dst || merge)
       printf ("usage: %s %s [-debug] [-verbose] source destination\n",pgm,cmd);
-    else if (source = mail_open (NIL,src,(i ? NIL : OP_READONLY) |
+    else if (source = mail_open (NIL,src,((i || rwcopyp) ? NIL : OP_READONLY) |
 				 (debugp ? OP_DEBUG : NIL))) {
       dest = NIL;		/* open destination stream if network */
       if ((*dst != '{') || (dest = mail_open (NIL,dst,OP_HALFOPEN |
@@ -218,7 +220,7 @@ int main (int argc,char *argv[])
   else if ((i = !strcmp (cmd,"appenddelete")) || !strcmp (cmd,"append")) {
     if (!src || !dst || merge)
       printf ("usage: %s %s [-debug] [-verbose] source destination\n",pgm,cmd);
-    else if (source = mail_open (NIL,src,(i ? NIL : OP_READONLY) |
+    else if (source = mail_open (NIL,src,((i || rwcopyp) ? NIL : OP_READONLY) |
 				 (debugp ? OP_DEBUG : NIL))) {
       dest = NIL;		/* open destination stream if network */
       if ((*dst != '{') || (dest = mail_open (NIL,dst,OP_HALFOPEN |
@@ -264,7 +266,8 @@ int main (int argc,char *argv[])
 	for (t = mbx,t1 = dest ? dest->mailbox : "",c = NIL; (c != '}') && *t1;
 	     *t++ = c= *t1++);
 	for (t1 = dp; *t1; *t++ = *t1++);
-	t1 = source ? (strchr (tmp+1,'}') + 1) : tmp;
+				/* point to name without delim or netspec */
+	t1 = source ? (strchr (tmp+1,'}') + 1) : tmp + 1;
 				/* src and mbx have different delimiters? */
 	if (ddelim && (ddelim != tmp[0]))
 	  while (c = *t1++) {	/* swap delimiters then */
@@ -279,8 +282,10 @@ int main (int argc,char *argv[])
 	  printf ("Copying %s\n  => %s\n",tmp+1,mbx);
 	  fflush (stdout);
 	}
-	if (source = mail_open (source,tmp+1,OP_READONLY))
+	if (source = mail_open (source,tmp+1,rwcopyp ? NIL : OP_READONLY)) {
 	  ret = mbxcopy (source,dest,mbx,T,NIL,merge);
+	  if (source->dtb->flags & DR_LOCAL) source = mail_close (source);
+	}
 	else printf ("can't open source mailbox %s\n",tmp+1);
       }
     }
@@ -301,7 +306,8 @@ int main (int argc,char *argv[])
 				/* close streams */
   if (source) mail_close (source);
   if (dest) mail_close (dest);
-  return ret;
+  exit (ret);
+  return ret;			/* stupid compilers */
 }
 
 /* Copy mailbox
@@ -398,6 +404,7 @@ long mm_append (MAILSTREAM *stream,void *data,char **flags,char **date,
   unsigned long u;
   MESSAGECACHE *elt;
   APPENDPACKAGE *ap = (APPENDPACKAGE *) data;
+  *flags = *date = NIL;		/* assume no flags or date */
   if (ap->flags) fs_give ((void **) &ap->flags);
   if (ap->date) fs_give ((void **) &ap->date);
   mail_gc (ap->stream,GC_TEXTS);
@@ -511,7 +518,8 @@ void mm_lsub (MAILSTREAM *stream,int delimiter,char *name,long attributes)
 
 void mm_status (MAILSTREAM *stream,char *mailbox,MAILSTATUS *status)
 {
-  if (status->recent) printf ("%lu new message(s),",status->recent);
+  if (status->recent || status->unseen)
+    printf ("%lu new message(s) (%lu unseen),",status->recent,status->unseen);
   else fputs ("No new messages,",stdout);
   printf (" %lu total in %s\n",status->messages,mailbox);
 }

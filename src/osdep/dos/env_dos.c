@@ -10,17 +10,19 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	16 January 2002
+ * Last Edited:	7 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
 
 
 static char *myLocalHost = NIL;	/* local host name */
+static char *myClientAddr = NIL;/* client host address */
 static char *myClientHost = NIL;/* client host name */
+static char *myServerAddr = NIL;/* server host address */
 static char *myServerHost = NIL;/* server host name */
 static char *myHomeDir = NIL;	/* home directory name */
 static char *myNewsrc = NIL;	/* newsrc file name */

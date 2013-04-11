@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	21 October 2002
+ * Last Edited:	10 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -234,7 +234,7 @@ long tenex_rename (MAILSTREAM *stream,char *old,char *newname)
     return NIL;
   }
 				/* get exclusive parse/append permission */
-  if ((ld = lockname (lock,old,LOCK_EX)) < 0) {
+  if ((ld = lockname (lock,file,LOCK_EX)) < 0) {
     mm_log ("Unable to lock rename mailbox",ERROR);
     return NIL;
   }
@@ -726,7 +726,7 @@ long tenex_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   }
   mm_critical (stream);		/* go critical */
 				/* get exclusive parse/append permission */
-  if ((ld = lockname (lock,mailbox,LOCK_EX)) < 0) {
+  if ((ld = lockname (lock,file,LOCK_EX)) < 0) {
     mm_log ("Unable to lock copy mailbox",ERROR);
     mm_nocritical (stream);
     return NIL;
@@ -835,7 +835,7 @@ long tenex_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     return NIL;
   }
 				/* get parse/append permission */
-  if ((ld = lockname (lock,mailbox,LOCK_EX)) < 0) {
+  if ((ld = lockname (lock,file,LOCK_EX)) < 0) {
     mm_log ("Unable to lock append mailbox",ERROR);
     close (fd);
     return NIL;

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	10 May 2002
+ * Last Edited:	5 March 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -512,7 +512,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream)
   else if (!stream->silent) {	/* only if silence not requested */
     mail_exists (stream,0);	/* say there are 0 messages */
     mail_recent (stream,0);	/* and certainly no recent ones! */
-    stream->uid_validity = 1;
+    stream->uid_validity = time (0);
   }
   stream->inbox = T;		/* note that it's an INBOX */
   return stream;		/* return success */

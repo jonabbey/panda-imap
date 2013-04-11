@@ -1,3 +1,47 @@
+Updated: 7 April 2003
+
+imap-2002c is a minor release, released concurrently with Pine 4.55, and
+contains primarily bugfixes.  Programs written for imap-2002 will build
+with this version without modification.
+
+The POP3 driver will, with new servers that support CAPA, use the LIST
+command to get the elt->rfc822_size and the TOP command to get the message
+header, instead of fetching the entire message.  Note that it is a bad idea
+to do this with old servers, since they may misimplement LIST and TOP.  The
+result is a substantial performance improvement.
+
+Subject extraction for comparisons in SORT and THREAD are now done in full
+compliance with the rules laid out in the specification.  This only makes
+a difference if "re:" was part of a MIME quoted-word.
+
+The new experimental #move namespace allows download-and-delete from a source
+mailbox to a destination mailbox.  Immediately following #move is a delimiter
+character which must not appear in the source mailbox name, then the source
+mailbox name, then the delimiter again, then the destination mailbox name.
+For example:
+	#move+{pop3.foo.com/pop3}+INBOX
+will download messages from "pop3.foo.com" into your local INBOX.
+
+The NNTP driver now uses the LIST EXTENSIONS command as described in the
+current NNTP protocol specification draft, and will prefer to use OVER over
+XOVER, HDR over XHDR, etc.
+
+The SET_NNTPRANGE function of mail_parameters() can be used to limit the
+number of articles recognized by the NNTP driver, resulting in a substantial
+performance improvement with NNTP servers that may have hundreds of thousands
+of old articles in the spool.  If set non-zero, then only the last n article
+numbers will be considered.  If you are on a slow link, you may want to set
+this to 1000 or less.
+
+Besides the normally tested UNIX and 32-bit Microsoft platforms, this release
+has also been tested and will once build under TOPS-20 and VAX/VMS.  I also
+fixed a bug which would keep it from building on 16-bit DOS, but I don't know
+if it will build on that platform or not since I no longer have a system with
+the old DOS C compiler.  It has not been tested on Macintosh (note however
+that Mac OS X is a type of UNIX and should build), Amiga, or OS/2, and probably
+no longer builds on those platforms.
+
+
 Updated: 7 January 2003
 
 imap-2002b is a maintenace release, released concurrently with Pine 4.52,

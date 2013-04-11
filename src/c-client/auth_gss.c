@@ -10,17 +10,14 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 January 1998
- * Last Edited:	21 November 2001
+ * Last Edited:	4 March 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
-
-#define PROTOTYPE(x) x
-#include <gssapi/gssapi_generic.h>
-#include <gssapi/gssapi_krb5.h>
+
 
 long auth_gssapi_valid (void);
 long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
@@ -28,12 +25,13 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
 			 unsigned long *trial,char *user);
 char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[]);
 
+
 AUTHENTICATOR auth_gss = {
   AU_SECURE | AU_AUTHUSER,	/* secure authenticator */
   "GSSAPI",			/* authenticator name */
   auth_gssapi_valid,		/* check if valid */
   auth_gssapi_client,		/* client method */
-  NIL,				/* initially no server method */
+  auth_gssapi_server,		/* server method */
   NIL				/* next authenticator */
 };
 
@@ -55,9 +53,6 @@ long auth_gssapi_valid (void)
   OM_uint32 smn;
   gss_buffer_desc buf;
   gss_name_t name;
-  krb5_context ctx;
-  krb5_keytab kt;
-  krb5_kt_cursor csr;
 				/* make service name */
   sprintf (tmp,"%s@%s",(char *) mail_parameters (NIL,GET_SERVICENAME,NIL),
 	   mylocalhost ());
@@ -65,17 +60,8 @@ long auth_gssapi_valid (void)
 				/* see if can build a name */
   if (gss_import_name (&smn,&buf,GSS_C_NT_HOSTBASED_SERVICE,&name) !=
       GSS_S_COMPLETE) return NIL;
-				/* make a context */
-  if (!krb5_init_context (&ctx)) {
-				/* get default keytab */
-    if (!krb5_kt_default (ctx,&kt)) {
-				/* can do server if have good keytab */
-      if (!krb5_kt_start_seq_get (ctx,kt,&csr))
-	auth_gss.server = auth_gssapi_server;
-      krb5_kt_close (ctx,kt);	/* finished with keytab */
-    }
-    krb5_free_context (ctx);	/* finished with context */
-  }
+				/* remove server method if no keytab */
+  if (!kerberos_server_valid ()) auth_gss.server = NIL;
   gss_release_name (&smn,&name);/* finished with name */
   return LONGT;
 }
@@ -190,25 +176,15 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
       break;
     case GSS_S_FAILURE:
       if (chal.value) fs_give ((void **) &chal.value);
-      switch (smn) {		/* check minor version */
-      case KRB5_FCC_NOFILE:	/* MIT */
-      case KRB5_CC_NOTFOUND:	/* Heimdal */
-	sprintf (tmp,"No credentials cache found (try running kinit) for %s",
-		 mb->host);
-	mm_log (tmp,WARN);
-	break;
-      default:
-	do switch (dsmj = gss_display_status (&dsmn,smn,GSS_C_MECH_CODE,
+      if (!kerberos_try_kinit (smn,mb->host)) do
+	switch (dsmj = gss_display_status (&dsmn,smn,GSS_C_MECH_CODE,
 					      GSS_C_NO_OID,&mctx,&resp)) {
 	case GSS_S_COMPLETE:
 	case GSS_S_CONTINUE_NEEDED:
 	  sprintf (tmp,"GSSAPI failure: %s",(char *) resp.value);
 	  mm_log (tmp,WARN);
 	  gss_release_buffer (&dsmn,&resp);
-	}
-	while (dsmj == GSS_S_CONTINUE_NEEDED);
-	break;
-      }
+	} while (dsmj == GSS_S_CONTINUE_NEEDED);
       (*responder) (stream,NIL,0);
       break;
     default:			/* miscellaneous errors */
@@ -251,7 +227,7 @@ long auth_gssapi_client (authchallenge_t challenger,authrespond_t responder,
 char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 {
   char *ret = NIL;
-  char *s,tmp[MAILTMPLEN];
+  char tmp[MAILTMPLEN];
   unsigned long maxsize = htonl (AUTH_GSSAPI_C_MAXSIZE);
   int conf;
   OM_uint32 smj,smn,dsmj,dsmn,flags;
@@ -294,8 +270,6 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 				/* successful exchange? */
 	if ((smj == GSS_S_COMPLETE) &&
 	    (gss_display_name (&smn,name,&buf,&mech) == GSS_S_COMPLETE)) {
-				/* extract authentication ID from principal */
-	  if (s = strchr ((char *) buf.value,'@')) *s = '\0';
 				/* send security and size */
 	  memcpy (resp.value = tmp,(void *) &maxsize,resp.length = 4);
 	  tmp[0] = AUTH_GSSAPI_P_NONE;
@@ -311,9 +285,7 @@ char *auth_gssapi_server (authresponse_t responder,int argc,char *argv[])
 		  (tmp[0] & AUTH_GSSAPI_P_NONE)) {
 				/* tie off authorization ID */
 		tmp[chal.length] = '\0';
-		if (authserver_login (tmp+4,buf.value,argc,argv) ||
-		    authserver_login (lcase (tmp+4),buf.value,argc,argv))
-		  ret = myusername ();
+		ret = kerberos_login (tmp+4,buf.value,argc,argv);
 	      }
 				/* done with user name */
 	      gss_release_buffer (&smn,&chal);

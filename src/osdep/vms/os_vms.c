@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	7 February 2001
+ * Last Edited:	7 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -48,3 +48,21 @@ extern int errno;		/* just in case */
 #include "auth_md5.c"
 #include "auth_pla.c"
 #include "auth_log.c"
+
+
+/* Emulator for UNIX getpass() call
+ * Accepts: prompt
+ * Returns: password
+ */
+
+#define PWDLEN 128		/* used by Linux */
+
+char *getpass (const char *prompt)
+{
+  char *s;
+  static char pwd[PWDLEN];
+  fputs (prompt,stdout);
+  fgets (pwd,PWDLEN-1,stdin);
+  if (s = strchr (pwd,'\n')) *s = '\0';
+  return pwd;
+}

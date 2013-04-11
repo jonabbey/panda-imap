@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	2 July 2002
+ * Last Edited:	22 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -265,6 +265,10 @@ void mm (MAILSTREAM *stream,long debug)
       }
       mail_fetch_overview (stream,arg,overview_header);
       break;
+    case 'P':			/* Ping command */
+      mail_ping (stream);
+      status (stream);
+      break;
     case 'Q':			/* Quit command */
       mail_close (stream);
       stream = NIL;
@@ -339,7 +343,7 @@ void mm (MAILSTREAM *stream,long debug)
       break;
     case '?':			/* ? command */
       puts ("Body, Check, Delete, Expunge, Find, GC, Headers, Literal,");
-      puts (" MailboxStatus, New Mailbox, Overview, Quit, Send, Type,");
+      puts (" MailboxStatus, New Mailbox, Overview, Ping, Quit, Send, Type,");
       puts ("Undelete, Xit, +, -, or <RETURN> for next message");
       break;
     default:			/* bogus command */

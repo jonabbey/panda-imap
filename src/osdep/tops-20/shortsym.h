@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	28 October 2002
+ * Last Edited:	7 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2002 University of Washington.
@@ -287,7 +287,8 @@
 #define mail_string_next mt_nxt
 #define mail_string_setpos mt_sps
 #define mail_strip_subject mst_sb
-#define mail_strip_subject_aux mst_sx
+#define mail_strip_subject_wsp mst_ws
+#define mail_strip_subject_blob mst_bl
 #define mail_subscribe m_sub
 #define mail_thread m_thr
 #define mail_threadlist mt_lst
@@ -382,8 +383,11 @@
 #define nntp_mclose n_mcls
 #define nntp_mopen n_mopn
 #define nntp_open_full n_open
+#define nntp_over n_ovr
+#define nntp_overview n_over
 #define nntp_parameters n_parm
 #define nntp_parsestructure n_pars
+#define nntp_parse_overview n_povr
 #define nntp_ping n_ping
 #define nntp_rename n_ren
 #define nntp_reply n_repl

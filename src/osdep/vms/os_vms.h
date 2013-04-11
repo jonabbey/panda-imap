@@ -37,3 +37,4 @@
 
 #define	gethostid clock
 #define random rand
+#define unlink delete

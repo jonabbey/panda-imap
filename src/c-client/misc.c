@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	16 October 2001
+ * Last Edited:	2 March 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -384,8 +384,8 @@ int compare_cstring (char *s1,char *s2)
   if (!s1) return s2 ? -1 : 0;	/* empty string cases */
   else if (!s2) return 1;
   for (; *s1 && *s2; s1++,s2++)
-    if (i = (compare_ulong (isupper (*s1) ? tolower (*s1) : *s1,
-			    isupper (*s2) ? tolower (*s2) : *s2)))
+    if (i = (compare_ulong (islower (*s1) ? toupper (*s1) : *s1,
+			    islower (*s2) ? toupper (*s2) : *s2)))
       return i;			/* found a difference */
   if (*s1) return 1;		/* first string is longer */
   return *s2 ? -1 : 0;		/* second string longer : strings identical */

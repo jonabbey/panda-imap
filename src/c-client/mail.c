@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	2 January 2003
+ * Last Edited:	14 March 2003
  *
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -29,7 +29,7 @@
 #include "utf8.h"
 #include "smtp.h"
 
-static char *copyright = "The IMAP toolkit provided in this Distribution is\nCopyright 1988-2003 University of Washington.\nThe full text of our legal notices is contained in the file called\nCPYRIGHT, included with this Distribution.\n";
+char *UW_copyright = "The IMAP toolkit provided in this Distribution is\nCopyright 1988-2003 University of Washington.\nThe full text of our legal notices is contained in the file called\nCPYRIGHT, included with this Distribution.\n";
 
 
 /* c-client global data */
@@ -82,6 +82,8 @@ static sslstart_t mailsslstart = NIL;
 static sslcertificatequery_t mailsslcertificatequery = NIL;
 				/* SSL failure notify */
 static sslfailure_t mailsslfailure = NIL;
+				/* snarf interval */
+static long mailsnarfinterval = 60;
 
 				/* supported threaders */
 static THREADER mailthreadordsub = {
@@ -490,6 +492,20 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
   case GET_QUOTAROOT:
     ret = (void *) mailquotarootresults;
     break;
+  case SET_SNARFINTERVAL:	/* only cretins snarf faster than once/min */
+    mailsnarfinterval = max ((long) value,60);
+  case GET_SNARFINTERVAL:
+    ret = (void *) mailsnarfinterval;
+    break;
+  case SET_SNARFMAILBOXNAME:
+    if (stream) {		/* have a stream? */
+      if (stream->snarf.name) fs_give ((void **) &stream->snarf.name);
+      stream->snarf.name = cpystr ((char *) value);
+    }
+    else fatal ("SET_SNARFMAILBOXNAME with no stream");
+  case GET_SNARFMAILBOXNAME:
+    if (stream) ret = (void *) stream->snarf.name;
+    break;
   default:
     if (r = smtp_parameters (function,value)) ret = r;
     if (r = env_parameters (function,value)) ret = r;
@@ -571,6 +587,18 @@ DRIVER *mail_valid_net (char *name,DRIVER *drv,char *host,char *mailbox)
 
 long mail_valid_net_parse (char *name,NETMBX *mb)
 {
+  return mail_valid_net_parse_work (name,mb,"imap");
+}
+
+/* Mail validate network mailbox name worker routine
+ * Accepts: mailbox name
+ *	    NETMBX structure to return values
+ *	    default service
+ * Returns: T on success, NIL on failure
+ */
+
+long mail_valid_net_parse_work (char *name,NETMBX *mb,char *service)
+{
   int i,j;
   char c,*s,*t,*v,tmp[MAILTMPLEN],arg[MAILTMPLEN];
 				/* initialize structure */
@@ -592,7 +620,6 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
       if (mb->port || !(mb->port = strtoul (t,&t,10))) return NIL;
       c = t ? *t++ : '\0';	/* get delimiter, advance pointer */
       break;
-
     case '/':			/* switch */
 				/* find delimiter */
       if (t = strpbrk (s = t,"/:=")) {
@@ -668,9 +695,9 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
 				/* default mailbox name */
   if (!*mb->mailbox) strcpy (mb->mailbox,"INBOX");
 				/* default service name */
-  if (!*mb->service) strcpy (mb->service,"imap");
+  if (!*mb->service) strcpy (mb->service,service);
 				/* /norsh only valid if imap */
-  if ((mb->norsh || mb->loser) && strcmp (mb->service,"imap")) return NIL;
+  if (mb->norsh && strcmp (mb->service,"imap")) return NIL;
   return T;
 }
 
@@ -997,35 +1024,76 @@ long mail_status_default (MAILSTREAM *stream,char *mbx,long flags)
 MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
 {
   int i;
-  char *s,tmp[MAILTMPLEN];
+  char c,*s,tmp[MAILTMPLEN];
   NETMBX mb;
   DRIVER *d;
-				/* see if special driver hack */
-  if ((options & OP_PROTOTYPE) && (name[0] == '#') &&
-      ((name[1] == 'D') || (name[1] == 'd')) &&
-      ((name[2] == 'R') || (name[2] == 'r')) &&
-      ((name[3] == 'I') || (name[3] == 'i')) &&
-      ((name[4] == 'V') || (name[4] == 'v')) &&
-      ((name[5] == 'E') || (name[5] == 'e')) &&
-      ((name[6] == 'R') || (name[6] == 'r')) && (name[7] == '.')) {
-    sprintf (tmp,"%.80s",name+8);
-				/* tie off name at likely delimiter */
-    if (s = strpbrk (tmp,"/\\:")) *s++ = '\0';
-    else {
-      sprintf (tmp,"Can't resolve mailbox %.80s: bad driver syntax",name);
-      MM_LOG (tmp,ERROR);
-      return mail_close (stream);
+  switch (name[0]) {		/* see if special handling */
+  case '#':			/* possible special hacks */
+    if (((name[1] == 'M') || (name[1] == 'm')) &&
+	((name[2] == 'O') || (name[2] == 'o')) &&
+	((name[3] == 'V') || (name[3] == 'v')) &&
+	((name[4] == 'E') || (name[4] == 'e')) && (c = name[5]) &&
+	(s = strchr (name+6,c)) && (i = s - (name + 6)) && (i < MAILTMPLEN)) {
+      if (stream = mail_open (stream,s+1,options)) {
+	strncpy (tmp,name+6,i);	/* copy snarf mailbox name */
+	tmp[i] = '\0';		/* tie off name */
+	mail_parameters (stream,SET_SNARFMAILBOXNAME,(void *) tmp);
+	stream->snarf.options = options;
+	mail_ping (stream);	/* do initial snarf */
+				/* punt if can't do initial snarf */
+	if (!stream->snarf.time) stream = mail_close (stream);
+      }
+      return stream;
     }
-    for (d = maildrivers; d && compare_cstring (d->name,tmp); d = d->next);
-    if (d) return (*d->open) (NIL);
-    else {
+				/* special POP hack */
+    else if (((name[1] == 'P') || (name[1] == 'p')) &&
+	     ((name[2] == 'O') || (name[2] == 'o')) &&
+	     ((name[3] == 'P') || (name[3] == 'p')) &&
+	     mail_valid_net_parse_work (name+4,&mb,"pop3") &&
+	!strcmp (mb.service,"pop3") && !mb.anoflag && !mb.readonlyflag) {
+      if (stream = mail_open (stream,mb.mailbox,options)) {
+	sprintf (tmp,"{%.255s",mb.host);
+	if (mb.port) sprintf (tmp + strlen (tmp),":%lu",mb.port);
+	if (mb.user[0]) sprintf (tmp + strlen (tmp),"/user=%.64s",mb.user);
+	if (mb.dbgflag) strcat (tmp,"/debug");
+	if (mb.secflag) strcat (tmp,"/secure");
+	if (mb.tlsflag) strcat (tmp,"/tls");
+	if (mb.notlsflag) strcat (tmp,"/notls");
+	if (mb.sslflag) strcat (tmp,"/ssl");
+	if (mb.trysslflag) strcat (tmp,"/tryssl");
+	if (mb.novalidate) strcat (tmp,"/novalidate-cert");
+	strcat (tmp,"/pop3/loser}");
+	mail_parameters (stream,SET_SNARFMAILBOXNAME,(void *) tmp);
+	mail_ping (stream);	/* do initial snarf */
+      }
+      return stream;		/* return local mailbox stream */
+    }
+    else if ((options & OP_PROTOTYPE) &&
+	     ((name[1] == 'D') || (name[1] == 'd')) &&
+	     ((name[2] == 'R') || (name[2] == 'r')) &&
+	     ((name[3] == 'I') || (name[3] == 'i')) &&
+	     ((name[4] == 'V') || (name[4] == 'v')) &&
+	     ((name[5] == 'E') || (name[5] == 'e')) &&
+	     ((name[6] == 'R') || (name[6] == 'r')) && (name[7] == '.')) {
+      sprintf (tmp,"%.80s",name+8);
+				/* tie off name at likely delimiter */
+      if (s = strpbrk (tmp,"/\\:")) *s++ = '\0';
+      else {
+	sprintf (tmp,"Can't resolve mailbox %.80s: bad driver syntax",name);
+	MM_LOG (tmp,ERROR);
+	return mail_close (stream);
+      }
+      for (d = maildrivers; d && compare_cstring (d->name,tmp); d = d->next);
+      if (d) return (*d->open) (NIL);
       sprintf (tmp,"Can't resolve mailbox %.80s: unknown driver",name);
       MM_LOG (tmp,ERROR);
       return mail_close (stream);
     }
+				/* fall through to default case */
+  default:			/* not special hack (but could be # name */
+    d = mail_valid (NIL,name,(options & OP_SILENT) ?
+		    (char *) NIL : "open mailbox");
   }
-  else d = mail_valid (NIL,name,(options & OP_SILENT) ?
-		       (char *) NIL : "open mailbox");
 
   if (d) {			/* must have a factory */
     if (options & OP_PROTOTYPE) return (*d->open) (NIL);
@@ -1097,6 +1165,7 @@ MAILSTREAM *mail_close_full (MAILSTREAM *stream,long options)
     if (stream->mailbox) fs_give ((void **) &stream->mailbox);
     if (stream->original_mailbox)
       fs_give ((void **) &stream->original_mailbox);
+    if (stream->snarf.name) fs_give ((void *) &stream->snarf.name);
     stream->sequence++;		/* invalidate sequence */
 				/* flush user flags */
     for (i = 0; i < NUSERFLAGS; i++)
@@ -2092,11 +2161,58 @@ long mail_search_default (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,
 
 long mail_ping (MAILSTREAM *stream)
 {
-  				/* do the driver's action */
-  return stream->dtb ? (*stream->dtb->ping) (stream) : NIL;
+  unsigned long i,n,len;
+  char *s,tmp[MAILTMPLEN];
+  MAILSTREAM *snarf;
+  MESSAGECACHE *elt;
+  STRING bs;
+  long ret;
+				/* do driver action */
+  if ((ret = ((stream && stream->dtb) ? (stream->dtb->ping) (stream) : NIL)) &&
+      stream->snarf.name &&	/* time to snarf? */
+      (time (0) > (time_t) (stream->snarf.time + mailsnarfinterval)) &&
+      (snarf = mail_open (NIL,stream->snarf.name,
+			  stream->snarf.options | OP_SILENT))) {
+    if (n = snarf->nmsgs) {	/* yes, have messages to snarf? */
+				/* yes, make sure have flags (not necessary
+				   for POP, but may need to do later) */
+      sprintf (tmp,(n > 1) ? "1:%lu" : "%lu",n);
+      mail_fetch_flags (snarf,tmp,NIL);
+      for (i = 1; i <= n; i++)	/* for each message */
+	if (!(elt = mail_elt (snarf,i))->deleted &&
+	    (s = mail_fetch_message (snarf,i,&len,NIL)) && len) {
+	  INIT (&bs,mail_string,s,len);
+	  if (mail_append (stream,stream->mailbox,&bs)) {
+				/* driver has per-message (or no) flag call */
+	    if (snarf->dtb->flagmsg || !snarf->dtb->flag) {
+	      elt->valid = NIL;	/* prepare for flag alteration */
+	      if (snarf->dtb->flagmsg) (*snarf->dtb->flagmsg) (snarf,elt);
+	      elt->deleted = T;
+	      elt->valid = T;	/* flags now altered */
+	      if (snarf->dtb->flagmsg) (*snarf->dtb->flagmsg) (snarf,elt);
+	    }
+	    if (snarf->dtb->flag) {	/* driver has one-time flag call */
+	      sprintf (tmp,"%lu",i);
+	      (*snarf->dtb->flag) (snarf,tmp,"\\Deleted",ST_SET);
+	    }
+	  }
+	  else {		/* copy failed */
+	    sprintf (tmp,"Unable to move message %lu from %s mailbox",
+		     i,snarf->dtb->name);
+	    mm_log (tmp,WARN);
+	    i = n;		/* stop the attempt here */
+	  }
+	}
+    }
+				/* expunge the messages */
+    mail_close_full (snarf,n ? CL_EXPUNGE : NIL);
+    stream->snarf.time = time (0);
+  				/* redo the driver's action */
+    ret = stream->dtb ? (*stream->dtb->ping) (stream) : NIL;
+  }
+  return ret;
 }
-
-
+
 /* Mail check mailbox
  * Accepts: mail stream
  */
@@ -2700,11 +2816,19 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
 
 void mail_exists (MAILSTREAM *stream,unsigned long nmsgs)
 {
+  char tmp[MAILTMPLEN];
+  if (nmsgs > MAXMESSAGES) {
+    sprintf (tmp,"Mailbox has more messages (%lu) exist than maximum (%lu)",
+	     nmsgs,MAXMESSAGES);
+    mm_log (tmp,ERROR);
+  }
+  else {
 				/* make sure cache is large enough */
-  (*mailcache) (stream,nmsgs,CH_SIZE);
-  stream->nmsgs = nmsgs;	/* update stream status */
+    (*mailcache) (stream,nmsgs,CH_SIZE);
+    stream->nmsgs = nmsgs;	/* update stream status */
 				/* notify main program of change */
-  if (!stream->silent) MM_EXISTS (stream,nmsgs);
+    if (!stream->silent) MM_EXISTS (stream,nmsgs);
+  }
 }
 
 
@@ -2715,7 +2839,13 @@ void mail_exists (MAILSTREAM *stream,unsigned long nmsgs)
 
 void mail_recent (MAILSTREAM *stream,unsigned long recent)
 {
-  stream->recent = recent;	/* update stream status */
+  char tmp[MAILTMPLEN];
+  if (recent <= stream->nmsgs) stream->recent = recent;
+  else {
+    sprintf (tmp,"Non-existent recent message(s) %lu, nmsgs=%lu",
+	     recent,stream->nmsgs);
+    mm_log (tmp,ERROR);
+  }
 }
 
 
@@ -2726,21 +2856,30 @@ void mail_recent (MAILSTREAM *stream,unsigned long recent)
 
 void mail_expunged (MAILSTREAM *stream,unsigned long msgno)
 {
-  MESSAGECACHE *elt = (MESSAGECACHE *) (*mailcache) (stream,msgno,CH_ELT);
-				/* notify main program of change */
-  if (!stream->silent) MM_EXPUNGED (stream,msgno);
-  if (elt) {			/* if an element is there */
-    elt->msgno = 0;		/* invalidate its message number and free */
-    (*mailcache) (stream,msgno,CH_FREE);
-    (*mailcache) (stream,msgno,CH_FREESORTCACHE);
+  char tmp[MAILTMPLEN];
+  MESSAGECACHE *elt;
+  if (msgno > stream->nmsgs) {
+    sprintf (tmp,"Expunge of non-existent message %lu, nmsgs=%lu",
+	     msgno,stream->nmsgs);
+    mm_log (tmp,ERROR);
   }
+  else {
+    elt = (MESSAGECACHE *) (*mailcache) (stream,msgno,CH_ELT);
+				/* notify main program of change */
+    if (!stream->silent) MM_EXPUNGED (stream,msgno);
+    if (elt) {			/* if an element is there */
+      elt->msgno = 0;		/* invalidate its message number and free */
+      (*mailcache) (stream,msgno,CH_FREE);
+      (*mailcache) (stream,msgno,CH_FREESORTCACHE);
+    }
 				/* expunge the slot */
-  (*mailcache) (stream,msgno,CH_EXPUNGE);
-  --stream->nmsgs;		/* update stream status */
-  if (stream->msgno) {		/* have stream pointers? */
+    (*mailcache) (stream,msgno,CH_EXPUNGE);
+    --stream->nmsgs;		/* update stream status */
+    if (stream->msgno) {	/* have stream pointers? */
 				/* make sure the short cache is nuked */
-    if (stream->scache) mail_gc (stream,GC_ENV | GC_TEXTS);
-    else stream->msgno = 0;	/* make sure invalidated in any case */
+      if (stream->scache) mail_gc (stream,GC_ENV | GC_TEXTS);
+      else stream->msgno = 0;	/* make sure invalidated in any case */
+    }
   }
 }
 
@@ -3382,11 +3521,12 @@ long mail_search_addr (ADDRESS *adr,STRINGLIST *st)
     tadr.error = NIL,tadr.next = NIL;
 				/* write address list */
     for (txt.size = 0,a = adr; a; a = a->next) {
-      k = (tadr.mailbox = a->mailbox) ? 2 + 2*strlen (a->mailbox) : 3;
+      k = (tadr.mailbox = a->mailbox) ? 4 + 2*strlen (a->mailbox) : 3;
       if (tadr.personal = a->personal) k += 3 + 2*strlen (a->personal);
       if (tadr.adl = a->adl) k += 3 + 2*strlen (a->adl);
       if (tadr.host = a->host) k += 3 + 2*strlen (a->host);
-      if (k < MAILTMPLEN) {	/* ignore ridiculous addresses */
+      if (tadr.personal || tadr.adl) k += 2;
+      if (k < (MAILTMPLEN-10)) { /* ignore ridiculous addresses */
 	tmp[0] = '\0';
 	rfc822_write_address (tmp,&tadr);
 				/* resize buffer if necessary */
@@ -3930,161 +4070,113 @@ SORTCACHE **mail_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm)
 
 unsigned int mail_strip_subject (char *t,char **ret)
 {
+  SIZEDTEXT src,dst;
   unsigned long i;
-  char *s;
-  unsigned int refwd = mail_strip_subject_aux (t,&s);
+  char c,*s,*x;
+  unsigned int refwd = NIL;
+  if (src.size = strlen (t)) {	/* have non-empty subject? */
+    src.data = (unsigned char *) t;
+			/* Step 1 */
+				/* make copy, convert MIME2 if needed */
+    *ret = s = (utf8_mime2text (&src,&dst) && (src.data != dst.data)) ?
+      (char *) dst.data : cpystr (t);
+				/* convert spaces to tab, strip extra spaces */
+    for (x = t = s, c = 'x'; *t; t++) {
+      if (c != ' ') c = *x++ = ((*t == '\t') ? ' ' : *t);
+      else if ((*t != '\t') && (*t != ' ')) c = *x++ = *t;
+    }
+    *x = '\0';			/* tie off string */
+    while (T) {		/* Step 2 */
+      for (t = s + dst.size; t > s; ) switch (t[-1]) {
+      case ' ': case '\t':	/* WSP */
+	*--t = '\0';		/* just remove it */
+	break;
+      case ')':			/* possible "(fwd)" */
+	if ((t >= (s + 5)) && (t[-5] == '(') &&
+	    ((t[-4] == 'F') || (t[-4] == 'f')) &&
+	    ((t[-3] == 'W') || (t[-3] == 'w')) &&
+	    ((t[-2] == 'D') || (t[-2] == 'd'))) {
+	  *(t -= 5) = '\0';	/* remove "(fwd)" */
+	  refwd = T;		/* note a re/fwd */
+	  break;
+	}
+      default:			/* not a subj-trailer */
+	t = s;
+	break;
+      }
+			/* Steps 3-5 */
+      for (t = s; t; ) switch (*s) {
+      case ' ': case '\t':	/* WSP */
+	s = t = mail_strip_subject_wsp (s + 1);
+	break;
+      case 'r': case 'R':	/* possible "re" */
+	if (((s[1] == 'E') || (s[1] == 'e')) &&
+	    (t = mail_strip_subject_wsp (s + 2)) &&
+	    (t = mail_strip_subject_blob (t)) && (*t == ':'))
+	  s = ++t;		/* found "re" */
+	else t = NIL;		/* found subj-middle */
+	break;
+      case 'f': case 'F':	/* possible "fw" or "fwd" */
+	if (((s[1] == 'w') || (s[1] == 'w')) &&
+	    (((s[2] == 'd') || (s[2] == 'D')) ?
+	     (t = mail_strip_subject_wsp (s + 3)) :
+	     (t = mail_strip_subject_wsp (s + 2))) &&
+	    (t = mail_strip_subject_blob (t)) && (*t == ':'))
+	  s = ++t;		/* found "re" */
+	else t = NIL;		/* found subj-middle */
+	break;
+      case '[':			/* possible subj-blob */
+	if ((t = mail_strip_subject_blob (s)) && *t) s = t;
+	else t = NIL;		/* found subj-middle */
+	break;
+      default:
+	t = NIL;		/* found subj-middle */
+	break;
+      }
+			/* Step 6 */
 				/* Netscape-style "[Fwd: ...]"? */
-  while ((*s == '[') && ((s[1] == 'F') || (s[1] == 'f')) &&
-	 ((s[2] == 'W') || (s[2] == 'w')) &&
-	 ((s[3] == 'D') || (s[3] == 'd')) && (s[4] == ':') &&
-	 (s[i = strlen (s) - 1] == ']')) {
-    s[i] = '\0';		/* flush closing ] */
-				/* re-strip what's left */
-    mail_strip_subject_aux ((t = s) + 5,&s);
-    fs_give ((void **) &t);	/* flush old string, loop back */
-    refwd = T;			/* definitely a re/fwd at this point */
+      if ((*s == '[') && ((s[1] == 'F') || (s[1] == 'f')) &&
+	  ((s[2] == 'W') || (s[2] == 'w')) &&
+	  ((s[3] == 'D') || (s[3] == 'd')) && (s[4] == ':') &&
+	  (s[i = strlen (s) - 1] == ']')) {
+	s[i] = '\0';		/* flush closing "]" */
+	s += 5;			/* and leading "[Fwd:" */
+	refwd = T;		/* definitely a re/fwd at this point */
+      }
+      else break;		/* don't need to loop back to step 2 */
+    }
+    if (s != (t = *ret)) {	/* removed leading text? */
+      *ret = cpystr (s);	/* yes, make a fresh return copy */
+      fs_give ((void **) &t);	/* flush old copy */
+    }
   }
-  *ret = s;			/* return stripped subject */
+  else *ret = cpystr ("");	/* empty subject */
   return refwd;			/* return re/fwd state */
 }
 
-/* Strip subject helper routine: does everything except "[Fwd: ...]"
- * Accepts: unstripped subject
- *	    pointer to return stripped subject, in cpystr form
- * Returns: T if subject had a re/fwd, NIL otherwise
+/* Strip subject wsp helper routine
+ * Accepts: text
+ * Returns: pointer to text after blob
  */
 
-unsigned int mail_strip_subject_aux (char *t,char **ret)
+char *mail_strip_subject_wsp (char *s)
 {
-  char c,*s,*x;
-  unsigned int refwd = NIL;
-  SIZEDTEXT src,dst;
-  for (x = t; x; ) switch (*t) {/* flush leading whitespace, [, and "re" */
-  case ' ': case '\t':
-    t++;			/* leading whitespace */
-    break;
-  case '[':			/* leading [ */
-    for (s = t + 1; s;) switch (*s) {
-    case '\0': case '[':	/* end of string or nesting */
-      x = s = NIL;		/* just punt */
-      break;
-    default:			/* any other character */
-      s++;			/* sniff at next */
-      break;
-    case ']':			/* closing ] */
-      while (s) switch (*++s) {
-      case '(':			/* possible trailing (fwd) */
-	for (x = s; ((*x == '(') &&
-		     ((x[1] == 'F') || (x[1] == 'f')) &&
-		     ((x[2] == 'W') || (x[2] == 'w')) &&
-		     ((x[3] == 'D') || (x[3] == 'd')) && (x[4] == ')'));) {
-	  x += 5;		/* yes, skip past it */
-	  refwd = T;		/* note a re/fwd */
-				/* skip whitespace */
-	  while ((*x == ' ') || (*x == '\t')) ++x;
-	}
-	if (!*x) {		/* end of string? */
-	  x = s = NIL;		/* yes, terminate search */
-	  break;
-	}
-      default:
-	x = t = s;		/* found usable text */
-	s = NIL;		/* terminate search */
-      case ' ': case '\t':	/* skip whitespace */
-	break;
-      case '\0':		/* end of string */
-	s = x = NIL;		/* terminate search here */
-	break;
-      }
-      break;
-    }
-    break;
-
-  case 'R': case 'r':		/* possible "re" */
-    if ((t[1] != 'E') && (t[1] != 'e')) x = NIL;
-    else {			/* found re, skip leading whitespace */
-      for (x = t + 2; (*x == ' ') || (*x == '\t'); x++);
-      switch (*x++) {		/* what comes after? */
-      case ':':			/* "re:" */
-	refwd = T;		/* note a re/fwd */
-	t = x;
-	break;
-      case '[':			/* possible "re[babble]:" */
-	if (x = strchr (x,']')) {
-	  for (x++; ((*x == ' ') || (*x == '\t')); x++);
-	  if (*x == ':') {	/* is it for real? */
-	    t = ++x;
-	    refwd = T;		/* note a re/fwd */
-	  }
-	  else x = NIL;
-	}
-	break;
-      default:			/* something significant starting with "re" */
-	x = NIL;		/* terminate the loop */
-	break;
-      }
-    }
-    break;
-  case 'F': case 'f':		/* possible "fw" or "fwd" */
-    if ((t[1] != 'W') && (t[1] != 'w')) x = NIL;
-    else {			/* found fw, skip "D" and leading whitespace */
-      for (x = ((t[2] == 'D') || (t[2] == 'd')) ? t + 3 : t + 2;
-	   (*x == ' ') || (*x == '\t'); x++);
-      switch (*x++) {		/* what comes after? */
-      case ':':			/* "fwd:" */
-	refwd = T;		/* note a re/fwd */
-	t = x;
-	break;
-      case '[':			/* possible "fwd[babble]:" */
-	if (x = strchr (x,']')) {
-	  for (x++; ((*x == ' ') || (*x == '\t')); x++);
-	  if (*x == ':') {	/* is it for real? */
-	    t = ++x;
-	    refwd = T;		/* note a re/fwd */
-	  }
-	  else x = NIL;
-	}
-	break;
-      default:			/* something significant starting with "fwd" */
-	x = NIL;		/* terminate the loop */
-	break;
-      }
-    }
-    break;
-  default:			/* something significant */
-    x = NIL;			/* terminate the loop */
-    break;
-  }
-
-				/* have an empty subject? */
-  if (src.size = strlen (t)) {	/* have non-empty subject */
-    src.data = (unsigned char *) t;
-				/* make copy, convert MIME2 if needed */
-    if (utf8_mime2text (&src,&dst) && (src.data != dst.data))
-      t = (x = (char *) dst.data) + dst.size;
-    else t = (x = cpystr ((char *) src.data)) + src.size;
-    while (t > x) {		/* flush trailing "(fwd)" and whitespace */
-      while ((t[-1] == ' ') || (t[-1] == '\t')) t--;
-      if ((t >= (x + 5)) && (t[-5] == '(') &&
-	  ((t[-4] == 'F') || (t[-4] == 'f')) &&
-	  ((t[-3] == 'W') || (t[-3] == 'w')) &&
-	  ((t[-2] == 'D') || (t[-2] == 'd')) && (t[-1] == ')')) {
-	t -= 5;
-	refwd = T;		/* note a re/fwd */
-      }
-      else break;
-    }
-    *t = '\0';			/* tie off subject string */
-				/* convert spaces to tab, strip extra spaces */
-    for (s = t = x, c = 'x'; *t; t++) {
-      if (c != ' ') c = *s++ = ((*t == '\t') ? ' ' : *t);
-      else if ((*t != '\t') && (*t != ' ')) c = *s++ = *t;
-    }
-    *s = '\0';			/* tie off string again */
-    *ret = x;			/* return stripped subject */
-  }
-  else *ret = cpystr ("");	/* return empty subject */
-  return refwd;			/* return re/fwd state */
+  while ((*s == ' ') || (*s == '\t')) s++;
+  return s;
+}
+
+
+/* Strip subject blob helper routine
+ * Accepts: text
+ * Returns: pointer to text after any blob, NIL if blob-like but not blob
+ */
+
+char *mail_strip_subject_blob (char *s)
+{
+  if (*s != '[') return s;	/* not a blob, ignore */
+				/* search for end of blob */
+  while (*++s != ']') if ((*s == '[') || !*s) return NIL;
+  return mail_strip_subject_wsp (s + 1);
 }
 
 /* Sort compare messages
@@ -4914,6 +5006,7 @@ long mail_parse_flags (MAILSTREAM *stream,char *flag,unsigned long *uf)
 	}
 	if (i) f |= i;		/* add flag to flags list */
       }
+
 				/* user flag, search through table */
       else for (j = 0; !i && j < NUSERFLAGS && (s =stream->user_flags[j]); ++j)
 	if (!compare_cstring (t,s)) *uf |= i = 1 << j;
@@ -4925,10 +5018,24 @@ long mail_parse_flags (MAILSTREAM *stream,char *flag,unsigned long *uf)
 				/* can we create it? */
 	else if (stream->kwd_create && (j < NUSERFLAGS) &&
 	    (strlen (t) <= MAXUSERFLAG)) {
-	  *uf |= 1 << j;	/* set the bit */
-	  stream->user_flags[j] = cpystr (t);
+	  for (s = t; t && *s; s++) switch (*s) {
+	  default:		/* all other characters */
+				/* SPACE, CTL, or not CHAR */
+	    if ((*s > ' ') && (*s < 0x7f)) break;
+	  case '*': case '%':	/* list_wildcards */
+	  case '"': case '\\':	/* quoted-specials */
+				/* atom_specials */
+	  case '(': case ')': case '{':
+	    sprintf (flg,"Invalid flag: %.80s",t);
+	    MM_LOG (flg,WARN);
+	    t = NIL;
+	  }
+	  if (t) {		/* only if valid */
+	    *uf |= 1 << j;	/* set the bit */
+	    stream->user_flags[j] = cpystr (t);
 				/* if out of user flags */
-	  if (j == NUSERFLAGS - 1) stream->kwd_create = NIL;
+	    if (j == NUSERFLAGS - 1) stream->kwd_create = NIL;
+	  }
 	}
 	else {
 	  sprintf (flg,"Unknown flag: %.80s",t);
@@ -5328,6 +5435,8 @@ void mail_free_address (ADDRESS **address)
     if ((*address)->mailbox) fs_give ((void **) &(*address)->mailbox);
     if ((*address)->host) fs_give ((void **) &(*address)->host);
     if ((*address)->error) fs_give ((void **) &(*address)->error);
+    if ((*address)->orcpt.type) fs_give ((void **) &(*address)->orcpt.type);
+    if ((*address)->orcpt.addr) fs_give ((void **) &(*address)->orcpt.addr);
     mail_free_address (&(*address)->next);
     fs_give ((void **) address);/* return address to free storage */
   }

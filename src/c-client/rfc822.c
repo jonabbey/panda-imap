@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	18 December 2002
+ * Last Edited:	7 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -370,7 +370,6 @@ void rfc822_parse_msg_full (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
   ENVELOPE *env = (*en = mail_newenvelope ());
   BODY *body = bdy ? (*bdy = mail_newbody ()) : NIL;
   long MIMEp = -1;		/* flag that MIME semantics are in effect */
-  long PathP = NIL;		/* flag that a Path: was seen */
   parseline_t pl = (parseline_t) mail_parameters (NIL,GET_PARSELINE,NIL);
   while (i && *s != '\n') {	/* until end of header */
     t = tmp;			/* initialize buffer pointer */
@@ -458,9 +457,6 @@ void rfc822_parse_msg_full (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
 	  *t++ = '\0';
 	}
 	break;
-      case 'P':			/* possible Path: */
-	if (!strcmp (tmp+1,"ATH")) PathP = T;
-	break;
       case 'R':			/* possible Reply-To: */
 	if (!strcmp (tmp+1,"EPLY-TO"))
 	  rfc822_parse_adrlist (&env->reply_to,d,host);
@@ -481,29 +477,6 @@ void rfc822_parse_msg_full (ENVELOPE **en,BODY **bdy,char *s,unsigned long i,
       }
     }
   }
-
-  /* We require a Path: header and/or a Message-ID belonging to a known
-   * winning mail program, in order to believe Newsgroups:.  This is because
-   * of the unfortunate existance of certain cretins who believe that it
-   * is reasonable to transmit messages via SMTP with a "Newsgroups" header
-   * that were not actually posted to any of the named newsgroups.
-   * The authors of other high-quality email/news software are encouraged to
-   * use similar methods to indentify messages as coming from their software,
-   * and having done so, to tell us so they too can be blessed in this list.
-   *
-   * May 1998 update: as was predicted back in March 1995 when this kludge was
-   * first added, mail/news unifying programs are now the norm.  However, the
-   * encouragement in the previous paragraph didn't take, and there's no good
-   * way to determine bogons accurately.  Consequently, we no longer remove the
-   * newsgroup information from the envelope on the bogon test; we just light
-   * a bogon bit and let the main program worry about what to do.
-   */
-  if (env->newsgroups && !PathP && env->message_id &&
-      strncmp (env->message_id,"<Pine.",6) &&
-      strncmp (env->message_id,"<MS-C.",6) &&
-      strncmp (env->message_id,"<MailManager.",13) &&
-      strncmp (env->message_id,"<EasyMail.",11) &&
-      strncmp (env->message_id,"<ML-",4)) env->ngbogus = T;
   fs_give ((void **) &tmp);	/* done with scratch buffer */
 				/* default Sender: and Reply-To: to From: */
   if (!env->sender) env->sender = rfc822_cpy_adr (env->from);
@@ -922,7 +895,8 @@ void rfc822_parse_parameter (PARAMETER **par,char *text)
 
 void rfc822_parse_adrlist (ADDRESS **lst,char *string,char *host)
 {
-  char c,*s,tmp[MAILTMPLEN];
+  int c;
+  char *s,tmp[MAILTMPLEN];
   ADDRESS *last = *lst;
   ADDRESS *adr;
   if (!string) return;		/* no string */
@@ -936,7 +910,7 @@ void rfc822_parse_adrlist (ADDRESS **lst,char *string,char *host)
       last = adr;		/* new tail address */
       if (string) {		/* analyze what follows */
 	rfc822_skipws (&string);
-	switch (c = *string) {
+	switch (c = *(unsigned char *) string) {
 	case ',':		/* comma? */
 	  ++string;		/* then another address follows */
 	  break;

@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	16 September 2002
+ * Last Edited:	18 March 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  *
@@ -21,7 +21,7 @@
  * Copyright 1988 Stanford University
  * and was developed in the Symbolic Systems Resources Group of the Knowledge
  * Systems Laboratory at Stanford University in 1987-88, and was funded by the
- * Biomedical Research Technology Program of the NationalInstitutes of Health
+ * Biomedical Research Technology Program of the National Institutes of Health
  * under grant number RR-00785.
  */
 
@@ -244,10 +244,10 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
   char usr[MAILTMPLEN];
   AUTHENTICATOR *at;
   long ret = NIL;
-  for (auths = ESMTP.auth; stream->netstream && auths &&
+  for (auths = ESMTP.auth; !ret && stream->netstream && auths &&
        (at = mail_lookup_auth (find_rightmost_bit (&auths) + 1)); ) {
     if (lsterr) {		/* previous authenticator failed? */
-      sprintf (tmp,"Retrying using %s authentication after %s",
+      sprintf (tmp,"Retrying using %s authentication after %.80s",
 	       at->name,lsterr);
       mm_log (tmp,NIL);
       fs_give ((void **) &lsterr);
@@ -256,7 +256,7 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
     tmp[0] = '\0';		/* empty buffer */
     if (stream->netstream) do {
       if (lsterr) {
-	sprintf (tmp,"Retrying %s authentication after %s",at->name,lsterr);
+	sprintf (tmp,"Retrying %s authentication after %.80s",at->name,lsterr);
 	mm_log (tmp,WARN);
 	fs_give ((void **) &lsterr);
       }
@@ -273,10 +273,11 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
       }
 				/* remember response if error and no cancel */
       if (!ret && trial) lsterr = cpystr (stream->reply);
-    } while (stream->netstream && trial && (trial < smtp_maxlogintrials));
+    } while (!ret && stream->netstream && trial &&
+	     (trial < smtp_maxlogintrials));
   }
   if (lsterr) {			/* previous authenticator failed? */
-    sprintf (tmp,"Can not authenticate to SMTP server: %s",lsterr);
+    sprintf (tmp,"Can not authenticate to SMTP server: %.80s",lsterr);
     mm_log (tmp,ERROR);
     fs_give ((void **) &lsterr);
   }
@@ -340,6 +341,7 @@ SENDSTREAM *smtp_close (SENDSTREAM *stream)
 				/* clean up */
     if (stream->host) fs_give ((void **) &stream->host);
     if (stream->reply) fs_give ((void **) &stream->reply);
+    if (ESMTP.dsn.envid) fs_give ((void **) &ESMTP.dsn.envid);
     fs_give ((void **) &stream);/* flush the stream */
   }
   return NIL;
@@ -407,8 +409,11 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
     if (ESMTP.ok) {
       if (ESMTP.eightbit.ok && ESMTP.eightbit.want)
 	strcat (tmp," BODY=8BITMIME");
-      if (ESMTP.dsn.ok && ESMTP.dsn.want)
+      if (ESMTP.dsn.ok && ESMTP.dsn.want) {
 	strcat (tmp,ESMTP.dsn.full ? " RET=FULL" : " RET=HDRS");
+	if (ESMTP.dsn.envid)
+	  sprintf (tmp + strlen (tmp)," ENVID=%.100s",ESMTP.dsn.envid);
+      }
     }
 				/* send "MAIL FROM" command */
     switch (smtp_send (stream,type,tmp)) {
@@ -452,7 +457,7 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
 
 long smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
 {
-  char *s,tmp[MAILTMPLEN];
+ char *s,tmp[2*MAILTMPLEN],orcpt[MAILTMPLEN];
   while (adr) {			/* for each address on the list */
 				/* clear any former error */
     if (adr->error) fs_give ((void **) &adr->error);
@@ -493,6 +498,12 @@ long smtp_rcpt (SENDSTREAM *stream,ADDRESS *adr,long *error)
 				/* tie off last comma */
 	  if (*s) s[strlen (s) - 1] = '\0';
 	  else strcat (tmp,"NEVER");
+	  if (adr->orcpt.addr) {
+	    sprintf (orcpt,"%.498s;%.498s",
+		     adr->orcpt.type ? adr->orcpt.type : "rfc822",
+		     adr->orcpt.addr);
+	    sprintf (tmp + strlen (tmp)," ORCPT=%.500s",orcpt);
+	  }
 	}
 	switch (smtp_send (stream,"RCPT",tmp)) {
 	case SMTPOK:		/* looks good */
@@ -574,6 +585,7 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
   char *s,tmp[MAILTMPLEN];
 				/* clear ESMTP data */
   memset (&ESMTP,0,sizeof (ESMTP));
+  if (mb->loser) return 500;	/* never do EHLO if a loser */
   sprintf (tmp,"EHLO %s",host);	/* build the complete command */
   if (stream->debug) mm_dlog (tmp);
   strcat (tmp,"\015\012");

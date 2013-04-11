@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	19 May 2000
- * Last Edited:	29 May 2001
+ * Last Edited:	7 February 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -23,6 +23,7 @@
 
 #ifdef __cplusplus		/* help out people who use C++ compilers */
 extern "C" {
+  /* If you use gcc, you may also have to use -fno-operator-names */
 #define private cclientPrivate	/* private to c-client */
 #define and cclientAnd		/* C99 doesn't realize that ISO 646 is dead */
 #define or cclientOr

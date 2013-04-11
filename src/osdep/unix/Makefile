@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	14 October 2002
+# Last Edited:	4 March 2003
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2002 University of Washington.
+# Copyright 1988-2003 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -817,6 +817,7 @@ osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	osdep.c env_unix.c fs_unix.c ftl_unix.c nl_unix.c tcp_unix.c \
 	auths.c crexcl.c flocksim.c nfstest.c flcksafe.c fsync.c gethstid.c \
 	gr_wait.c gr_wait4.c gr_waitp.c \
+	kerb_mit.c \
 	auth_gss.c auth_log.c auth_md5.c auth_pla.c \
 	pmatch.c scandir.c setpgrp.c strerror.c truncate.c write.c \
 	memmove.c memmove2.c memset.c \

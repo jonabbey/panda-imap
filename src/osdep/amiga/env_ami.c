@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	25 February 2002
+ * Last Edited:	15 January 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -41,8 +41,6 @@ static char *sharedHome = NIL;	/* shared home directory */
 static short anonymous = NIL;	/* is anonymous */
 static short restrictBox = NIL;	/* is a restricted box */
 static short has_no_life = NIL;	/* is a cretin with no life */
-				/* warning on EACCES errors on .lock files */
-static short lockEaccesError = T;
 static short hideDotFiles = NIL;/* hide files whose names start with . */
 				/* advertise filesystem root */
 static short advertisetheworld = NIL;
@@ -248,11 +246,6 @@ void *env_parameters (long function,void *value)
     locktimeout = (long) value;
   case GET_LOCKTIMEOUT:
     ret = (void *) locktimeout;
-    break;
-  case SET_LOCKEACCESERROR:
-    lockEaccesError = value ? T : NIL;
-  case GET_LOCKEACCESERROR:
-    ret = (void *) (lockEaccesError ? VOIDT : NIL);
     break;
   case SET_HIDEDOTFILES:
     hideDotFiles = value ? T : NIL;
@@ -901,6 +894,7 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
       mm_log (tmp,WARN);
     }
     mask = umask (0);
+    unlink (base->lock);	/* try to remove the old file */
 				/* seize the lock */
     if ((i = open (base->lock,O_WRONLY|O_CREAT,(int) lock_protection)) >= 0) {
       close (i);		/* don't need descriptor any more */
@@ -952,13 +946,20 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
       }
       close (pi[0]); close (pi[1]);
     }
-    if (lockEaccesError) {	/* punt silently if paranoid site */
-      sprintf (tmp,"Mailbox vulnerable - directory %.80s",base->lock);
-      if (s = strrchr (tmp,'/')) *s = '\0';
-      strcat (tmp," must have 1777 protection");
-      mm_log (tmp,WARN);
+				/* find directory/file delimiter */
+    if (s = strrchr (base->lock,'/')) {
+      *s = '\0';		/* tie off at directory */
+      sprintf(tmp,		/* generate default message */
+	      "Mailbox vulnerable - directory %.80s must have 1777 protection",
+	      base->lock);
+				/* definitely not 1777 if can't stat */
+      mask = stat (base->lock,&sb) ? 0 : (sb.st_mode & 1777);
+      *s = '/';			/* restore lock name */
+      if (mask != 1777) {	/* default warning if not 1777 */
+	MM_LOG (tmp,WARN);
+	break;
+      }
     }
-    break;
   default:
     sprintf (tmp,"Mailbox vulnerable - error creating %.80s: %s",
 	     base->lock,strerror (errno));

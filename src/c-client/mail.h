@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	7 January 2003
+ * Last Edited:	2 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -26,6 +26,8 @@
 				 * other:  initial text buffer size */
 #define MAXUSERFLAG 64		/* maximum length of a user flag */
 #define MAXAUTHENTICATORS 8	/* maximum number of SASL authenticators */
+				/* maximum number of messages */
+#define MAXMESSAGES (unsigned long) 100000000
 
 
 /* These can't be changed without changing code */
@@ -211,6 +213,8 @@
 #define SET_IMAPTRYSSL (long) 443
 #define GET_FETCHLOOKAHEAD (long) 444
 #define SET_FETCHLOOKAHEAD (long) 445
+#define GET_NNTPRANGE (long) 446
+#define SET_NNTPRANGE (long) 447
 
 	/* 5xx: local file drivers */
 #define GET_MBXPROTECTION (long) 500
@@ -275,6 +279,10 @@
 #define SET_SASLUSESPTRNAME (long) 559
 #define GET_NETFSSTATBUG (long) 560
 #define SET_NETFSSTATBUG (long) 561
+#define GET_SNARFMAILBOXNAME (long) 562
+#define SET_SNARFMAILBOXNAME (long) 563
+#define GET_SNARFINTERVAL (long) 564
+#define SET_SNARFINTERVAL (long) 565
 
 /* Driver flags */
 
@@ -558,6 +566,10 @@ ADDRESS {
   char *mailbox;		/* mailbox name */
   char *host;			/* domain name of mailbox's host */
   char *error;			/* error in address from SMTP module */
+  struct {
+    char *type;			/* address type (default "rfc822") */
+    char *addr;			/* address as xtext */
+  } orcpt;
   ADDRESS *next;		/* pointer to next address in list */
 };
 
@@ -980,6 +992,11 @@ typedef struct mail_stream {
   ENVELOPE *env;		/* scratch buffer for envelope */
   BODY *body;			/* scratch buffer for body */
   SIZEDTEXT text;		/* scratch buffer for text */
+  struct {
+    char *name;			/* mailbox name to snarf from */
+    unsigned long time;		/* last snarf time */
+    long options;		/* snarf open options */
+  } snarf;
   union {			/* internal use only */
     struct {			/* search temporaries */
       STRINGLIST *string;	/* string(s) to search */
@@ -1080,6 +1097,7 @@ typedef struct send_stream {
   long replycode;		/* last reply code */
   unsigned int debug : 1;	/* stream debug flag */
   unsigned int sensitive : 1;	/* sensitive data in progress */
+  unsigned int loser : 1;	/* server is a loser */
   union {			/* protocol specific */
     struct {			/* SMTP specific */
       unsigned int ok : 1;	/* supports ESMTP */
@@ -1112,6 +1130,7 @@ typedef struct send_stream {
 	  unsigned int success : 1;
 	} notify;
 	unsigned int full : 1;	/* return full headers */
+	char *envid;		/* envelope identifier as xtext */
       } dsn;
       struct {			/* size declaration */
 	unsigned int ok : 1;	/* supports SIZE */
@@ -1122,6 +1141,18 @@ typedef struct send_stream {
     } esmtp;
     struct {			/* NNTP specific */
       unsigned int post : 1;	/* supports POST */
+      struct {			/* NNTP extensions */
+	unsigned int ok : 1;	/* supports extensions */
+				/* supports LISTGROUP */
+	unsigned int listgroup : 1;
+	unsigned int over : 1;	/* supports OVER */
+	unsigned int hdr : 1;	/* supports HDR */
+	unsigned int pat : 1;	/* supports PAT */
+				/* server has MULTIDOMAIN */
+	unsigned int multidomain : 1;
+				/* supports AUTHINFO USER */
+	unsigned int authuser : 1;
+      } ext;
     } nntp;
   } protocol;
 } SENDSTREAM;
@@ -1425,6 +1456,7 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value);
 DRIVER *mail_valid (MAILSTREAM *stream,char *mailbox,char *purpose);
 DRIVER *mail_valid_net (char *name,DRIVER *drv,char *host,char *mailbox);
 long mail_valid_net_parse (char *name,NETMBX *mb);
+long mail_valid_net_parse_work (char *name,NETMBX *mb,char *service);
 void mail_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
 void mail_list (MAILSTREAM *stream,char *ref,char *pat);
 void mail_lsub (MAILSTREAM *stream,char *ref,char *pat);
@@ -1530,7 +1562,8 @@ unsigned long *mail_sort_msgs (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 			       SORTPGM *pgm,long flags);
 SORTCACHE **mail_sort_loadcache (MAILSTREAM *stream,SORTPGM *pgm);
 unsigned int mail_strip_subject (char *t,char **ret);
-unsigned int mail_strip_subject_aux (char *t,char **ret);
+char *mail_strip_subject_wsp (char *s);
+char *mail_strip_subject_blob (char *s);
 int mail_sort_compare (const void *a1,const void *a2);
 unsigned long mail_longdate (MESSAGECACHE *elt);
 THREADNODE *mail_thread (MAILSTREAM *stream,char *type,char *charset,

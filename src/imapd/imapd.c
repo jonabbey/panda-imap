@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	7 January 2003
+ * Last Edited:	2 April 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 1988-2003 University of Washington.
@@ -178,7 +178,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2002.336";	/* version number of this server */
+char *version = "2003.337";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
@@ -1162,7 +1162,8 @@ int main (int argc,char *argv[])
   }
   syslog (LOG_INFO,"Logout user=%.80s host=%.80s",user ? user : "???",
 	  tcp_clienthost ());
-  return 0;			/* all done */
+  exit (0);			/* all done */
+  return 0;			/* stupid compilers */
 }
 
 /* Ping mailbox during each cycle.  Also check alerts
@@ -1727,7 +1728,7 @@ long parse_criterion (SEARCHPGM *pgm,char **arg,unsigned long maxmsg,
   SEARCHHEADER **hdr;
   long ret = NIL;
 				/* better be an argument */
-  if ((depth > 50) || !(arg && *arg));
+  if ((depth > 500) || !(arg && *arg));
   else if (**arg == '(') {	/* list of criteria? */
     (*arg)++;			/* yes, parse the criteria */
     if (parse_criteria (pgm,arg,maxmsg,depth+1) && **arg == ')') {

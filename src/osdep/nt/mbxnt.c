@@ -292,7 +292,7 @@ long mbx_rename (MAILSTREAM *stream,char *old,char *newname)
     return NIL;
   }
 				/* get parse/append permission */
-  if ((ld = lockname (lock,old,LOCK_EX)) < 0) {
+  if ((ld = lockname (lock,file,LOCK_EX)) < 0) {
     mm_log ("Unable to lock rename mailbox",ERROR);
     return NIL;
   }
@@ -715,7 +715,7 @@ long mbx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   }
   mm_critical (stream);		/* go critical */
 				/* get parse/append permission */
-  if ((ld = lockname (lock,mailbox,LOCK_EX)) < 0) {
+  if ((ld = lockname (lock,file,LOCK_EX)) < 0) {
     mm_log ("Unable to lock copy mailbox",ERROR);
     mm_nocritical (stream);
     return NIL;
@@ -836,7 +836,7 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     mm_log (tmp,ERROR);
   }
 				/* get parse/append permission */
-  else if ((ld = lockname (lock,mailbox,LOCK_EX)) < 0) {
+  else if ((ld = lockname (lock,file,LOCK_EX)) < 0) {
     mm_log ("Unable to lock append mailbox",ERROR);
     close (fd);
   }

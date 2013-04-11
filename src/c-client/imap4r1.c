@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	3 January 2003
+ * Last Edited:	24 March 2003
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2003 University of Washington.
@@ -94,13 +94,13 @@ static char *imap_extrahdrs = NIL;
 
 				/* constants */
 static char *hdrheader[] = {
-  "BODY.PEEK[HEADER.FIELDS (Path Message-ID Content-MD5 Content-Disposition Content-Language Content-Location",
-  "BODY.PEEK[HEADER.FIELDS (Path Message-ID Content-Disposition Content-Language Content-Location",
-  "BODY.PEEK[HEADER.FIELDS (Path Message-ID Content-Language Content-Location",
-  "BODY.PEEK[HEADER.FIELDS (Path Message-ID Content-Location",
-  "BODY.PEEK[HEADER.FIELDS (Path Message-ID"
+  "BODY.PEEK[HEADER.FIELDS (Newsgroups Content-MD5 Content-Disposition Content-Language Content-Location",
+  "BODY.PEEK[HEADER.FIELDS (Newsgroups Content-Disposition Content-Language Content-Location",
+  "BODY.PEEK[HEADER.FIELDS (Newsgroups Content-Language Content-Location",
+  "BODY.PEEK[HEADER.FIELDS (Newsgroups Content-Location",
+  "BODY.PEEK[HEADER.FIELDS (Newsgroups"
 };
-static char *hdrtrailer ="Newsgroups Followup-To References)]";
+static char *hdrtrailer ="Followup-To References)]";
 
 /* IMAP validate mailbox
  * Accepts: mailbox name
@@ -874,7 +874,8 @@ long imap_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
   for (ua = LOCAL->cap.auth; LOCAL->netstream && ua &&
        (at = mail_lookup_auth (find_rightmost_bit (&ua) + 1));) {
     if (lsterr) {		/* previous authenticator failed? */
-      sprintf(tmp,"Retrying using %s authentication after %s",at->name,lsterr);
+      sprintf(tmp,"Retrying using %s authentication after %.80s",
+	      at->name,lsterr);
       mm_log (tmp,NIL);
       fs_give ((void **) &lsterr);
     }
@@ -911,14 +912,14 @@ long imap_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
 	  }
 	}
 	lsterr = cpystr (reply->text);
-	sprintf (tmp,"Retrying %s authentication after %s",at->name,lsterr);
+	sprintf (tmp,"Retrying %s authentication after %.80s",at->name,lsterr);
       }
     }
     while (LOCAL->netstream && !LOCAL->byeseen && trial &&
 	   (trial < imap_maxlogintrials));
   }
   if (lsterr) {			/* previous authenticator failed? */
-    sprintf (tmp,"Can not authenticate to IMAP server: %s",lsterr);
+    sprintf (tmp,"Can not authenticate to IMAP server: %.80s",lsterr);
     mm_log (tmp,ERROR);
     fs_give ((void **) &lsterr);
   }
@@ -1649,6 +1650,7 @@ long imap_search (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,long flags)
 	  sprintf (s,":%lu",i);	/* output delimiter and end of range */
 	  s += strlen (s);	/* point at end of string */
 	}
+	if ((s - LOCAL->tmp) > (IMAPTMPLEN - 50)) break;
       }
     if (LOCAL->tmp[0]) {	/* anything to pre-fetch? */
       /* pre-fetch envelopes for the first imap_prefetch number of messages */
@@ -1727,7 +1729,7 @@ unsigned long *imap_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
 				/* do locally if server barfs */
     if (!strcmp (reply->key,"BAD"))
       return (flags & SE_NOLOCAL) ? NIL :
-      imap_sort (stream,charset,spg,pgm,flags | SE_NOSERVER);
+	imap_sort (stream,charset,spg,pgm,flags | SE_NOSERVER);
 				/* server sorted OK? */
     else if (imap_OK (stream,reply)) {
       pgm->nmsgs = LOCAL->sortsize;
@@ -1755,7 +1757,7 @@ unsigned long *imap_sort (MAILSTREAM *stream,char *charset,SEARCHPGM *spg,
       int silent = stream->silent;
       stream->silent = T;	/* don't pass up mm_searched() events */
 				/* search for messages */
-      mail_search_full (stream,charset,spg,flags);
+      mail_search_full (stream,charset,spg,flags & SE_NOSERVER);
       stream->silent = silent;	/* restore silence state */
     }
 				/* initialize progress counters */
@@ -3098,7 +3100,7 @@ long imap_OK (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
 void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
 {
   unsigned long i = 0;
-  unsigned long msgno;
+  unsigned long j,msgno;
   char *s,*t;
   if (isdigit (*reply->key)) {	/* see if key is a number */
     msgno = strtoul (reply->key,&s,10);
@@ -3346,7 +3348,7 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
   else if (!strcmp (reply->key,"STATUS") && reply->text) {
     MAILSTATUS status;
     char *txt = reply->text;
-    if ((t = imap_parse_astring (stream,&txt,reply,NIL)) && txt &&
+    if ((t = imap_parse_astring (stream,&txt,reply,&j)) && txt &&
 	(*txt++ == ' ') && (*txt++ == '(') && (s = strchr (txt,')')) &&
 	(s - txt) && !s[1]) {
       *s = '\0';		/* tie off status data */
@@ -3379,9 +3381,12 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
 				/* next attribute */
 	txt = (*s == ' ') ? s + 1 : s;
       }
-      strcpy (strchr (strcpy (LOCAL->tmp,stream->mailbox),'}') + 1,t);
+      if (((i = 1 + strchr (stream->mailbox,'}') - stream->mailbox) + j) <
+	  IMAPTMPLEN) {
+	strcpy (strncpy (LOCAL->tmp,stream->mailbox,i) + i,t);
 				/* pass status to main program */
-      mm_status (stream,LOCAL->tmp,&status);
+	mm_status (stream,LOCAL->tmp,&status);
+      }
     }
     if (t) fs_give ((void **) &t);
   }
@@ -3412,9 +3417,10 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
       s += 3;			/* skip over <delimiter><quote><space> */
     }
 				/* parse the mailbox name */
-    s = t = imap_parse_astring (stream,&s,reply,NIL);
+    s = t = imap_parse_astring (stream,&s,reply,&j);
 				/* prepend prefix if requested */
-    if (LOCAL->prefix) sprintf (s = LOCAL->tmp,"%s%s",LOCAL->prefix,t);
+    if (LOCAL->prefix && ((strlen (LOCAL->prefix) + j) < IMAPTMPLEN))
+      sprintf (s = LOCAL->tmp,"%s%s",LOCAL->prefix,t);
 				/* pass data to main program */
     if (reply->key[1] == 'S') mm_lsub (stream,delimiter,s,i);
     else mm_list (stream,delimiter,s,i);
@@ -3589,7 +3595,8 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
   else if (!strcmp (reply->key,"CAPABILITY") && reply->text)
     imap_parse_capabilities (stream,reply->text);
   else if (!strcmp (reply->key,"MAILBOX") && reply->text) {
-    if (LOCAL->prefix)
+    if (LOCAL->prefix &&
+	((strlen (LOCAL->prefix) + strlen (reply->text)) < IMAPTMPLEN))
       sprintf (t = LOCAL->tmp,"%s%s",LOCAL->prefix,reply->text);
     else t = reply->text;
     mm_list (stream,NIL,t,NIL);
@@ -4218,7 +4225,12 @@ char *imap_parse_string (MAILSTREAM *stream,char **txtptr,
     break;
   case '{':			/* if literal string */
 				/* get size of string */ 
-    i = strtoul (*txtptr,txtptr,10);
+    if ((i = strtoul (*txtptr,txtptr,10)) > 0x7fffffff) {
+      sprintf (LOCAL->tmp,"Absurd server literal length %lu",i);
+      mm_log (LOCAL->tmp,WARN);
+      if (len) *len = i;
+      break;
+    }
     if (len) *len = i;		/* set return value */
     if (md && mg) {		/* have special routine to slurp string? */
       if (md->first) {		/* partial fetch? */

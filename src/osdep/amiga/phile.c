@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	9 April 2001
+ * Last Edited:	5 March 2003
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
+ * Copyright 1988-2003 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -170,10 +170,14 @@ void phile_lsub (MAILSTREAM *stream,char *ref,char *pat)
 
 long phile_status (MAILSTREAM *stream,char *mbx,long flags)
 {
+  char tmp[MAILTMPLEN];
   MAILSTATUS status;
+  struct stat sbuf;
+  if (stat (mailboxfile (tmp,mbx),&sbuf)) return NIL;
   status.flags = flags;		/* return status values */
   status.unseen = (stream && mail_elt (stream,1)->seen) ? 0 : 1;
-  status.messages = status.recent = status.uidnext = status.uidvalidity = 1;
+  status.messages = status.recent = status.uidnext = 1;
+  status.uidvalidity = sbuf.st_mtime;
 				/* pass status to main program */
   mm_status (stream,mbx,&status);
   return T;			/* success */

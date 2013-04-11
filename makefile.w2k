@@ -9,10 +9,10 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	2 July 2002
+# Last Edited:	4 March 2003
 #
 # The IMAP toolkit provided in this Distribution is
-# Copyright 2002 University of Washington.
+# Copyright 1988-2003 University of Washington.
 #
 # The full text of our legal notices is contained in the file called
 # CPYRIGHT, included with this Distribution.
@@ -27,7 +27,7 @@ RD=rmdir /s /q
 
 # Make the IMAP Toolkit
 
-build:	c-client gssapi mtest mailutil imapd ipopd
+build:	c-client mtest mailutil imapd ipopd
 	$(CD) c-client
 	$(MAKE)
 	$(CD) ..\mtest
@@ -46,11 +46,6 @@ c-client:
 	$(COPY) src\charset\*.* c-client
 	$(COPY) src\osdep\nt\*.* c-client
 
-gssapi:
-	$(MKDIR) gssapi
-	$(COPY) src\osdep\nt\gssapi\generic.h gssapi\gssapi_generic.h
-	$(COPY) src\osdep\nt\gssapi\krb5.h gssapi\gssapi_krb5.h
-
 mtest:
 	$(MKDIR) mtest
 	$(COPY) src\mtest\*.* mtest
@@ -68,7 +63,7 @@ imapd:
 	$(COPY) src\imapd\*.* imapd
 
 clean:
-	$(RD) c-client gssapi mtest mailutil ipopd imapd
+	$(RD) c-client mtest mailutil ipopd imapd
 
 # A monument to a hack of long ago and far away...
 love:

@@ -9,10 +9,10 @@ $!		Seattle, WA  98195
 $!		Internet: MRC@CAC.Washington.EDU
 $!
 $! Date:	2 August 1994
-$! Last Edited:	24 October 2000
+$! Last Edited:	7 April 2003
 $!
 $! The IMAP toolkit provided in this Distribution is
-$! Copyright 2000 University of Washington.
+$! Copyright 2003 University of Washington.
 $!
 $! The full text of our legal notices is contained in the file called
 $! CPYRIGHT, included with this Distribution.
