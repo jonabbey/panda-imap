@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	5 June 2007
+ * Last Edited:	22 June 2007
  */
 
 /* Parameter files */
@@ -203,7 +203,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "385";		/* edit number of this server */
+char *version = "388";		/* edit number of this server */
 char *logout = "Logout";	/* syslogreason for logout */
 char *goodbye = NIL;		/* bye reason */
 time_t alerttime = 0;		/* time of last alert */
@@ -223,6 +223,7 @@ int proxylist = NIL;		/* doing a proxy LIST */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 DRIVER *curdriver = NIL;	/* note current driver */
 MAILSTREAM *tstream = NIL;	/* temporary mailbox stream */
+unsigned int nflags = 0;	/* current number of keywords */
 unsigned long nmsgs =0xffffffff;/* last reported # of messages and recent */
 unsigned long recent = 0xffffffff;
 char *nntpproxy = NIL;		/* NNTP proxy name */
@@ -764,6 +765,7 @@ int main (int argc,char *argv[])
 	      ((arg[4] == 'R') || (arg[4] == 'r')) &&
 	      ((arg[5] == 'N') || (arg[5] == 'n')) &&
 	      (arg[6] == ' ') && (arg[7] == '(')) {
+	    retval = 0x4000;	/* return is specified */
 	    for (arg += 8; *arg && (*arg != ')'); ) {
 	      if (((arg[0] == 'M') || (arg[0] == 'm')) &&
 		  ((arg[1] == 'I') || (arg[1] == 'i')) &&
@@ -801,6 +803,8 @@ int main (int argc,char *argv[])
 	    }
 				/* RETURN list must be properly terminated */
 	    if ((*arg++ != ')') || (*arg++ != ' ')) break;
+				/* default return value is ALL */
+	    if (!(retval &= 0x3fff)) retval = 0x4;
 	  }
 
 				/* character set specified? */
@@ -917,7 +921,7 @@ int main (int argc,char *argv[])
 	    uidvalidity = lastuid = 0;
 	    if (lastid) fs_give ((void **) &lastid);
 	    if (lastst.data) fs_give ((void **) &lastst.data);
-				/* force update */
+	    nflags = 0;		/* force update */
 	    nmsgs = recent = 0xffffffff;
 	    if (factory && !strcmp (factory->name,"phile") &&
 		(stream = mail_open (stream,s,f | OP_SILENT)) &&
@@ -1525,6 +1529,9 @@ void ping_mailbox (unsigned long uid)
 
 				/* don't bother if driver changed */
     if (curdriver == stream->dtb) {
+				/* first report any new flags */
+      if ((nflags < NUSERFLAGS) && stream->user_flags[nflags])
+	new_flags (stream);
       for (i = 1; i <= nmsgs; i++) if (mail_elt (stream,i)->spare2) {
 	PSOUT ("* ");
 	pnum (i);
@@ -1695,6 +1702,7 @@ void new_flags (MAILSTREAM *stream)
   for (i = 0; i < NUSERFLAGS; i++) if (stream->user_flags[i]) {
     PSOUT (stream->user_flags[i]);
     PBOUT (' ');
+    nflags = i + 1;
   }
   PSOUT ("\\Answered \\Flagged \\Deleted \\Draft \\Seen)\015\012* OK [PERMANENTFLAGS (");
   for (i = c = 0; i < NUSERFLAGS; i++)
@@ -1850,7 +1858,7 @@ void ioerror (FILE *f,char *reason)
   server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   sprintf (logout = msg,"%.80s, while %.80s",e,reason);
 				/* try to gracefully close the stream */
-  if (state == OPEN) stream = mail_close (stream);
+  if ((state == OPEN) && !critical) stream = mail_close (stream);
   sayonara (1);			/* die die die */
 }
 
@@ -3948,10 +3956,12 @@ long append_msg (MAILSTREAM *stream,void *data,char **flags,char **date,
   else if (i > MAXAPPENDTXT)	/* maybe relax this a little */
     response = "%.80s NO Excessively large message to %.80s\015\012";
   else if (((*t == '+') && (t[1] == '}') && !t[2]) || ((*t == '}') && !t[1])) {
+    mm_critical (NIL);		/* for inliteral and slurp to stay critical */
 				/* get a literal buffer */
     inliteral (ad->msg = (char *) fs_get (i+1),i);
     				/* get new command tail */
     slurp (ad->arg,CMDLEN - (ad->arg - cmdbuf));
+    mm_nocritical (NIL);
     if (strchr (ad->arg,'\012')) {
 				/* reset strtok mechanism, tie off if done */
       if (!strtok (ad->arg,"\015\012")) *ad->arg = '\0';

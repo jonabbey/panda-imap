@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	30 August 2006
+ * Last Edited:	18 June 2007
  */
 
 
@@ -816,6 +816,10 @@ long tenex_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     return NIL;
   case 0:			/* merely empty file? */
     break;
+  case EACCES:			/* file protected */
+    sprintf (LOCAL->buf,"Can't access destination: %.80s",mailbox);
+    MM_LOG (LOCAL->buf,ERROR);
+    return NIL;
   case EINVAL:
     if (pc) return (*pc) (stream,sequence,mailbox,options);
     sprintf (LOCAL->buf,"Invalid Tenex-format mailbox name: %.80s",mailbox);
@@ -927,6 +931,10 @@ long tenex_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* falls through */
   case 0:			/* merely empty file? */
     break;
+  case EACCES:			/* file protected */
+    sprintf (tmp,"Can't access destination: %.80s",mailbox);
+    MM_LOG (tmp,ERROR);
+    return NIL;
   case EINVAL:
     sprintf (tmp,"Invalid TENEX-format mailbox name: %.80s",mailbox);
     mm_log (tmp,ERROR);

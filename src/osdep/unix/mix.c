@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 March 2006
- * Last Edited:	8 June 2007
+ * Last Edited:	21 June 2007
  */
 
 
@@ -2153,7 +2153,7 @@ long mix_meta_update (MAILSTREAM *stream)
      * of NUSERFLAGS, MAXUSERFLAG or CHUNKSIZE, be sure to recalculate the
      * above assertation.
      */
-    sprintf (LOCAL->buf,SEQFMT,LOCAL->metaseq);
+    sprintf (LOCAL->buf,SEQFMT,LOCAL->metaseq = mix_modseq (LOCAL->metaseq));
     sprintf (LOCAL->buf + strlen (LOCAL->buf),MTAFMT,
 	     stream->uid_validity,stream->uid_last,LOCAL->newmsg);
     for (i = 0, c = 'K', s = ss = LOCAL->buf + strlen (LOCAL->buf);
@@ -2605,24 +2605,32 @@ long mix_sortcache_update (MAILSTREAM *stream,FILE **sortcache)
 
 char *mix_read_record (FILE *f,char *buf,unsigned long buflen,char *type)
 {
-  char *s;
-  buf[buflen-1] = '\0';		/* ensure string tied off */
+  char *s,tmp[MAILTMPLEN];
+				/* ensure string tied off */
+  buf[buflen-2] = buf[buflen-1] = '\0';
   while (fgets (buf,buflen-1,f)) {
-    if (!(s = strchr (buf,'\012'))) {
-      char tmp[MAILTMPLEN];
+    if (s = strchr (buf,'\012')) {
+      if ((s != buf) && (s[-1] == '\015')) --s;
+      *s = '\0';		/* tie off buffer */
+      if (s != buf) return buf;	/* return if non-empty buffer */
+      sprintf (tmp,"Empty mix %s record",type);
+      MM_LOG (tmp,WARN);
+    }
+    else if (buf[buflen-2]) {	/* overlong record is bad news */
       sprintf (tmp,"Oversize mix %s record: %.512s",type,buf);
       MM_LOG (tmp,ERROR);
       return NIL;
     }
-    if ((s != buf) && (s[-1] == '\015')) --s;
-    *s = '\0';			/* tie off buffer */
-    if (s != buf) return buf;	/* return if non-empty buffer */
+    else {
+      sprintf (tmp,"Truncated mix %s record: %.512s",type,buf);
+      MM_LOG (tmp,WARN);
+      return buf;		/* pass to caller anyway */
+    }
   }
   buf[0] = '\0';		/* return empty buffer on EOF */
   return buf;
 }
-
-
+
 /* MIX read sequence record
  * Accepts: open FILE
  * Returns: sequence value, or NIL if failure

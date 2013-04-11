@@ -23,12 +23,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	23 May 2007
+ * Last Edited:	14 June 2007
  */
 
 /* The Version */
 
-#define CCLIENTVERSION "2006i"
+#define CCLIENTVERSION "2006j"
 
 /* Build parameters */
 

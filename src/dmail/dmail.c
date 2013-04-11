@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 April 1993
- * Last Edited:	21 May 2007
+ * Last Edited:	18 June 2007
  */
 
 #include <stdio.h>
@@ -41,12 +41,13 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "15";		/* dmail edit version */
+char *version = "16";		/* dmail edit version */
 int debug = NIL;		/* debugging (don't fork) */
 int flagseen = NIL;		/* flag message as seen */
 int trycreate = NIL;		/* flag saying gotta create before appending */
 int critical = NIL;		/* flag saying in critical code */
 char *sender = NIL;		/* message origin */
+char *keywords = NIL;		/* keyword list */
 
 
 /* Function prototypes */
@@ -149,8 +150,14 @@ int main (int argc,char *argv[])
     break;
   case 'f':
   case 'r':			/* flag giving return path */
+    if (sender) _exit (fail ("duplicate -r",EX_USAGE));
     if (argc--) sender = cpystr (*++argv);
     else _exit (fail ("missing argument to -r",EX_USAGE));
+    break;
+  case 'k':
+    if (keywords) _exit (fail ("duplicate -k",EX_USAGE));
+    if (argc--) keywords = cpystr (*++argv);
+    else _exit (fail ("missing argument to -k",EX_USAGE));
     break;
   default:			/* anything else */
     _exit (fail ("unknown switch",EX_USAGE));
@@ -344,6 +351,7 @@ int deliver_safely (MAILSTREAM *prt,STRING *st,char *mailbox,char *path,
 		    char *tmp)
 {
   struct stat sbuf;
+  char *flags = NIL;
   int i = delivery_unsafe (path,&sbuf,tmp);
   if (i) return i;		/* give up now if delivery unsafe */
 				/* directory, not file */
@@ -376,8 +384,13 @@ int deliver_safely (MAILSTREAM *prt,STRING *st,char *mailbox,char *path,
 	   prt ? prt->dtb->name : "default",mailbox,
 	   ((sbuf.st_mode & S_IFMT) == S_IFDIR) ? "directory" : "file",path);
   mm_dlog (tmp);
+  if (keywords) {		/* any keywords requested? */
+    if (flagseen) sprintf (flags = tmp,"\\Seen %.1000s",keywords);
+    else flags = keywords;
+  }
+  else if (flagseen) flags = "\\Seen";
 				/* do the append now! */
-  if (!mail_append_full (prt,mailbox,flagseen ? "\\Seen" : NIL,NIL,st)) {
+  if (!mail_append_full (prt,mailbox,flags,NIL,st)) {
     sprintf (tmp,"message delivery failed to %.80s",path);
     return fail (tmp,EX_CANTCREAT);
   }

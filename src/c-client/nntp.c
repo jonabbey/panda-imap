@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	4 April 2007
+ * Last Edited:	28 June 2007
  */
 
 
@@ -1211,21 +1211,14 @@ long nntp_search (MAILSTREAM *stream,char *charset,SEARCHPGM *pgm,long flags)
   unsigned long i;
   MESSAGECACHE *elt;
   OVERVIEW ov;
-  if (charset && *charset &&	/* convert if charset not US-ASCII or UTF-8 */
-      !(((charset[0] == 'U') || (charset[0] == 'u')) &&
-	((((charset[1] == 'S') || (charset[1] == 's')) &&
-	  (charset[2] == '-') &&
-	  ((charset[3] == 'A') || (charset[3] == 'a')) &&
-	  ((charset[4] == 'S') || (charset[4] == 's')) &&
-	  ((charset[5] == 'C') || (charset[5] == 'c')) &&
-	  ((charset[6] == 'I') || (charset[6] == 'i')) &&
-	  ((charset[7] == 'I') || (charset[7] == 'i')) && !charset[8]) ||
-	 (((charset[1] == 'T') || (charset[1] == 't')) &&
-	  ((charset[2] == 'F') || (charset[2] == 'f')) &&
-	  (charset[3] == '-') && (charset[4] == '8') && !charset[5])))) {
-    if (utf8_text (NIL,charset,NIL,T)) utf8_searchpgm (pgm,charset);
-    else return NIL;		/* charset unknown */
+  char *msg;
+				/* make sure that charset is good */
+  if (msg = utf8_badcharset (charset)) {
+    MM_LOG (msg,ERROR);		/* output error */
+    fs_give ((void **) &msg);
+    return NIL;
   }
+  utf8_searchpgm (pgm,charset);
   if (flags & SO_OVERVIEW) {	/* only if specified to use overview */
 				/* identify messages that will be searched */
     for (i = 1; i <= stream->nmsgs; ++i)

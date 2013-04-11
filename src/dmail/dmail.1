@@ -1,6 +1,6 @@
 .ig
  * ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,13 +11,13 @@
  * 
  * ========================================================================
 ..
-.TH DMAIL 1 "August 30, 2006"
+.TH DMAIL 1 "June 18, 2007"
 .SH NAME
 dmail \- procmail Mail Delivery Module
 .nh
 .SH SYNOPSIS
 .B dmail
-.I [\-D] [\-f from_name] [-s] [user][+folder]
+.I [\-D] [\-f from_name] [-s] [-k keyword_list] [user][+folder]
 .SH DESCRIPTION
 .I dmail
 delivers mail to a user's INBOX or a designated folder.
@@ -79,6 +79,15 @@ is prepended to the message before delivery.
 The
 .B -s
 flag specifies that the message will be flagged as being "seen".
+.PP
+The \fB-k\fR flag is used to specify delivery keywords, which are set on
+the message at delivery time if and
+.B only
+if the keywords are already defined in the mailbox.  Multiple keywords can be
+specified by using a quoted string, e.g.,
+.br
+   dmail -k "$Junk Discard" +junkbox
+.br 
 .SH RESTRICTIONS
 Absolute pathnames and 
 .I ~user

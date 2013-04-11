@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	8 June 2007
+ * Last Edited:	14 June 2007
  */
 
 
@@ -1068,8 +1068,8 @@ long mx_append_msg (MAILSTREAM *stream,char *flags,MESSAGECACHE *elt,
   int fd;
   unsigned long uf;
   long f = mail_parse_flags (stream,flags,&uf);
-  mx_file (tmp,stream->mailbox);/* make message file name */
-  sprintf (tmp + strlen (tmp),"/%lu",++stream->uid_last);
+				/* make message file name */
+  sprintf (tmp,"%s/%lu",stream->mailbox,++stream->uid_last);
   if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,
 		  (long) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0) {
     sprintf (tmp,"Can't create append message: %s",strerror (errno));

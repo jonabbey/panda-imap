@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	11 May 2007
+ * Last Edited:	18 June 2007
  */
 
 
@@ -1056,6 +1056,10 @@ long mmdf_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     }
     if (pc) return (*pc) (stream,sequence,mailbox,options);
     mmdf_create (NIL,"INBOX");	/* create empty INBOX */
+  case EACCES:			/* file protected */
+    sprintf (LOCAL->buf,"Can't access destination: %.80s",mailbox);
+    MM_LOG (LOCAL->buf,ERROR);
+    return NIL;
   case EINVAL:
     if (pc) return (*pc) (stream,sequence,mailbox,options);
     sprintf (LOCAL->buf,"Invalid MMDF-format mailbox name: %.80s",mailbox);
@@ -1200,6 +1204,10 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   case 0:			/* merely empty file? */
     tstream = stream;
     break;
+  case EACCES:			/* file protected */
+    sprintf (tmp,"Can't access destination: %.80s",mailbox);
+    MM_LOG (tmp,ERROR);
+    return NIL;
   case EINVAL:
     sprintf (tmp,"Invalid MMDF-format mailbox name: %.80s",mailbox);
     MM_LOG (tmp,ERROR);

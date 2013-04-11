@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	23 May 2007
+# Last Edited:	17 June 2007
 
 
 # Command line build parameters
@@ -856,7 +856,7 @@ $(ARCHIVE): $(BINARIES)
 # Cleanup
 
 clean:
-	sh -c '$(RM) auths.c crexcl.c linkage.[ch] siglocal.c osdep*.[ch] *.o ARCHIVE *FLAGS *TYPE $(ARCHIVE) || true'
+	sh -c '$(RM) auths.c crexcl.c ip_unix.c linkage.[ch] siglocal.c osdep*.[ch] *.o ARCHIVE *FLAGS *TYPE $(ARCHIVE) || true'
 
 
 # Dependencies
