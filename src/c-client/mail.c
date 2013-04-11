@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	8 October 2007
+ * Last Edited:	9November 2007
  */
 
 
@@ -3381,16 +3381,17 @@ unsigned long mail_filter (char *text,unsigned long len,STRINGLIST *lines,
 	      (*src++ != '\012')) || ((*src == ' ') || (*src == '\t')));
       dst = src;		/* update destination */
     }
-    else			/* copy line and any continuation line */
+    else {			/* copy line and any continuation line */
       while ((((*dst++ = *src++) != '\012') && ((*dst++ = *src++) != '\012') &&
 	      ((*dst++ = *src++) != '\012') && ((*dst++ = *src++) != '\012') &&
 	      ((*dst++ = *src++) != '\012') && ((*dst++ = *src++) != '\012') &&
 	      ((*dst++ = *src++) != '\012') && ((*dst++ = *src++) != '\012') &&
 	      ((*dst++ = *src++) != '\012') && ((*dst++ = *src++) != '\012'))||
 	     ((*src == ' ') || (*src == '\t')));
-  }
 				/* in case hit the guard LF */
-  if (src > end) dst -= (src - end);
+      if (src > end) dst -= (src - end);
+    }
+  }
   *dst = '\0';			/* tie off destination */
   return dst - text;
 }

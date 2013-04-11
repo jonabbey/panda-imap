@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 September 2007
+ * Last Edited:	17 December 2007
  */
 
 #include <grp.h>
@@ -113,6 +113,12 @@ static long list_max_level = 20;/* maximum level of list recursion */
 				/* facility for syslog */
 static int syslog_facility = LOG_MAIL;
 
+/* Path of the privileged system lock program (mlock).  Normally set by
+ * logic test.
+ */
+
+static char *lockpgm = LOCKPGM;
+
 /* Directory used for shared locks.  MUST be the same for all users of the
  * system, and MUST be protected 1777.  /var/tmp may be preferable on some
  * systems.
@@ -1165,8 +1171,12 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
   if (fd >= 0) switch (errno) {
   case EACCES:			/* protection failure? */
     MM_CRITICAL (NIL);		/* go critical */
-				/* make command pipes */
-    if (!closedBox && !stat (LOCKPGM,&sb) && (pipe (pi) >= 0)) {
+    if (closedBox || !lockpgm);	/* can't do on closed box or disabled */
+    else if ((*lockpgm && stat (lockpgm,&sb)) ||
+	     (!*lockpgm && stat (lockpgm = LOCKPGM1,&sb) &&
+	      stat (lockpgm = LOCKPGM2,&sb) && stat (lockpgm = LOCKPGM3,&sb)))
+      lockpgm = NIL;		/* disable if can't find lockpgm */
+    else if (pipe (pi) >= 0) {	/* make command pipes */
       long cf;
       char *argv[4],arg[20];
 				/* if input pipes usable create output pipes */
@@ -1178,7 +1188,7 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
 	  if (!fork ()) {	/* make grandchild so it's inherited by init */
 				/* prepare argument vector */
 	    sprintf (arg,"%d",fd);
-	    argv[0] = LOCKPGM; argv[1] = arg;
+	    argv[0] = lockpgm; argv[1] = arg;
 	    argv[2] = file; argv[3] = NIL;
 				/* set parent's I/O to my O/I */
 	    dup2 (pi[1],1); dup2 (pi[1],2); dup2 (po[0],0);

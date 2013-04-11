@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 March 2006
- * Last Edited:	1 November 2007
+ * Last Edited:	6 December 2007
  */
 
 
@@ -73,12 +73,6 @@ extern int errno;		/* just in case */
 #define MSGTSZ (sizeof(MSGTOK)-1)
 				/* sortcache file record format */
 #define SCRFMT ":%08lx:%08lx:%08lx:%08lx:%08lx:%c%08lx:%08lx:%08lx:\015\012"
-
-
-/* mix_parse() flags */
-
-#define MP_WRITE 0x1		/* open for write */
-#define MP_VALID 0x2		/* check in recent messages (implies write) */
 
 /* MIX I/O stream local data */
 	
@@ -158,7 +152,7 @@ long mix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 long mix_append_msg (MAILSTREAM *stream,FILE *f,char *flags,MESSAGECACHE *delt,
 		     STRING *msg,SEARCHSET *set,unsigned long seq);
 
-FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long flags);
+FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long sflags);
 char *mix_meta_slurp (MAILSTREAM *stream,unsigned long *seq);
 long mix_meta_update (MAILSTREAM *stream);
 long mix_index_update (MAILSTREAM *stream,FILE *idxf);
@@ -168,7 +162,7 @@ FILE *mix_data_open (MAILSTREAM *stream,int *fd,long *size,
 FILE *mix_sortcache_open (MAILSTREAM *stream);
 long mix_sortcache_update (MAILSTREAM *stream,FILE **sortcache);
 char *mix_read_record (FILE *f,char *buf,unsigned long buflen,char *type);
-long mix_read_sequence (FILE *f);
+unsigned long mix_read_sequence (FILE *f);
 char *mix_dir (char *dst,char *name);
 char *mix_file (char *dst,char *dir,char *name);
 char *mix_file_data (char *dst,char *dir,unsigned long data);
@@ -673,7 +667,7 @@ void mix_close (MAILSTREAM *stream,long options)
   if (LOCAL) {			/* only if a file is open */
     int silent = stream->silent;
     stream->silent = T;		/* note this stream is dying */
-				/* checkpoint or expunge */
+				/* burp-only or expunge */
     mix_expunge (stream,(options & CL_EXPUNGE) ? NIL : "",NIL);
 				/* close current message file if open */
     if (LOCAL->msgfd >= 0) close (LOCAL->msgfd);
@@ -738,7 +732,7 @@ char *mix_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
     i = elt->private.msg.header.offset;
     *length = elt->private.msg.header.text.size;
     if (k != elt->rfc822_size) {
-      sprintf (tmp,"Inconsistency in mix message size, uid=%.08x (%lu != %lu)",
+      sprintf (tmp,"Inconsistency in mix message size, uid=%lx (%lu != %lu)",
 	       elt->private.uid,elt->rfc822_size,k);
       MM_LOG (tmp,WARN);
     }
@@ -747,7 +741,7 @@ char *mix_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
     LOCAL->buf[100] = '\0';	/* tie off buffer at no more than 100 octets */
 				/* or at newline, whichever is first */
     if (s = strpbrk (LOCAL->buf,"\015\012")) *s = '\0';
-    sprintf (tmp,"Error reading mix message header, u=%.08x, s=%.0lx, h=%s",
+    sprintf (tmp,"Error reading mix message header, uid=%lx, s=%.0lx, h=%s",
 	     elt->private.uid,elt->rfc822_size,LOCAL->buf);
     MM_LOG (tmp,ERROR);
     *length = i = j = 0;	/* default to empty */
@@ -784,15 +778,16 @@ long mix_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 				/* doing non-peek fetch? */
   if (!(flags & FT_PEEK) && !elt->seen) {
     FILE *idxf;			/* yes, process metadata/index/status */
-    FILE *statf = mix_parse (stream,&idxf,NIL,stream->rdonly ? NIL : MP_VALID);
+    FILE *statf = mix_parse (stream,&idxf,NIL,LONGT);
     elt->seen = T;		/* mark as seen */
     MM_FLAGS (stream,elt->msgno);
-    if (statf) {		/* update status file if possible */
-      if (!stream->rdonly)
-	elt->private.mod = LOCAL->statusseq = mix_modseq (LOCAL->statusseq);
+				/* update status file if possible */
+    if (statf && !stream->rdonly) {
+      elt->private.mod = LOCAL->statusseq = mix_modseq (LOCAL->statusseq);
       mix_status_update (stream,&statf,LONGT);
     }
-    if (idxf) fclose (idxf);	/* release index file */
+    if (idxf) fclose (idxf);	/* release index and status file */
+    if (statf) fclose (statf);
   } 
   d.fd = LOCAL->msgfd;		/* set up file descriptor */
 				/* offset of message text */
@@ -818,10 +813,10 @@ void mix_flag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
   long f;
   short nf;
   FILE *idxf;
-  FILE *statf = mix_parse (stream,&idxf,NIL,stream->rdonly ? NIL : MP_VALID);
+  FILE *statf = mix_parse (stream,&idxf,NIL,LONGT);
   unsigned long seq = mix_modseq (LOCAL->statusseq);
 				/* find first free key */
-  for (ffkey = 0; (ffkey < NUSERFLAGS) && stream->user_flags[ffkey];++ffkey);
+  for (ffkey = 0; (ffkey < NUSERFLAGS) && stream->user_flags[ffkey]; ++ffkey);
 				/* parse sequence and flags */
   if (((flags & ST_UID) ? mail_uid_sequence (stream,sequence) :
        mail_sequence (stream,sequence)) &&
@@ -856,13 +851,13 @@ void mix_flag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
 	  MM_FLAGS (stream,elt->msgno);
 	}
       }
-    if (statf) {		/* update and close status file after change */
-      if (seq == LOCAL->statusseq) mix_status_update (stream,&statf,LONGT);
+				/* update and close status file after change */
+    if (statf && (seq == LOCAL->statusseq))
+      mix_status_update (stream,&statf,LONGT);
 				/* update metadata if created a keyword */
-      if ((ffkey < NUSERFLAGS) && stream->user_flags[ffkey] &&
-	  !mix_meta_update (stream))
-	MM_LOG ("Error updating mix metadata after keyword creation",ERROR);
-    }
+    if ((ffkey < NUSERFLAGS) && stream->user_flags[ffkey] &&
+	!mix_meta_update (stream))
+      MM_LOG ("Error updating mix metadata after keyword creation",ERROR);
   }
   if (statf) fclose (statf);	/* release status file if still open */
   if (idxf) fclose (idxf);	/* release index file */
@@ -981,9 +976,8 @@ long mix_ping (MAILSTREAM *stream)
 				/* expunging OK if global flag set */
   if (mail_parameters (NIL,GET_EXPUNGEATPING,NIL)) LOCAL->expok = T;
 				/* process metadata/index/status */
-  if (statf = mix_parse (stream,&idxf,stream->rdonly ? NIL : LONGT,
-			 stream->rdonly ? NIL :
-			 (LOCAL->internal ? MP_WRITE : MP_VALID))) {
+  if (statf = mix_parse (stream,&idxf,LONGT,
+			 (LOCAL->internal ? NIL : LONGT))) {
     fclose (statf);		/* just close the status file */
     ret = LONGT;		/* declare success */
   }
@@ -995,7 +989,7 @@ long mix_ping (MAILSTREAM *stream)
 }
 
 
-/* MIX mail check mailbox
+/* MIX mail checkpoint mailbox (burp only)
  * Accepts: MAIL stream
  */
 
@@ -1003,37 +997,38 @@ void mix_check (MAILSTREAM *stream)
 {
   if (stream->rdonly)		/* won't do on readonly files! */
     MM_LOG ("Checkpoint ignored on readonly mailbox",NIL);
-				/* do an expunge of no messages */
+				/* do burp-only expunge action */
   if (mix_expunge (stream,"",NIL)) MM_LOG ("Check completed",(long) NIL);
 }
 
 /* MIX mail expunge mailbox
  * Accepts: MAIL stream
- *	    sequence to expunge if non-NIL
+ *	    sequence to expunge if non-NIL, empty string for burp only
  *	    expunge options
  * Returns: T on success, NIL if failure
  */
 
 long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
-  FILE *statf;
   FILE *idxf = NIL;
+  FILE *statf = NIL;
   MESSAGECACHE *elt;
   int ifd,sfd;
   long ret;
   unsigned long i;
   unsigned long nexp = 0;
   unsigned long reclaimed = 0;
-  int checkpoint = (sequence && !*sequence);
+  int burponly = (sequence && !*sequence);
   LOCAL->expok = T;		/* expunge during ping is OK */
-  if (!(ret = checkpoint || !sequence ||
+  if (!(ret = burponly || !sequence ||
 	((options & EX_UID) ?
 	 mail_uid_sequence (stream,sequence) :
-	 mail_sequence (stream,sequence))));
-  else if (!stream->rdonly &&	/* read index and open status exclusive */
-	   (statf = mix_parse (stream,&idxf,LONGT,MP_VALID))) {
-				/* expunge unless just checkpointing */
-    if (!checkpoint) for (i = 1; i <= stream->nmsgs;) {
+	 mail_sequence (stream,sequence))) || stream->rdonly);
+				/* read index and open status exclusive */
+  else if (statf = mix_parse (stream,&idxf,LONGT,
+			      LOCAL->internal ? NIL : LONGT)) {
+				/* expunge unless just burping */
+    if (!burponly) for (i = 1; i <= stream->nmsgs;) {
       elt = mail_elt (stream,i);/* need to expunge this message? */
       if (sequence ? elt->sequence : elt->deleted) {
 	++nexp;			/* yes, make it so */
@@ -1079,7 +1074,7 @@ long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
 				     elt->private.msg.header.offset +
 				     elt->rfc822_size);
 	  else {		/* uh-oh */
-	    sprintf (LOCAL->buf,"Can't locate mix message file %.08x",
+	    sprintf (LOCAL->buf,"Can't locate mix message file %.08lx",
 		     elt->private.spare.data);
 	    MM_LOG (LOCAL->buf,ERROR);
 	    ret = NIL;
@@ -1117,8 +1112,8 @@ long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
 	ret = mix_status_update (stream,&statf,LONGT);
       }
     }
-    if (statf) fclose (statf);	/* close status if still open */
   }
+  if (statf) fclose (statf);	/* close status if still open */
   if (idxf) fclose (idxf);	/* close index if still open */
   LOCAL->expok = NIL;		/* cancel expok */
   if (ret) {			/* only if success */
@@ -1126,7 +1121,7 @@ long mix_expunge (MAILSTREAM *stream,char *sequence,long options)
     if (nexp) sprintf (s = LOCAL->buf,"Expunged %lu messages",nexp);
     else if (reclaimed)
       sprintf (s=LOCAL->buf,"Reclaimed %lu bytes of expunged space",reclaimed);
-    else s = checkpoint ? NIL :
+    else s = burponly ? NIL :
       (stream->rdonly ? "Expunge ignored on readonly mailbox" :
        "No messages deleted, so no update needed");
     if (s) MM_LOG (s,(long) NIL);
@@ -1371,7 +1366,9 @@ long mix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 		    mail_sequence (stream,sequence))));
 				/* acquire stream to append */
   else if (ret = ((astream = mail_open (NIL,mailbox,OP_SILENT)) &&
-		  (statf = mix_parse (astream,&idxf,LONGT,MP_WRITE))) ?
+		  !astream->rdonly &&
+		  (((MIXLOCAL *) astream->local)->expok = T) &&
+		  (statf = mix_parse (astream,&idxf,LONGT,NIL))) ?
 	   LONGT : NIL) {
     int fd;
     unsigned long i;
@@ -1443,8 +1440,8 @@ long mix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* finish write if success */
       if (ret && (ret = !fflush (msgf))) {
 	fclose (msgf);		/* all good, close the msg file now */
-	if (!astream->rdonly)	/* write new metadata, index, and status */
-	  local->metaseq = local->indexseq = local->statusseq = seq;
+				/* write new metadata, index, and status */
+	local->metaseq = local->indexseq = local->statusseq = seq;
 	if (ret = (mix_meta_update (astream) &&
 		   mix_index_update (astream,idxf))) {
 				/* success, delete if doing a move */
@@ -1527,7 +1524,9 @@ long mix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     FILE *msgf = NIL;
     FILE *statf = NIL;
     if (ret = ((astream = mail_open (NIL,mailbox,OP_SILENT)) &&
-	       (statf = mix_parse (astream,&idxf,LONGT,MP_WRITE))) ?
+	       !astream->rdonly &&
+	       (((MIXLOCAL *) astream->local)->expok = T) &&
+	       (statf = mix_parse (astream,&idxf,LONGT,NIL))) ?
 	LONGT : NIL) {
       int fd;
       unsigned long size,hdrsize;
@@ -1568,8 +1567,8 @@ long mix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* finish write if success */
 	if (ret && (ret = !fflush (msgf))) {
 	  fclose (msgf);	/* all good, close the msg file now */
-	  if (!astream->rdonly)	/* write new metadata, index, and status */
-	    local->metaseq = local->indexseq = local->statusseq = seq;
+				/* write new metadata, index, and status */
+	  local->metaseq = local->indexseq = local->statusseq = seq;
 	  if ((ret = (mix_meta_update (astream) &&
 		      mix_index_update (astream,idxf) &&
 		      mix_status_update (astream,&statf,LONGT))) && au) {
@@ -1697,7 +1696,7 @@ long mix_append_msg (MAILSTREAM *stream,FILE *f,char *flags,MESSAGECACHE *delt,
  * Accepts: MAIL stream
  *	    returned index file
  *	    index file flags (non-NIL if want to add/remove messages)
- *	    status file flags (MP_WRITE, MP_VALID, or NIL)
+ *	    status file flags (non-NIL if want to update elt->valid and old)
  * Returns: open status file, or NIL if failure
  *
  * Note that this routine can return an open index file even if it fails!
@@ -1706,7 +1705,7 @@ long mix_append_msg (MAILSTREAM *stream,FILE *f,char *flags,MESSAGECACHE *delt,
 static char *shortmsg =
   "message %lu (UID=%.08lx) truncated by %lu byte(s) (%lu < %lu)";
 
-FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long flags)
+FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long sflags)
 {
   int fd;
   unsigned long i,j;
@@ -1717,6 +1716,8 @@ FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long flags)
   short indexrepairneeded = 0;
   short silent = stream->silent;
   *idxf = NIL;			/* in case error */
+				/* readonly means no updates */
+  if (stream->rdonly) iflags = sflags = NIL;
 				/* open index file */
   if ((fd = open (LOCAL->index,iflags ? O_RDWR : O_RDONLY,NIL)) < 0)
     MM_LOG ("Error opening mix index file",ERROR);
@@ -1869,8 +1870,7 @@ FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long flags)
 			      (mm != elt->minutes) || (ss != elt->seconds) ||
 			      (z != elt->zoccident) || (zh != elt->zhours) ||
 			      (zm != elt->zminutes)) {
-			    sprintf (tmp,"mix index data mismatch: %lx",
-				     uid,elt->private.uid);
+			    sprintf (tmp,"mix index data mismatch: %lx",uid);
 			    MM_LOG (tmp,ERROR);
 			    return NIL;
 			  }
@@ -1882,7 +1882,7 @@ FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long flags)
 			  else ++nmsgs;
 			}
 			else {	/* unexpected message record */
-			  sprintf (tmp,"mix index UID mismatch (%lx != %lx)",
+			  sprintf (tmp,"mix index UID mismatch (%lx < %lx)",
 				   uid,elt->private.uid);
 			  MM_LOG (tmp,ERROR);
 			  return NIL;
@@ -1914,7 +1914,8 @@ FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long flags)
 			    sprintf (tmp,shortmsg,plt->msgno,plt->private.uid,
 				     i,pos,curpos);
 				/* possible to fix? */
-			    if (!stream->rdonly && (i < plt->rfc822_size)) {
+			    if (!stream->rdonly && LOCAL->expok &&
+				(i < plt->rfc822_size)) {
 			      plt->rfc822_size -= i;
 			      if (plt->rfc822_size <
 				  plt->private.msg.header.text.size)
@@ -1948,7 +1949,8 @@ FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long flags)
 			    sprintf (tmp,shortmsg,elt->msgno,elt->private.uid,
 				     i,curfilesize,curpos);
 				/* possible to fix? */
-			    if (!stream->rdonly && (i < elt->rfc822_size)) {
+			    if (!stream->rdonly && LOCAL->expok &&
+				(i < elt->rfc822_size)) {
 			      elt->rfc822_size -= i;
 			      if (elt->rfc822_size <
 				  elt->private.msg.header.text.size)
@@ -1994,92 +1996,95 @@ FILE *mix_parse (MAILSTREAM *stream,FILE **idxf,long iflags,long flags)
       unsigned long uid,uf,sf,mod;
       char *s;
       int updatep = NIL;
-      int writep = (flags & (MP_VALID | MP_WRITE)) ? T : NIL;
 				/* open status file */
-      if ((fd = open (LOCAL->status,writep ? O_RDWR : O_RDONLY,NIL)) < 0)
+      if ((fd = open (LOCAL->status,
+		      stream->rdonly ? O_RDONLY : O_RDWR,NIL)) < 0)
 	MM_LOG ("Error opening mix status file",ERROR);
 				/* acquire exclusive access and FILE */
-      else if (!flock (fd,writep ? LOCK_EX : LOCK_SH) &&
-	       !(statf = fdopen (fd,writep ? "r+b" : "rb"))) {
+      else if (!flock (fd,stream->rdonly ? LOCK_SH : LOCK_EX) &&
+	       !(statf = fdopen (fd,stream->rdonly ? "rb" : "r+b"))) {
 	MM_LOG ("Error obtaining stream on mix status file",ERROR);
 	flock (fd,LOCK_UN);	/* relinquish lock */
 	close (fd);
       }
-      else if (!stream->nmsgs);	/* do nothing if mailbox empty */
 				/* get sequence */
-      else if (!(i = mix_read_sequence (statf)) || (i < LOCAL->statusseq)) {
+      else if (!(i = mix_read_sequence (statf)) ||
+	       ((i < LOCAL->statusseq) && stream->nmsgs && (i != 1))) {
 	sprintf (LOCAL->buf,
-		 "Error in mix status sequence record, i=%lu, seq=%lu",
+		 "Error in mix status sequence record, i=%lx, seq=%lx",
 		 i,LOCAL->statusseq);
 	MM_LOG (LOCAL->buf,ERROR);
       }
 				/* sequence changed from last time? */
-      else if (i > LOCAL->statusseq) {
-	LOCAL->statusseq = i;	/* update sequence, get first elt */
-	elt = mail_elt (stream,i = 1);
+      else if (i != LOCAL->statusseq) {
+				/* update sequence, get first elt */
+	if (i > LOCAL->statusseq) LOCAL->statusseq = i;
+	if (stream->nmsgs) {
+	  elt = mail_elt (stream,i = 1);
 
 				/* read message records */
-	while ((t = s = mix_read_record (statf,LOCAL->buf,LOCAL->buflen,
-					 "status")) && *s && (*s++ == ':') &&
-	       isxdigit (*s)) {
-	  uid = strtoul (s,&s,16);
-	  if ((*s++ == ':') && isxdigit (*s)) {
-	    uf = strtoul (s,&s,16);
+	  while ((t = s = mix_read_record (statf,LOCAL->buf,LOCAL->buflen,
+					   "status")) && *s && (*s++ == ':') &&
+		 isxdigit (*s)) {
+	    uid = strtoul (s,&s,16);
 	    if ((*s++ == ':') && isxdigit (*s)) {
-	      sf = strtoul (s,&s,16);
+	      uf = strtoul (s,&s,16);
 	      if ((*s++ == ':') && isxdigit (*s)) {
-		mod = strtoul (s,&s,16);
+		sf = strtoul (s,&s,16);
+		if ((*s++ == ':') && isxdigit (*s)) {
+		  mod = strtoul (s,&s,16);
 				/* ignore expansion values */
-		if (*s++ == ':') {
+		  if (*s++ == ':') {
 				/* need to move ahead to next elt? */
-		  while ((uid > elt->private.uid) && (i < stream->nmsgs))
-		    elt = mail_elt (stream,++i);
+		    while ((uid > elt->private.uid) && (i < stream->nmsgs))
+		      elt = mail_elt (stream,++i);
 				/* update elt if altered */
-		  if ((uid == elt->private.uid) &&
-		      (!elt->valid || (mod != elt->private.mod))) {
-		    elt->user_flags = uf;
-		    elt->private.mod = mod;
-		    elt->seen = (sf & fSEEN) ? T : NIL;
-		    elt->deleted = (sf & fDELETED) ? T : NIL;
-		    elt->flagged = (sf & fFLAGGED) ? T : NIL;
-		    elt->answered = (sf & fANSWERED) ? T : NIL;
-		    elt->draft = (sf & fDRAFT) ? T : NIL;
+		    if ((uid == elt->private.uid) &&
+			(!elt->valid || (mod != elt->private.mod))) {
+		      elt->user_flags = uf;
+		      elt->private.mod = mod;
+		      elt->seen = (sf & fSEEN) ? T : NIL;
+		      elt->deleted = (sf & fDELETED) ? T : NIL;
+		      elt->flagged = (sf & fFLAGGED) ? T : NIL;
+		      elt->answered = (sf & fANSWERED) ? T : NIL;
+		      elt->draft = (sf & fDRAFT) ? T : NIL;
 				/* announce if altered existing message */
-		    if (elt->valid) MM_FLAGS (stream,elt->msgno);
+		      if (elt->valid) MM_FLAGS (stream,elt->msgno);
 				/* first time, is old message? */
-		    else if (sf & fOLD) {
+		      else if (sf & fOLD) {
 				/* yes, clear recent and set valid */
-		      elt->recent = NIL;
-		      elt->valid = T;
-		    }
+			elt->recent = NIL;
+			elt->valid = T;
+		      }
 				/* recent, allowed to update its status? */
-		    else if (flags & MP_VALID) {
+		      else if (sflags) {
 				/* yes, set valid and check in status */
-		      elt->valid = T;
-		      elt->private.mod = mix_modseq (elt->private.mod);
-		      updatep = T;
+			elt->valid = T;
+			elt->private.mod = mix_modseq (elt->private.mod);
+			updatep = T;
+		      }
+		      /* leave valid unset and recent if sflags not set */
 		    }
-		    /* leave valid unset if recent and MP_VALID not set */
+		    continue;	/* everything looks good */
 		  }
-		  continue;	/* everything looks good */
 		}
 	      }
 	    }
+	    break;		/* error somewhere */
 	  }
-	  break;		/* error somewhere */
-	}
 
-				/* error seen, or update needed? */
-	if (!t || *t || updatep) {
 	  if (t && *t) {	/* non-null means bogus record */
 	    char msg[MAILTMPLEN];
 	    sprintf (msg,"Error in mix status file message record%s: %.80s",
-		     writep ? ", fixing" : "",t);
+		     stream->rdonly ? "" : ", fixing",t);
 	    MM_LOG (msg,WARN);
+				/* update it if not readonly */
+	    if (!stream->rdonly) updatep = T;
 	  }
-	  if (!stream->rdonly)	/* either way, update status file */
+	  if (updatep) {		/* need to update? */
 	    LOCAL->statusseq = mix_modseq (LOCAL->statusseq);
-	  if (writep) mix_status_update (stream,&statf,NIL);
+	    mix_status_update (stream,&statf,NIL);
+	  }
 	}
       }
     }
@@ -2306,7 +2311,7 @@ FILE *mix_data_open (MAILSTREAM *stream,int *fd,long *size,
     else {			/* short file or becoming too long */
       if (curend > sbuf.st_size) {
 	char tmp[MAILTMPLEN];
-	sprintf (tmp,"short mix message file %lx (%ld > %ld), rolling",
+	sprintf (tmp,"short mix message file %.08lx (%ld > %ld), rolling",
 		 LOCAL->newmsg,curend,sbuf.st_size);
 	MM_LOG (tmp,WARN);	/* shouldn't happen */
       }
@@ -2645,7 +2650,7 @@ char *mix_read_record (FILE *f,char *buf,unsigned long buflen,char *type)
  * Returns: sequence value, or NIL if failure
  */
 
-long mix_read_sequence (FILE *f)
+unsigned long mix_read_sequence (FILE *f)
 {
   unsigned long ret;
   char *s,tmp[MAILTMPLEN];

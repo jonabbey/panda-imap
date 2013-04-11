@@ -12,9 +12,9 @@
  */
 
 	   KNOWN BUGS/MISFEATURES/DEFICIENCIES IN THE IMAP TOOLKIT
-			Last Updated: 11 May 2007
+			Last Updated: 15 November 2007
 
-The following are known problems/deficiencies in the imap-2006 toolkit:
+The following are known problems/deficiencies in the imap-2007 toolkit:
 
  . Possible problems for some installations:
    . In some versions of Redhat Linux, SVR4-style timezone name lookup
@@ -107,18 +107,14 @@ The following are known problems/deficiencies in the imap-2006 toolkit:
          would be reassigned by the selecting session, thus making the
          returned APPENDUID/COPYUID data useless and causing a performance
          problem.
-          Earlier versions did the "hope for the best" method.  This is now
-         revoked in favor of not returning COPYUID/APPENDUID in imap-2006i.
+          Earlier versions did the "hope for the best" method.  This was
+         revoked in favor of not returning COPYUID/APPENDUID.
           Although this violates RFC 4315, there is a loophole which, although
          for other purposes, permits this behavior.
      (b) There is a known failure if the destination mailbox is currently
          selected by legacy software (e.g. older versions of the IMAP
          server, Pine, etc.).  In this case, all UIDs end up being
          reassigned by the legacy software.
-     Note that if Pine is rebuilt with imap-2006 or later version of c-client
-     library, it will not have the (b) issue but it will have the (a)
-     issue.  Alpine also has the (a) issue but not the (b) issue.  However,
-     neither Pine nor the current version of Alpine use COPYUID/APPENDUID.
 
  . Annoyances:
    . Friendly host names (e.g. "server" instead of "server.foo.com") can't be

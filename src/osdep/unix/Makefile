@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	17 June 2007
+# Last Edited:	17 December 2007
 
 
 # Command line build parameters
@@ -101,8 +101,13 @@ SPOOLDIR=/usr/spool
 MAILSPOOL=$(SPOOLDIR)/mail
 NEWSSPOOL=$(SPOOLDIR)/news
 RSHPATH=/usr/ucb/rsh
-LOCKPGM=/etc/mlock
-MD5PWD="/etc/cram-md5.pwd"
+MD5PWD=/etc/cram-md5.pwd
+# Tries one of the test alternatives below if not specified.
+LOCKPGM=
+# Test alternatives if LOCKPGM not specified
+LOCKPGM1=/usr/libexec/mlock
+LOCKPGM2=/usr/sbin/mlock
+LOCKPGM3=/etc/mlock
 
 
 # Default formats for creating new mailboxes and for empty mailboxes in the
@@ -959,7 +964,9 @@ onceenv:
 	 -DMD5ENABLE=\"$(MD5PWD)\" -DMAILSPOOL=\"$(MAILSPOOL)\" \
 	 -DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" \
 	 -DACTIVEFILE=\"$(ACTIVEFILE)\" -DNEWSSPOOL=\"$(NEWSSPOOL)\" \
-	 -DRSHPATH=\"$(RSHPATH)\" -DLOCKPGM=\"$(LOCKPGM)\" > OSCFLAGS
+	 -DRSHPATH=\"$(RSHPATH)\" -DLOCKPGM=\"$(LOCKPGM)\" \
+	 -DLOCKPGM1=\"$(LOCKPGM1)\" -DLOCKPGM2=\"$(LOCKPGM2)\" \
+	 -DLOCKPGM3=\"$(LOCKPGM3)\" > OSCFLAGS
 	echo $(BASELDFLAGS) $(EXTRALDFLAGS) > LDFLAGS
 	echo "$(ARRC) $(ARCHIVE) $(BINARIES);$(RANLIB) $(ARCHIVE)" > ARCHIVE
 	echo $(OS) > OSTYPE

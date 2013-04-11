@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,17 +12,17 @@
  */
 
 		  SSL/TLS BUILD AND INSTALLATION NOTES FOR UNIX
-			 Last Updated: 20 August 2006
+			 Last Updated: 15 November 2007
 
 PREREQUISITES BEFORE STARTING:
- 1) Review the information in imap-2006/docs/BUILD.
+ 1) Review the information in imap-2007/docs/BUILD.
  2) Obtain a copy of OpenSSL.  OpenSSL is available from third parties.  We
     do not provide OpenSSL.
  3) Make sure that you know how to build OpenSSL properly on the standard
     /usr/local/ssl directory.  In particular, /usr/local/ssl/include (and
     /usr/local/ssl/include/openssl) and /usr/local/ssl/lib must be set up
     from the OpenSSL build.  If you have a non-standard installation, then
-    you must modify the imap-2006/src/osdep/unix/Makefile file to point
+    you must modify the imap-2007/src/osdep/unix/Makefile file to point
     to the appropriate locations.
  4) Make sure that you know how to obtain appropriate certificates on your
     system.
@@ -48,7 +48,7 @@ Note that doing so will produce an IMAP server which is NON-COMPLIANT
 with RFC 3501.
 
      There are other make options relevant to SSL, described in
- imap-2006/src/osdep/unix/Makefile
+ imap-2007/src/osdep/unix/Makefile
 The most important of these are SSLDIR, SSLCRYPTO, and SSLRSA.
 
      SSLDIR is set to /usr/local/ssl by default.  This is the normal
@@ -70,10 +70,10 @@ is no longer any reason to do this.
 SSL INSTALLATION:
 
      Binaries from the build are:
-	imap-2006/mtest/mtest		c-client testbed program
-	imap-2006/ipopd/ipop2d		POP2 daemon
-	imap-2006/ipopd/ipop3d		POP3 daemon
-	imap-2006/imapd/imapd		IMAP4rev1 daemon
+	imap-2007/mtest/mtest		c-client testbed program
+	imap-2007/ipopd/ipop2d		POP2 daemon
+	imap-2007/ipopd/ipop3d		POP3 daemon
+	imap-2007/imapd/imapd		IMAP4rev1 daemon
 
      mtest is normally not used except by c-client developers.
 
@@ -114,10 +114,10 @@ imap	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
 pop3s	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
 imaps	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
 
-     Please refer to imap-2006/docs/BUILD for an important note about inetd's
+     Please refer to imap-2007/docs/BUILD for an important note about inetd's
 limit on the number of new connections.  If that note applies to you, and you
 can configure the number of connection in /etc/inetd.conf as described in
-imap-2006/docs/build, here is the sample /etc/inetd.conf entry with SSL:
+imap-2007/docs/build, here is the sample /etc/inetd.conf entry with SSL:
 
 pop3	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d
 pop3s	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d

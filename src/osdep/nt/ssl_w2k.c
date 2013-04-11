@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	30 August 2006
+ * Last Edited:	12 December 2007
  */
 
 #define SECURITY_WIN32
@@ -468,12 +468,12 @@ long ssl_getbuffer (SSLSTREAM *stream,unsigned long size,char *buffer)
 
 long ssl_getdata (SSLSTREAM *stream)
 {
-  SECURITY_STATUS status;
-  SecBuffer buf[4];
-  SecBufferDesc msg;
-  size_t n = 0;
-  size_t i;
   while (stream->ictr < 1) {	/* decrypted buffer empty? */
+    SECURITY_STATUS status;
+    SecBuffer buf[4];
+    SecBufferDesc msg;
+    size_t i;
+    size_t n = 0;		/* initially no bytes to decrypt */
     do {			/* yes, make sure have data from TCP */
       if (stream->iextractr) {	/* have previous unread data? */
 	memcpy (stream->ibuf + n,stream->iextraptr,stream->iextractr);

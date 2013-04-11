@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	9 October 2007
+ * Last Edited:	14 November 2007
  */
 
 /* UTF-8 size and conversion routines from UCS-2 values (thus in the BMP).
@@ -542,6 +542,7 @@ long ucs4_rmapbuf (unsigned char *t,unsigned long *ucs4,unsigned long len,
 unsigned long utf8_get (unsigned char **s,unsigned long *i);
 unsigned long utf8_get_raw (unsigned char **s,unsigned long *i);
 unsigned long ucs4_cs_get (CHARSET *cs,unsigned char **s,unsigned long *i);
+unsigned long *utf8_csvalidmap (char *charsets[]);
 const CHARSET *utf8_infercharset (SIZEDTEXT *src);
 long utf8_validate (unsigned char *s,unsigned long i);
 void utf8_text_1byte0 (SIZEDTEXT *text,SIZEDTEXT *ret,ucs4cn_t cv,ucs4de_t de);

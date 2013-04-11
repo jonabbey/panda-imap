@@ -62,7 +62,7 @@ The following documents are primarily of historic interest:
 
 
 The following documents discuss matters which are related to IMAP:
-   rfc2192.txt	IMAP URL Scheme
    rfc3503.txt	MDN Profile for IMAP
    rfc3656.txt	MUPDATE Distributed Mailbox Database Protocol
    rfc4468.txt	Message Submission BURL Extension
+   rfc5092.txt	IMAP URL Scheme

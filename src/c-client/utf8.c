@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	9 October 2007
+ * Last Edited:	14 November 2007
  */
 
 
@@ -1132,6 +1132,148 @@ unsigned long ucs4_cs_get (CHARSET *cs,unsigned char **s,unsigned long *i)
   }
   *s = t;			/* update pointer and counter */
   *i = j;
+  return ret;
+}
+
+/* Produce charset validity map for BMP
+ * Accepts: list of charsets to map
+ * Returns: validity map, indexed by BMP codepoint
+ *
+ * Bit 0x1 is the "not-CJK" character bit
+ */
+
+unsigned long *utf8_csvalidmap (char *charsets[])
+{
+  unsigned short u,*tab;
+  unsigned int m,ku,ten;
+  unsigned long i,csi,csb;
+  struct utf8_eucparam *param,*p2;
+  char *s;
+  const CHARSET *cs;
+  unsigned long *ret = (unsigned long *)
+    fs_get (i = 0x10000 * sizeof (unsigned long));
+  memset (ret,0,i);		/* zero the entire vector */
+				/* mark all the non-CJK codepoints */
+	/* U+0000 - U+2E7F non-CJK */
+  for (i = 0; i < 0x2E7F; ++i) ret[i] = 0x1;
+	/* U+2E80 - U+2EFF CJK Radicals Supplement
+	 * U+2F00 - U+2FDF Kangxi Radicals
+	 * U+2FE0 - U+2FEF unassigned
+	 * U+2FF0 - U+2FFF Ideographic Description Characters
+	 * U+3000 - U+303F CJK Symbols and Punctuation
+	 * U+3040 - U+309F Hiragana
+	 * U+30A0 - U+30FF Katakana
+	 * U+3100 - U+312F BoPoMoFo
+	 * U+3130 - U+318F Hangul Compatibility Jamo
+	 * U+3190 - U+319F Kanbun
+	 * U+31A0 - U+31BF BoPoMoFo Extended
+	 * U+31C0 - U+31EF CJK Strokes
+	 * U+31F0 - U+31FF Katakana Phonetic Extensions
+	 * U+3200 - U+32FF Enclosed CJK Letters and Months
+	 * U+3300 - U+33FF CJK Compatibility
+	 * U+3400 - U+4DBF CJK Unified Ideographs Extension A
+	 * U+4DC0 - U+4DFF Yijing Hexagram Symbols
+	 * U+4E00 - U+9FFF CJK Unified Ideographs
+	 * U+A000 - U+A48F Yi Syllables
+	 * U+A490 - U+A4CF Yi Radicals
+	 * U+A700 - U+A71F Modifier Tone Letters
+	 */
+  for (i = 0xa720; i < 0xabff; ++i) ret[i] = 0x1;
+	/* U+AC00 - U+D7FF Hangul Syllables */
+  for (i = 0xd800; i < 0xf8ff; ++i) ret[i] = 0x1;
+	/* U+F900 - U+FAFF CJK Compatibility Ideographs */
+  for (i = 0xfb00; i < 0xfe2f; ++i) ret[i] = 0x1;
+	/* U+FE30 - U+FE4F CJK Compatibility Forms
+	 * U+FE50 - U+FE6F Small Form Variants (for CNS 11643)
+	 */
+  for (i = 0xfe70; i < 0xfeff; ++i) ret[i] = 0x1;
+	/* U+FF00 - U+FFEF CJK Compatibility Ideographs */
+  for (i = 0xfff0; i < 0x10000; ++i) ret[i] = 0x1;
+
+				/* for each supplied charset */
+  for (csi = 1; ret && charsets && (s = charsets[csi - 1]); ++csi) {
+				/* substitute EUC-JP for ISO-2022-JP */
+    if (!compare_cstring (s,"ISO-2022-JP")) s = "EUC-JP";
+				/* look up charset */
+    if (cs = utf8_charset (s)) {
+      csb = 1 << csi;		/* charset bit */
+      switch (cs->type) {
+      case CT_ASCII:		/* 7-bit ASCII no table */
+      case CT_1BYTE0:		/* 1 byte no table */
+      case CT_1BYTE:		/* 1 byte ASCII + table 0x80-0xff */
+      case CT_1BYTE8:		/* 1 byte table 0x00 - 0xff */
+      case CT_EUC:		/* 2 byte ASCII + utf8_eucparam base/CS2/CS3 */
+      case CT_DBYTE:		/* 2 byte ASCII + utf8_eucparam */
+      case CT_DBYTE2:		/* 2 byte ASCII + utf8_eucparam plane1/2 */
+      case CT_SJIS:		/* 2 byte Shift-JIS */
+				/* supported charset type, all ASCII is OK */
+	for (i = 0; i < 128; ++i) ret[i] |= csb;
+	break;
+      default:			/* unsupported charset type */
+	fs_give ((void **) &ret);
+	break;
+      }
+				/* now do additional operations */
+      if (ret) switch (cs->type) {
+      case CT_1BYTE0:		/* 1 byte no table */
+	for (i = 128; i < 256; i++) ret[i] |= csb;
+	break;
+      case CT_1BYTE:		/* 1 byte ASCII + table 0x80-0xff */
+	for (tab = (unsigned short *) cs->tab,i = 128; i < 256; i++)
+	  if (tab[i & BITS7] != UBOGON) ret[tab[i & BITS7]] |= csb;
+	break;
+      case CT_1BYTE8:		/* 1 byte table 0x00 - 0xff */
+	for (tab = (unsigned short *) cs->tab,i = 0; i < 256; i++)
+	  if (tab[i] != UBOGON) ret[tab[i]] |= csb;
+      break;
+      case CT_EUC:		/* 2 byte ASCII + utf8_eucparam base/CS2/CS3 */
+	for (param = (struct utf8_eucparam *) cs->tab,
+	       tab = (unsigned short *) param->tab, ku = 0;
+	     ku < param->max_ku; ku++)
+	  for (ten = 0; ten < param->max_ten; ten++)
+	    if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
+	      ret[u] |= csb;
+	break;
+
+      case CT_DBYTE:		/* 2 byte ASCII + utf8_eucparam */
+	for (param = (struct utf8_eucparam *) cs->tab,
+	       tab = (unsigned short *) param->tab, ku = 0;
+	     ku < param->max_ku; ku++)
+	  for (ten = 0; ten < param->max_ten; ten++)
+	    if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
+	      ret[u] |= csb;
+      break;
+      case CT_DBYTE2:		/* 2 byte ASCII + utf8_eucparam plane1/2 */
+	param = (struct utf8_eucparam *) cs->tab;
+	p2 = param + 1;		/* plane 2 parameters */
+				/* only ten parameters should differ */
+	if ((param->base_ku != p2->base_ku) || (param->max_ku != p2->max_ku))
+	  fatal ("ku definition error for CT_DBYTE2 charset");
+				/* total codepoints in each ku */
+	m = param->max_ten + p2->max_ten;
+	tab = (unsigned short *) param->tab;
+	for (ku = 0; ku < param->max_ku; ku++) {
+	  for (ten = 0; ten < param->max_ten; ten++)
+	    if ((u = tab[(ku * m) + ten]) != UBOGON)
+	      ret[u] |= csb;
+	  for (ten = 0; ten < p2->max_ten; ten++)
+	    if ((u = tab[(ku * m) + param->max_ten + ten]) != UBOGON)
+	      ret[u] |= csb;
+	}
+	break;
+      case CT_SJIS:		/* 2 byte Shift-JIS */
+	for (ku = 0; ku < MAX_JIS0208_KU; ku++)
+	  for (ten = 0; ten < MAX_JIS0208_TEN; ten++)
+	    if ((u = jis0208tab[ku][ten]) != UBOGON) ret[u] |= csb;
+				/* JIS hankaku katakana */
+	for (u = 0; u < (MAX_KANA_8 - MIN_KANA_8); u++)
+	  ret[UCS2_KATAKANA + u] |= csb;
+	break;
+      }
+    }
+				/* invalid charset, punt */
+    else fs_give ((void **) &ret);
+  }
   return ret;
 }
 

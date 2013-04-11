@@ -23,12 +23,12 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	8 October 2007
+ * Last Edited:	19 November 2007
  */
 
 /* The Version */
 
-#define CCLIENTVERSION "2006k"
+#define CCLIENTVERSION "2007"
 
 /* Build parameters */
 
@@ -272,7 +272,9 @@
 #define GET_SENDCOMMAND (long) 450
 #define SET_SENDCOMMAND (long) 451
 #define GET_IDLETIMEOUT (long) 452
-#define SET_IDLETIMEOUT (long) 452
+#define SET_IDLETIMEOUT (long) 453
+#define GET_FETCHLOOKAHEADLIMIT (long) 454
+#define SET_FETCHLOOKAHEADLIMIT (long) 455
 
 	/* 5xx: local file drivers */
 #define GET_MBXPROTECTION (long) 500
