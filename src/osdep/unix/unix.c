@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	30 August 2006
+ * Last Edited:	21 September 2006
  */
 
 
@@ -471,7 +471,7 @@ MAILSTREAM *unix_open (MAILSTREAM *stream)
 				/* try to lock file */
     if ((fd = lockname (tmp,stream->mailbox,LOCK_EX|LOCK_NB,&i)) < 0) {
 				/* suppressing kiss-of-death? */
-      if (!stream->nokod) retry = 0;
+      if (stream->nokod) retry = 0;
 				/* no, first time through? */
       else if (retry-- == KODRETRY) {
 				/* learned other guy's PID and can signal? */

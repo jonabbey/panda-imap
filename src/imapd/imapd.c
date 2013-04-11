@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	30 August 2006
+ * Last Edited:	18 September 2006
  */
 
 /* Parameter files */
@@ -110,6 +110,7 @@ typedef struct msg_data {
 /* Function prototypes */
 
 int main (int argc,char *argv[]);
+void sayonara (int status);
 void ping_mailbox (unsigned long uid);
 time_t palert (char *file,time_t oldtime);
 void msg_string_init (STRING *s,void *data,unsigned long size);
@@ -201,7 +202,9 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2006.368";	/* version number of this server */
+char *version = "2006a.369";	/* version number of this server */
+char *logout = "Logout";	/* syslogreason for logout */
+char *goodbye = NIL;		/* bye reason */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
@@ -243,7 +246,6 @@ unsigned long lastuid = 0;	/* last fetched uid */
 char *lastid = NIL;		/* last fetched body id for this message */
 char *lastsel = NIL;		/* last selected mailbox name */
 SIZEDTEXT lastst = {NIL,0};	/* last sizedtext */
-logouthook_t lgoh = NIL;	/* logout hook */
 unsigned long cauidvalidity = 0;/* UIDVALIDITY for COPYUID/APPENDUID */
 SEARCHSET *csset = NIL;		/* COPYUID source set */
 SEARCHSET *caset = NIL;		/* COPYUID/APPENDUID destination set */
@@ -1300,20 +1302,36 @@ int main (int argc,char *argv[])
       if (state != LOGIN) autologouttime = 0;
 				/* took too long to login */
       else if (autologouttime < time (0)) {
-	PSOUT ("* BYE Autologout\015\012");
-	syslog (LOG_INFO,"Autologout host=%.80s",tcp_clienthost ());
-	PFLUSH ();		/* make sure output blatted */
+	logout = goodbye = "Autologout";
 	state = LOGOUT;		/* sayonara */
       }
     }
   }
-  syslog (LOG_INFO,"Logout user=%.80s host=%.80s",user ? (char *) user : "???",
-	  tcp_clienthost ());
-				/* do logout hook if needed */
-  if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
-    (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
-  exit (0);			/* all done */
+  sayonara (0);			/* farewell */
   return 0;			/* stupid compilers */
+}
+
+
+/* Say goodbye
+ * Accepts: exit status
+ *
+ * Does not return
+ */
+
+void sayonara (int status)
+{
+  logouthook_t lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL);
+  if (goodbye && !quell_events){/* have a goodbye message? */
+    PSOUT ("* BYE ");		/* utter it */
+    PSOUT (goodbye);
+    CRLF;
+    PFLUSH ();			/* make sure blatted */
+  }
+  syslog (LOG_INFO,"%s user=%.80s host=%.80s",logout,
+	  user ? (char *) user : "???",tcp_clienthost ());
+				/* do logout hook if needed */
+  if (lgoh) (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
+  _exit (status);		/* all done */
 }
 
 /* Ping mailbox during each cycle.  Also check alerts
@@ -1550,84 +1568,70 @@ void new_flags (MAILSTREAM *stream)
 }
 
 /* Clock interrupt
+ * Returns only if critical code in progress
  */
 
 void clkint (void)
 {
   alarm (0);			/* disable all interrupts */
   server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-  if (!quell_events)
-    PSOUT ("* BYE Autologout; idle for too long\015\012");
-  syslog (LOG_INFO,"Autologout user=%.80s host=%.80s",
-	  user ? (char *) user : "???",tcp_clienthost ());
-  PFLUSH ();			/* make sure output blatted */
+  logout = "Autologout";
+  goodbye = "Autologout (idle for too long)";
   if (critical) state = LOGOUT;	/* must defer if in critical code */
   else {			/* try to close stream gracefully */
     if ((state == OPEN) && !stream->lock) stream = mail_close (stream);
-				/* do logout hook if needed */
-    if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
-      (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
-    _exit (1);			/* die die die */
+    sayonara (1);		/* die die die */
   }
 }
 
 
 /* Kiss Of Death interrupt
+ * Returns only if critical code in progress
  */
 
 void kodint (void)
 {
   alarm (0);			/* disable all interrupts */
   server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-  if (!quell_events) PSOUT ("* BYE Lost mailbox lock\015\012");
-  PFLUSH ();			/* make sure output blatted */
-  syslog (LOG_INFO,"Killed (lost mailbox lock) user=%.80s host=%.80s",
-	  user ? (char *) user : "???",tcp_clienthost ());
+  logout = goodbye = "Killed (lost mailbox lock)";
   if (critical) state = LOGOUT;	/* must defer if in critical code */
   else {			/* try to close stream gracefully */
     if ((state == OPEN) && !stream->lock) stream = mail_close (stream);
-				/* do logout hook if needed */
-    if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
-      (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
-    _exit (1);			/* die die die */
+    sayonara (1);		/* die die die */
   }
 }
 
 /* Hangup interrupt
+ * Returns only if critical code in progress
  */
 
 void hupint (void)
 {
   alarm (0);			/* disable all interrupts */
   server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-  syslog (LOG_INFO,"Hangup user=%.80s host=%.80s",user ? (char *) user : "???",
-	  tcp_clienthost ());
+  logout = "Hangup";
   if (critical) state = LOGOUT;	/* must defer if in critical code */
   else {			/* try to close stream gracefully */
     if ((state == OPEN) && !stream->lock) stream = mail_close (stream);
-				/* do logout hook if needed */
-    if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
-      (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
-    _exit (1);			/* die die die */
+    sayonara (1);		/* die die die */
   }
 }
 
 
 /* Termination interrupt
+ * Returns only if critical code in progress
  */
 
 void trmint (void)
 {
   alarm (0);			/* disable all interrupts */
   server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-  if (!quell_events) PSOUT ("* BYE Killed\015\012");
-  syslog (LOG_INFO,"Killed user=%.80s host=%.80s",user ? (char *) user : "???",
-	  tcp_clienthost ());
+  logout = goodbye = "Killed (terminated)";
   if (critical) state = LOGOUT;	/* must defer if in critical code */
   /* Make no attempt at graceful closure since a shutdown may be in
    * progress, and we won't have any time to do mail_close() actions
    */
-  else _exit (1);		/* die die die */
+  else sayonara (1);		/* die die die */
 }
 
 /* Slurp a command line
@@ -1691,17 +1695,14 @@ unsigned char *flush (void)
 
 void inerror (char *reason)
 {
+  char msg[MAILTMPLEN];
   char *e = ferror (stdin) ? strerror (errno) : "Unexpected client disconnect";
   alarm (0);			/* disable all interrupts */
   server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-  syslog (LOG_INFO,"%.80s, while %s user=%.80s host=%.80s",
-	  e,reason,user ? (char *) user : "???",tcp_clienthost ());
+  sprintf (logout = msg,"%.80s, while %.80s",e,reason);
 				/* try to gracefully close the stream */
   if (state == OPEN) stream = mail_close (stream);
-				/* do logout hook if needed */
-  if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
-    (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
-  _exit (1);
+  sayonara (1);			/* die die die */
 }
 
 /* Parse an IMAP astring
@@ -2644,17 +2645,15 @@ void fetch_body_part_binary (unsigned long i,void *args)
 	  sprintf (tmp + strlen (tmp),"{%lu}\015\012",st.size);
 	  PSOUT (tmp);
 	  if (PSOUTR (&st) == EOF) {
+	    char msg[MAILTMPLEN];
 	    alarm (0);		/* disable all interrupts */
 	    server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-	    syslog (LOG_INFO,
-		    "%.80s, while writing binary user=%.80s host=%.80s",
-		    strerror (errno),user ? (char *) user : "???",
-		    tcp_clienthost ());
 	    if (state == OPEN) stream = mail_close (stream);
-				/* do logout hook if needed */
-	    if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
-	      (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
-	    _exit (1);
+	    sprintf (logout = msg,"%.80s, while writing binary",
+		     strerror (errno));
+	    if (state == OPEN) stream = mail_close (stream);
+	    sayonara (1);
+
 	  }
 	}
       }
@@ -3390,20 +3389,16 @@ void pbodypartstring (unsigned long msgno,char *id,SIZEDTEXT *st,STRING *bs,
 
 void ptext (SIZEDTEXT *txt,STRING *st)
 {
-  unsigned char c,*s;
+  unsigned char c,*s,tmp[MAILTMPLEN];
   unsigned long i = txt->size;
   if (s = txt->data) while (i && ((PBOUT ((c = *s++) ? c : 0x80) != EOF))) --i;
   else if (st) while (i && (PBOUT ((c = SNX (st)) ? c : 0x80) != EOF)) --i;
   if (i) {			/* failed to complete? */
     alarm (0);			/* disable all interrupts */
     server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-    syslog (LOG_INFO,"%.80s, while writing text user=%.80s host=%.80s",
-	    strerror (errno),user ? (char *) user : "???",tcp_clienthost ());
+    sprintf (logout = tmp,"%.80s, while writing text",strerror (errno));
     if (state == OPEN) stream = mail_close (stream);
-				/* do logout hook if needed */
-    if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
-      (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
-    _exit (1);
+    sayonara (1);
   }
 }
 
@@ -4172,10 +4167,7 @@ void mm_nocritical (MAILSTREAM *s)
 				/* clean up */
     if (s && !s->lock) s = mail_close (s);
     if (stream && (stream != s) && !stream->lock) stream = mail_close (stream);
-				/* do logout hook if needed */
-    if (lgoh = (logouthook_t) mail_parameters (NIL,GET_LOGOUTHOOK,NIL))
-      (*lgoh) (mail_parameters (NIL,GET_LOGOUTDATA,NIL));
-    _exit (1);			/* die die die */
+    sayonara (1);		/* die die die */
   }
 }
 

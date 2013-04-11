@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	30 August 2006
+ * Last Edited:	19 September 2006
  */
 
 
@@ -933,7 +933,7 @@ void mbx_snarf (MAILSTREAM *stream)
       }
       else {
 	sprintf (LOCAL->buf,"Can't copy new mail: %s",strerror (errno));
-	MM_LOG (LOCAL->buf,ERROR);
+	MM_LOG (LOCAL->buf,WARN);
 	ftruncate (LOCAL->fd,sbuf.st_size);
       }
       fstat (LOCAL->fd,&sbuf);	/* yes, get current file size */

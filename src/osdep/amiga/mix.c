@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 March 2006
- * Last Edited:	30 August 2006
+ * Last Edited:	19 September 2006
  */
 
 
@@ -872,6 +872,8 @@ THREADNODE *mix_thread (MAILSTREAM *stream,char *type,char *charset,
  * Returns: T if stream alive, else NIL
  */
 
+static int snarfing = 0;	/* lock against recursive snarfing */
+
 long mix_ping (MAILSTREAM *stream)
 {
   FILE *idxf,*statf;
@@ -885,12 +887,13 @@ long mix_ping (MAILSTREAM *stream)
   long ret = NIL;
   long snarfok = LONGT;
 				/* time to snarf? */
-  if (stream->inbox && !stream->rdonly &&
+  if (stream->inbox && !stream->rdonly && !snarfing &&
       (time (0) >= (LOCAL->lastsnarf +
 		    (time_t) mail_parameters (NIL,GET_SNARFINTERVAL,NIL)))) {
     appenduid_t au = (appenduid_t) mail_parameters (NIL,GET_APPENDUID,NIL);
     copyuid_t cu = (copyuid_t) mail_parameters (NIL,GET_COPYUID,NIL);
     MM_CRITICAL (stream);	/* go critical */
+    snarfing = T;		/* don't recursively snarf */
 				/* disable APPENDUID/COPYUID callbacks */
     mail_parameters (NIL,SET_APPENDUID,NIL);
     mail_parameters (NIL,SET_COPYUID,NIL);
@@ -901,9 +904,11 @@ long mix_ping (MAILSTREAM *stream)
 				/* for each message in sysibx mailbox */
       for (i = 1; snarfok && (i <= sysibx->nmsgs); ++i)
 	if (!(elt = mail_elt (sysibx,i))->deleted &&
-	    (message = mail_fetch_message (sysibx,i,&msglen,NIL)) && msglen) {
+	    (message = mail_fetch_message (sysibx,i,&msglen,FT_PEEK)) &&
+	    msglen) {
 	  mail_date (date,elt);	/* make internal date string */
-	  flags[0] = '\0';	/* make flag string */
+				/* make flag string */
+	  flags[0] = flags[1] = '\0';
 	  if (elt->seen) strcat (flags," \\Seen");
 	  if (elt->flagged) strcat (flags," \\Flagged");
 	  if (elt->answered) strcat (flags," \\Answered");
@@ -911,7 +916,7 @@ long mix_ping (MAILSTREAM *stream)
 	  flags[0] = '(';
 	  strcat (flags,")");
 	  INIT (&msg,mail_string,message,msglen);
-	  if (snarfok = mail_append_full (NIL,"INBOX",flags,date,&msg)) {
+	  if (snarfok = mail_append_full (stream,"INBOX",flags,date,&msg)) {
 	    char sequence[15];
 	    sprintf (sequence,"%lu",i);
 	    mail_flag (sysibx,sequence,"\\Deleted",ST_SET);
@@ -921,7 +926,7 @@ long mix_ping (MAILSTREAM *stream)
 				/* now expunge all those messages */
       if (snarfok) mail_expunge (sysibx);
       else {
-	sprintf (LOCAL->buf,"Can't copy new mail at message: %lu",i);
+	sprintf (LOCAL->buf,"Can't copy new mail at message: %lu",i - 1);
 	MM_LOG (LOCAL->buf,WARN);
       }
     }
@@ -929,6 +934,7 @@ long mix_ping (MAILSTREAM *stream)
 				/* reenable APPENDUID/COPYUID */
     mail_parameters (NIL,SET_APPENDUID,(void *) au);
     mail_parameters (NIL,SET_COPYUID,(void *) cu);
+    snarfing = NIL;		/* no longer snarfing */
     MM_NOCRITICAL (stream);	/* release critical */
     LOCAL->lastsnarf = time (0);/* note time of last snarf */
   }
@@ -1784,11 +1790,10 @@ FILE *mix_parse (MAILSTREAM *stream,FILE *idxf,long flags)
     }
 				/* sequence changed from last time? */
     else if (j || (i > LOCAL->indexseq)) {
-      unsigned int c,y,m,d,hh,mm,ss,z,zh,zm;
-      unsigned long nmsgs,uid,size,file,pos,hpos,hsiz;
+      unsigned long uid;
       char *msg,tmp[MAILTMPLEN];
+      unsigned long nmsgs = 0;	/* start with no messages */
       LOCAL->indexseq = i;	/* update sequence, get first elt */
-      nmsgs = 0;		/* start with no messages */
       while ((s = mix_read_record (idxf,LOCAL->buf,LOCAL->buflen)) && *s)
 	switch (*s) {
 	case ':':		/* message record */
@@ -1799,27 +1804,28 @@ FILE *mix_parse (MAILSTREAM *stream,FILE *idxf,long flags)
 	      isdigit (s[5]) && isdigit (s[6]) && isdigit (s[7]) &&
 	      isdigit (s[8]) && isdigit (s[9]) && isdigit (s[10]) &&
 	      isdigit (s[11]) && isdigit (s[12]) && isdigit (s[13]) &&
-	      ((s[14] == '+') || (z = (s[14] == '-'))) && 
+	      ((s[14] == '+') || (s[14] == '-')) && 
 	      isdigit (s[15]) && isdigit (s[16]) && isdigit (s[17]) &&
 	      isdigit (s[18]) && (s[19] == ':') && isxdigit (s[20])) {
-	    y = (((*s - '0') * 1000) + ((s[1] - '0') * 100) +
-		 ((s[2] - '0') * 10) + s[3] - '0') - BASEYEAR;
-	    m = ((s[4] - '0') * 10) + s[5] - '0';
-	    d = ((s[6] - '0') * 10) + s[7] - '0';
-	    hh = ((s[8] - '0') * 10) + s[9] - '0';
-	    mm = ((s[10] - '0') * 10) + s[11] - '0';
-	    ss = ((s[12] - '0') * 10) + s[13] - '0';
-	    zh = ((s[15] - '0') * 10) + s[16] - '0';
-	    zm = ((s[17] - '0') * 10) + s[18] - '0';
-	    size = strtoul (s+20,&s,16);
+	    unsigned int y = (((*s - '0') * 1000) + ((s[1] - '0') * 100) +
+			      ((s[2] - '0') * 10) + s[3] - '0') - BASEYEAR;
+	    unsigned int m = ((s[4] - '0') * 10) + s[5] - '0';
+	    unsigned int d = ((s[6] - '0') * 10) + s[7] - '0';
+	    unsigned int hh = ((s[8] - '0') * 10) + s[9] - '0';
+	    unsigned int mm = ((s[10] - '0') * 10) + s[11] - '0';
+	    unsigned int ss = ((s[12] - '0') * 10) + s[13] - '0';
+	    unsigned int z = (s[14] == '-') ? 1 : 0;
+	    unsigned int zh = ((s[15] - '0') * 10) + s[16] - '0';
+	    unsigned int zm = ((s[17] - '0') * 10) + s[18] - '0';
+	    unsigned long size = strtoul (s+20,&s,16);
 	    if ((*s++ == ':') && isxdigit (*s)) {
-	      file = strtoul (s,&s,16);
+	      unsigned long file = strtoul (s,&s,16);
 	      if ((*s++ == ':') && isxdigit (*s)) {
-		pos = strtoul (s,&s,16);
+		unsigned long pos = strtoul (s,&s,16);
 		if ((*s++ == ':') && isxdigit (*s)) {
-		  hpos = strtoul (s,&s,16);
+		  unsigned long hpos = strtoul (s,&s,16);
 		  if ((*s++ == ':') && isxdigit (*s)) {
-		    hsiz = strtoul (s,&s,16);
+		    unsigned long hsiz = strtoul (s,&s,16);
 		    /* ignore expansion values */
 		    if (*s++ == ':') {
 

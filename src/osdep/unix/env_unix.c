@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	31 August 2006
+ * Last Edited:	15 September 2006
  */
 
 #include <grp.h>
@@ -1116,6 +1116,7 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
 
   if (fd >= 0) switch (errno) {
   case EACCES:			/* protection failure? */
+    MM_CRITICAL (NIL);		/* go critical */
 				/* make command pipes */
     if (!closedBox && !stat (LOCKPGM,&sb) && (pipe (pi) >= 0)) {
       if (pipe (po) >= 0) {
@@ -1152,6 +1153,7 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
 	    base->pipei = pi[0]; base->pipeo = po[1];
 				/* close child's side of the pipes */
 	    close (pi[1]); close (po[0]);
+	    MM_NOCRITICAL (NIL);/* no longer critical */
 	    return LONGT;
 	  }
 	}
@@ -1159,6 +1161,7 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
       }
       close (pi[0]); close (pi[1]);
     }
+    MM_NOCRITICAL (NIL);	/* no longer critical */
 				/* find directory/file delimiter */
     if (s = strrchr (base->lock,'/')) {
       *s = '\0';		/* tie off at directory */

@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	16 September 2006
  */
 
 #include "ip_unix.c"
@@ -788,7 +788,7 @@ char *tcp_clientaddr ()
     if (getpeername (0,sadr,(void *) &sadrlen))
       myClientAddr = cpystr ("UNKNOWN");
     else {			/* get stdin's peer name */
-      myClientAddr = ip_sockaddrtostring (sadr);
+      myClientAddr = cpystr (ip_sockaddrtostring (sadr));
       if (myClientPort < 0) myClientPort = ip_sockaddrtoport (sadr);
     }
     fs_give ((void **) &sadr);
@@ -819,7 +819,7 @@ char *tcp_clienthost ()
     }
     else {			/* get stdin's peer name */
       myClientHost = tcp_name (sadr,T);
-      if (!myClientAddr) myClientAddr = ip_sockaddrtostring (sadr);
+      if (!myClientAddr) myClientAddr = cpystr (ip_sockaddrtostring (sadr));
       if (myClientPort < 0) myClientPort = ip_sockaddrtoport (sadr);
     }
     fs_give ((void **) &sadr);
@@ -850,7 +850,7 @@ char *tcp_serveraddr ()
     if (getsockname (0,sadr,(void *) &sadrlen))
       myServerAddr = cpystr ("UNKNOWN");
     else {			/* get stdin's name */
-      myServerAddr = ip_sockaddrtostring (sadr);
+      myServerAddr = cpystr (ip_sockaddrtostring (sadr));
       if (myServerPort < 0) myServerPort = ip_sockaddrtoport (sadr);
     }
     fs_give ((void **) &sadr);
@@ -873,7 +873,7 @@ char *tcp_serverhost ()
       myServerHost = cpystr (mylocalhost ());
     else {			/* get stdin's name */
       myServerHost = tcp_name (sadr,NIL);
-      if (!myServerAddr) myServerAddr = ip_sockaddrtostring (sadr);
+      if (!myServerAddr) myServerAddr = cpystr (ip_sockaddrtostring (sadr));
       if (myServerPort < 0) myServerPort = ip_sockaddrtoport (sadr);
     }
     fs_give ((void **) &sadr);

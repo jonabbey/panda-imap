@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	30 August 2006
+ * Last Edited:	21 September 2006
  */
 
 /* UTF-8 size and conversion routines from UCS-2 values (thus in the BMP).
@@ -506,6 +506,8 @@ unsigned short *utf8_rmap_cs (const CHARSET *cs);
 unsigned short *utf8_rmap_gen (const CHARSET *cs,unsigned short *oldmap);
 long utf8_rmaptext (SIZEDTEXT *text,unsigned short *rmap,SIZEDTEXT *ret,
 		    unsigned long errch,long iso2022jp);
+unsigned long utf8_rmapsize (SIZEDTEXT *text,unsigned short *rmap,
+			     unsigned long errch,long iso2022jp);
 long ucs4_rmaptext (unsigned long *ucs4,unsigned long len,unsigned short *rmap,
 		    SIZEDTEXT *ret,unsigned long errch);
 long ucs4_rmaplen (unsigned long *ucs4,unsigned long len,unsigned short *rmap,

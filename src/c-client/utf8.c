@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	30 August 2006
+ * Last Edited:	21 September 2006
  */
 
 
@@ -688,47 +688,15 @@ long utf8_rmaptext (SIZEDTEXT *text,unsigned short *rmap,SIZEDTEXT *ret,
 		    unsigned long errch,long iso2022jp)
 {
   unsigned long i,u,c;
-  unsigned char *s,*t;
-  if (iso2022jp) iso2022jp = 1;	/* start non-zero ISO-2022-JP state at 1 */
-				/* yes, determine size of destination string */
-  for (ret->size = 0,s = text->data,i = text->size; i;) {
-				/* map, ignore BOM */
-    if ((u = utf8_get (&s,&i)) != UCS2_BOM)
-      if ((u & U8GM_NONBMP) || (((c = rmap[u]) == NOCHAR) && !(c = errch)))
-	return NIL;		/* not in BMP, or NOCHAR and no err char? */
-      switch (iso2022jp) {	/* depends upon ISO 2022 mode */
-      case 0:			/* ISO 2022 not in effect */
-	ret->size += (c > 0xff) ? 2 : 1;
-	break;
-      case 1:			/* ISO 2022 Roman */
-				/* <ch> */
-	if (c < 0x80) ret->size += 1;
-	else {			/* JIS character */
-	  ret->size += 5;	/* ESC $ B <hi> <lo> */
-	  iso2022jp = 2;	/* shift to ISO 2022 JIS */
-	}
-	break;
-      case 2:			/* ISO 2022 JIS */
-				/* <hi> <lo> */
-	if (c > 0x7f) ret->size += 2;
-	else {			/* ASCII character */
-	  ret->size += 4;	/* ESC ( J <ch> */
-	  iso2022jp = 1;	/* shift to ISO 2022 Roman */
-	}
-	break;
-      }
-  }
-  if (iso2022jp == 2) {		/* ISO-2022-JP string must end in Roman */
-    ret->size += 3;		/* ESC ( J */
-    iso2022jp = 1;		/* reset state to Roman */
-  }
-
-				/* make destination buffer */
-  ret->data = (unsigned char *) fs_get (ret->size + 1);
-				/* convert string */
-  for (t = ret->data,s = text->data,i = text->size; i;)
-				/* map, ignore BOM */
-    if ((u = utf8_get (&s,&i)) != UCS2_BOM) {
+				/* get size of buffer */
+  if (i = utf8_rmapsize (text,rmap,errch,iso2022jp)) {
+    unsigned char *s = text->data;
+    unsigned char *t = ret->data = (unsigned char *) fs_get (i);
+    ret->size = i - 1;		/* number of octets in destination buffer */
+				/* start non-zero ISO-2022-JP state at 1 */
+    if (iso2022jp) iso2022jp = 1;
+				/* convert string, ignore BOM */
+    for (i = text->size; i;) if ((u = utf8_get (&s,&i)) != UCS2_BOM) {
 				/* substitute error character for NOCHAR */
       if ((u & U8GM_NONBMP) || ((c = rmap[u]) == NOCHAR)) c = errch;
       switch (iso2022jp) {	/* depends upon ISO 2022 mode */
@@ -765,13 +733,64 @@ long utf8_rmaptext (SIZEDTEXT *text,unsigned short *rmap,SIZEDTEXT *ret,
 	break;
       }
     }
-  if (iso2022jp == 2) {		/* ISO-2022-JP string must end in Roman */
-    *t++ = I2C_ESC;		/* ESC ( J */
-    *t++ = I2C_G0_94;
-    *t++ = I2CS_94_JIS_ROMAN;
+    if (iso2022jp == 2) {	/* ISO-2022-JP string must end in Roman */
+      *t++ = I2C_ESC;		/* ESC ( J */
+      *t++ = I2C_G0_94;
+      *t++ = I2CS_94_JIS_ROMAN;
+    }
+    *t++ = NIL;			/* tie off returned data */
   }
-  *t++ = NIL;			/* tie off returned data */
   return LONGT;			/* return success */
+}
+
+/* Calculate size of convertsion of UTF-8 sized text to charset using rmap
+ * Accepts: source sized text
+ *	    conversion rmap
+ *	    pointer to returned sized text
+ *	    substitute character if not in rmap, else NIL to return failure
+ *	    ISO-2022-JP conversion flag
+ * Returns size+1 if successful, NIL if failure
+ *
+ * This routine doesn't try to handle to all possible charsets; in particular
+ * it doesn't support other Unicode encodings or any ISO 2022 other than
+ * ISO-2022-JP.
+ */
+
+unsigned long utf8_rmapsize (SIZEDTEXT *text,unsigned short *rmap,
+			     unsigned long errch,long iso2022jp)
+{
+  unsigned long i,u,c;
+  unsigned long ret = 1;	/* terminating NUL */
+  unsigned char *s = text->data;
+  if (iso2022jp) iso2022jp = 1;	/* start non-zero ISO-2022-JP state at 1 */
+  for (i = text->size; i;) if ((u = utf8_get (&s,&i)) != UCS2_BOM) {
+    if ((u & U8GM_NONBMP) || (((c = rmap[u]) == NOCHAR) && !(c = errch)))
+      return NIL;		/* not in BMP, or NOCHAR and no err char */
+    switch (iso2022jp) {	/* depends upon ISO 2022 mode */
+    case 0:			/* ISO 2022 not in effect */
+      ret += (c > 0xff) ? 2 : 1;
+      break;
+    case 1:			/* ISO 2022 Roman */
+      if (c < 0x80) ret += 1;	/* <ch> */
+      else {			/* JIS character */
+	ret += 5;		/* ESC $ B <hi> <lo> */
+	iso2022jp = 2;		/* shift to ISO 2022 JIS */
+      }
+      break;
+    case 2:			/* ISO 2022 JIS */
+      if (c > 0x7f) ret += 2;	/* <hi> <lo> */
+      else {			/* ASCII character */
+	ret += 4;		/* ESC ( J <ch> */
+	iso2022jp = 1;		/* shift to ISO 2022 Roman */
+      }
+      break;
+    }
+  }
+  if (iso2022jp == 2) {		/* ISO-2022-JP string must end in Roman */
+    ret += 3;			/* ESC ( J */
+    iso2022jp = 1;		/* reset state to Roman */
+  }
+  return ret;
 }
 
 /* Convert UCS-4 to charset using rmap

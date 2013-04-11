@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	15 September 2006
  */
  
 /* Emulator for BSD scandir() call
@@ -66,4 +66,16 @@ int scandir (char *dirname,struct direct ***namelist,select_t select,
   if (nitems && compar) qsort (names,nitems,sizeof (struct direct *),compar);
   *namelist = names;		/* return directory */
   return nitems;		/* and size */
+}
+
+/* Alphabetic file name comparision
+ * Accepts: first candidate directory entry
+ *	    second candidate directory entry
+ * Returns: negative if d1 < d2, 0 if d1 == d2, postive if d1 > d2
+ */
+
+int alphasort (void *d1,void *d2)
+{
+  return strcmp ((*(struct direct **) d1)->d_name,
+		 (*(struct direct **) d2)->d_name);
 }

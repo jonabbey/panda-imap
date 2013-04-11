@@ -11,6 +11,18 @@
  * ========================================================================
  */
 
+Updated: 15 September 2006
+
+imap-2006a is a maintenance release, consisting entirely of bugfixes to
+problems discovered in the release that affected a small number of users.
+
+If it is necessary to build IPv4-only on one of the ports that has IPv6
+preconfigured (ldb, lfd, lmd, lrh, lsu, osx, oxp), this can be done by
+using IP6=4.  You can't do IP=4 in the build command directly since these
+ports set IP themselves; however, now instead of setting IP=6 they now set
+IP=$(IP6).
+
+
 Updated: 30 August 2006
 
 imap-2006 is a major release.  Programs written for imap-2004g should

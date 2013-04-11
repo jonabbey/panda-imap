@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	15 September 2006
  */
 
 #include <stdlib.h>
@@ -48,6 +48,7 @@ typedef int (*select_t) (struct direct *name);
 typedef int (*compar_t) (void *d1,void *d2);
 int scandir (char *dirname,struct direct ***namelist,select_t select,
 	     compar_t compar);
+int alphasort (void *d1,void *d2);
 
 
 #include "env_unix.h"

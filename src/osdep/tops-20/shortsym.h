@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	30 August 2006
+ * Last Edited:	21 September 2006
  */
 
 #define auth_link a_link
@@ -574,6 +574,7 @@
 #define utf8_rmap u8_rmp
 #define utf8_rmap_cs u8r_cs
 #define utf8_rmap_gen u8r_gn
+#define utf8_rmapsize u8r_sz
 #define utf8_rmaptext u8r_tx
 #define utf8_script u8_scr
 #define utf8_searchpgm u8_spg
