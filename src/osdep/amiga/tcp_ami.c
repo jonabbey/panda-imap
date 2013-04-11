@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Amiga TCP/IP routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	20 February 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 #undef write			/* don't use redefined write() */
@@ -297,22 +305,22 @@ char *tcp_getline (TCPSTREAM *stream)
   }
 				/* copy partial string from buffer */
   memcpy ((ret = stp = (char *) fs_get (n)),st,n);
-				/* get more data from the net */
-  if (!tcp_getdata (stream)) fs_give ((void **) &ret);
+  if (tcp_getdata (stream)) {	/* get more data from the net */
 				/* special case of newline broken by buffer */
-  else if ((c == '\015') && (*stream->iptr == '\012')) {
-    stream->iptr++;		/* eat the line feed */
-    stream->ictr--;
-    ret[n - 1] = '\0';		/* tie off string with null */
-  }
+    if ((c == '\015') && (*stream->iptr == '\012')) {
+      stream->iptr++;		/* eat the line feed */
+      stream->ictr--;
+      ret[n - 1] = '\0';	/* tie off string with null */
+    }
 				/* else recurse to get remainder */
-  else if (st = tcp_getline (stream)) {
-    ret = (char *) fs_get (n + 1 + (m = strlen (st)));
-    memcpy (ret,stp,n);		/* copy first part */
-    memcpy (ret + n,st,m);	/* and second part */
-    fs_give ((void **) &stp);	/* flush first part */
-    fs_give ((void **) &st);	/* flush second part */
-    ret[n + m] = '\0';		/* tie off string with null */
+    else if (st = tcp_getline (stream)) {
+      ret = (char *) fs_get (n + 1 + (m = strlen (st)));
+      memcpy (ret,stp,n);	/* copy first part */
+      memcpy (ret + n,st,m);	/* and second part */
+      fs_give ((void **) &stp);	/* flush first part */
+      fs_give ((void **) &st);	/* flush second part */
+      ret[n + m] = '\0';	/* tie off string with null */
+    }
   }
   return ret;
 }
@@ -347,7 +355,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
     while (size > 0) {		/* until request satisfied */
       time_t tl = time (0);
       time_t now = tl;
-      int ti = ttmo_read ? now + ttmo_read : 0;
+      time_t ti = ttmo_read ? now + ttmo_read : 0;
       if (tcpdebug) mm_log ("Reading TCP buffer",TCPDEBUG);
       tmo.tv_usec = 0;
       FD_ZERO (&fds);		/* initialize selection vector */
@@ -395,7 +403,7 @@ long tcp_getdata (TCPSTREAM *stream)
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     time_t tl = time (0);	/* start of request */
     time_t now = tl;
-    int ti = ttmo_read ? now + ttmo_read : 0;
+    time_t ti = ttmo_read ? now + ttmo_read : 0;
     if (tcpdebug) mm_log ("Reading TCP data",TCPDEBUG);
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
@@ -455,7 +463,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   while (size > 0) {		/* until request satisfied */
     time_t tl = time (0);	/* start of request */
     time_t now = tl;
-    int ti = ttmo_write ? now + ttmo_write : 0;
+    time_t ti = ttmo_write ? now + ttmo_write : 0;
     if (tcpdebug) mm_log ("Writing to TCP",TCPDEBUG);
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */

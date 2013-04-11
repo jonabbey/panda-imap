@@ -1,37 +1,42 @@
-.TH mailutil 1 "May 18, 2004" 
+.ig
+ * ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+..
+.TH mailutil 1 "August 30, 2006" 
 .SH NAME
 mailutil - mail utility program
 .nh
 .SH SYNTAX
-.B mailutil check [-debug] [-verbose]
+.B mailutil check [-d] [-v]
 .B [mailbox]
 .PP
-.B mailutil create [-debug] [-verbose]
-.B new_mailbox
+.B mailutil create [-d] [-v] mailbox
 .PP
-.B mailutil delete [-debug] [-verbose]
-.B mailbox
+.B mailutil delete [-d] [-v] mailbox
 .PP
-.B mailutil rename [-debug] [-verbose]
-.B [-rwcopy] old new
+.B mailutil rename [-d] [-v] src dst
 .PP
-.B mailutil copy [-debug] [-verbose]
-.B [-rwcopy] old new
+.B mailutil copy [-d] [-v] [-rw] [-kw] src dst
 .PP
-.B mailutil move [-debug] [-verbose]
-.B [-rwcopy] old new
+.B mailutil move [-d] [-v] [-rw] [-kw] src dst
 .PP
-.B mailutil append [-debug] [-verbose]
-.B [-rwcopy] src dst
+.B mailutil append [-d] [-v] [-rw] [-kw] src dst
 .PP
-.B mailutil appenddelete [-debug] [-verbose]
-.B [-rwcopy] src dst
+.B mailutil appenddelete [-d] [-v] [-rw] [-kw] src dst
 .PP
-.B mailutil prune [-debug] [-verbose]
+.B mailutil prune [-d] [-v]
 .B mailbox criteria
 .PP
-.B mailutil transfer [-debug] [-verbose]
-.B [-merge m] [-rwcopy] src dst
+.B mailutil transfer [-d] [-v] [-m mode] [-rw] [-kw] src dst
 .SH DESCRIPTION
 .B mailutil
 replaces the old chkmail, imapcopy, imapmove, imapxfer, mbxcopy,
@@ -117,21 +122,23 @@ needed.  Any error in copying messages will cause the transfer to stop.
 .PP
 Normally, any error in creation will cause the transfer to stop.
 However, if
+.B -m mode 
+or
 .B -merge mode 
 is specified, a merging transfer is performed.  The
 .B mode
 argument the type of merge.
 .PP
-.B -merge prompt
+.B -m[erge] prompt
 indicates that the user should be asked for an alternative name to create.
 If creating the new name fails, the user will be asked again.
 .PP
-.B -merge append
+.B -m[erge] append
 indicates that it's alright to copy the messages into an existing mailbox
 with that name.  If the mailbox does not exist, the user will be prompted
 for an alternative name.
 .PP
-.B -merge suffix=XXXX
+.B -m[erge] suffix=XXXX
 where XXXX is any string, indicates that an alternative name should be
 built by appending the given suffix to the name.  It that alternative name
 can't be created, then the user will be prompted for an alternative name.
@@ -154,19 +161,35 @@ will copy all mailboxes from the imap.foo.com IMAP server to
 equivalent names starting with "old/" on the imap.bar.com IMAP server.
 .SH FLAGS
 The
+.B -d
+or
 .B -debug
 flag prints full debugging telemetry including protocol operations.
 .PP
 The
+.B -v
+or
 .B -verbose
 flag prints verbose (non-error) telemetry.
 .PP
 The
+.B -rw
+or
 .B -rwcopy
 flag causes the source mailbox to be open in readwrite mode rather than
 readonly mode.  Normally, mailutil tries to use readonly mode to avoid
 altering any flags in the source mailbox, but some mailbox types, e.g.
 POP3, can't be open in readonly mode.
+.PP
+The
+.B -kw
+or
+.B -kwcopy
+flag causes the keywords of the source mailbox to be created in the
+destination mailbox.  Normally, mailutil does not create keywords in
+the destination mailbox so only those keywords that are already defined
+in the destination mailbox will be preserved.  Note that some IMAP servers
+may automatically create keywords, so this flag may not be necessary.
 .SH ARGUMENTS
 The arguments are standard c-client mailbox names.  A
 variety of mailbox name formats and types of mailboxes are supported

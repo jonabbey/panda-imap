@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	MIT Kerberos routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 March 2003
- * Last Edited:	17 October 2003
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 #define PROTOTYPE(x) x
@@ -29,6 +37,9 @@ char *kerberos_login (char *user,char *authuser,int argc,char *argv[]);
 
 /* Kerberos server valid check
  * Returns: T if have keytab, NIL otherwise
+ *
+ * Note that this routine will probably return T only if the process is root.
+ * This is alright since the server is probably still root at this point.
  */
 
 long kerberos_server_valid ()
@@ -42,7 +53,8 @@ long kerberos_server_valid ()
 				/* get default keytab */
     if (!krb5_kt_default (ctx,&kt)) {
 				/* can do server if have good keytab */
-      if (!krb5_kt_start_seq_get (ctx,kt,&csr)) ret = LONGT;
+      if (!krb5_kt_start_seq_get (ctx,kt,&csr) &&
+	  !krb5_kt_end_seq_get (ctx,kt,&csr)) ret = LONGT;
       krb5_kt_close (ctx,kt);	/* finished with keytab */
     }
     krb5_free_context (ctx);	/* finished with context */

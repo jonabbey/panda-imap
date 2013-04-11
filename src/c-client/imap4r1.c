@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Interactive Message Access Protocol 4rev1 (IMAP4R1) routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	25 May 2005
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2005 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	9 September 2006
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -43,6 +51,9 @@
 #define IMAPSSLPORT (long) 993	/* assigned SSL TCP contact port */
 #define MAXCOMMAND 1000		/* RFC 2683 guideline for cmd line length */
 #define IDLETIMEOUT (long) 30	/* defined in RFC 3501 */
+#define MAXSERVERLIT 0x7ffffffe	/* maximum server literal size
+				 * must be smaller than 4294967295
+				 */
 
 
 /* Parsed reply message from imap_reply */
@@ -65,12 +76,14 @@ typedef struct imap_local {
   IMAPPARSEDREPLY reply;	/* last parsed reply */
   MAILSTATUS *stat;		/* status to fill in */
   IMAPCAP cap;			/* server capabilities */
+  char *appendmailbox;		/* mailbox being appended to */
   unsigned int uidsearch : 1;	/* UID searching */
   unsigned int byeseen : 1;	/* saw a BYE response */
 				/* got implicit capabilities */
   unsigned int gotcapability : 1;
   unsigned int sensitive : 1;	/* sensitive data in progress */
   unsigned int tlsflag : 1;	/* TLS session */
+  unsigned int tlssslv23 : 1;	/* TLS using SSLv23 client method */
   unsigned int notlsflag : 1;	/* TLS not used in session */
   unsigned int sslflag : 1;	/* SSL session */
   unsigned int novalidate : 1;	/* certificate not validated */
@@ -182,7 +195,7 @@ THREADNODE *imap_thread_work (MAILSTREAM *stream,char *type,char *charset,
 			      SEARCHPGM *spg,long flags);
 long imap_ping (MAILSTREAM *stream);
 void imap_check (MAILSTREAM *stream);
-void imap_expunge (MAILSTREAM *stream);
+long imap_expunge (MAILSTREAM *stream,char *sequence,long options);
 long imap_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 long imap_append_referral (char *mailbox,char *tmp,append_t af,void *data,
@@ -866,7 +879,8 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
 	mb.tlsflag = T;		/* TLS OK, get into TLS at this end */
 	LOCAL->netstream->dtb = ssld;
 	if (!(LOCAL->netstream->stream =
-	      (*stls) (LOCAL->netstream->stream,mb.host,NET_TLSCLIENT |
+	      (*stls) (LOCAL->netstream->stream,mb.host,
+		       (mb.tlssslv23 ? NIL : NET_TLSCLIENT) |
 		       (mb.novalidate ? NET_NOVALIDATECERT : NIL)))) {
 				/* drat, drop this connection */
 	  if (LOCAL->netstream) net_close (LOCAL->netstream);
@@ -917,6 +931,7 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
     if (LOCAL->netstream && !LOCAL->gotcapability) imap_capability (stream);
 				/* save state for future recycling */
     if (mb.tlsflag) LOCAL->tlsflag = T;
+    if (mb.tlssslv23) LOCAL->tlssslv23 = T;
     if (mb.notlsflag) LOCAL->notlsflag = T;
     if (mb.sslflag) LOCAL->sslflag = T;
     if (mb.novalidate) LOCAL->novalidate = T;
@@ -934,6 +949,7 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
       sprintf (tmp + strlen (tmp),":%lu",i);
     strcat (tmp,"/imap");
     if (LOCAL->tlsflag) strcat (tmp,"/tls");
+    if (LOCAL->tlssslv23) strcat (tmp,"/tls-sslv23");
     if (LOCAL->notlsflag) strcat (tmp,"/notls");
     if (LOCAL->sslflag) strcat (tmp,"/ssl");
     if (LOCAL->novalidate) strcat (tmp,"/novalidate-cert");
@@ -2344,13 +2360,56 @@ void imap_check (MAILSTREAM *stream)
 
 /* IMAP expunge mailbox
  * Accepts: MAIL stream
+ *	    sequence to expunge if non-NIL
+ *	    expunge options
+ * Returns: T if success, NIL if failure
  */
 
-void imap_expunge (MAILSTREAM *stream)
+long imap_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
-				/* send "EXPUNGE" */
-  IMAPPARSEDREPLY *reply = imap_send (stream,"EXPUNGE",NIL);
-  mm_log (reply->text,imap_OK (stream,reply) ? (long) NIL : ERROR);
+  long ret = NIL;
+  IMAPPARSEDREPLY *reply = NIL;
+  if (sequence) {		/* wants selective expunging? */
+    if (options & EX_UID) {	/* UID EXPUNGE form? */
+      if (LEVELUIDPLUS (stream)) {/* server support UIDPLUS? */
+	IMAPARG *args[2],aseq;
+	aseq.type = SEQUENCE; aseq.text = (void *) sequence;
+	args[0] = &aseq; args[1] = NIL;
+	ret = imap_OK (stream,reply = imap_send (stream,"UID EXPUNGE",args));
+      }
+      else mm_log ("[NOTUIDPLUS] Can't do UID EXPUNGE with this server",ERROR);
+    }
+				/* otherwise try to make into UID EXPUNGE */
+    else if (mail_sequence (stream,sequence)) {
+      unsigned long i,j;
+      char *s = LOCAL->tmp;
+				/* search through mailbox */
+      for (s = '\0',i = 1; i <= stream->nmsgs; ++i) 
+	if (mail_elt (stream,i)->sequence) {
+				/* prepend with comma if not first time */
+	if (LOCAL->tmp[0]) *s++ = ',';
+	sprintf (s,"%lu",mail_uid (stream,j = i));
+	s += strlen (s);	/* point at end of string */
+				/* search for possible end of range */
+	while ((i < stream->nmsgs) && mail_elt (stream,i+1)->sequence) i++;
+	if (i != j) {		/* output end of range */
+	  sprintf (s,":%lu",mail_uid (stream,i));
+	  s += strlen (s);	/* point at end of string */
+	}
+	if ((s - LOCAL->tmp) > (IMAPTMPLEN - 50)) {
+	  mm_log ("Excessively complex sequence",ERROR);
+	  return NIL;
+	}
+      }
+				/* now do as UID EXPUNGE */
+      ret = imap_expunge (stream,s = cpystr (s),EX_UID);
+      fs_give ((void **) &s);
+    }
+  }
+				/* ordinary EXPUNGE */
+  else ret = imap_OK (stream,reply = imap_send (stream,"EXPUNGE",NIL));
+  if (reply) mm_log (reply->text,ret ? (long) NIL : ERROR);
+  return ret;
 }
 
 /* IMAP copy message(s)
@@ -2365,6 +2424,7 @@ long imap_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long flags)
 {
   char *cmd = (LEVELIMAP4 (stream) && (flags & CP_UID)) ? "UID COPY" : "COPY";
   char *s;
+  long ret = NIL;
   IMAPPARSEDREPLY *reply;
   IMAPARG *args[3],aseq,ambx;
   imapreferral_t ir =
@@ -2376,18 +2436,22 @@ long imap_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long flags)
   aseq.type = SEQUENCE; aseq.text = (void *) sequence;
   ambx.type = ASTRING; ambx.text = (void *) mailbox;
   args[0] = &aseq; args[1] = &ambx; args[2] = NIL;
+				/* note mailbox in case APPENDUID */
+  LOCAL->appendmailbox = mailbox;
 				/* send "COPY sequence mailbox" */
-  if (!imap_OK (stream,reply = imap_send (stream,cmd,args))) {
-    if (ir && pc && LOCAL->referral && mail_sequence (stream,sequence) &&
-	(s = (*ir) (stream,LOCAL->referral,REFCOPY)))
-      return (*pc) (stream,sequence,s,flags);
-    mm_log (reply->text,ERROR);
-    return NIL;
+  ret = imap_OK (stream,reply = imap_send (stream,cmd,args));
+  LOCAL->appendmailbox = NIL;	/* no longer appending */
+  if (ret) {			/* success, delete messages if move */
+    if (flags & CP_MOVE) imap_flag (stream,sequence,"\\Deleted",
+				    ST_SET + ((flags&CP_UID) ? ST_UID : NIL));
   }
-				/* delete the messages if the user said to */
-  if (flags & CP_MOVE) imap_flag (stream,sequence,"\\Deleted",
-				  ST_SET + ((flags & CP_UID) ? ST_UID : NIL));
-  return T;
+				/* failed, do referral action if any */
+  else if (ir && pc && LOCAL->referral && mail_sequence (stream,sequence) &&
+	   (s = (*ir) (stream,LOCAL->referral,REFCOPY)))
+    ret = (*pc) (stream,sequence,s,flags);
+				/* otherwise issue error message */
+  else mm_log (reply->text,ERROR);
+  return ret;
 }
 
 /* IMAP mail append message from stringstruct
@@ -2413,6 +2477,8 @@ long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* create a stream if given one no good */
     if ((stream && LOCAL && LOCAL->netstream) ||
 	(stream =  mail_open (NIL,mailbox,OP_HALFOPEN|OP_SILENT))) {
+				/* note mailbox in case APPENDUID */
+      LOCAL->appendmailbox = mailbox;
 				/* use multi-append? */
       if (LEVELMULTIAPPEND (stream)) {
 	ambx.type = ASTRING; ambx.text = (void *) tmp;
@@ -2421,6 +2487,7 @@ long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 	args[0] = &ambx; args[1] = &amap; args[2] = NIL;
 				/* success if OK */
 	ret = imap_OK (stream,reply = imap_send (stream,"APPEND",args));
+	LOCAL->appendmailbox = NIL;
       }
 				/* do succession of single appends */
       else while ((*af) (stream,data,&map.flags,&map.date,&map.message) &&
@@ -2428,6 +2495,7 @@ long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 		  (ret = imap_OK (stream,reply =
 				  imap_append_single (stream,tmp,map.flags,
 						      map.date,map.message))));
+      LOCAL->appendmailbox = NIL;
 				/* don't do referrals if success or no reply */
       if (ret || !reply) mailbox = NIL;
 				/* otherwise generate referral */
@@ -3108,6 +3176,7 @@ IMAPPARSEDREPLY *imap_send_literal (MAILSTREAM *stream,char *tag,char **s,
 {
   IMAPPARSEDREPLY *reply;
   unsigned long i = SIZE (st);
+  unsigned long j;
   sprintf (*s,"{%lu}",i);	/* write literal count */
   *s += strlen (*s);		/* size of literal count */
 				/* send the command */
@@ -3117,13 +3186,27 @@ IMAPPARSEDREPLY *imap_send_literal (MAILSTREAM *stream,char *tag,char **s,
     return reply;
   }
   while (i) {			/* dump the text */
-    if (!net_sout (LOCAL->netstream,st->curpos,st->cursize)) {
-      mail_unlock (stream);
-      return imap_fake (stream,tag,"[CLOSED] IMAP connection broken (data)");
+    if (st->cursize) {		/* if text to do in this chunk */
+      /* RFC 3501 technically forbids NULs in literals.  Normally, the
+       * delivering MTA would take care of MIME converting the message text
+       * so that it is NUL-free.  If it doesn't, then we have the choice of
+       * either violating IMAP by sending NULs, corrupting the data, or going
+       * to lots of work to do MIME conversion in the IMAP server.
+       *
+       * No current stringstruct driver objects to having its buffer patched.
+       * If this ever changes, it will be necessary to change this kludge.
+       */
+				/* patch NULs to C1 control */
+      for (j = 0; j < st->cursize; ++j)
+	if (!st->curpos[j]) st->curpos[j] = 0x80;
+      if (!net_sout (LOCAL->netstream,st->curpos,st->cursize)) {
+	mail_unlock (stream);
+	return imap_fake (stream,tag,"[CLOSED] IMAP connection broken (data)");
+      }
+      i -= st->cursize;		/* note that we wrote out this much */
+      st->curpos += (st->cursize - 1);
+      st->cursize = 0;
     }
-    i -= st->cursize;		/* note that we wrote out this much */
-    st->curpos += (st->cursize - 1);
-    st->cursize = 0;
     (*st->dtb->next) (st);	/* advance to next buffer's worth */
   }
   return NIL;			/* success */
@@ -4050,10 +4133,12 @@ void imap_parse_unsolicited (MAILSTREAM *stream,IMAPPARSEDREPLY *reply)
       if (*s != ')') for (ql = qc = mail_newquotalist (); T;
 			  qc = qc->next = mail_newquotalist ()) {
 	if ((qc->name = imap_parse_astring (stream,&s,reply,NIL)) && s &&
-	    (*s++ == ' ') && isdigit (*s)) {
-	  qc->usage = strtoul (s,(char **) &s,10);
-	  if ((*s++ == ' ') && isdigit (*s)) {
-	    qc->limit = strtoul (s,(char **) &s,10);
+	    (*s++ == ' ') && (isdigit (*s) || (LOCAL->loser && (*s == '-')))) {
+	  if (isdigit (*s)) qc->usage = strtoul (s,(char **) &s,10);
+	  else if (t = strchr (s,' ')) t = s;
+	  if ((*s++ == ' ') && (isdigit (*s) || (LOCAL->loser &&(*s == '-')))){
+	    if (isdigit (*s)) qc->limit = strtoul (s,(char **) &s,10);
+	    else if (t = strpbrk (s," )")) t = s;
 				/* another resource follows? */
 	    if (*s == ' ') continue;
 				/* end of resource list? */
@@ -4143,26 +4228,30 @@ void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy)
   size_t i;
   unsigned long j;
   MESSAGECACHE *elt;
-  mailcache_t mc = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
+  copyuid_t cu;
+  appenduid_t au;
+  SEARCHSET *source = NIL;
+  SEARCHSET *dest = NIL;
   if (text && (*text == '[') && (t = strchr (s = text + 1,']')) &&
       ((i = t - s) < IMAPTMPLEN)) {
     LOCAL->tmp[i] = '\0';	/* make mungable copy of text code */
-    if (s = strchr (strncpy (LOCAL->tmp,s,i),' ')) *s++ = '\0';
+    if (s = strchr (strncpy (t = LOCAL->tmp,s,i),' ')) *s++ = '\0';
     if (s) {			/* have argument? */
       ntfy = NIL;		/* suppress mm_notify if normal SELECT data */
-      if (!compare_cstring (LOCAL->tmp,"UIDVALIDITY") &&
+      if (!compare_cstring (t,"UIDVALIDITY") &&
 	  ((j = strtoul (s,NIL,10)) != stream->uid_validity)) {
+	mailcache_t mc = (mailcache_t) mail_parameters (NIL,GET_CACHE,NIL);
 	stream->uid_validity = j;
 				/* purge any UIDs in cache */
 	for (j = 1; j <= stream->nmsgs; j++)
 	  if (elt = (MESSAGECACHE *) (*mc) (stream,j,CH_ELT))
 	    elt->private.uid = 0;
       }
-      else if (!compare_cstring (LOCAL->tmp,"UIDNEXT"))
+      else if (!compare_cstring (t,"UIDNEXT"))
 	stream->uid_last = strtoul (s,NIL,10) - 1;
-      else if (!compare_cstring (LOCAL->tmp,"PERMANENTFLAGS") && (*s == '(') &&
-	       (LOCAL->tmp[i-1] == ')')) {
-	LOCAL->tmp[i-1] = '\0';	/* tie off flags */
+      else if (!compare_cstring (t,"PERMANENTFLAGS") && (*s == '(') &&
+	       (t[i-1] == ')')) {
+	t[i-1] = '\0';		/* tie off flags */
 	stream->perm_seen = stream->perm_deleted = stream->perm_answered =
 	  stream->perm_draft = stream->kwd_create = NIL;
 	stream->perm_user_flags = NIL;
@@ -4182,23 +4271,38 @@ void imap_parse_response (MAILSTREAM *stream,char *text,long errflg,long ntfy)
 	}
 	while (s = strtok (NIL," "));
       }
-      else if (!compare_cstring (LOCAL->tmp,"CAPABILITY"))
+
+      else if (!compare_cstring (t,"CAPABILITY"))
 	imap_parse_capabilities (stream,s);
+      else if ((j = LEVELUIDPLUS (stream) && LOCAL->appendmailbox) &&
+	       !compare_cstring (t,"COPYUID") &&
+	       (cu = (copyuid_t) mail_parameters (NIL,GET_COPYUID,NIL)) &&
+	       isdigit (*s) && (j = strtoul (s,&s,10)) && (*s++ == ' ') &&
+	       (source = mail_parse_set (s,&s)) && (*s++ == ' ') &&
+	       (dest = mail_parse_set (s,&s)) && !*s)
+	(*cu) (stream,LOCAL->appendmailbox,j,source,dest);
+      else if (j && !compare_cstring (t,"APPENDUID") &&
+	       (au = (appenduid_t) mail_parameters (NIL,GET_APPENDUID,NIL)) &&
+	       isdigit (*s) && (j = strtoul (s,&s,10)) && (*s++ == ' ') &&
+	       (dest = mail_parse_set (s,&s)) && !*s)
+	(*au) (LOCAL->appendmailbox,j,dest);
       else {			/* all other response code events */
 	ntfy = T;		/* must mm_notify() */
-	if (!compare_cstring (LOCAL->tmp,"REFERRAL"))
-	  LOCAL->referral = cpystr (LOCAL->tmp + 9);
+	if (!compare_cstring (t,"REFERRAL"))
+	  LOCAL->referral = cpystr (t + 9);
       }
+      mail_free_searchset (&source);
+      mail_free_searchset (&dest);
     }
     else {			/* no arguments */
-      if (!compare_cstring (LOCAL->tmp,"UIDNOTSTICKY")) {
+      if (!compare_cstring (t,"UIDNOTSTICKY")) {
 	ntfy = NIL;
 	stream->uid_nosticky = T;
       }
-      else if (!compare_cstring (LOCAL->tmp,"READ-ONLY")) stream->rdonly = T;
-      else if (!compare_cstring (LOCAL->tmp,"READ-WRITE"))
+      else if (!compare_cstring (t,"READ-ONLY")) stream->rdonly = T;
+      else if (!compare_cstring (t,"READ-WRITE"))
 	stream->rdonly = NIL;
-      else if (!compare_cstring (LOCAL->tmp,"PARSE") && !errflg)
+      else if (!compare_cstring (t,"PARSE") && !errflg)
 	errflg = PARSE;
     }
   }
@@ -4531,6 +4635,7 @@ ADDRESS *imap_parse_adrlist (MAILSTREAM *stream,unsigned char **txtptr,
 ADDRESS *imap_parse_address (MAILSTREAM *stream,unsigned char **txtptr,
 			     IMAPPARSEDREPLY *reply)
 {
+  long ingroup = 0;
   ADDRESS *adr = NIL;
   ADDRESS *ret = NIL;
   ADDRESS *prev = NIL;
@@ -4555,26 +4660,38 @@ ADDRESS *imap_parse_address (MAILSTREAM *stream,unsigned char **txtptr,
 				/* ignore leading spaces in front of next */
       while (c == ' ') c = *++*txtptr;
 
-				/* check for valid end-of-group */
-      if (!adr->mailbox && (adr->personal || adr->adl || adr->host)) {
-	sprintf (LOCAL->tmp,"Junk in end of group: pn=%.80s al=%.80s dn=%.80s",
-		 adr->personal ? adr->personal : "",adr->adl ? adr->adl : "",
-		 adr->host ? adr->host : "");
-	mm_notify (stream,LOCAL->tmp,WARN);
-	stream->unhealthy = T;
-	mail_free_address (&adr);
-	adr = prev;
-	prev = NIL;
+      if (!adr->mailbox) {	/* end of group? */
+				/* decrement group if all looks well */
+	if (ingroup && !(adr->personal || adr->adl || adr->host)) --ingroup;
+	else {
+	  if (ingroup) {	/* in a group? */
+	    sprintf (LOCAL->tmp,/* yes, must be bad syntax */
+		     "Junk in end of group: pn=%.80s al=%.80s dn=%.80s",
+		     adr->personal ? adr->personal : "",
+		     adr->adl ? adr->adl : "",
+		     adr->host ? adr->host : "");
+	    mm_notify (stream,LOCAL->tmp,WARN);
+	  }
+	  else mm_notify (stream,"End of group encountered when not in group",
+			  WARN);
+	  stream->unhealthy = T;
+	  mail_free_address (&adr);
+	  adr = prev;
+	  prev = NIL;
+	}
       }
-				/* check for valid start-of-group */
-      else if (!adr->host && (adr->personal || adr->adl)) {
-	sprintf (LOCAL->tmp,"Junk in start of group: pn=%.80s al=%.80s",
-		 adr->personal ? adr->personal : "",adr->adl ? adr->adl : "");
-	mm_notify (stream,LOCAL->tmp,WARN);
-	stream->unhealthy = T;
-	mail_free_address (&adr);
-	adr = prev;
-	prev = NIL;
+      else if (!adr->host) {	/* start of group? */
+	if (adr->personal || adr->adl) {
+	  sprintf (LOCAL->tmp,"Junk in start of group: pn=%.80s al=%.80s",
+		   adr->personal ? adr->personal : "",
+		   adr->adl ? adr->adl : "");
+	  mm_notify (stream,LOCAL->tmp,WARN);
+	  stream->unhealthy = T;
+	  mail_free_address (&adr);
+	  adr = prev;
+	  prev = NIL;
+	}
+	else ++ingroup;		/* in a group now */
       }
       else {			/* good address */
 	if (!ret) ret = adr;	/* if first time note first adr */
@@ -4789,12 +4906,13 @@ unsigned char *imap_parse_string (MAILSTREAM *stream,unsigned char **txtptr,
     break;
   case '{':			/* if literal string */
 				/* get size of string */ 
-    if ((i = strtoul (*txtptr,(char **) txtptr,10)) > 0x7fffffff) {
+    if ((i = strtoul (*txtptr,(char **) txtptr,10)) > MAXSERVERLIT) {
       sprintf (LOCAL->tmp,"Absurd server literal length %lu",i);
       mm_notify (stream,LOCAL->tmp,WARN);
-      stream->unhealthy = T;
-      if (len) *len = i;
-      break;
+      stream->unhealthy = T;	/* read and discard */
+      do net_getbuffer (LOCAL->netstream,j = min (i,(long) IMAPTMPLEN - 1),
+			LOCAL->tmp);
+      while (i -= j);
     }
     if (len) *len = i;		/* set return value */
     if (md && mg) {		/* have special routine to slurp string? */

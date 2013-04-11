@@ -1,3 +1,15 @@
+$! ========================================================================
+$! Copyright 1988-2006 University of Washington
+$!
+$! Licensed under the Apache License, Version 2.0 (the "License");
+$! you may not use this file except in compliance with the License.
+$! You may obtain a copy of the License at
+$!
+$!     http://www.apache.org/licenses/LICENSE-2.0
+$!
+$! 
+$! ========================================================================
+$!
 $! Program:	Portable c-client build for VMS
 $!
 $! Author:	Mark Crispin
@@ -9,14 +21,7 @@ $!		Seattle, WA  98195
 $!		Internet: MRC@CAC.Washington.EDU
 $!
 $! Date:	2 August 1994
-$! Last Edited:	6 February 2004
-$!
-$! The IMAP toolkit provided in this Distribution is
-$! Copyright 2004 University of Washington.
-$!
-$! The full text of our legal notices is contained in the file called
-$! CPYRIGHT, included with this Distribution.
-$!
+$! Last Edited:	30 August 2006
 $!
 $!  Change this to your local timezone.  This value is the number of minutes
 $! east of UTC (formerly known as GMT).  Sample values: -300 (US east coast),
@@ -78,14 +83,17 @@ $ CC'CC_PREF' FLSTRING
 $ CC'CC_PREF' NEWSRC
 $ CC'CC_PREF' NETMSG
 $ CC'CC_PREF' UTF8
+$ CC'CC_PREF' UTF8AUX
 $ CC'CC_PREF' MTEST
 $ CC'CC_PREF' MAILUTIL
 $!
 $ LINK MTEST,OS_VMS,MAIL,IMAP4R1,SMTP,NNTP,POP3,DUMMYVMS,RFC822,MISC,UTF8,-
-	SMANAGER,FLSTRING,NEWSRC,NETMSG,SYS$INPUT:/OPTION'LINK_OPT',LINK/OPTION
+	UTF8AUX,SMANAGER,FLSTRING,NEWSRC,NETMSG,-
+	SYS$INPUT:/OPTION'LINK_OPT',LINK/OPTION
 PSECT=_CTYPE_,NOWRT
 $ LINK MAILUTIL,OS_VMS,MAIL,IMAP4R1,SMTP,NNTP,POP3,DUMMYVMS,RFC822,MISC,UTF8,-
-	SMANAGER,FLSTRING,NEWSRC,NETMSG,SYS$INPUT:/OPTION'LINK_OPT',LINK/OPTION
+	UTF8AUX,SMANAGER,FLSTRING,NEWSRC,NETMSG,-
+	SYS$INPUT:/OPTION'LINK_OPT',LINK/OPTION
 PSECT=_CTYPE_,NOWRT
 $ SET NOVERIFY
 $ EXIT

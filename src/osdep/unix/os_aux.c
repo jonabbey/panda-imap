@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Operating-system dependent routines -- A/UX version
  *
@@ -9,12 +22,7 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	10 April 2001
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */

@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 QUESTION: Is c-client Y2K compliant?
 
 ANSWER:
@@ -11,8 +24,8 @@ will sort before any other messages.  Nobody should be using two-digit
 years in email messages any more (use "2000" instead of "00").
 
      You may wish to read the document calendar.txt for more
-information about the Y4K, Y20K, and Y45K issues.  Assuming that
-c-client is still around in 2000-43,000 years, someone will have to
+information about the Y3.3K/Y4K, Y20K, and Y4)K issues.  Assuming that
+c-client is still around in 2000-40,000 years, someone will have to
 deal with these.
 
      Within the plausible lifetimes of people today, there are three
@@ -92,18 +105,20 @@ community will deal with the situation of the Orthodox calendar being
 one day ahead of the Gregorian calendar between 2800 and 2900.  This
 will happen again between 3200 and 3300, and at gradually increasing
 intervals until 48,300 when the shift becomes permanent (assuming no
-Y20K or Y45K fixes).
+Y20K or Y40K fixes).
 
      If you wish to make the transition to the Eastern Orthodox calendar,
 rebuild c-client with -DUSEORTHODOXCALENDAR=1.  You can then ignore Y4K
 and Y20K!
     
 
-Y4K:
+Y3.3K/Y4K:
 
-     A little-known rule in the Gregorian calendar is that years that
-are evenly divisible by 4000 are not leap years.  Unlike the other
-rules, this rule hasn't had effect yet, and won't for another 2000 years.
+     Some time around the year 3300, the calendar has gotten one day
+behind.  To remedy this, a little-known rule in the Gregorian calendar
+is that years that are evenly divisible by 4000 are not leap years.
+Unlike the other rules, this rule hasn't had effect yet, and won't for
+another 2000 years.
 
      To fix the Y4K problem, just rebuild c-client with -DY4KBUGFIX=1.
 
@@ -118,10 +133,10 @@ that 20,004 is also not a leap year or something.
      There is no fix for this problem in c-client.
 
 
-Y45K:
+Y40K:
 
      Greeks, Serbs, Russians, and other Eastern Orthodox have spent
-the past 41,000 years laughing at westerners' increasingly futile
+the past 38,000 years laughing at westerners' increasingly futile
 efforts to keep the Gregorian calendar in order.  The day of reckoning
 has come; the Orthodox calendar is now one day slow.  The Patriarch of
 Istanbul (nee Constantinople) has not made any statement about how this

@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	flock emulation via fcntl() locking
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	21 October 2003
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
  
 #undef flock			/* name is used as a struct for fcntl */
@@ -510,16 +518,19 @@ long safe_status (DRIVER *dtb,MAILSTREAM *stream,char *mbx,long flags)
 
 
 /* Scan file for contents
- * Accepts: file name
+ * Accepts: driver to call under slave
+ *	    file name
  *	    desired contents
+ *	    length of contents
+ *	    length of file
  * Returns: NIL if contents not found, T if found
  */
 
-long safe_scan_contents (char *name,char *contents,unsigned long csiz,
-			 unsigned long fsiz)
+long safe_scan_contents (DRIVER *dtb,char *name,char *contents,
+			 unsigned long csiz,unsigned long fsiz)
 {
   long ret = master (NIL,NIL,NIL);
-  if (lockslavep) exit (dummy_scan_contents (name,contents,csiz,fsiz));
+  if (lockslavep) exit (scan_contents (dtb,name,contents,csiz,fsiz));
   return ret;
 }
 
@@ -686,17 +697,29 @@ void slave_nocritical (MAILSTREAM *stream)
 
 long slave_diskerror (MAILSTREAM *stream,long errcode,long serious)
 {
+  char tmp[MAILTMPLEN];
   int c;
+  long ret = NIL;
   fprintf (slaveout,"D%lx %lu %lu\n",(unsigned long) stream,errcode,serious);
   fflush (slaveout);
-  if ((c = getc (slavein)) == '+') return LONGT;
-  if (c != '-') slave_fatal ("Unknown master response for diskerror");
-  return NIL;
+  switch (c = getc (slavein)) {
+  case EOF:			/* pipe broken */
+    slave_fatal ("Pipe broken reading diskerror response");
+  case '+':			/* user wants to abort */
+    ret = LONGT;
+  case '-':			/* no abort */
+    break;
+  default:
+    sprintf (tmp,"Unknown master response for diskerror: %c",c);
+    slave_fatal (tmp);
+  }
+  return ret;
 }
 
 
 /* Log a fatal error event
  * Accepts: string to log
+ * Does not return
  */
 
 void slave_fatal (char *string)
@@ -732,7 +755,7 @@ static char *slave_append_read (unsigned long n,char *error)
   for (t = s; n && ((c = getc (slavein)) != EOF); *t++ = c,--n);
 #endif
   if (n) {
-    sprintf (tmp,"Error reading %s with %lu bytes remaining",error,n);
+    sprintf (tmp,"Pipe broken reading %s with %lu bytes remaining",error,n);
     slave_fatal (tmp);
   }
   return s;
@@ -765,6 +788,7 @@ long slave_append (MAILSTREAM *stream,void *data,char **flags,char **date,
   case '+':			/* have message, get size of flags */
     for (n = 0; isdigit (c = getc (slavein)); n *= 10, n += (c - '0'));
     if (c != ' ') {
+      if (c == EOF) sprintf (tmp,"Pipe broken after flag size %lu",n);
       sprintf (tmp,"Missing delimiter after flag size %lu: %c",n,c);
       slave_fatal (tmp);
     }
@@ -772,13 +796,15 @@ long slave_append (MAILSTREAM *stream,void *data,char **flags,char **date,
 				/* get size of date */
     for (n = 0; isdigit (c = getc (slavein)); n *= 10, n += (c - '0'));
     if (c != ' ') {
-      sprintf (tmp,"Missing delimiter after date size %lu: %c",n,c);
+      if (c == EOF) sprintf (tmp,"Pipe broken after date size %lu",n);
+      else sprintf (tmp,"Missing delimiter after date size %lu: %c",n,c);
       slave_fatal (tmp);
     }
     if (n) *date = ad->date = slave_append_read (n,"date");
 				/* get size of message */
     for (n = 0; isdigit (c = getc (slavein)); n *= 10, n += (c - '0'));
     if (c != ' ') {
+      if (c == EOF) sprintf (tmp,"Pipe broken after message size %lu",n);
       sprintf (tmp,"Missing delimiter after message size %lu: %c",n,c);
       slave_fatal (tmp);
     }
@@ -794,6 +820,8 @@ long slave_append (MAILSTREAM *stream,void *data,char **flags,char **date,
   case '-':			/* error */
     *message = NIL;		/* set stop */
     break;
+  case EOF:			/* end of file */
+    slave_fatal ("Pipe broken reading append response");
   default:			/* unknown event */
     sprintf (tmp,"Unknown master response for append: %c",c);
     slave_fatal (tmp);

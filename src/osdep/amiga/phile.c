@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	File routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	27 April 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -80,7 +88,7 @@ char *phile_header (MAILSTREAM *stream,unsigned long msgno,
 long phile_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
 long phile_ping (MAILSTREAM *stream);
 void phile_check (MAILSTREAM *stream);
-void phile_expunge (MAILSTREAM *stream);
+long phile_expunge (MAILSTREAM *stream,char *sequence,long options);
 long phile_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long phile_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
@@ -493,11 +501,15 @@ void phile_check (MAILSTREAM *stream)
 
 /* File expunge mailbox
  * Accepts: MAIL stream
+ *	    sequence to expunge if non-NIL
+ *	    expunge options
+ * Returns: T if success, NIL if failure
  */
 
-void phile_expunge (MAILSTREAM *stream)
+long phile_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
-  mm_log ("Expunge ignored on readonly mailbox",NIL);
+  if (!stream->silent) mm_log ("Expunge ignored on readonly mailbox",NIL);
+  return LONGT;
 }
 
 /* File copy message(s)

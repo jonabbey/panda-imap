@@ -1,3 +1,15 @@
+# ========================================================================
+# Copyright 1988-2006 University of Washington
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# 
+# ========================================================================
+
 # Program:	Portable C client makefile -- WCE version
 #
 # Author:	Mark Crispin
@@ -9,17 +21,11 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	 6 July 2004
-#
-# The IMAP toolkit provided in this Distribution is
-# Copyright 1988-2004 University of Washington.
-#
-# The full text of our legal notices is contained in the file called
-# CPYRIGHT, included with this Distribution.
+# Last Edited:	30 August 2006
 
 
 EXTRAAUTHENTICATORS=
-DEFAULTAUTHENTICATORS=md5 pla log
+DEFAULTAUTHENTICATORS=ext md5 pla log
 EXTRADRIVERS =
 DRIVERS = imap nntp pop3
 DEFAULTDRIVER = dummy
@@ -54,6 +60,8 @@ smanager.obj: mail.h misc.h smanager.c
 
 utf8.obj: mail.h misc.h osdep.h utf8.h
 
+utf8aux.obj: mail.h misc.h osdep.h utf8.h
+
 imap4r1.obj: mail.h imap4r1.h misc.h osdep.h imap4r1.c
 
 nntp.obj: mail.h nntp.h smtp.h rfc822.h misc.h osdep.h nntp.c
@@ -69,13 +77,13 @@ os_wce.obj: mail.h osdep.h env_wce.h fs.h ftl.h nl.h tcp.h tcp_wce.h \
 dummywce.obj: mail.h dummy.h misc.h osdep.h dummywce.c
 
 $(CCLIENTLIB): mail.obj misc.obj flstring.obj netmsg.obj \
-	newsrc.obj rfc822.obj smanager.obj utf8.obj \
+	newsrc.obj rfc822.obj smanager.obj utf8.obj utf8aux.obj \
 	imap4r1.obj nntp.obj pop3.obj smtp.obj os_wce.obj \
 	dummywce.obj
 	erase $(CCLIENTLIB)
 	LIB /NOLOGO /OUT:cclient.lib \
 	mail.obj misc.obj flstring.obj netmsg.obj \
-	newsrc.obj rfc822.obj smanager.obj utf8.obj \
+	newsrc.obj rfc822.obj smanager.obj utf8.obj utf8aux.obj \
 	imap4r1.obj nntp.obj pop3.obj smtp.obj os_wce.obj \
 	dummywce.obj
 

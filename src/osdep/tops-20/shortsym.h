@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Definitions for compilers with 6-letter symbol limits
  *
@@ -10,24 +23,21 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	6 December 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 #define auth_link a_link
 #define auth_log a_log
 #define auth_login_client al_cli
 #define auth_login_server al_ser
+#define auth_ext a_ext
+#define auth_external_client ae_cli
+#define auth_external_server ae_ser
 #define auth_md5 a_md5
 #define auth_md5_valid a5_val
 #define auth_md5_client a5_cli
 #define auth_md5_server a5_ser
 #define auth_pla a_pla
-#define auth_plain_valid ap_val
 #define auth_plain_client ap_cli
 #define auth_plain_server ap_ser
 #define authenticate a_auth
@@ -36,6 +46,7 @@
 #define body_types btypes
 #define compare_csizedtext cm_szt
 #define compare_cstring cm_str
+#define compare_uchar cm_uch
 #define compare_ulong cm_uln
 #define default_proto d_prot
 #define dummy_append d_appn
@@ -166,6 +177,8 @@
 #define imap_valid i_val
 #define internal_date in_dat
 #define mail_append_full m_appn
+#define mail_append_multiple m_appm
+#define mail_append_set m_apps
 #define mail_auth m_auth
 #define mail_body m_body
 #define mail_cdate m_cdat
@@ -182,7 +195,7 @@
 #define mail_dlog m_dlog
 #define mail_elt m_elt
 #define mail_exists m_exst
-#define mail_expunge m_expn
+#define mail_expunge_full m_expn
 #define mail_expunged m_expd
 #define mail_fetch_body fs_bdy
 #define mail_fetch_fast mf_fst
@@ -258,6 +271,7 @@
 #define mail_parameters m_parm
 #define mail_parse_date mp_dat
 #define mail_parse_flags mp_flg
+#define mail_parse_set mp_set
 #define mail_partial_body mpt_bd
 #define mail_partial_text mpt_tx
 #define mail_ping m_ping
@@ -275,8 +289,10 @@
 #define mail_search_keyword ms_key
 #define mail_search_msg ms_msg
 #define mail_search_string ms_str
+#define mail_search_string_work ms_stw
 #define mail_search_text ms_txt
 #define mail_sequence m_seq
+#define mail_shortdate m_shtd
 #define mail_skip_fwd msk_fw
 #define mail_skip_re msk_re
 #define mail_sort ml_srt
@@ -461,7 +477,19 @@
 #define rfc822_header r_head
 #define rfc822_header_line rh_lin
 #define rfc822_output r_out
+#define rfc822_output_address ro_adr
+#define rfc822_output_address_line roa_ln
+#define rfc822_output_address_list roa_li
 #define rfc822_output_body ro_bdy
+#define rfc822_output_body_header rob_hd
+#define rfc822_output_full ro_ful
+#define rfc822_output_flush ro_flu
+#define rfc822_output_header ro_hdr
+#define rfc822_output_header_line roh_ln
+#define rfc822_output_cat ro_cat
+#define rfc822_output_parameter ro_par
+#define rfc822_output_stringlist ro_stl
+#define rfc822_output_text ro_txt
 #define rfc822_parse_address rp_adr
 #define rfc822_parse_addrspec rp_ads
 #define rfc822_parse_adrlist rp_adl
@@ -507,7 +535,9 @@
 #define strcrlflen sc_len
 #define tcp_aopen t_aopn
 #define tcp_canonical t_cnon
+#define tcp_clientaddr t_cadr
 #define tcp_clienthost t_chst
+#define tcp_clientport t_cprt
 #define tcp_close t_clos
 #define tcp_getbuffer tg_buf
 #define tcp_getdata tg_dat
@@ -518,6 +548,7 @@
 #define tcp_parameters t_parameters
 #define tcp_port t_port
 #define tcp_remotehost t_rhst
+#define tcp_serveraddr t_sadr
 #define tcp_serverhost t_shst
 #define tcp_serverport t_sprt
 #define tcp_sout t_sout
@@ -525,21 +556,43 @@
 #define textcpy txcopy
 #define textcpystring txcpst
 #define textcpyoffstring txcpos
+#define ucs4_cs_get u4_csg
+#define ucs4_decompose u4_dcm
+#define ucs4_rmapbuf u4r_bf
+#define ucs4_rmaplen u4r_ln
+#define ucs4_rmaptext u4r_tx
+#define ucs4_titlecase u4_tcs
+#define ucs4_width u4_wid
+#define utf8_badcharset u8_bcs
+#define utf8_charset u8_chs
 #define utf8_cstext u8_cst
 #define utf8_cstocstext u8_cct
 #define utf8_get u8_get
 #define utf8_iso2022text u8_i22
 #define utf8_mime2text u8_mi2
+#define utf8_put u8_put
 #define utf8_rmap u8_rmp
+#define utf8_rmap_cs u8r_cs
+#define utf8_rmap_gen u8r_gn
+#define utf8_rmaptext u8r_tx
+#define utf8_script u8_scr
 #define utf8_searchpgm u8_spg
+#define utf8_size u8_siz
 #define utf8_stringlist u8_lst
 #define utf8_text u8_txt
+#define utf8_text_2022 u8t_22
 #define utf8_text_8859_1 u8t_we
 #define utf8_text_1byte0 u8t_10
 #define utf8_text_1byte u8t_1b
 #define utf8_text_1byte8 u8t_18
+#define utf8_text_cs ut8_cs
 #define utf8_text_euc u8t_eu
 #define utf8_text_dbyte u8t_db
 #define utf8_text_dbyte2 u8t_d2
 #define utf8_text_sjis u8t_sj
-#define utf8_text_2022 u8t_22
+#define utf8_text_ucs2 u8t_u2
+#define utf8_text_ucs4 ut8_u4
+#define utf8_text_utf8 ut8_u8
+#define utf8_text_utf16 ut8_16
+#define utf8_validate u8_val
+#define utf8_textwidth u8_twd

@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Dummy routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	10 November 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -29,7 +37,6 @@ extern int errno;		/* just in case */
 #include <sys/stat.h>
 #include "dummy.h"
 #include "misc.h"
-#include "mx.h"			/* highly unfortunate */
 
 /* Function prototypes */
 
@@ -44,7 +51,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream);
 void dummy_close (MAILSTREAM *stream,long options);
 long dummy_ping (MAILSTREAM *stream);
 void dummy_check (MAILSTREAM *stream);
-void dummy_expunge (MAILSTREAM *stream);
+long dummy_expunge (MAILSTREAM *stream,char *sequence,long options);
 long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long dummy_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
@@ -229,12 +236,8 @@ long dummy_subscribe (MAILSTREAM *stream,char *mailbox)
   char *s,tmp[MAILTMPLEN];
   struct stat sbuf;
 				/* must be valid local mailbox */
-  if ((s = mailboxfile (tmp,mailbox)) && *s && !stat (s,&sbuf)
-#if 0	/* disable this temporarily for Netscape */
-      &&
-      ((sbuf.st_mode & S_IFMT) == S_IFREG)
-#endif
-      ) return sm_subscribe (mailbox);
+  if ((s = mailboxfile (tmp,mailbox)) && *s && !stat (s,&sbuf) &&
+      ((sbuf.st_mode & S_IFMT) == S_IFREG)) return sm_subscribe (mailbox);
   sprintf (tmp,"Can't subscribe %.80s: not a mailbox",mailbox);
   MM_LOG (tmp,ERROR);
   return NIL;
@@ -251,26 +254,32 @@ long dummy_subscribe (MAILSTREAM *stream,char *mailbox)
 void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 		      long level)
 {
+  DRIVER *drivers;
+  dirfmttest_t dt;
   DIR *dp;
   struct direct *d;
   struct stat sbuf;
-  int ismx;
   char tmp[MAILTMPLEN];
+  size_t len = 0;
 				/* punt if bogus name */
   if (!mailboxdir (tmp,dir,NIL)) return;
   if (dp = opendir (tmp)) {	/* do nothing if can't open directory */
-				/* list it if not at top-level */
+				/* see if a non-namespace directory format */
+    for (drivers = (DRIVER *) mail_parameters (NIL,GET_DRIVERS,NIL), dt = NIL;
+	 !dt && drivers; drivers = drivers->next)
+      if (!(drivers->flags & DR_DISABLE) && (drivers->flags & DR_DIRFMT) &&
+	  (*drivers->valid) (tmp))
+	dt = mail_parameters ((*drivers->open) (NIL),GET_DIRFMTTEST,NIL);
+				/* list it if at top-level */
     if (!level && dir && pmatch_full (dir,pat,'/'))
-      dummy_listed (stream,'/',dir,LATT_NOSELECT,contents);
+      dummy_listed (stream,'/',dir,dt ? NIL : LATT_NOSELECT,contents);
 				/* scan directory, ignore . and .. */
-    ismx = (!stat (strcat (tmp,MXINDEXNAME),&sbuf) &&
-	    ((sbuf.st_mode & S_IFMT) == S_IFREG));
-    if (!dir || dir[strlen (dir) - 1] == '/') while (d = readdir (dp))
-      if (((d->d_name[0] != '.') ||
+    if (!dir || dir[(len = strlen (dir)) - 1] == '/') while (d = readdir (dp))
+      if ((!(dt && (*dt) (d->d_name))) &&
+	  ((d->d_name[0] != '.') ||
 	   (((int) mail_parameters (NIL,GET_HIDEDOTFILES,NIL)) ? NIL :
-	    (d->d_name[1] && (((d->d_name[1] != '.') || d->d_name[2]) &&
-			      strcmp (d->d_name+1,MXINDEXNAME+2))))) &&
-	  (strlen (d->d_name) <= NETMAXMBX)) {
+	    (d->d_name[1] && (((d->d_name[1] != '.') || d->d_name[2]))))) &&
+	  ((len + strlen (d->d_name)) <= NETMAXMBX)) {
 				/* see if name is useful */
 	if (dir) sprintf (tmp,"%s%s",dir,d->d_name);
 	else strcpy (tmp,d->d_name);
@@ -297,10 +306,8 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 	      dummy_list_work (stream,tmp,pat,contents,level+1);
 	    break;
 	  case S_IFREG:		/* ordinary name */
-				/* ignore all-digit names from mx */
 	    /* Must use ctime for systems that don't update mtime properly */
-	    if (!(ismx && mx_select (d)) && pmatch_full (tmp,pat,'/') &&
-		compare_cstring (tmp,"INBOX"))
+	    if (pmatch_full (tmp,pat,'/') && compare_cstring (tmp,"INBOX"))
 	      dummy_listed (stream,'/',tmp,LATT_NOINFERIORS +
 			    ((sbuf.st_size && (sbuf.st_atime < sbuf.st_ctime))?
 			     LATT_MARKED : LATT_UNMARKED),contents);
@@ -313,8 +320,28 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 }
 
 /* Scan file for contents
+ * Accepts: driver to use
+ *	    file name
+ *	    desired contents
+ *	    length of contents
+ *	    size of file
+ * Returns: NIL if contents not found, T if found
+ */
+
+long scan_contents (DRIVER *dtb,char *name,char *contents,
+		    unsigned long csiz,unsigned long fsiz)
+{
+  scancontents_t sc = dtb ?
+    (scancontents_t) (*dtb->parameters) (GET_SCANCONTENTS,NIL) : NIL;
+  return (*(sc ? sc : dummy_scan_contents)) (name,contents,csiz,fsiz);
+}
+
+
+/* Scan file for contents
  * Accepts: file name
  *	    desired contents
+ *	    length of contents
+ *	    size of file
  * Returns: NIL if contents not found, T if found
  */
 
@@ -344,8 +371,7 @@ long dummy_scan_contents (char *name,char *contents,unsigned long csiz,
   }
   return NIL;			/* not found */
 }
-
-
+
 /* Mailbox found
  * Accepts: MAIL stream
  *	    hierarchy delimiter
@@ -369,7 +395,7 @@ long dummy_listed (MAILSTREAM *stream,char delimiter,char *name,
       (!(attributes & LATT_NOSELECT) && (csiz = strlen (contents)) &&
        (s = mailboxfile (tmp,name)) &&
        (*s || (s = mail_parameters (NIL,GET_INBOXPATH,tmp))) &&
-       !stat (s,&sbuf) && (csiz <= sbuf.st_size) &&
+       !stat (s,&sbuf) && (d || (csiz <= sbuf.st_size)) &&
        SAFE_SCAN_CONTENTS (d,tmp,contents,csiz,sbuf.st_size)))
     mm_list (stream,delimiter,name,attributes);
   return T;
@@ -478,18 +504,22 @@ long dummy_rename (MAILSTREAM *stream,char *old,char *newname)
   char c,*s,tmp[MAILTMPLEN],mbx[MAILTMPLEN],oldname[MAILTMPLEN];
 				/* no trailing / allowed */
   if (!dummy_file (oldname,old) || !(s = dummy_file (mbx,newname)) ||
-      ((s = strrchr (s,'/')) && !s[1])) {
+      stat (oldname,&sbuf) || ((s = strrchr (s,'/')) && !s[1] &&
+			       ((sbuf.st_mode & S_IFMT) != S_IFDIR))) {
     sprintf (mbx,"Can't rename %.80s to %.80s: invalid name",old,newname);
     MM_LOG (mbx,ERROR);
     return NIL;
   }
-  if (s) {			/* found superior to destination name? */
-    c = *++s;			/* remember first character of inferior */
-    *s = '\0';			/* tie off to get just superior */
+  if (s) {			/* found a directory delimiter? */
+    if (!s[1]) *s = '\0';	/* ignore trailing delimiter */
+    else {			/* found superior to destination name? */
+      c = *++s;			/* remember first character of inferior */
+      *s = '\0';		/* tie off to get just superior */
 				/* name doesn't exist, create it */
-    if ((stat (mbx,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
-	!dummy_create (stream,mbx)) return NIL;
-    *s = c;			/* restore full name */
+      if ((stat (mbx,&sbuf) || ((sbuf.st_mode & S_IFMT) != S_IFDIR)) &&
+	  !dummy_create (stream,mbx)) return NIL;
+      *s = c;			/* restore full name */
+    }
   }
 				/* rename of non-ex INBOX creates dest */
   if (!compare_cstring (old,"INBOX") && stat (oldname,&sbuf))
@@ -608,11 +638,14 @@ void dummy_check (MAILSTREAM *stream)
 
 /* Dummy expunge mailbox
  * Accepts: MAIL stream
+ *	    sequence to expunge if non-NIL
+ *	    expunge options
+ * Returns: T, always
  */
 
-void dummy_expunge (MAILSTREAM *stream)
+long dummy_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
-				/* return silently */
+  return LONGT;
 }
 
 /* Dummy copy message(s)
@@ -688,6 +721,8 @@ char *dummy_file (char *dst,char *name)
 
 long dummy_canonicalize (char *tmp,char *ref,char *pat)
 {
+  unsigned long i;
+  char *s;
   if (ref) {			/* preliminary reference check */
     if (*ref == '{') return NIL;/* remote reference not allowed */
     else if (!*ref) ref = NIL;	/* treat empty reference as no reference */
@@ -715,6 +750,12 @@ long dummy_canonicalize (char *tmp,char *ref,char *pat)
       else sprintf (tmp,"%s%s",ref,pat);
     }
     else return NIL;		/* unknown namespace */
+  }
+				/* count wildcards */
+  for (i = 0, s = tmp; *s; *s++) if ((*s == '*') || (*s == '%')) ++i;
+  if (i > MAXWILDCARDS) {	/* ridiculous wildcarding? */
+    MM_LOG ("Excessive wildcards in LIST/LSUB",ERROR);
+    return NIL;
   }
   return T;
 }

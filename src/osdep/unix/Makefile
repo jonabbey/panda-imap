@@ -1,3 +1,15 @@
+# ========================================================================
+# Copyright 1988-2006 University of Washington
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# 
+# ========================================================================
+
 # Program:	C client makefile
 #
 # Author:	Mark Crispin
@@ -9,13 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	30 April 2005
-#
-# The IMAP toolkit provided in this Distribution is
-# Copyright 1988-2005 University of Washington.
-#
-# The full text of our legal notices is contained in the file called
-# CPYRIGHT, included with this Distribution.
+# Last Edited:	30 August 2006
 
 
 # Command line build parameters
@@ -37,6 +43,13 @@ IP=4
 # indicates that in some (many?) cases -O3 code runs slower than -O2.
 
 GCCOPTLEVEL= -O2
+
+
+# Try to have some consistency in GCC builds.  We want optimization, but we
+# also want to be able to debug.
+
+GCCCFLAGS= -g $(GCCOPTLEVEL) -pipe -fno-omit-frame-pointer
+GCC4CFLAGS= $(GCCCFLAGS) -Wno-pointer-sign
 
 
 # Extended flags needed for SSL.  You may need to modify.
@@ -89,6 +102,7 @@ MAILSPOOL=$(SPOOLDIR)/mail
 NEWSSPOOL=$(SPOOLDIR)/news
 RSHPATH=/usr/ucb/rsh
 LOCKPGM=/etc/mlock
+MD5PWD="/etc/cram-md5.pwd"
 
 
 # Default formats for creating new mailboxes and for empty mailboxes in the
@@ -101,8 +115,8 @@ LOCKPGM=/etc/mlock
 #
 # NOTE: namespace formats (e.g. mh and news) can not be set as a default format
 # since they do not exist in the default namespace.  Also, it is meaningless to
-# set certain other formats (e.g. mbx and mx) as the EMPTYPROTO since these
-# formats can never be empty files.
+# set certain other formats (e.g. mbx, mx, and mix) as the EMPTYPROTO since
+# these formats can never be empty files.
 
 CREATEPROTO=unixproto
 EMPTYPROTO=unixproto
@@ -118,17 +132,17 @@ RANLIB=ranlib
 
 # Standard distribution build parameters
 
-DEFAULTAUTHENTICATORS=md5 pla log
-DEFAULTDRIVERS=imap nntp pop3 mh mx mbx tenex mtx mmdf unix news phile
-
+DEFAULTAUTHENTICATORS=ext md5 pla log
+DEFAULTDRIVERS=imap nntp pop3 mh mx mix mbx tenex mtx mmdf unix news phile
+CHUNKSIZE=65536
 
 # Normally no need to change any of these
 
 ARCHIVE=c-client.a
-BINARIES=osdep.o mail.o misc.o newsrc.o smanager.o utf8.o siglocal.o \
+BINARIES=osdep.o mail.o misc.o newsrc.o smanager.o utf8.o utf8aux.o siglocal.o \
  dummy.o pseudo.o netmsg.o flstring.o fdstring.o \
  rfc822.o nntp.o smtp.o imap4r1.o pop3.o \
- unix.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
+ unix.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o mix.o
 CFLAGS=-g
 
 CAT=cat
@@ -218,7 +232,7 @@ bs3:	# BSD/i386 3.0 or higher
 	 SPOOLDIR=/var NEWSSPOOL=/var/news/spool \
 	 ACTIVEFILE=/var/news/etc/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g $(GCCOPTLEVEL) -pipe" CC=shlicc
+	 BASECFLAGS="$(GCCCFLAGS)" CC=shlicc
 
 bsd:	# BSD UNIX
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
@@ -231,7 +245,7 @@ bsf:	# FreeBSD
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/usr/local/news/lib/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O -pipe" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS="-lcrypt"
 
 bsi:	# BSD/i386
@@ -240,7 +254,7 @@ bsi:	# BSD/i386
 	 SPOOLDIR=/var NEWSSPOOL=/var/news/spool \
 	 ACTIVEFILE=/var/news/etc/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g $(GCCOPTLEVEL) -pipe"
+	 BASECFLAGS="$(GCCCFLAGS)"
 
 bso:	# OpenBSD
 	$(BUILD) `$(CAT) SPECIALS` OS=bsi \
@@ -248,7 +262,7 @@ bso:	# OpenBSD
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/usr/local/news/lib/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="$(GCCOPTLEVEL) -pipe"
+	 BASECFLAGS="$(GCCCFLAGS)"
 
 cvx:	# Convex
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
@@ -262,7 +276,7 @@ cyg:	# Cygwin - note that most local file drivers don't work!!
 	SPOOLDIR=/var \
 	ACTIVEFILE=/usr/local/news/lib/active \
 	RSHPATH=/usr/bin/rsh \
-	BASECFLAGS="-g -O" \
+	BASECFLAGS="$(GCCCFLAGS)" \
 	BASELDFLAGS="-lcrypt" \
 	CC=gcc
 
@@ -347,7 +361,7 @@ gh9:	# GCC HP-UX 9.x
 	 SIGTYPE=psx CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 RANLIB=true CC=gcc
 
 ghp:	# GCC HP-UX 10.x
@@ -356,7 +370,7 @@ ghp:	# GCC HP-UX 10.x
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/var/news/active \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 RANLIB=true CC=gcc
 
 ghs:	# GCC HP-UX with Trusted Computer Base
@@ -365,7 +379,7 @@ ghs:	# GCC HP-UX with Trusted Computer Base
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/var/news/active \
 	 RSHPATH=/usr/bin/remsh \
-	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS="-lnet -lV3 -lsec" \
 	 RANLIB=true CC=gcc
 
@@ -376,7 +390,7 @@ go5:	# GCC 2.7.1 (95q4) SCO Open Server 5.0.x
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rcmd \
-	 BASECFLAGS="$(GCCOPTLEVEL) -I/usr/include -L/lib" \
+	 BASECFLAGS="$(GCCCFLAGS) -I/usr/include -L/lib" \
 	 BASELDFLAGS="-lsocket -lprot -lx -ltinfo -lm" \
 	 RANLIB=true CC=gcc
 
@@ -385,7 +399,7 @@ gsc:	# Santa Cruz Operation
 	 SIGTYPE=sv4 CHECKPW=sec LOGINPW=sec \
 	 CREATEPROTO=mmdfproto EMPTYPROTO=mmdfproto \
 	 RSHPATH=/usr/bin/rcmd \
-	 BASECFLAGS="$(GCCOPTLEVEL)" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS="-lsocket -lprot -lcrypt_i -lx -los" \
 	 RANLIB=true LN=ln CC=gcc
 
@@ -394,7 +408,7 @@ gsg:	# GCC Silicon Graphics
 	 SIGTYPE=sv4 CRXTYPE=nfs \
 	 MAILSPOOL=/usr/mail \
 	 RSHPATH=/usr/bsd/rsh \
-	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 RANLIB=true CC=gcc
 
 gso:	os_sol.h	# GCC Solaris
@@ -403,23 +417,32 @@ gso:	os_sol.h	# GCC Solaris
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
 	 ACTIVEFILE=/usr/share/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS="-lsocket -lnsl -lgen" \
 	 RANLIB=true CC=gcc
 
 gsu:	# GCC SUN-OS
 	$(BUILD) `$(CAT) SPECIALS` OS=sun \
 	 CRXTYPE=nfs \
-	 BASECFLAGS="-g $(GCCOPTLEVEL)" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS="-ldl" \
 	 CC=gcc
 
 gul:	# GCC Ultrix
 	$(BUILD) `$(CAT) SPECIALS` OS=ult \
 	 SIGTYPE=psx CHECKPW=ult CRXTYPE=nfs \
-	 BASECFLAGS="-g -O" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS="-lauth -lc" \
 	 CC=gcc
+
+h11:	# HP-UX 11i
+	$(BUILD) `$(CAT) SPECIALS` OS=hpp \
+	 SIGTYPE=psx CRXTYPE=nfs \
+	 SPOOLDIR=/var \
+	 ACTIVEFILE=/var/news/active \
+	 RSHPATH=/usr/bin/remsh \
+	 BASECFLAGS="-g -Ae" \
+	 RANLIB=true
 
 hpp:	# HP-UX 9.x
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
@@ -455,7 +478,7 @@ lnp:	# Linux Pluggable Authentication modules
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer $(GCCOPTLEVEL)" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS="$(PAMLDFLAGS)"
 
 lnx:	# Linux non-shadow passwords
@@ -468,20 +491,20 @@ lnx:	# Linux non-shadow passwords
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O"
+	 BASECFLAGS="$(GCCCFLAGS)"
 
 lyn:	# LynxOS
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
 	 CRXTYPE=nfs \
 	 RSHPATH=/bin/rsh \
-	 BASECFLAGS="-g -O -pipe" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS=-lbsd \
 	 CC=gcc
 
 mct:	# MachTen - CRXTYPE=nfs doesn't work (at least not on 2.2)
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
 	 SPOOLDIR=/var/spool \
-	 BASECFLAGS="-g -O -pipe"
+	 BASECFLAGS="$(GCCCFLAGS)"
 
 mnt:	# Mint
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
@@ -489,7 +512,7 @@ mnt:	# Mint
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O"
+	 BASECFLAGS="$(GCCCFLAGS)"
 
 neb:	# NetBSD
 	$(BUILD) `$(CAT) SPECIALS` OS=bsi \
@@ -497,7 +520,7 @@ neb:	# NetBSD
 	 SPOOLDIR=/var \
 	 ACTIVEFILE=/var/db/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O -pipe" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS="-lcrypt"
 
 nec:	# NEC UX
@@ -521,12 +544,12 @@ nto:	# QNX Neutrino RTP
 nxt:	# NEXTSTEP
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
 	 CRXTYPE=nfs \
-	 BASECFLAGS="-g -O -pipe"
+	 BASECFLAGS="$(GCCCFLAGS)"
 
 nx3:	# NEXTSTEP 3.0 single threaded
 	$(BUILD) `$(CAT) SPECIALS` OS=nxt \
 	 CRXTYPE=nfs \
-	 BASECFLAGS="-g -O -pipe -Wall"
+	 BASECFLAGS="$(GCCCFLAGS)"
 	echo "void malloc_singlethreaded (void);" >> linkage.h
 	echo "  malloc_singlethreaded ();" >> linkage.c
 
@@ -549,7 +572,8 @@ osx:	# Mac OS X
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
 	 CRXTYPE=nfs \
 	 SPOOLDIR=/var/spool MAILSPOOL=/var/mail \
-	 BASECFLAGS="-g -O -Wno-pointer-sign"
+	 RSHPATH=/usr/bin/rsh \
+	 BASECFLAGS="$(GCC4CFLAGS)"
 
 ptx:	# PTX
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
@@ -636,7 +660,7 @@ slx:	# Secure Linux
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer $(GCCOPTLEVEL)" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS="-lcrypt"
 
 sl4:	# Secure Linux using libc4
@@ -648,7 +672,7 @@ sl4:	# Secure Linux using libc4
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer $(GCCOPTLEVEL)" \
+	 BASECFLAGS="$(GCCCFLAGS)" \
 	 BASELDFLAGS="-lshadow"
 
 sl5:	# Secure Linux using libc5
@@ -660,7 +684,7 @@ sl5:	# Secure Linux using libc5
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -fno-omit-frame-pointer $(GCCOPTLEVEL)"
+	 BASECFLAGS="$(GCCCFLAGS)"
 
 snx:	# Siemens Nixdorf SINIX and Reliant UNIX
 	$(BUILD) `$(CAT) SPECIALS` OS=sv4 \
@@ -827,9 +851,10 @@ fdstring.o: mail.h misc.h osdep.h fdstring.h
 flstring.o: mail.h misc.h osdep.h flstring.h
 imap4r1.o: mail.h misc.h osdep.h imap4r1.h rfc822.h
 mail.o: mail.h misc.h osdep.h rfc822.h linkage.h
-mbx.o: mail.h misc.h osdep.h mbx.h dummy.h
-mh.o: mail.h misc.h osdep.h mh.h dummy.h
-mx.o: mail.h misc.h osdep.h mx.h dummy.h
+mbx.o: mail.h misc.h osdep.h dummy.h
+mh.o: mail.h misc.h osdep.h dummy.h
+mix.o: mail.h misc.h osdep.h dummy.h
+mx.o: mail.h misc.h osdep.h dummy.h
 misc.o: mail.h misc.h osdep.h
 mmdf.o: mail.h misc.h osdep.h pseudo.h dummy.h
 mtx.o: mail.h misc.h osdep.h dummy.h
@@ -846,6 +871,7 @@ rfc822.o: mail.h misc.h osdep.h rfc822.h
 tenex.o: mail.h misc.h osdep.h dummy.h
 unix.o: mail.h misc.h osdep.h unix.h pseudo.h dummy.h
 utf8.o: mail.h misc.h osdep.h utf8.h
+utf8aux.o: mail.h misc.h osdep.h utf8.h
 
 
 # OS-dependent
@@ -857,7 +883,7 @@ osdep.o:mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	gethstid.c getspnam.c \
 	gr_wait.c gr_wait4.c gr_waitp.c \
 	kerb_mit.c \
-	auth_gss.c auth_log.c auth_md5.c auth_pla.c \
+	auth_ext.c auth_gss.c auth_log.c auth_md5.c auth_pla.c \
 	pmatch.c scandir.c setpgrp.c strerror.c truncate.c write.c \
 	memmove.c memmove2.c memset.c \
 	tz_bsd.c tz_nul.c tz_sv4.c \
@@ -917,9 +943,9 @@ once:	onceenv ckp$(PASSWDTYPE) ssl$(SSLTYPE) osdep.c
 onceenv:
 	@echo Once-only environment setup...
 	echo $(CC) > CCTYPE
-	echo $(BASECFLAGS) '$(EXTRACFLAGS)' > CFLAGS
+	echo $(BASECFLAGS) '$(EXTRACFLAGS)' -DCHUNKSIZE=$(CHUNKSIZE) > CFLAGS
 	echo -DCREATEPROTO=$(CREATEPROTO) -DEMPTYPROTO=$(EMPTYPROTO) \
-	 -DMAILSPOOL=\"$(MAILSPOOL)\" \
+	 -DMD5ENABLE=\"$(MD5PWD)\" -DMAILSPOOL=\"$(MAILSPOOL)\" \
 	 -DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" \
 	 -DACTIVEFILE=\"$(ACTIVEFILE)\" -DNEWSSPOOL=\"$(NEWSSPOOL)\" \
 	 -DRSHPATH=\"$(RSHPATH)\" -DLOCKPGM=\"$(LOCKPGM)\" > OSCFLAGS

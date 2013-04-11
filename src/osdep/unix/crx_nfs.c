@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Exclusive create of a file, NFS kludge version
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	17 December 1999
- * Last Edited:	17 December 2001
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -41,7 +49,7 @@ long crexcl (char *name)
   i = strlen (hitch);		/* append local host name */
   gethostname (hitch + i,(MAILTMPLEN - i) - 1);
 				/* try to get hitching-post file */
-  if ((i = open (hitch,O_WRONLY|O_CREAT|O_EXCL,(int) lock_protection)) >= 0) {
+  if ((i = open (hitch,O_WRONLY|O_CREAT|O_EXCL,(int) shlock_mode)) >= 0) {
     close (i);			/* close the hitching-post */
     /* Note: link() may return an error even if it actually succeeded.  So we
      * always check for success via the link count, and ignore the error if
@@ -55,7 +63,7 @@ long crexcl (char *name)
       /* Probably a FAT filesystem on Linux.  It can't be NFS, so try creating
        * the lock file directly.
        */
-      if ((i = open (name,O_WRONLY|O_CREAT|O_EXCL,(int)lock_protection)) >= 0){
+      if ((i = open (name,O_WRONLY|O_CREAT|O_EXCL,(int) shlock_mode)) >= 0){
 	close (i);		/* close the file */
 	ret = LONGT;		/* success */
       }

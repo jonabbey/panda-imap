@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	JIS X0208 conversion table
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 July 1997
- * Last Edited:	10 January 2001
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /* JIS X0208 is the industrial standard of Japan. */
@@ -46,12 +54,27 @@ static const unsigned short jis0208tab[MAX_JIS0208_KU][MAX_JIS0208_TEN] = {
     0x3000,0x3001,0x3002,0xff0c,0xff0e,0x30fb,0xff1a,0xff1b,0xff1f,0xff01,
     0x309b,0x309c,0x00b4,0xff40,0x00a8,0xff3e,0xffe3,0xff3f,0x30fd,0x30fe,
     0x309d,0x309e,0x3003,0x4edd,0x3005,0x3006,0x3007,0x30fc,0x2015,0x2010,
-    0xff0f,0x005c,0x301c,0x2016,0xff5c,0x2026,0x2025,0x2018,0x2019,0x201c,
+    /* Fullwidth/halfwidth correction:
+     * JIS0208.TXT shows 01/32 as U+005C instead of U+FF3C.
+     *
+     * AOL suggests that 01/33 should be U+FF5E instead of U+301C and
+     * 01/34 should be U+2225 instead of U+2016.
+     * I disagree; 01/33 is JIS punctuation (not a tilde); and 01/34 is
+     * double vertical line.
+     */
+    0xff0f,0xff3c,0x301c,0x2016,0xff5c,0x2026,0x2025,0x2018,0x2019,0x201c,
     0x201d,0xff08,0xff09,0x3014,0x3015,0xff3b,0xff3d,0xff5b,0xff5d,0x3008,
     0x3009,0x300a,0x300b,0x300c,0x300d,0x300e,0x300f,0x3010,0x3011,0xff0b,
-    0x2212,0x00b1,0x00d7,0x00f7,0xff1d,0x2260,0xff1c,0xff1e,0x2266,0x2267,
+    /* Fullwidth/halfwidth correction:
+     * JIS0208.TXT 01/61 has U+2212 instead of U+FF0D.
+     */
+    0xff0d,0x00b1,0x00d7,0x00f7,0xff1d,0x2260,0xff1c,0xff1e,0x2266,0x2267,
     0x221e,0x2234,0x2642,0x2640,0x00b0,0x2032,0x2033,0x2103,0xffe5,0xff04,
-    0x00a2,0x00a3,0xff05,0xff03,0xff06,0xff0a,0xff20,0x00a7,0x2606,0x2605,
+    /* Fullwidth/halfwidth correction:
+     * JIS 0208 shows 01/81 as U+00A2 instead of U+FFE0, and
+     * 01/82 as U+00A3 instead of U+FFE1.
+     */
+    0xffe0,0xffe1,0xff05,0xff03,0xff06,0xff0a,0xff20,0x00a7,0x2606,0x2605,
     0x25cb,0x25cf,0x25ce,0x25c7
   },
   {				/* ku 02 */
@@ -59,7 +82,10 @@ static const unsigned short jis0208tab[MAX_JIS0208_KU][MAX_JIS0208_TEN] = {
     0x2190,0x2191,0x2193,0x3013,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,
     UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,0x2208,0x220b,0x2286,0x2287,0x2282,
     0x2283,0x222a,0x2229,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,
-    UBOGON,0x2227,0x2228,0x00ac,0x21d2,0x21d4,0x2200,0x2203,UBOGON,UBOGON,
+    /* Fullwidth/halfwidth correction:
+     * JIS0208.TXT shows 02/44 as U+00AC instead of U+FFE2.
+     */
+    UBOGON,0x2227,0x2228,0xffe2,0x21d2,0x21d4,0x2200,0x2203,UBOGON,UBOGON,
     UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,0x2220,
     0x22a5,0x2312,0x2202,0x2207,0x2261,0x2252,0x226a,0x226b,0x221a,0x223d,
     0x221d,0x2235,0x222b,0x222c,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,
@@ -187,6 +213,7 @@ static const unsigned short jis0208tab[MAX_JIS0208_KU][MAX_JIS0208_TEN] = {
     UBOGON,UBOGON,UBOGON,UBOGON
   },
   {				/* ku 0d */
+#if 0
     UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,
     UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,
     UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,
@@ -197,6 +224,18 @@ static const unsigned short jis0208tab[MAX_JIS0208_KU][MAX_JIS0208_TEN] = {
     UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,
     UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,
     UBOGON,UBOGON,UBOGON,UBOGON
+#else	/* additional mappings suggested by AOL */
+   0x2460,0x2461,0x2462,0x2463,0x2464,0x2465,0x2466,0x2467,0x2468,0x2469,
+   0x246a,0x246b,0x246c,0x246d,0x246e,0x246f,0x2470,0x2471,0x2472,0x2473,
+   0x2160,0x2161,0x2162,0x2163,0x2164,0x2165,0x2166,0x2167,0x2168,0x2169,
+   UBOGON,0x3349,0x3314,0x3322,0x334d,0x3318,0x3327,0x3303,0x3336,0x3351,
+   0x3357,0x330d,0x3326,0x3323,0x332b,0x334a,0x333b,0x339c,0x339d,0x339e,
+   0x338e,0x338f,0x33c4,0x33a1,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,
+   UBOGON,UBOGON,0x337b,0x301d,0x301f,0x2116,0x33cd,0x2121,0x32a4,0x32a5,
+   0x32a6,0x32a7,0x32a8,0x3231,0x3232,0x3239,0x337e,0x337d,0x337c,UBOGON,
+   UBOGON,UBOGON,0x222e,0x2211,UBOGON,UBOGON,UBOGON,0x221f,0x22bf,UBOGON,
+   UBOGON,UBOGON,UBOGON,UBOGON
+#endif
   },
   {				/* ku 0e */
     UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,UBOGON,

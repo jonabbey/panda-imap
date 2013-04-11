@@ -1,0 +1,363 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
+Last update: 17 August 2006
+
+INTRODUCTION
+
+This file is the descendant of a design document used to specify the
+mix format.  An attempt is being made to keep this document more or
+less current with the way the mix format actually works.
+
+
+1. Mix mailbox naming
+
+Mailbox names correspond to directory names; thus mix format mailboxes
+are "dual-use" (lack both \NoInferiors and \NoSelect).  This will
+satisfy some long-standing requests.
+
+
+2. Mailbox files
+
+A mix format mailbox is a directory with regular files with filenames
+of:
+	.mixmeta	mailbox metadata file
+	.mixindex	message index file (message static data)
+	.mixstatus	message status file (message dynamic data)
+	.mix########	(where ######### is a <hex8>) secondary message
+			 data files.
+	.mix		primary message data file (used in experimental
+			 versions, supported for compatibility only)
+
+2.1 Metadata, index, and status files
+
+The mailbox metadata, index, and status files contain a sequence of
+CRLF-terminated lines.  These files have an update sequence, which is
+a strictly-ascending sequence value.  Any time the file is changed,
+the update sequence is increased; this allows easy detection of
+whether the file has been changed by another process.  For now, this
+update sequence is a modseq (see below).
+
+2.1.1 Metadata file
+
+The mailbox metadata file is called ".mixmeta".  It contains a series
+of CRLF-terminated lines.  The first character of the line is a key that
+identifies the payload of the line, and the remainder of the line is the
+payload.
+	Key	Payload
+	---	-------
+	 S	<hex8>			;; update sequence
+	 V	<hex8>			;; UIDVALIDITY
+	 L	<hex8>			;; UIDLAST
+	 N	<hex8>			;; current new message file
+	 K	[atom 0*(SP atom)]	;; keyword list
+
+All other keys are reserved for future assignment and must be ignored
+(and may be discarded) by software which does not recognize them.  The
+mailbox metadata file is rewritten as part of new mail delivery (so
+APPENDUID/COPYUID can work) and when new keywords are added.
+
+2.1.2 Message static index file
+
+The mailbox message static index file is called ".mixindex".  It contains
+a series of CRLF-terminated lines.  The first character of the line is a
+key that identifies the payload of the line, and the remainder of the line
+is the payload.
+	Key	Payload
+	---	-------
+	 S	<hex8>			;; update sequence
+	 :	<uid>:<date>:<size>:<hsiz>:<file>:<pos>:
+	 				;; per-message record
+
+The per-message records contain the following data:
+	<uid>  = <hex8>			;; message UID
+	<date> = <yyyymmddhhmmss+zzzz>	;; internal date
+	<size> = <hex8>			;; rfc822.size
+	<file> = <hex8>			;; message data file (0 = .mix file)
+	<pos>  = <hex8>			;; message position in file
+	<isiz> = <hex8>			;; message internal data size
+	<hsiz> = <hex8>			;; header size (offset to body)
+
+All other keys, and subsequent fields in per-message records, are
+reserved for future assignment and must be ignored (and may be
+discarded) by software which does not recognize them.  The mailbox
+metadata file is appended by new mail delivery and rewritten by
+expunge "burping", and otherwise is not altered.
+
+2.1.3 Message dynamic status file
+
+The mailbox message dynamic status file is called ".mixstatus".  It contains
+a series of CRLF-terminated lines.  The first character of the line is a
+key that identifies the payload of the line, and the remainder of the line
+is the payload.
+   	Key	Payload
+	---	-------
+	 S	<hex8>			;; update sequence
+	 :	<uid>:<uf>:<sf>:<mod>:	;; per-message record
+
+The per-message records contain the following data:
+	<uid>  = <hex8>			;; message UID
+	<keys> = <hex8>			;; keyword flags
+	<flag> = <hex4>			;; system flags
+	<mod>  = <hex8>			;; date/time last modified (modseq)
+
+All other keys, and subsequent fields in per-message records, are
+reserved for future assignment and must be ignored (and may be
+discarded) by software which does not recognize them.  The mailbox
+dynamic idex file is rewritten by flag changes (or any future change
+that alters dynamic data) and is re-read when a session sees that the
+mtime has changed (atime and ctime are not used).
+
+The modseq is an unsigned 32-bit date/time, along with a guarantee
+that this value can not go backwards.  It currently corresponds to the
+time from time(); however, since it is unsigned, it won't run out until
+the year 2106.  In the future, this may be used as a basic for implementing
+the IMAP CONDSTORE extension.
+
+2.2 Message data files
+
+A mix message file is a regular file with filename starting with
+".mix" followed by a <hex8> suffix which indicates the file number.  It
+contains a series of CRLF-terminated lines.  By special dispensation, the
+filename ".mix" is used for file number 0, which was used in experimental
+versions of mix as a "primary" file (this concept no longer exists).
+
+A file number is set to the current modseq when it is created.  If a copy
+or append causes the file to exceed the compiled-in file size limit, a new
+file is started and the metadata is updated accordingly.
+
+Preceeding each message is per-message record with the following format:
+   	Key	Payload
+	---	-------
+					;; per-message record
+	:	:<code>:<uid>:<date>:<size>:
+
+The per-message records contain the following data:
+	<code> = "msg"			;; fixed code
+	<uid>  = <hex8>			;; message UID
+	<date> = <yyyymmddhhmmss+zzzz>	;; internal date
+	<size> = <hex8>			;; rfc822.size
+The message data begins on the next line
+
+Subsequent fields are reserved for future assignment and must be ignored.
+
+
+3. New mail delivery
+
+To deliver a new message, it is necessary to share lock the destination
+metadata file, then get an exclusive lock on the destination index and
+status files.  Once this is done, the new message data is appended to the
+new message file.  The metadata (UIDLAST value), index, and status
+files are all updated to add the new message.
+
+Then all the destination mailbox files are closed.
+
+
+4. Mailbox pinging
+
+The index and status files are share locked.  Initially, sequences are
+remembered as zero, so at open time they are always "altered".
+
+The sequence from the index file is checked; if it is altered the index
+file is read and processed as follows:
+ . If expunge is permitted, then any messages that are not in the index
+   are reported as having been expunged via mm_expunged().
+ . new messages are announced via mm_exists()/mm_recent().
+
+Next, the sequence from the status file is checked.  If it is altered,
+the status file is read and the status updated for any message which is
+new or has an altered modseq in the status file.  Altered modseq messages
+are announced via mm_flags().
+
+Then the index and status files are closed.
+
+
+4. Flag alteration
+
+The status file is exclusive locked.
+
+The sequence from the status file is checked.  If it is altered, the
+status file is read and the status updated for any message which is
+new or has an altered modseq in the status file.  Altered modseq
+messages are announced via mm_flags().
+
+The alterations are then applied for all requested messages, updating
+the modseq for each requestedmessage which changes flags as a result
+of the alteration (alterations which do not result in a change do not
+alter the modseq).  Then the status file is rewritten with a new
+sequence, but only if flags of at least one message was changed.
+
+Then the status file is closed.
+
+
+5. Checkpoint and expunge
+
+Checkpoint is identical to expunge, however it skips the step of expunging
+deleted messages.
+
+The index and status files are locked exclusive.  If expunging, all
+deleted messages are expunged from the index and announced via
+mm_expunged().  The message data is notremoved at this time.
+
+If a checkpoint was requested, or if any messages were expunged, or if
+it remembered that a "burp" was needed, then:
+ . the metadata file is locked exclusive.  If this fails, remember that
+   a burp is needed.  Otherwise perform a burp:
+   . calculate the file byte ranges occupied by expunged messages
+   . for each file needing "burping", open and slide down subsequent file
+     data on top of the expunged messages
+ . update the index and status files
+
+Then the index and status files are closed.
+
+5.1 More details on expunging and "burping"
+
+Shared expunge presents a problem due to the requirements of the IMAP
+protocol.  You can't "burp" away a message until you are certain that
+no sharers have a pointer to any longer.  Consequently, for the nonce
+"burping" out expunged data be defered to an exclusive expunge as in
+mbx format.
+
+If shared burping is ever implemented, then care will be needed not to
+burp data that a session still relies upon.  It's easy enough to burp
+the index files; just create new index files, deleting the old, and
+require that you look for a new one appearing at mailbox ping time
+(when it's safe).  The data files are a problem, since we
+intentionally don't want to keep them open and do want to avoid quota
+problems by overwriting in place.  Also, when you burp you have to
+change the pointers in the index file.
+
+Bottom line: shared burping is too hairy right now, so the first
+version will do exclusive-only burping and not worry about it.  If
+shared burping is really needed, then that routine will need to be
+rewritten.
+
+Shared burping has been a problem for every other IMAP server.  Most
+get it wrong, and cause terrible confusion to clients (including
+client crashes).
+
+
+6. Message data file file roll out strategy
+
+The current new message file is finalized, and a new one started, when
+an append or copy is done that would cause the file to grow to larger
+than a preconfigured size (MIXDATAROLL).  A multi-message copy or
+append is written into its entirety to a single new message file.  In
+the case of multi-copy, the new message file is switched when the sum
+of the sizes of all messages to be copied would cause the current new
+message file to exceed MIXDATAROLL.  In the case of multi-append, only
+the first message is considered; this is due to technical limitations.
+
+7. Error detection
+
+Mix detects bad data in the metadata, index, and status files; and
+declares the stream dead.  It does not unilaterally reassign
+UIDVALIDITY the way that the flat file formats do.
+
+When mix reads a header from the message file, it also reads the
+per-message record and verifies that there is a per-message record there.
+This is a simple test for message file corruption.  It doesn't declare
+the stream dead; it simply issues an error message and returns a
+zero-length string for the message header.  This makes it possible for
+the user to fix the mailbox simply by deleting and expunging any messages
+that are in this state.
+
+
+8. Reconstruct tool
+
+[None of this is implemented yet.]
+
+The layout of these files is designed to make the reconstruct tool be
+as simple as possible.  Much of the need for the reconstruct tool is
+eliminated since the mix format has a much more limited scope of
+writing than the flat file formats; thus there is "less collateral
+damage."
+
+If the metadata file is lost or corrupted, then all keywords are lost;
+if the mailbox has any keywords used in the .mixstatus file, it'll be
+necessary to create some placeholder names.  Otherwise, a new
+UIDVALIDITY can be assigned, and a good UIDLAST value calculated by
+the reconstruct tool.  Since this file is very small, it's not likely
+to be damaged.
+
+If the index file is lost or corrupted, it is possible to reconstruct
+it with no loss by reading all the data files.  However, this could
+cause expunged but not yet burped messages to reappear.
+
+If the status file is lost or corrupted, then flags are lost and
+will revert to a default state of no flags set.  Just deleting the
+corrupted file is good enough.
+
+The reconstruct tool can use the per-message record in the message
+file to locate messages if the recorded sizes and/or messages are
+corrupt.  If that happens, it will need to rebuild the index file
+(with associated changes to the metadata file to change the
+UIDVALIDITY).  That should probably be a manual operation and not be
+part of the default operation or auto-reconstruct.
+
+
+9. Locking strategy
+
+The mix format does not use the traditional c-client /tmp file locking.
+
+The metadata file is open and locked whenever the mailbox is open.
+Normally this is a shared lock, but it will be upgraded to exclusive
+if the mailbox is expunged.  As a guard (since there is no true
+lock-upgrade/downgrade on UNIX), the index exclusive lock must be
+acquired first before upgrading to exclusive.
+
+The index file is shared locked when reading the index, and exclusive
+locked (and read) when appending new messages to the index or when
+expunging (note that expunging also requires an exclusive lock on
+metadata).  Normally, the index file is not open or locked.
+
+The status file is shared locked when reading status, and exclusive
+locked (and read) when updating status.  Normally, the status file is
+not open or locked.
+
+It isn't necessary to lock any of the data files as long as we only
+have exclusive burping.
+
+
+10. Memory usage
+
+The mix format returns a file stringstruct, which is the modern
+c-client behavior.  This prevents imapd from growing to enormous sizes
+due to a godzillagram (how it affects other programs depends upon what
+they do with the returned stringstruct).
+
+
+11. Future extensions
+
+Cached ENVELOPE, BODYSTRUCTURE.  Cyrus does, and this will eliminate
+most of the reason to access the data files.  Possibly cached overviews,
+ala NNTP, instead?
+
+
+Support for ANNOTATION.
+
+
+12. RENAME issues
+
+Mix currently makes no attempt to address the IMAP RENAME problem.
+This occurs when a mailbox is deleted, and another mailbox is renamed
+with that name in place, no attempt is made to reassign UIDVALIDITY
+for this mailbox and all the inferior mailboxes.  This potentially can
+cause problems for a disconnected-use client that has cached status
+for the old mailbox which had that name.
+
+The RENAME problem is a well known flaw in the IMAP protocol.  Few
+servers correctly handle it (among other things, not only do all the
+UIDVALIDITY values have to be changed but this has to be done
+atomically!).  It was a mistake to add RENAME into IMAP, but it's much
+too late to remove it now.

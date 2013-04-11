@@ -1,4 +1,16 @@
 @ECHO OFF
+REM ========================================================================
+REM Copyright 1988-2006 University of Washington
+REM
+REM Licensed under the Apache License, Version 2.0 (the "License");
+REM you may not use this file except in compliance with the License.
+REM You may obtain a copy of the License at
+REM
+REM     http://www.apache.org/licenses/LICENSE-2.0
+REM
+REM 
+REM ========================================================================
+
 REM Program:	Set default prototype for DOS/NT
 REM
 REM Author:	Mark Crispin
@@ -10,13 +22,7 @@ REM		Seattle, WA  98195
 REM		Internet: MRC@CAC.Washington.EDU
 REM
 REM Date:	 9 October 1995
-REM Last Edited: 6 July 2004
-REM
-REM The IMAP toolkit provided in this Distribution is
-REM Copyright 1988-2004 University of Washington.
-REM
-REM The full text of our legal notices is contained in the file called
-REM CPYRIGHT, included with this Distribution.
+REM Last Edited: 30 August 2006
 
 REM Set the default drivers
 ECHO #define CREATEPROTO %1proto >> LINKAGE.H

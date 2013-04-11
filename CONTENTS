@@ -1,8 +1,22 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 			  TOOLKIT DIRECTORY CONTENTS
 
 Documentation:
  . CONTENTS		this file
- . CPYRIGHT		copyright notice and export warning
+ . LICENSE.txt		software license
+ . NOTICE		copyright notice
  . README		read this file first
  . SUPPORT		where to go to ask questions and/or report bugs
  . docs/BUILD		build and installation instructions
@@ -14,14 +28,17 @@ Documentation:
  . docs/Y2K		information relating to Y2K issues
  . docs/bugs.txt	known bugs and deficiencies in this software
  . docs/calendar.txt	information relating to the calendar
+ . docs/commndmt.txt	"ten commandments" on how to write a good IMAP client
+ . docs/draft/		Internet protocol documentation drafts
  . docs/drivers.txt	how various mailbox format drivers interact, and
 			 comparable features and performance
  . docs/formats.txt	mailbox formats
  . docs/internal.txt	programming interfaces
  . docs/locking.txt	how file locking works
  . docs/md5.txt		CRAM-MD5 authentication setup instructions
+ . docs/mixfmt.txt	specification of new mix format
  . docs/naming.txt	mailbox naming conventions
- . docs/rfc		Internet protocol documentation
+ . docs/rfc/		Internet protocol documentation
 
 Sources:
  . Makefile		master makefile for UNIX

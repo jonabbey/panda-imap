@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Simple Mail Transfer Protocol (SMTP) routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	30 April 2005
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2005 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -186,7 +194,14 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	  mm_log (tmp,ERROR);
 	  stream = smtp_close (stream);
 	}
-	else if ((reply = smtp_ehlo (stream,s,&mb)) == SMTPOK) {
+				/* try EHLO first, then HELO */
+	else if (((reply = smtp_ehlo (stream,s,&mb)) != SMTPOK) &&
+		 ((reply = smtp_send (stream,"HELO",s)) != SMTPOK)) {
+	  sprintf (tmp,"SMTP hello failure: %.80s",stream->reply);
+	  mm_log (tmp,ERROR);
+	  stream = smtp_close (stream);
+	}
+	else {
 	  NETDRIVER *ssld =(NETDRIVER *)mail_parameters(NIL,GET_SSLDRIVER,NIL);
 	  sslstart_t stls = (sslstart_t) mail_parameters(NIL,GET_SSLSTART,NIL);
 	  ESMTP.ok = T;		/* ESMTP server, start TLS if present */
@@ -198,7 +213,8 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 				/* TLS started, negotiate it */
 	    if (!(stream->netstream->stream = (*stls)
 		  (stream->netstream->stream,mb.host,
-		   NET_TLSCLIENT | (mb.novalidate ? NET_NOVALIDATECERT:NIL)))){
+		   (mb.tlssslv23 ? NIL : NET_TLSCLIENT) |
+		   (mb.novalidate ? NET_NOVALIDATECERT:NIL)))){
 				/* TLS negotiation failed after STARTTLS */
 	      sprintf (tmp,"Unable to negotiate TLS with this server: %.80s",
 		       mb.host);
@@ -208,15 +224,14 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	      stream->netstream = NIL;
 	      stream = smtp_close (stream);
 	    }
-				/* re-negotiate EHLO */
-	    else if ((reply = smtp_ehlo (stream,s,&mb)) == SMTPOK)
-	      ESMTP.ok = T;
-	    else {
+				/* TLS OK, re-negotiate EHLO */
+	    else if ((reply = smtp_ehlo (stream,s,&mb)) != SMTPOK) {
 	      sprintf (tmp,"SMTP EHLO failure after STARTLS: %.80s",
 		       stream->reply);
 	      mm_log (tmp,ERROR);
 	      stream = smtp_close (stream);
 	    }
+	    ESMTP.ok = T;	/* TLS OK and EHLO successful */
 	  }
 	  else if (mb.tlsflag) {/* user specified /tls but can't do it */
 	    sprintf (tmp,"TLS unavailable with this server: %.80s",mb.host);
@@ -244,17 +259,6 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 	      stream = smtp_close (stream);
 	    }
 	  }
-	}
-	else if (mb.secflag || mb.user[0]) {
-	  sprintf (tmp,"ESMTP failure: %.80s",stream->reply);
-	  mm_log (tmp,ERROR);
-	  stream = smtp_close (stream);
-	}
-				/* try ordinary SMTP then */
-	else if ((reply = smtp_send (stream,"HELO",s)) != SMTPOK) {
-	  sprintf (tmp,"SMTP hello failure: %.80s",stream->reply);
-	  mm_log (tmp,ERROR);
-	  stream = smtp_close (stream);
 	}
       }
     }
@@ -401,6 +405,7 @@ SENDSTREAM *smtp_close (SENDSTREAM *stream)
     if (stream->host) fs_give ((void **) &stream->host);
     if (stream->reply) fs_give ((void **) &stream->reply);
     if (ESMTP.dsn.envid) fs_give ((void **) &ESMTP.dsn.envid);
+    if (ESMTP.atrn.domains) fs_give ((void **) &ESMTP.atrn.domains);
     fs_give ((void **) &stream);/* flush the stream */
   }
   return NIL;
@@ -416,14 +421,14 @@ SENDSTREAM *smtp_close (SENDSTREAM *stream)
 
 long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
 {
-  /* Note: This assumes that the envelope will never generate a header of
-   * more than 8K.  If your client generates godzilla headers, you will
-   * need to install your own rfc822out_t routine via SET_RFC822OUTPUT
-   * to use in place of this to avoid a buffer overflow.
-   */
-  char tmp[8*MAILTMPLEN];
+  RFC822BUFFER buf;
+  char tmp[SENDBUFLEN+1];
   long error = NIL;
   long retry = NIL;
+  buf.f = smtp_soutr;		/* initialize buffer */
+  buf.s = stream->netstream;
+  buf.end = (buf.beg = buf.cur = tmp) + SENDBUFLEN;
+  tmp[SENDBUFLEN] = '\0';	/* must have additional null guard byte */
   if (!(env->to || env->cc || env->bcc)) {
   				/* no recipients in request */
     smtp_fake (stream,SMTPHARDERROR,"No recipients specified");
@@ -500,9 +505,9 @@ long smtp_mail (SENDSTREAM *stream,char *type,ENVELOPE *env,BODY *body)
 				/* set up error in case failure */
   smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection went away!");
 				/* output data, return success status */
-  return rfc822_output (tmp,env,body,smtp_soutr,stream->netstream,
-			ESMTP.eightbit.ok && ESMTP.eightbit.want) &&
-			  (smtp_send (stream,".",NIL) == SMTPOK);
+  return rfc822_output_full (&buf,env,body,
+			     ESMTP.eightbit.ok && ESMTP.eightbit.want) &&
+    (smtp_send (stream,".",NIL) == SMTPOK);
 }
 
 /* Internal routines */
@@ -643,7 +648,7 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
   unsigned long i,j;
   long flags = (mb->secflag ? AU_SECURE : NIL) |
     (mb->authuser[0] ? AU_AUTHUSER : NIL);
-  char *s,tmp[MAILTMPLEN];
+  char *s,*t,tmp[MAILTMPLEN];
 				/* clear ESMTP data */
   memset (&ESMTP,0,sizeof (ESMTP));
   if (mb->loser) return 500;	/* never do EHLO if a loser */
@@ -655,58 +660,50 @@ long smtp_ehlo (SENDSTREAM *stream,char *host,NETMBX *mb)
     return smtp_fake (stream,SMTPSOFTFATAL,"SMTP connection broken (EHLO)");
 				/* got an OK reply? */
   do if ((i = smtp_reply (stream)) == SMTPOK) {
-    ucase (strncpy (tmp,stream->reply+4,MAILTMPLEN-1));
-    tmp[MAILTMPLEN-1] = '\0';
-				/* note EHLO options */
-    if ((tmp[0] == '8') && (tmp[1] == 'B') && (tmp[2] == 'I') &&
-	(tmp[3] == 'T') && (tmp[4] == 'M') && (tmp[5] == 'I') &&
-	(tmp[6] == 'M') && (tmp[7] == 'E') && !tmp[8]) ESMTP.eightbit.ok = T;
-    else if ((tmp[0] == 'S') && (tmp[1] == 'I') && (tmp[2] == 'Z') &&
-	     (tmp[3] == 'E') && (!tmp[4] || tmp[4] == ' ')) {
-      if (tmp[4]) ESMTP.size.limit = atoi (tmp+5);
-      ESMTP.size.ok = T;
+				/* hack for AUTH= */
+    if (stream->reply[4] && stream->reply[5] && stream->reply[6] &&
+	stream->reply[7] && (stream->reply[8] == '=')) stream->reply[8] = ' ';
+				/* get option code */
+    if (!(s = strtok (stream->reply+4," ")));
+				/* have option, does it have a value */
+    else if ((t = strtok (NIL," ")) && *t) {
+				/* EHLO options which take arguments */
+      if (!compare_cstring (s,"SIZE")) {
+	if (isdigit (*t)) ESMTP.size.limit = strtoul (t,&t,10);
+	ESMTP.size.ok = T;
+      }
+      else if (!compare_cstring (s,"DELIVERBY")) {
+	if (isdigit (*t)) ESMTP.deliverby.minby = strtoul (t,&t,10);
+	ESMTP.deliverby.ok = T;
+      }
+      else if (!compare_cstring (s,"ATRN")) {
+	ESMTP.atrn.domains = cpystr (t);
+	ESMTP.atrn.ok = T;
+      }
+      else if (!compare_cstring (s,"AUTH"))
+	do if ((j = mail_lookup_auth_name (t,flags)) &&
+	       (--j < MAXAUTHENTICATORS)) ESMTP.auth |= (1 << j);
+	while ((t = strtok (NIL," ")) && *t);
     }
-    else if ((tmp[0] == 'A') && (tmp[1] == 'U') && (tmp[2] == 'T') &&
-	     (tmp[3] == 'H') && ((tmp[4] == ' ') || (tmp[4] == '='))) {
-      for (s = strtok (tmp+5," "); s && *s; s = strtok (NIL," "))
-	if ((j = mail_lookup_auth_name (s,flags)) &&
-	    (--j < MAXAUTHENTICATORS)) ESMTP.auth |= (1 << j);
-    }
-    else if ((tmp[0] == 'D') && (tmp[1] == 'S') && (tmp[2] == 'N') && !tmp[3])
-      ESMTP.dsn.ok = T;
-
-    else if ((tmp[0] == 'S') && (tmp[1] == 'E') && (tmp[2] == 'N') &&
-	     (tmp[3] == 'D') && !tmp[4]) ESMTP.service.send = T;
-    else if ((tmp[0] == 'S') && (tmp[1] == 'O') && (tmp[2] == 'M') &&
-	     (tmp[3] == 'L') && !tmp[4]) ESMTP.service.soml = T;
-    else if ((tmp[0] == 'S') && (tmp[1] == 'A') && (tmp[2] == 'M') &&
-	     (tmp[3] == 'L') && !tmp[4]) ESMTP.service.saml = T;
-    else if ((tmp[0] == 'E') && (tmp[1] == 'X') && (tmp[2] == 'P') &&
-	     (tmp[3] == 'N') && !tmp[4]) ESMTP.service.expn = T;
-    else if ((tmp[0] == 'H') && (tmp[1] == 'E') && (tmp[2] == 'L') &&
-	     (tmp[3] == 'P') && !tmp[4]) ESMTP.service.help = T;
-    else if ((tmp[0] == 'T') && (tmp[1] == 'U') && (tmp[2] == 'R') &&
-	     (tmp[3] == 'N') && !tmp[4]) ESMTP.service.turn = T;
-    else if ((tmp[0] == 'E') && (tmp[1] == 'T') && (tmp[2] == 'R') &&
-	     (tmp[3] == 'N') && !tmp[4]) ESMTP.service.etrn = T;
-    else if ((tmp[0] == 'S') && (tmp[1] == 'T') && (tmp[2] == 'A') &&
-	     (tmp[3] == 'R') && (tmp[4] == 'T') && (tmp[5] == 'T') &&
-	     (tmp[6] == 'L') && (tmp[7] == 'S') && !tmp[8])
-      ESMTP.service.starttls = T;
-    else if ((tmp[0] == 'R') && (tmp[1] == 'E') && (tmp[2] == 'L') &&
-	     (tmp[3] == 'A') && (tmp[4] == 'Y') && !tmp[5])
-      ESMTP.service.relay = T;
-    else if ((tmp[0] == 'P') && (tmp[1] == 'I') && (tmp[2] == 'P') &&
-	     (tmp[3] == 'E') && (tmp[4] == 'L') && (tmp[5] == 'I') &&
-	     (tmp[6] == 'N') && (tmp[7] == 'I') && (tmp[8] == 'N') &&
-	     (tmp[9] == 'G') && !tmp[10]) ESMTP.service.pipe = T;
-    else if ((tmp[0] == 'E') && (tmp[1] == 'N') && (tmp[2] == 'H') &&
-	     (tmp[3] == 'A') && (tmp[4] == 'N') && (tmp[5] == 'C') &&
-	     (tmp[6] == 'E') && (tmp[7] == 'D') && (tmp[8] == 'S') &&
-	     (tmp[9] == 'T') && (tmp[10] == 'A') && (tmp[11] == 'T') &&
-	     (tmp[12] == 'U') && (tmp[13] == 'S') && (tmp[14] == 'C') &&
-	     (tmp[15] == 'O') && (tmp[16] == 'D') && (tmp[17] == 'E') &&
-	     (tmp[18] == 'S') && !tmp[19]) ESMTP.service.ensc = T;
+				/* EHLO options which do not take arguments */
+    else if (!compare_cstring (s,"SIZE")) ESMTP.size.ok = T;
+    else if (!compare_cstring (s,"8BITMIME")) ESMTP.eightbit.ok = T;
+    else if (!compare_cstring (s,"DSN")) ESMTP.dsn.ok = T;
+    else if (!compare_cstring (s,"ATRN")) ESMTP.atrn.ok = T;
+    else if (!compare_cstring (s,"SEND")) ESMTP.service.send = T;
+    else if (!compare_cstring (s,"SOML")) ESMTP.service.soml = T;
+    else if (!compare_cstring (s,"SAML")) ESMTP.service.saml = T;
+    else if (!compare_cstring (s,"EXPN")) ESMTP.service.expn = T;
+    else if (!compare_cstring (s,"HELP")) ESMTP.service.help = T;
+    else if (!compare_cstring (s,"TURN")) ESMTP.service.turn = T;
+    else if (!compare_cstring (s,"ETRN")) ESMTP.service.etrn = T;
+    else if (!compare_cstring (s,"STARTTLS")) ESMTP.service.starttls = T;
+    else if (!compare_cstring (s,"RELAY")) ESMTP.service.relay = T;
+    else if (!compare_cstring (s,"PIPELINING")) ESMTP.service.pipe = T;
+    else if (!compare_cstring (s,"ENHANCEDSTATUSCODES"))
+      ESMTP.service.ensc = T;
+    else if (!compare_cstring (s,"BINARYMIME")) ESMTP.service.bmime = T;
+    else if (!compare_cstring (s,"CHUNKING")) ESMTP.service.chunk = T;
   }
   while ((i < 100) || (stream->reply[3] == '-'));
 				/* disable LOGIN if PLAIN also advertised */

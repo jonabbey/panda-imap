@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Dummy routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	14 October 2003
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2003 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /* Exported function prototypes */
@@ -23,6 +31,10 @@
 void dummy_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
 void dummy_list (MAILSTREAM *stream,char *ref,char *pat);
 void dummy_lsub (MAILSTREAM *stream,char *ref,char *pat);
+long scan_contents (DRIVER *dtb,char *name,char *contents,
+		    unsigned long csiz,unsigned long fsiz);
+long dummy_scan_contents (char *name,char *contents,unsigned long csiz,
+			  unsigned long fsiz);
 long dummy_create (MAILSTREAM *stream,char *mailbox);
 long dummy_create_path (MAILSTREAM *stream,char *path,long dirmode);
 long dummy_delete (MAILSTREAM *stream,char *mailbox);

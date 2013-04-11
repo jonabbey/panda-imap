@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	CRAM-MD5 authenticator
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	21 October 1998
- * Last Edited:	4 January 2005
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2005 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /* MD5 context */
@@ -185,7 +193,7 @@ char *auth_md5_pwd (char *user)
     fstat (fd,&sbuf);		/* yes, slurp it into memory */
     read (fd,buf = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
 				/* see if any uppercase characters in user */
-    for (s = user; *s && !isupper (*s); s++);
+    for (s = user; *s && ((*s < 'A') || (*s > 'Z')); s++);
 				/* yes, make lowercase copy */
     lusr = *s ? lcase (cpystr (user)) : NIL;
     for (s = strtok (buf,"\015\012"),lret = NIL; s;

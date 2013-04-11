@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Miscellaneous utility routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	27 April 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -87,6 +95,7 @@ unsigned long find_rightmost_bit (unsigned long *valptr);
 long min (long i,long j);
 long max (long i,long j);
 long search (unsigned char *base,long basec,unsigned char *pat,long patc);
+long ssearch (unsigned char *base,long basec,unsigned char *pat,long patc);
 HASHTAB *hash_create (size_t size);
 void hash_destroy (HASHTAB **hashtab);
 void hash_reset (HASHTAB *hashtab);
@@ -94,6 +103,8 @@ unsigned long hash_index (HASHTAB *hashtab,char *key);
 void **hash_lookup (HASHTAB *hashtab,char *key);
 HASHENT *hash_add (HASHTAB *hashtab,char *key,void *data,long extra);
 void **hash_lookup_and_add (HASHTAB *hashtab,char *key,void *data,long extra);
+unsigned char hex2byte (unsigned char c1,unsigned char c2);
 int compare_ulong (unsigned long l1,unsigned long l2);
+int compare_uchar (unsigned char c1,unsigned char c2);
 int compare_cstring (unsigned char *s1,unsigned char *s2);
 int compare_csizedtext (unsigned char *s1,SIZEDTEXT *s2);

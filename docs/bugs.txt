@@ -1,7 +1,21 @@
-	   KNOWN BUGS/MISFEATURES/DEFICIENCIES IN THE IMAP TOOLKIT
-			Last Updated: 22 January 2004
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
 
-The following are known problems/deficiencies in the imap-2004 toolkit:
+	   KNOWN BUGS/MISFEATURES/DEFICIENCIES IN THE IMAP TOOLKIT
+			Last Updated: 30 August 2006
+
+The following are known problems/deficiencies in the imap-2006 toolkit:
+
  . Possible problems for some installations:
    . In some versions of Redhat Linux, SVR4-style timezone name lookup
       doesn't work properly due to a bug in glibc.  The workaround is to
@@ -14,7 +28,7 @@ The following are known problems/deficiencies in the imap-2004 toolkit:
       the SSLDIR variable, either by including a setting of EXTRASPECIALS
       in the make command line, e.g.
        build lnp SPECIALAUTHENTICATORS=ssl EXTRASPECIALS="SSLDIR=/usr/ssl"
-      or by editing imap-2004/src/osdep/unix/Makefile
+      or by editing imap-2006/src/osdep/unix/Makefile
    . /tmp, /usr/tmp or /var/tmp (if present), and the mail spool directory
       must be protected 1777 (world write with sticky bit); otherwise
       mailbox locking and updates won't work.  An alternative to 1777 on
@@ -35,11 +49,11 @@ The following are known problems/deficiencies in the imap-2004 toolkit:
    . At the insistance of the security gurus, SSL certification validation
       is now on by default.  This means that you must now use the new
       /novalidate-cert switch if establishing an SSL connection to a server
-      with a self-signed certificate; i.e. if "imap.blurdybloop.com" has a
+      with a self-signed certificate; i.e. if "imap.example.com" has a
       self-signed certificate, you must use a mailbox name such as
-       {imap.blurdybloop.com/ssl/novalidate-cert}INBOX
+       {imap.example.com/ssl/novalidate-cert}INBOX
       to get an SSL session instead of just
-       {imap.blurdybloop.com/ssl}INBOX
+       {imap.example.com/ssl}INBOX
    . GCC 8.x and above on SGI systems does not correctly pass/return
       structures which are smaller than 16 bytes and are not 8 bytes.  The
       problem is that structures are padded at the wrong end; e.g. a 4 byte
@@ -56,11 +70,11 @@ The following are known problems/deficiencies in the imap-2004 toolkit:
       the public domain on September 6, 2000.  There is no longer any need to
       use RSAREF, and since RSAREF is slower than OpenSSL's RSA routines
       there's good reason not to.  If for some reason you still want to use
-      RSAREF, you will need to edit imap-2004/src/osdep/unix/Makefile to
+      RSAREF, you will need to edit imap-2006/src/osdep/unix/Makefile to
       change SSLRSA to load libRSAglue and librsaref.
    . By default, the UNIX SSL build assumes that no name conflict exists
       between OpenSSL and Kerberos 5.  If you are using an older version
-      of Kerberos, you may need to edit imap-2004/src/osdep/unix/Makefile
+      of Kerberos, you may need to edit imap-2006/src/osdep/unix/Makefile
       to change SSLCRYPTO so that it loads the OpenSSL libcrypto library
       explicitly as libcrypto.a.
    . By default, host names are canonicalized via gethostbyname() and
@@ -69,38 +83,70 @@ The following are known problems/deficiencies in the imap-2004 toolkit:
       likely to deliver results that users expect and also may be necessary
       to get Kerberos to work.  Set variable "trustdns" in mail.c to NIL if
       you want to disable this.
+
  . Bugs:
    . It doesn't work to have a "}" character as a user name in /user= in a
       mailbox name, even if the user name is quoted.  In other words,
-      {blurdybloop.com/user="foo}bar"}zap won't work; foo will be interpreted
-      as an unterminated quoted string and the remote mailbox name will be
-      bar"}zap.
-   . Case-independent searching only works for the 26 Roman alphabetics and
-      not for any other characters
+       {example.com/user="foo}bar"}zap
+      won't work; foo will be interpreted as an unterminated quoted string
+      and the remote mailbox name will be
+       bar"}zap.
    . The experimental mx driver has performance problems and shouldn't be used
    . docs/internal.txt is out of date (again)
+
+ . UIDPLUS bugs/limitations:
+   . Not supported in all local file formats (see below).
+   . There are two known issues with UIDPLUS in the mmdf and unix formats:
+     (a) There is a known timing race if the destination mailbox is
+         currently selected by a different IMAP server session.  If the
+         timing race is lost, then all UID in the mailbox will be reassigned
+         by the IMAP session which has the mailbox selected (thus making the
+         returned APPENDUID/COPYUID data useless).
+          This timing race occurs if the IMAP server doing APPEND/COPY does
+         multiple APPEND or COPY operations and the other IMAP server does
+         not see each new message before the next APPEND/COPY happens.
+         Aggregate COPY or MULTIAPPEND does not have this problem.
+          This issue can be avoided by using aggregate COPY and MULTIAPPEND,
+         or by inserting enough of a delay between separate copies so that
+         the other session has an opportunity to see the new message.
+     (b) There is a known failure if the destination mailbox is currently
+         selected by legacy software (e.g. older versions of the IMAP
+         server, Pine, etc.).  In this case, all UIDs end up being
+         reassigned by the legacy software.
+     Note that if Pine is rebuilt with imap-2006 version of the c-client
+     library, it will not have the (b) issue but it will have the (a)
+     issue.
+
  . Annoyances:
    . Friendly host names (e.g. "server" instead of "server.foo.com") can't be
       used in a mailbox name with SSL certificate validation; you have to enter
       the fully-qualified domain name.  This is a requirement established by
       the security gurus.
+
  . IMAP client limitations:
    . No SASL protection mechanisms (SASL authentication mechanisms are
       supported)
+
+ . NNTP client limitations:
+   . Non-standard IMAP SCAN extension not supported
+
  . POP client limitations:
    . No SASL protection mechanisms (SASL authentication mechanisms are
       supported)
    . No POP3 UID support
+   . Non-standard IMAP SCAN extension not supported
+
  . SMTP client limitations:
    . No SASL protection mechanisms (SASL authentication mechanisms are
       supported)
    . No support for use of TURN, ETRN, and pipelining.
    . No support for enhanced status codes
+
  . UNIX limitations:
    . IPv6 is supported but is not the default; you have to use IP=6 in the make
       command
-   . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
-      unix
+   . Supported local file formats: mbx, mh, mmdf, mix, mtx, mx, news, phile,
+      tenex, unix
    . Supported SASL mechanisms: CRAM-MD5, PLAIN, LOGIN, ANONYMOUS, GSSAPI
    . Sticky UIDs are not supported in the mh, mtx, and tenex drivers
    . Creation of keywords is not supported in the mh, mtx, and tenex drivers
@@ -108,15 +154,21 @@ The following are known problems/deficiencies in the imap-2004 toolkit:
    . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
       mailboxes to have inferior names
    . SSL temporary key should be seeded better than it is.
+   . UIDPLUS support is limited to the unix, mmdf, mbx, mx, and mix formats.
+   . Non-standard IMAP SCAN extension not support for mh and news formats.
+
  . Amiga limitations:
-   . Supported local file formats: mbx, mh, mmdf, mtx, mx, news, phile, tenex,
-      unix
+   . Supported local file formats: mbx, mh, mmdf, mix, mtx, mx, news, phile,
+      tenex, unix
    . Supported SASL mechanisms: CRAM-MD5, PLAIN, LOGIN, ANONYMOUS
    . Sticky UIDs are not supported in the mh, mtx, and tenex drivers
    . Creation of keywords is not supported in the mh, mtx, and tenex drivers
    . Copy and append of keywords only works in the mbx driver.
    . Flat file formats (mbx, mmdf, mtx, phile, tenex, unix) do not permit
       mailboxes to have inferior names
+   . UIDPLUS support is limited to the unix, mmdf, mbx, mx, and mix formats.
+   . Non-standard IMAP SCAN extension not supported for mh and news formats.
+
  . Win32 (Win9x/NT/Windows 2000) limitations:
    . IPv6 is supported in W2K builds but is not the default; you have to use
       IP=6 in the nmake command
@@ -132,6 +184,8 @@ The following are known problems/deficiencies in the imap-2004 toolkit:
    . No support for TCP open timeouts
    . Flat file formats (mbx, mtx, tenex, unix) do not permit mailboxes to have
       inferior names
+   . UIDPLUS support is limited to the unix and mbx formats.
+
  . Win16 (Win3.1)/DOS limitations:
    . IPv6 not supported
    . Supported local file formats: bezerk, mtx
@@ -146,16 +200,19 @@ The following are known problems/deficiencies in the imap-2004 toolkit:
       names
    . Does not work well unless a mailgets routine is armed when fetching
       texts.
+
  . Mac limitations:
    . IPv6 not supported
    . No local file drivers
    . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
    . Does not output human-friendly time zone string
+
  . TOPS-20 limitations:
    . IPv6 not supported
    . No local file drivers
    . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
    . No support for any TCP timeouts
+
  . VMS limitations:
    . IPv6 not supported
    . No local file drivers
@@ -165,12 +222,14 @@ The following are known problems/deficiencies in the imap-2004 toolkit:
    . No support for TCP open timeouts on VMS Multinet
    . Time zone must be configured at build time
    . Does not output human-friendly time zone string
+
  . Windows CE limitations:
    . IPv6 not yet supported
    . No local file drivers
    . Supported SASL mechanisms: CRAM-MD5, LOGIN, ANONYMOUS
    . No support for TCP open timeouts
    . Not finished, only builds c-client library
+
  . OS/2 limitations:
    . IPv6 not supported
    . Not finished, does not build

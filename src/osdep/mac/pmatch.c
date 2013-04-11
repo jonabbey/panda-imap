@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	IMAP Wildcard Matching Routines (case-independent)
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 2000
- * Last Edited:	27 April 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /* Wildcard pattern match
@@ -44,9 +52,7 @@ long pmatch_full (unsigned char *s,unsigned char *pat,unsigned char delim)
   case '\0':			/* end of pattern */
     return *s ? NIL : T;	/* success if also end of base */
   default:			/* match this character */
-    return ((isupper (*pat) ? tolower (*pat) : *pat) ==
-	    (isupper (*s) ? tolower (*s) : *s)) ?
-	      pmatch_full (s+1,pat+1,delim) : NIL;
+    return compare_uchar (*pat,*s) ? NIL : pmatch_full (s+1,pat+1,delim);
   }
   return NIL;
 }
@@ -74,9 +80,7 @@ long dmatch (unsigned char *s,unsigned char *pat,unsigned char delim)
   case '\0':			/* end of pattern */
     break;
   default:			/* match this character */
-    if (*s) return ((isupper (*pat) ? tolower (*pat) : *pat) ==
-		    (isupper (*s) ? tolower (*s) : *s)) ?
-		      dmatch (s+1,pat+1,delim) : NIL;
+    if (*s) return compare_uchar (*pat,*s) ? NIL : dmatch (s+1,pat+1,delim);
 				/* end of base, return if at delimiter */
     else if (*pat == delim) return T;
     break;

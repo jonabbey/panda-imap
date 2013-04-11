@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	MH mail routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	4 November 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	13 September 2006
  */
 
 
@@ -28,16 +36,30 @@ extern int errno;		/* just in case */
 #include <pwd.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include "mh.h"
 #include "misc.h"
 #include "dummy.h"
+#include "fdstring.h"
+
+
+/* Build parameters */
+
+#define MHPROFILE ".mh_profile"
+#define MHCOMMA ','
+#define MHSEQUENCE ".mh_sequence"
+#define MHSEQUENCES ".mh_sequences"
+#define MHPATH "Mail"
+
+
+/* mh_load_message() flags */
+
+#define MLM_HEADER 0x1		/* load message text */
+#define MLM_TEXT 0x2		/* load message text */
 
 /* MH I/O stream local data */
 	
 typedef struct mh_local {
   char *dir;			/* spool directory name */
-  unsigned char *buf;		/* temporary buffer */
-  unsigned long buflen;		/* current size of temporary buffer */
+  unsigned char buf[CHUNKSIZE];	/* temporary buffer */
   unsigned long cachedtexts;	/* total size of all cached texts */
   time_t scantime;		/* last time directory scanned */
 } MHLOCAL;
@@ -52,7 +74,10 @@ typedef struct mh_local {
 
 DRIVER *mh_valid (char *name);
 int mh_isvalid (char *name,char *tmp,long synonly);
+int mh_namevalid (char *name);
+char *mh_path (char *tmp);
 void *mh_parameters (long function,void *value);
+long mh_dirfmttest (char *name);
 void mh_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents);
 void mh_list (MAILSTREAM *stream,char *ref,char *pat);
 void mh_lsub (MAILSTREAM *stream,char *ref,char *pat);
@@ -65,12 +90,13 @@ long mh_rename (MAILSTREAM *stream,char *old,char *newname);
 MAILSTREAM *mh_open (MAILSTREAM *stream);
 void mh_close (MAILSTREAM *stream,long options);
 void mh_fast (MAILSTREAM *stream,char *sequence,long flags);
+void mh_load_message (MAILSTREAM *stream,unsigned long msgno,long flags);
 char *mh_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
 		 long flags);
 long mh_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
 long mh_ping (MAILSTREAM *stream);
 void mh_check (MAILSTREAM *stream);
-void mh_expunge (MAILSTREAM *stream);
+long mh_expunge (MAILSTREAM *stream,char *sequence,long options);
 long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,
 	      long options);
 long mh_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
@@ -89,7 +115,7 @@ void mh_setdate (char *file,MESSAGECACHE *elt);
 DRIVER mhdriver = {
   "mh",				/* driver name */
 				/* driver flags */
-  DR_MAIL|DR_LOCAL|DR_NOFAST|DR_NAMESPACE|DR_NOSTICKY,
+  DR_MAIL|DR_LOCAL|DR_NOFAST|DR_NAMESPACE|DR_NOSTICKY|DR_DIRFMT,
   (DRIVER *) NIL,		/* next driver */
   mh_valid,			/* mailbox is valid for us */
   mh_parameters,		/* manipulate parameters */
@@ -130,6 +156,11 @@ DRIVER mhdriver = {
 MAILSTREAM mhproto = {&mhdriver};
 
 
+static char *mh_profile = NIL;	/* holds MH profile */
+static char *mh_pathname = NIL;	/* holds MH path name */
+static long mh_once = 0;	/* already through this code */
+static long mh_allow_inbox =NIL;/* allow INBOX as well as #mhinbox */
+
 /* MH mail validate mailbox
  * Accepts: mailbox name
  * Returns: our driver if name is valid, NIL otherwise
@@ -140,7 +171,8 @@ DRIVER *mh_valid (char *name)
   char tmp[MAILTMPLEN];
   return mh_isvalid (name,tmp,T) ? &mhdriver : NIL;
 }
-
+
+
 /* MH mail test for valid mailbox
  * Accepts: mailbox name
  *	    temporary buffer to use
@@ -148,33 +180,75 @@ DRIVER *mh_valid (char *name)
  * Returns: T if valid, NIL otherwise
  */
 
-static char *mh_profile = NIL;	/* holds MH profile */
-static char *mh_path = NIL;	/* holds MH path name */
-static long mh_once = 0;	/* already through this code */
-
 int mh_isvalid (char *name,char *tmp,long synonly)
 {
   struct stat sbuf;
+  unsigned long i;
 				/* name must be #MHINBOX or #mh/... */
-  if ((name[0] != '#') || ((name[1] != 'm') && name[1] != 'M') ||
-      ((name[2] != 'h') && name[2] != 'H') ||
-      ((name[3] != '/') && compare_cstring (name+3,"INBOX"))) {
+  if (!((mh_allow_inbox && !compare_cstring (name,"INBOX")) ||
+	((name[0] == '#') && ((name[1] == 'm') || (name[1] == 'M')) &&
+	 ((name[2] == 'h') || (name[2] == 'H')) &&
+	 ((name[3] == '/') || !compare_cstring (name+3,"INBOX"))))) {
+				/* valid if in hierarchy (list kludge) */
+    char *s,*t,altname[MAILTMPLEN];
+				/* see if non-NS name within mh hierarchy */
+    if ((name[0] != '#') && (s = mh_path (tmp)) && (i = strlen (s)) &&
+	(t = mailboxfile (tmp,name)) && !strncmp (t,s,i) && (tmp[i] == '/')) {
+      sprintf (altname,"#mh%.900s",tmp+i);
+      return mh_isvalid (altname,tmp,synonly);
+    }
     errno = EINVAL;		/* bogus name */
     return NIL;
   }
-  if (!mh_path) {		/* have MH path yet? */
-    char *s,*t,*v;
-    int fd;
-    if (mh_once++) return NIL;	/* only do this code once */
+  if (!mh_path (tmp)) {		/* lose if no mh path */
+    sprintf (tmp,"%.900s not found, mh format names disabled",mh_profile);
+    mm_log (tmp,WARN);
+    return NIL;
+  }
+				/* all done if syntax only check & not INBOX */
+  if (synonly && compare_cstring (name,"INBOX")) return T;
+  errno = NIL;			/* zap error */
+				/* validate name as directory */
+  return ((stat (mh_file (tmp,name),&sbuf) == 0) &&
+	  (sbuf.st_mode & S_IFMT) == S_IFDIR);
+}
+
+/* MH mail test for valid mailbox
+ * Accepts: mailbox name
+ * Returns: T if valid, NIL otherwise
+ */
+
+int mh_namevalid (char *name)
+{
+  char *s;
+  if (name[0] == '#' && (name[1] == 'm' || name[1] == 'M') &&
+      (name[2] == 'h' || name[2] == 'H') && name[3] == '/')
+    for (s = name; s && *s;) {	/* make sure no all-digit nodes */
+      if (isdigit (*s)) s++;	/* digit, check this node further... */
+      else if (*s == '/') break;/* all digit node, barf */
+				/* non-digit, skip to next node or return */
+      else if (!((s = strchr (s+1,'/')) && *++s)) return T;
+    }
+  return NIL;			/* all numeric or empty node */
+}
+
+/* Return MH path
+ * Accepts: temporary buffer
+ * Returns: MH path or NIL if MH disabled
+ */
+
+char *mh_path (char *tmp)
+{
+  char *s,*t,*v;
+  int fd;
+  struct stat sbuf;
+				/* have MH path yet? */
+  if (!mh_pathname && !mh_once++) {
     if (!mh_profile) {		/* have MH profile? */
       sprintf (tmp,"%s/%s",myhomedir (),MHPROFILE);
       mh_profile = cpystr (tmp);
     }
-    if ((fd = open (tmp,O_RDONLY,NIL)) < 0) {
-      strcat (tmp," not found, mh format names disabled");
-      mm_log (tmp,WARN);
-      return NIL;
-    }
+    if ((fd = open (tmp,O_RDONLY,NIL)) < 0) return NIL;
     fstat (fd,&sbuf);		/* yes, get size and read file */
     read (fd,(t = (char *) fs_get (sbuf.st_size + 1)),sbuf.st_size);
     close (fd);			/* don't need the file any more */
@@ -189,22 +263,19 @@ int mh_isvalid (char *name,char *tmp,long synonly)
 	  while ((*v == ' ') || (*v == '\t')) ++v;
 	  if (*v == '/') s = v;	/* absolute path? */
 	  else sprintf (s = tmp,"%s/%s",myhomedir (),v);
-	  mh_path = cpystr (s);	/* copy name */
+				/* copy name */
+	  mh_pathname = cpystr (s);
 	  break;		/* don't need to look at rest of file */
 	}
       }
     }
     fs_give ((void **) &t);	/* flush profile text */
-    if (!mh_path) {		/* default path if not in the profile */
+    if (!mh_pathname) {		/* default path if not in the profile */
       sprintf (tmp,"%s/%s",myhomedir (),MHPATH);
-      mh_path = cpystr (tmp);
+      mh_pathname = cpystr (tmp);
     }
   }
-  if (synonly) return T;	/* all done if syntax only check */
-  errno = NIL;			/* zap error */
-				/* validate name as directory */
-  return ((stat (mh_file (tmp,name),&sbuf) == 0) &&
-	  (sbuf.st_mode & S_IFMT) == S_IFDIR);
+  return mh_pathname;
 }
 
 /* MH manipulate driver parameters
@@ -217,6 +288,12 @@ void *mh_parameters (long function,void *value)
 {
   void *ret = NIL;
   switch ((int) function) {
+  case GET_INBOXPATH:
+    if (value) ret = mh_file ((char *) value,"INBOX");
+    break;
+  case GET_DIRFMTTEST:
+    ret = (void *) mh_dirfmttest;
+    break;
   case SET_MHPROFILE:
     if (mh_profile) fs_give ((void **) &mh_profile);
     mh_profile = cpystr ((char *) value);
@@ -224,13 +301,35 @@ void *mh_parameters (long function,void *value)
     ret = (void *) mh_profile;
     break;
   case SET_MHPATH:
-    if (mh_path) fs_give ((void **) &mh_path);
-    mh_path = cpystr ((char *) value);
+    if (mh_pathname) fs_give ((void **) &mh_pathname);
+    mh_pathname = cpystr ((char *) value);
   case GET_MHPATH:
-    ret = (void *) mh_path;
+    ret = (void *) mh_pathname;
     break;
+  case SET_MHALLOWINBOX:
+    mh_allow_inbox = value ? T : NIL;
+  case GET_MHALLOWINBOX:
+    ret = (void *) (mh_allow_inbox ? VOIDT : NIL);
   }
   return ret;
+}
+
+
+/* MX test for directory format internal node
+ * Accepts: candidate node name
+ * Returns: T if internal name, NIL otherwise
+ */
+
+long mh_dirfmttest (char *s)
+{
+  int c;
+				/* sequence(s) file is an internal name */
+  if (strcmp (s,MHSEQUENCE) && strcmp (s,MHSEQUENCES)) {
+    if (*s == MHCOMMA) ++s;	/* else comma + all numeric name */
+				/* success if all-numeric */
+    while (c = *s++) if (!isdigit (c)) return NIL;
+  }
+  return LONGT;
 }
 
 /* MH scan mailboxes
@@ -241,20 +340,6 @@ void *mh_parameters (long function,void *value)
  */
 
 void mh_scan (MAILSTREAM *stream,char *ref,char *pat,char *contents)
-{
-  char tmp[MAILTMPLEN];
-  if (mh_canonicalize (tmp,ref,pat))
-    mm_log ("Scan not valid for mh mailboxes",ERROR);
-}
-
-
-/* MH list mailboxes
- * Accepts: mail stream
- *	    reference
- *	    pattern to search
- */
-
-void mh_list (MAILSTREAM *stream,char *ref,char *pat)
 {
   char *s,test[MAILTMPLEN],file[MAILTMPLEN];
   long i = 0;
@@ -268,6 +353,10 @@ void mh_list (MAILSTREAM *stream,char *ref,char *pat)
   }
 				/* get canonical form of name */
   else if (mh_canonicalize (test,ref,pat)) {
+    if (contents) {		/* maybe I'll implement this someday */
+      mm_log ("Scan not valid for mh mailboxes",ERROR);
+      return;
+    }
     if (test[3] == '/') {	/* looking down levels? */
 				/* yes, found any wildcards? */
       if (s = strpbrk (test,"%*")) {
@@ -290,6 +379,18 @@ void mh_list (MAILSTREAM *stream,char *ref,char *pat)
   }
 }
 
+/* MH list mailboxes
+ * Accepts: mail stream
+ *	    reference
+ *	    pattern to search
+ */
+
+void mh_list (MAILSTREAM *stream,char *ref,char *pat)
+{
+  mh_scan (stream,ref,pat,NIL);
+}
+
+
 /* MH list subscribed mailboxes
  * Accepts: mail stream
  *	    reference
@@ -376,39 +477,21 @@ long mh_unsubscribe (MAILSTREAM *stream,char *mailbox)
 
 long mh_create (MAILSTREAM *stream,char *mailbox)
 {
-  char *s,tmp[MAILTMPLEN];
-				/* assume error */
-  sprintf (tmp,"Can't create mailbox %.80s: invalid MH-format name",mailbox);
-  if (mailbox[0] == '#' && (mailbox[1] == 'm' || mailbox[1] == 'M') &&
-      (mailbox[2] == 'h' || mailbox[2] == 'H') && mailbox[3] == '/')
-				/* make sure valid name */
-    for (s = mailbox + 4; s && *s;) {
-      if (isdigit (*s)) s++;	/* digit, check this node further... */
-				/* all digit node, barf */
-      else if (*s == '/') s = NIL;
-				/* non-digit in node, skip to next node */
-      else if (s = strchr (s+1,'/')) s++;
-      else tmp[0] = NIL;	/* no more nodes, good name */
-    }
-  if (tmp[0]) {			/* was there an error in the name? */
-    mm_log (tmp,ERROR);		/* yes, log it */
-    return NIL;
-  }
+  char tmp[MAILTMPLEN];
+  if (!mh_namevalid (mailbox))	/* validate name */
+    sprintf (tmp,"Can't create mailbox %.80s: invalid MH-format name",mailbox);
 				/* must not already exist */
-  if (mh_isvalid (mailbox,tmp,NIL)) {
+  else if (mh_isvalid (mailbox,tmp,NIL))
     sprintf (tmp,"Can't create mailbox %.80s: mailbox already exists",mailbox);
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  if (!mh_path) return NIL;	/* sorry */
-  if (!(mh_file (tmp,mailbox) &&/* try to make it */
-	dummy_create_path (stream,strcat (tmp,"/"),
-			   get_dir_protection (mailbox)))) {
+  else if (!mh_path (tmp)) return NIL;
+				/* try to make it */
+  else if (!(mh_file (tmp,mailbox) &&
+	     dummy_create_path (stream,strcat (tmp,"/"),
+				get_dir_protection (mailbox))))
     sprintf (tmp,"Can't create mailbox %.80s: %s",mailbox,strerror (errno));
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
-  return T;			/* return success */
+  else return LONGT;		/* success */
+  mm_log (tmp,ERROR);
+  return NIL;
 }
 
 /* MH mail delete mailbox
@@ -422,12 +505,6 @@ long mh_delete (MAILSTREAM *stream,char *mailbox)
   struct direct *d;
   int i;
   char tmp[MAILTMPLEN];
-  if (!(mailbox[0] == '#' && (mailbox[1] == 'm' || mailbox[1] == 'M') &&
-	(mailbox[2] == 'h' || mailbox[2] == 'H') && mailbox[3] == '/')) {
-    sprintf (tmp,"Can't delete mailbox %.80s: invalid MH-format name",mailbox);
-    mm_log (tmp,ERROR);
-    return NIL;
-  }
 				/* is mailbox valid? */
   if (!mh_isvalid (mailbox,tmp,NIL)){
     sprintf (tmp,"Can't delete mailbox %.80s: no such mailbox",mailbox);
@@ -438,12 +515,11 @@ long mh_delete (MAILSTREAM *stream,char *mailbox)
   i = strlen (mh_file (tmp,mailbox));
   if (dirp = opendir (tmp)) {	/* open directory */
     tmp[i++] = '/';		/* now apply trailing delimiter */
-    while (d = readdir (dirp))	/* massacre all numeric or comma files */
-      if (mh_select (d) || (*d->d_name == ',') ||
-	  !strcmp (d->d_name,MHSEQUENCE)) {
-	strcpy (tmp + i,d->d_name);
-	unlink (tmp);		/* sayonara */
-      }
+				/* massacre all mh owned files */
+    while (d = readdir (dirp)) if (mh_dirfmttest (d->d_name)) {
+      strcpy (tmp + i,d->d_name);
+      unlink (tmp);		/* sayonara */
+    }
     closedir (dirp);		/* flush directory */
   }
 				/* try to remove the directory */
@@ -465,14 +541,10 @@ long mh_rename (MAILSTREAM *stream,char *old,char *newname)
 {
   char c,*s,tmp[MAILTMPLEN],tmp1[MAILTMPLEN];
   struct stat sbuf;
-  if (!(old[0] == '#' && (old[1] == 'm' || old[1] == 'M') &&
-	(old[2] == 'h' || old[2] == 'H') && old[3] == '/'))
-    sprintf (tmp,"Can't delete mailbox %.80s: invalid MH-format name",old);
 				/* old mailbox name must be valid */
-  else if (!mh_isvalid (old,tmp,NIL))
+  if (!mh_isvalid (old,tmp,NIL))
     sprintf (tmp,"Can't rename mailbox %.80s: no such mailbox",old);
-  else if (!(newname[0] == '#' && (newname[1] == 'm' || newname[1] == 'M') &&
-	(newname[2] == 'h' || newname[2] == 'H') && newname[3] == '/'))
+  else if (!mh_namevalid (newname))
     sprintf (tmp,"Can't rename to mailbox %.80s: invalid MH-format name",
 	     newname);
 				/* new mailbox name must not be valid */
@@ -510,11 +582,10 @@ MAILSTREAM *mh_open (MAILSTREAM *stream)
   if (stream->local) fatal ("mh recycle stream");
   stream->local = fs_get (sizeof (MHLOCAL));
 				/* note if an INBOX or not */
-  stream->inbox = !compare_cstring (stream->mailbox,"#MHINBOX");
+  stream->inbox = (!compare_cstring (stream->mailbox,"#MHINBOX") ||
+		   !compare_cstring (stream->mailbox,"INBOX")) ? T : NIL;
   mh_file (tmp,stream->mailbox);/* get directory name */
   LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
-				/* make temporary buffer */
-  LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
   LOCAL->scantime = 0;		/* not scanned yet */
   LOCAL->cachedtexts = 0;	/* no cached texts */
   stream->sequence++;		/* bump sequence number */
@@ -536,10 +607,8 @@ void mh_close (MAILSTREAM *stream,long options)
   if (LOCAL) {			/* only if a file is open */
     int silent = stream->silent;
     stream->silent = T;		/* note this stream is dying */
-    if (options & CL_EXPUNGE) mh_expunge (stream);
+    if (options & CL_EXPUNGE) mh_expunge (stream,NIL,NIL);
     if (LOCAL->dir) fs_give ((void **) &LOCAL->dir);
-				/* free local scratch buffer */
-    if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
     stream->dtb = NIL;		/* log out the DTB */
@@ -556,13 +625,153 @@ void mh_close (MAILSTREAM *stream,long options)
 
 void mh_fast (MAILSTREAM *stream,char *sequence,long flags)
 {
-  unsigned long i,j;
-				/* ugly and slow */
+  MESSAGECACHE *elt;
+  unsigned long i;
+				/* set up metadata for all messages */
   if (stream && LOCAL && ((flags & FT_UID) ?
 			  mail_uid_sequence (stream,sequence) :
 			  mail_sequence (stream,sequence)))
     for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_elt (stream,i)->sequence) mh_header (stream,i,&j,NIL);
+      if ((elt = mail_elt (stream,i))->sequence &&
+	  !(elt->day && elt->rfc822_size)) mh_load_message (stream,i,NIL);
+}
+
+/* MH load message into cache
+ * Accepts: MAIL stream
+ *	    message #
+ *	    option flags
+ */
+
+void mh_load_message (MAILSTREAM *stream,unsigned long msgno,long flags)
+{
+  unsigned long i,j,nlseen;
+  int fd;
+  unsigned char c,*t;
+  struct stat sbuf;
+  MESSAGECACHE *elt;
+  FDDATA d;
+  STRING bs;
+  elt = mail_elt (stream,msgno);/* get elt */
+				/* build message file name */
+  sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
+				/* anything we need not currently cached? */
+  if ((!elt->day || !elt->rfc822_size ||
+       ((flags & MLM_HEADER) && !elt->private.msg.header.text.data) ||
+       ((flags & MLM_TEXT) && !elt->private.msg.text.text.data)) &&
+      ((fd = open (LOCAL->buf,O_RDONLY,NIL)) >= 0)) {
+    fstat (fd,&sbuf);		/* get file metadata */
+    d.fd = fd;			/* set up file descriptor */
+    d.pos = 0;			/* start of file */
+    d.chunk = LOCAL->buf;
+    d.chunksize = CHUNKSIZE;
+    INIT (&bs,fd_string,&d,sbuf.st_size);
+    if (!elt->day) {		/* set internaldate to file date */
+      struct tm *tm = gmtime (&sbuf.st_mtime);
+      elt->day = tm->tm_mday; elt->month = tm->tm_mon + 1;
+      elt->year = tm->tm_year + 1900 - BASEYEAR;
+      elt->hours = tm->tm_hour; elt->minutes = tm->tm_min;
+      elt->seconds = tm->tm_sec;
+      elt->zhours = 0; elt->zminutes = 0;
+    }
+
+    if (!elt->rfc822_size) {	/* know message size yet? */
+      for (i = 0, j = SIZE (&bs), nlseen = 0; j--; ) switch (SNX (&bs)) {
+      case '\015':		/* unlikely carriage return */
+	if (!j || (CHR (&bs) != '\012')) {
+	  i++;			/* ugh, raw CR */
+	  nlseen = NIL;
+	  break;
+	}
+	SNX (&bs);		/* eat the line feed, drop in */
+      case '\012':		/* line feed? */
+	i += 2;			/* count a CRLF */
+				/* header size known yet? */
+	if (!elt->private.msg.header.text.size && nlseen) {
+				/* note position in file */
+	  elt->private.special.text.size = GETPOS (&bs);
+				/* and CRLF-adjusted size */
+	  elt->private.msg.header.text.size = i;
+	}
+	nlseen = T;		/* note newline seen */
+	break;
+      default:			/* ordinary chararacter */
+	i++;
+	nlseen = NIL;
+	break;
+      }
+      SETPOS (&bs,0);		/* restore old position */
+      elt->rfc822_size = i;	/* note that we have size now */
+				/* header is entire message if no delimiter */
+      if (!elt->private.msg.header.text.size)
+	elt->private.msg.header.text.size = elt->rfc822_size;
+				/* text is remainder of message */
+      elt->private.msg.text.text.size =
+	elt->rfc822_size - elt->private.msg.header.text.size;
+    }
+				/* need to load cache with message data? */
+    if (((flags & MLM_HEADER) && !elt->private.msg.header.text.data) ||
+	((flags & MLM_TEXT) && !elt->private.msg.text.text.data)) {
+				/* purge cache if too big */
+      if (LOCAL->cachedtexts > max (stream->nmsgs * 4096,2097152)) {
+				/* just can't keep that much */
+	mail_gc (stream,GC_TEXTS);
+	LOCAL->cachedtexts = 0;
+      }
+
+      if ((flags & MLM_HEADER) && !elt->private.msg.header.text.data) {
+	t = elt->private.msg.header.text.data =
+	  (unsigned char *) fs_get (elt->private.msg.header.text.size + 1);
+	LOCAL->cachedtexts += elt->private.msg.header.text.size;
+				/* read in message header */
+	for (i = 0; i < elt->private.msg.header.text.size; i++)
+	  switch (c = SNX (&bs)) {
+	  case '\015':		/* unlikely carriage return */
+	    *t++ = c;
+	    if ((CHR (&bs) == '\012')) {
+	      *t++ = SNX (&bs);
+	      i++;
+	    }
+	    break;
+	  case '\012':		/* line feed? */
+	    *t++ = '\015';
+	    i++;
+	  default:
+	    *t++ = c;
+	    break;
+	  }
+	*t = '\0';		/* tie off string */
+	if ((t - elt->private.msg.header.text.data) !=
+	    elt->private.msg.header.text.size) fatal ("mh hdr size mismatch");
+      }
+      if ((flags & MLM_TEXT) && !elt->private.msg.text.text.data) {
+	t = elt->private.msg.text.text.data =
+	  (unsigned char *) fs_get (elt->private.msg.text.text.size + 1);
+	SETPOS (&bs,elt->private.special.text.size);
+	LOCAL->cachedtexts += elt->private.msg.text.text.size;
+				/* read in message text */
+	for (i = 0; i < elt->private.msg.text.text.size; i++)
+	  switch (c = SNX (&bs)) {
+	  case '\015':		/* unlikely carriage return */
+	    *t++ = c;
+	    if ((CHR (&bs) == '\012')) {
+	      *t++ = SNX (&bs);
+	      i++;
+	    }
+	    break;
+	  case '\012':		/* line feed? */
+	    *t++ = '\015';
+	    i++;
+	  default:
+	    *t++ = c;
+	    break;
+	  }
+	*t = '\0';		/* tie off string */
+	if ((t - elt->private.msg.text.text.data) !=
+	    elt->private.msg.text.text.size) fatal ("mh txt size mismatch");
+      }
+    }
+    close (fd);			/* flush message file */
+  }
 }
 
 /* MH mail fetch message header
@@ -576,60 +785,17 @@ void mh_fast (MAILSTREAM *stream,char *sequence,long flags)
 char *mh_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
 		 long flags)
 {
-  unsigned long i,hdrsize;
-  int fd;
-  unsigned char *t;
-  struct stat sbuf;
-  struct tm *tm;
   MESSAGECACHE *elt;
   *length = 0;			/* default to empty */
   if (flags & FT_UID) return "";/* UID call "impossible" */
   elt = mail_elt (stream,msgno);/* get elt */
-  if (!elt->private.msg.header.text.data) {
-				/* purge cache if too big */
-    if (LOCAL->cachedtexts > max (stream->nmsgs * 4096,2097152)) {
-      mail_gc (stream,GC_TEXTS);/* just can't keep that much */
-      LOCAL->cachedtexts = 0;
-    }
-				/* build message file name */
-    sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
-    if ((fd = open (LOCAL->buf,O_RDONLY,NIL)) < 0) return "";
-    fstat (fd,&sbuf);		/* get size of message */
-				/* make plausible IMAPish date string */
-    tm = gmtime (&sbuf.st_mtime);
-    elt->day = tm->tm_mday; elt->month = tm->tm_mon + 1;
-    elt->year = tm->tm_year + 1900 - BASEYEAR;
-    elt->hours = tm->tm_hour; elt->minutes = tm->tm_min;
-    elt->seconds = tm->tm_sec;
-    elt->zhours = 0; elt->zminutes = 0;
-				/* is buffer big enough? */
-    if (sbuf.st_size > LOCAL->buflen) {
-      fs_give ((void **) &LOCAL->buf);
-      LOCAL->buf = (char *) fs_get ((LOCAL->buflen = sbuf.st_size) + 1);
-    }
-				/* slurp message */
-    read (fd,LOCAL->buf,sbuf.st_size);
-				/* tie off file */
-    LOCAL->buf[sbuf.st_size] = '\0';
-    close (fd);			/* flush message file */
-				/* find end of header */
-    for (i = 0,t = LOCAL->buf; *t && !(i && (*t == '\n')); i = (*t++ == '\n'));
-				/* number of header bytes */
-    hdrsize = (*t ? ++t : t) - LOCAL->buf;
-    elt->rfc822_size =		/* size of entire message in CRLF form */
-      (elt->private.msg.header.text.size =
-       strcrlfcpy (&elt->private.msg.header.text.data,&i,LOCAL->buf,
-		   hdrsize)) +
-	 (elt->private.msg.text.text.size =
-	  strcrlfcpy (&elt->private.msg.text.text.data,&i,t,
-		      sbuf.st_size - hdrsize));
-				/* add to cached size */
-    LOCAL->cachedtexts += elt->rfc822_size;
-  }
+  if (!elt->private.msg.header.text.data)
+    mh_load_message (stream,msgno,MLM_HEADER);
   *length = elt->private.msg.header.text.size;
   return (char *) elt->private.msg.header.text.data;
 }
-
+
+
 /* MH mail fetch message text (body only)
  * Accepts: MAIL stream
  *	    message # to fetch
@@ -640,21 +806,19 @@ char *mh_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
 
 long mh_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 {
-  unsigned long i;
   MESSAGECACHE *elt;
 				/* UID call "impossible" */
   if (flags & FT_UID) return NIL;
   elt = mail_elt (stream,msgno);/* get elt */
 				/* snarf message if don't have it yet */
   if (!elt->private.msg.text.text.data) {
-    mh_header (stream,msgno,&i,flags);
+    mh_load_message (stream,msgno,MLM_TEXT);
     if (!elt->private.msg.text.text.data) return NIL;
   }
   if (!(flags & FT_PEEK)) {	/* mark as seen */
     mail_elt (stream,msgno)->seen = T;
     mm_flags (stream,msgno);
   }
-  if (!elt->private.msg.text.text.data) return NIL;
   INIT (bs,mail_string,elt->private.msg.text.text.data,
 	elt->private.msg.text.text.size);
   return T;
@@ -676,8 +840,10 @@ long mh_ping (MAILSTREAM *stream)
   long nmsgs = stream->nmsgs;
   long recent = stream->recent;
   int silent = stream->silent;
-  if (stat (LOCAL->dir,&sbuf)) { /* directory exists? */
-    if (stream->inbox) return T;
+  if (stat (LOCAL->dir,&sbuf)) {/* directory exists? */
+    if (stream->inbox &&	/* no, create if INBOX */
+	dummy_create_path (stream,strcat (mh_file (tmp,"#mhinbox"),"/"),
+			   get_dir_protection ("INBOX"))) return T;
     sprintf (tmp,"Can't open mailbox %.80s: no such mailbox",stream->mailbox);
     mm_log (tmp,ERROR);
     return NIL;
@@ -703,8 +869,8 @@ long mh_ping (MAILSTREAM *stream)
 	}
 	else {			/* see if already read */
 	  sprintf (tmp,"%s/%s",LOCAL->dir,names[i]->d_name);
-	  stat (tmp,&sbuf);	/* get inode poop */
-	  if (sbuf.st_atime > sbuf.st_mtime) elt->seen = T;
+	  if (!stat (tmp,&sbuf) && (sbuf.st_atime > sbuf.st_mtime))
+	    elt->seen = T;
 	}
       }
       fs_give ((void **) &names[i]);
@@ -717,17 +883,18 @@ long mh_ping (MAILSTREAM *stream)
   if (stream->inbox && strcmp (sysinbox (),stream->mailbox)) {
     old = stream->uid_last;
     mm_critical (stream);	/* go critical */
-    stat (sysinbox (),&sbuf);	/* see if anything there */
-				/* can get sysinbox mailbox? */
-    if (sbuf.st_size && (sysibx = mail_open (sysibx,sysinbox (),OP_SILENT))
-	&& (!sysibx->rdonly) && (r = sysibx->nmsgs)) {
+				/* see if anything in system inbox */
+    if (!stat (sysinbox (),&sbuf) && sbuf.st_size &&
+	(sysibx = mail_open (sysibx,sysinbox (),OP_SILENT)) &&
+	!sysibx->rdonly && (r = sysibx->nmsgs)) {
       for (i = 1; i <= r; ++i) {/* for each message in sysinbox mailbox */
 				/* build file name we will use */
 	sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,++old);
 				/* snarf message from Berkeley mailbox */
 	selt = mail_elt (sysibx,i);
 	if (((fd = open (LOCAL->buf,O_WRONLY|O_CREAT|O_EXCL,
-			 S_IREAD|S_IWRITE)) >= 0) &&
+			 (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL)))
+	     >= 0) &&
 	    (s = mail_fetchheader_full (sysibx,i,NIL,&j,FT_INTERNAL)) &&
 	    (write (fd,s,j) == j) &&
 	    (s = mail_fetchtext_full (sysibx,i,&j,FT_INTERNAL|FT_PEEK)) &&
@@ -749,26 +916,23 @@ long mh_ping (MAILSTREAM *stream)
 	  elt->seconds = selt->seconds;
 	  elt->zhours = selt->zhours; elt->zminutes = selt->zminutes;
 	  mh_setdate (LOCAL->buf,elt);
+	  sprintf (tmp,"%lu",i);/* delete it from the sysinbox */
+	  mail_flag (sysibx,tmp,"\\Deleted",ST_SET);
 	}
 
 	else {			/* failed to snarf */
 	  if (fd) {		/* did it ever get opened? */
-	    mm_log ("Message copy to MH mailbox failed",ERROR);
 	    close (fd);		/* close descriptor */
 	    unlink (LOCAL->buf);/* flush this file */
 	  }
-	  else {
-	    sprintf (tmp,"Can't add message: %s",strerror (errno));
-	    mm_log (tmp,ERROR);
-	  }
-	  stream->silent = silent;
-	  return NIL;		/* note that something is badly wrong */
+	  sprintf (tmp,"Message copy to MH mailbox failed: %.80s",
+		   s,strerror (errno));
+	  mm_log (tmp,ERROR);
+	  r = 0;		/* stop the snarf in its tracks */
 	}
-	sprintf (tmp,"%lu",i);	/* delete it from the sysinbox */
-	mail_flag (sysibx,tmp,"\\Deleted",ST_SET);
       }
-      stat (LOCAL->dir,&sbuf);	/* update scan time */
-      LOCAL->scantime = sbuf.st_ctime;      
+				/* update scan time */
+      if (!stat (LOCAL->dir,&sbuf)) LOCAL->scantime = sbuf.st_ctime;      
       mail_expunge (sysibx);	/* now expunge all those messages */
     }
     if (sysibx) mail_close (sysibx);
@@ -793,46 +957,57 @@ void mh_check (MAILSTREAM *stream)
 
 /* MH mail expunge mailbox
  * Accepts: MAIL stream
+ *	    sequence to expunge if non-NIL
+ *	    expunge options
+ * Returns: T, always
  */
 
-void mh_expunge (MAILSTREAM *stream)
+long mh_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
+  long ret;
   MESSAGECACHE *elt;
   unsigned long i = 1;
   unsigned long n = 0;
   unsigned long recent = stream->recent;
-  mm_critical (stream);		/* go critical */
-  while (i <= stream->nmsgs) {	/* for each message */
-				/* if deleted, need to trash it */
-    if ((elt = mail_elt (stream,i))->deleted) {
-      sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
-      if (unlink (LOCAL->buf)) {/* try to delete the message */
-	sprintf (LOCAL->buf,"Expunge of message %lu failed, aborted: %s",i,
-		 strerror (errno));
-	mm_log (LOCAL->buf,(long) NIL);
-	break;
-      }
+  if (ret = sequence ? ((options & EX_UID) ?
+			mail_uid_sequence (stream,sequence) :
+			mail_sequence (stream,sequence)) : LONGT) {
+    mm_critical (stream);	/* go critical */
+    while (i <= stream->nmsgs) {/* for each message */
+      elt = mail_elt (stream,i);/* if deleted, need to trash it */
+      if (elt->deleted && (sequence ? elt->sequence : T)) {
+	sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
+	if (unlink (LOCAL->buf)) {/* try to delete the message */
+	  sprintf (LOCAL->buf,"Expunge of message %lu failed, aborted: %s",i,
+		   strerror (errno));
+	  mm_log (LOCAL->buf,(long) NIL);
+	  break;
+	}
 				/* note uncached */
-      LOCAL->cachedtexts -= ((elt->private.msg.header.text.data ?
-			      elt->private.msg.header.text.size : 0) +
-			     (elt->private.msg.text.text.data ?
-			      elt->private.msg.text.text.size : 0));
-      mail_gc_msg (&elt->private.msg,GC_ENV | GC_TEXTS);
-      if (elt->recent) --recent;/* if recent, note one less recent message */
-      mail_expunged (stream,i);	/* notify upper levels */
-      n++;			/* count up one more expunged message */
+	LOCAL->cachedtexts -= ((elt->private.msg.header.text.data ?
+				elt->private.msg.header.text.size : 0) +
+			       (elt->private.msg.text.text.data ?
+				elt->private.msg.text.text.size : 0));
+	mail_gc_msg (&elt->private.msg,GC_ENV | GC_TEXTS);
+				/* if recent, note one less recent message */
+	if (elt->recent) --recent;
+				/* notify upper levels */
+	mail_expunged (stream,i);
+	n++;			/* count up one more expunged message */
+      }
+      else i++;			/* otherwise try next message */
     }
-    else i++;			/* otherwise try next message */
-  }
-  if (n) {			/* output the news if any expunged */
-    sprintf (LOCAL->buf,"Expunged %lu messages",n);
-    mm_log (LOCAL->buf,(long) NIL);
-  }
-  else mm_log ("No messages deleted, so no update needed",(long) NIL);
-  mm_nocritical (stream);	/* release critical */
+    if (n) {			/* output the news if any expunged */
+      sprintf (LOCAL->buf,"Expunged %lu messages",n);
+      mm_log (LOCAL->buf,(long) NIL);
+    }
+    else mm_log ("No messages deleted, so no update needed",(long) NIL);
+    mm_nocritical (stream);	/* release critical */
 				/* notify upper level of new mailbox size */
-  mail_exists (stream,stream->nmsgs);
-  mail_recent (stream,recent);
+    mail_exists (stream,stream->nmsgs);
+    mail_recent (stream,recent);
+  }
+  return ret;
 }
 
 /* MH mail copy message(s)
@@ -845,12 +1020,15 @@ void mh_expunge (MAILSTREAM *stream)
 
 long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 {
+  FDDATA d;
   STRING st;
   MESSAGECACHE *elt;
   struct stat sbuf;
   int fd;
   unsigned long i;
   char flags[MAILTMPLEN],date[MAILTMPLEN];
+  appenduid_t au = (appenduid_t) mail_parameters (NIL,GET_APPENDUID,NIL);
+  long ret = NIL;
 				/* copy the messages */
   if ((options & CP_UID) ? mail_uid_sequence (stream,sequence) :
       mail_sequence (stream,sequence))
@@ -859,7 +1037,7 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 	sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
 	if ((fd = open (LOCAL->buf,O_RDONLY,NIL)) < 0) return NIL;
 	fstat (fd,&sbuf);	/* get size of message */
-	if (!elt->day) {	/* make plausible IMAPish date string */
+	if (!elt->day) {	/* set internaldate to file date if needed */
 	  struct tm *tm = gmtime (&sbuf.st_mtime);
 	  elt->day = tm->tm_mday; elt->month = tm->tm_mon + 1;
 	  elt->year = tm->tm_year + 1900 - BASEYEAR;
@@ -867,17 +1045,12 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 	  elt->seconds = tm->tm_sec;
 	  elt->zhours = 0; elt->zminutes = 0;
 	}
-				/* is buffer big enough? */
-	if (sbuf.st_size > LOCAL->buflen) {
-	  fs_give ((void **) &LOCAL->buf);
-	  LOCAL->buf = (char *) fs_get ((LOCAL->buflen = sbuf.st_size) + 1);
-	}
-				/* slurp message */
-	read (fd,LOCAL->buf,sbuf.st_size);
-				/* tie off file */
-	LOCAL->buf[sbuf.st_size] = '\0';
-	close (fd);		/* flush message file */
-	INIT (&st,mail_string,(void *) LOCAL->buf,sbuf.st_size);
+	d.fd = fd;		/* set up file descriptor */
+	d.pos = 0;		/* start of file */
+	d.chunk = LOCAL->buf;
+	d.chunksize = CHUNKSIZE;
+				/* kludge; mh_append would just strip CRs */
+	INIT (&st,fd_string,&d,sbuf.st_size);
 				/* init flag string */
 	flags[0] = flags[1] = '\0';
 	if (elt->seen) strcat (flags," \\Seen");
@@ -888,10 +1061,15 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 	flags[0] = '(';		/* open list */
 	strcat (flags,")");	/* close list */
 	mail_date (date,elt);	/* generate internal date */
-	if (!mail_append_full (NIL,mailbox,flags,date,&st)) return NIL;
-	if (options & CP_MOVE) elt->deleted = T;
+	if (au) mail_parameters (NIL,SET_APPENDUID,NIL);
+	if ((ret = mail_append_full (NIL,mailbox,flags,date,&st)) &&
+	    (options & CP_MOVE)) elt->deleted = T;
+	if (au) mail_parameters (NIL,SET_APPENDUID,(void *) au);
+	close (fd);
       }
-  return T;			/* return success */
+  if (ret && mail_parameters (NIL,GET_COPYUID,NIL))
+    mm_log ("Can not return meaningful COPYUID with this mailbox format",WARN);
+  return ret;			/* return success */
 }
 
 /* MH mail append message from stringstruct
@@ -904,11 +1082,12 @@ long mh_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 
 long mh_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 {
-  struct direct **names;
+  struct direct **names = NIL;
   int fd;
   char c,*flags,*date,*s,tmp[MAILTMPLEN];
   STRING *message;
   MESSAGECACHE elt;
+  FILE *df;
   long i,size,last,nfiles;
   long ret = LONGT;
 				/* default stream to prototype */
@@ -916,8 +1095,11 @@ long mh_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
 				/* make sure valid mailbox */
   if (!mh_isvalid (mailbox,tmp,NIL)) switch (errno) {
   case ENOENT:			/* no such file? */
-    if (!compare_cstring (mailbox,"#mhinbox")) mh_create (NIL,"INBOX");
-    else {
+    if (!((!compare_cstring (mailbox,"#mhinbox") ||
+	   !compare_cstring (mailbox,"INBOX")) &&
+	  (mh_file (tmp,"#mhinbox") &&
+	   dummy_create_path (stream,strcat (tmp,"/"),
+			      get_dir_protection (mailbox))))) {
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",NIL);
       return NIL;
     }
@@ -962,24 +1144,24 @@ long mh_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     }
     mh_file (tmp,mailbox);	/* build file name we will use */
     sprintf (tmp + strlen (tmp),"/%ld",++last);
-    if ((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,S_IREAD|S_IWRITE)) < 0) {
+    if (((fd = open (tmp,O_WRONLY|O_CREAT|O_EXCL,
+		     (int) mail_parameters (NIL,GET_MBXPROTECTION,NIL))) < 0)||
+	!(df = fdopen (fd,"ab"))) {
       sprintf (tmp,"Can't open append message: %s",strerror (errno));
       mm_log (tmp,ERROR);
       ret = NIL;
       break;
     }
 				/* copy the data w/o CR's */
-    for (size = 0,i = SIZE (message),s = (char *) fs_get (i + 1); i; --i)
-      if ((c = SNX (message)) != '\015') s[size++] = c;
-				/* write the data */
-    if ((write (fd,s,size) < 0) || fsync (fd)) {
+    for (size = 0,i = SIZE (message); i && ret; --i)
+      if (((c = SNX (message)) != '\015') && (putc (c,df) == EOF)) ret = NIL;
+				/* close the file */
+    if (!ret || fclose (df)) {
       unlink (tmp);		/* delete message */
       sprintf (tmp,"Message append failed: %s",strerror (errno));
       mm_log (tmp,ERROR);
       ret = NIL;
     }
-    fs_give ((void **) &s);	/* flush the buffer */
-    close (fd);			/* close the file */
     if (ret) {			/* set the date for this message */
       if (date) mh_setdate (tmp,&elt);
 				/* get next message */
@@ -987,6 +1169,9 @@ long mh_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
     }
   } while (ret && message);
   mm_nocritical (stream);	/* release critical */
+  if (ret && mail_parameters (NIL,GET_APPENDUID,NIL))
+    mm_log ("Can not return meaningful APPENDUID with this mailbox format",
+	    WARN);
   return ret;
 }
 
@@ -1029,15 +1214,19 @@ int mh_numsort (const void *d1,const void *d2)
 char *mh_file (char *dst,char *name)
 {
   char *s;
-				/* build composite name */
-  sprintf (dst,"%s/%.900s",mh_path,
-	   compare_cstring (name,"#MHINBOX") ? name + 4 : "inbox");
+  char *path = mh_path (dst);
+  if (!path) fatal ("No mh path in mh_file()!");
+				/* INBOX becomes "inbox" in the MH path */
+  if (!compare_cstring (name,"#MHINBOX") || !compare_cstring (name,"INBOX"))
+    sprintf (dst,"%.900s/inbox",path);
+				/* #mh names skip past prefix */
+  else if (*name == '#') sprintf (dst,"%.100s/%.900s",path,name + 4);
+  else mailboxfile (dst,name);	/* all other names */
 				/* tie off unnecessary trailing / */
   if ((s = strrchr (dst,'/')) && !s[1] && (s[-1] == '/')) *s = '\0';
   return dst;
 }
-
-
+
 /* MH canonicalize name
  * Accepts: buffer to write name
  *	    reference
@@ -1047,7 +1236,8 @@ char *mh_file (char *dst,char *name)
 
 long mh_canonicalize (char *pattern,char *ref,char *pat)
 {
-  char tmp[MAILTMPLEN];
+  unsigned long i;
+  char *s,tmp[MAILTMPLEN];
   if (ref && *ref) {		/* have a reference */
     strcpy (pattern,ref);	/* copy reference to pattern */
 				/* # overrides mailbox field in reference */
@@ -1058,7 +1248,14 @@ long mh_canonicalize (char *pattern,char *ref,char *pat)
     else strcat (pattern,pat);	/* anything else is just appended */
   }
   else strcpy (pattern,pat);	/* just have basic name */
-  return (mh_isvalid (pattern,tmp,T));
+  if (mh_isvalid (pattern,tmp,T)) {
+				/* count wildcards */
+    for (i = 0, s = pattern; *s; *s++) if ((*s == '*') || (*s == '%')) ++i;
+				/* success if not too many */
+    if (i <= MAXWILDCARDS) return LONGT;
+    MM_LOG ("Excessive wildcards in LIST/LSUB",ERROR);
+  }
+  return NIL;
 }
 
 /* Set date for message

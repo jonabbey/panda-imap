@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	KSC 5601 conversion table
  *
@@ -10,17 +23,13 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 July 1997
- * Last Edited:	10 January 2001
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /* KSC 5601 is the national standard of the Republic of Korea (South Korea).
  * It is believed that it is also the de-facto standard of the Democratic
- * People's Republic of Korea (North Korea).
+ * People's Republic of Korea (North Korea), although North Korea has its
+ * own official national standard (KPS 9566-97).
  */
 
 #define BASE_KSC5601_KU 0x81

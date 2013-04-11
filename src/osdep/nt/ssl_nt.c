@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	SSL authentication/encryption module for Windows 9x and NT
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	11 December 2003
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 #define SECURITY_WIN32
@@ -83,11 +91,13 @@ typedef BOOL (CALLBACK *CVCCP) (LPCSTR,PCCERT_CHAIN_CONTEXT,
 				PCERT_CHAIN_POLICY_PARA,
 				PCERT_CHAIN_POLICY_STATUS);
 typedef VOID (CALLBACK *CFCC) (PCCERT_CHAIN_CONTEXT);
+typedef BOOL (CALLBACK *CFCCX) (PCCERT_CONTEXT);
 
 static CNTS certNameToStr = NIL;
 static CGCC certGetCertificateChain = NIL;
 static CVCCP certVerifyCertificateChainPolicy = NIL;
 static CFCC certFreeCertificateChain = NIL;
+static CFCCX certFreeCertificateContext = NIL;
 
 /* One-time SSL initialization */
 
@@ -120,7 +130,9 @@ void ssl_onceonlyinit (void)
 	    (certVerifyCertificateChainPolicy = (CVCCP)
 	     GetProcAddress (lib,"CertVerifyCertificateChainPolicy")) &&
 	    (certFreeCertificateChain = (CFCC)
-	     GetProcAddress (lib,"CertFreeCertificateChain")))
+	     GetProcAddress (lib,"CertFreeCertificateChain")) &&
+	    (certFreeCertificateContext = (CFCCX)
+	     GetProcAddress (lib,"CertFreeCertificateContext")))
 	  certNameToStr = (CNTS) GetProcAddress (lib,"CertNameToStrA");
 	return;			/* all done */
       }
@@ -169,7 +181,7 @@ static SSLSTREAM *ssl_start (TCPSTREAM *tstream,char *host,unsigned long flags)
   SecBuffer ibuf[2],obuf[1];
   SecBufferDesc ibufs,obufs;
   SCHANNEL_CRED tlscred;
-  CERT_CONTEXT *cert;
+  CERT_CONTEXT *cert = NIL;
   CERT_CHAIN_PARA chparam;
   CERT_CHAIN_CONTEXT *chain;
   SSL_EXTRA_CERT_CHAIN_POLICY_PARA policy;
@@ -306,6 +318,7 @@ static SSLSTREAM *ssl_start (TCPSTREAM *tstream,char *host,unsigned long flags)
 	      reason = ssl_analyze_status (status.dwError,tmp);
 	    (*certFreeCertificateChain) (chain);
 	  }
+	  (*certFreeCertificateContext) (cert);
 	}
 	if (whost) fs_give ((void **) &whost);
 

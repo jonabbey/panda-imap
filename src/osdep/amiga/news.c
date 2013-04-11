@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	News routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	8 July 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -29,6 +37,13 @@ extern int errno;		/* just in case */
 #include <sys/time.h>
 #include "misc.h"
 #include "newsrc.h"
+#include "fdstring.h"
+
+
+/* news_load_message() flags */
+
+#define NLM_HEADER 0x1		/* load message text */
+#define NLM_TEXT 0x2		/* load message text */
 
 /* NEWS I/O stream local data */
 	
@@ -36,8 +51,7 @@ typedef struct news_local {
   unsigned int dirty : 1;	/* disk copy of .newsrc needs updating */
   char *dir;			/* spool directory name */
   char *name;			/* local mailbox name */
-  unsigned char *buf;		/* scratch buffer */
-  unsigned long buflen;		/* current size of scratch buffer */
+  unsigned char buf[CHUNKSIZE];	/* scratch buffer */
   unsigned long cachedtexts;	/* total size of all cached texts */
 } NEWSLOCAL;
 
@@ -67,13 +81,14 @@ int news_numsort (const void *d1,const void *d2);
 void news_close (MAILSTREAM *stream,long options);
 void news_fast (MAILSTREAM *stream,char *sequence,long flags);
 void news_flags (MAILSTREAM *stream,char *sequence,long flags);
+void news_load_message (MAILSTREAM *stream,unsigned long msgno,long flags);
 char *news_header (MAILSTREAM *stream,unsigned long msgno,
 		   unsigned long *length,long flags);
 long news_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
 void news_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
 long news_ping (MAILSTREAM *stream);
 void news_check (MAILSTREAM *stream);
-void news_expunge (MAILSTREAM *stream);
+long news_expunge (MAILSTREAM *stream,char *sequence,long options);
 long news_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long news_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
@@ -85,7 +100,7 @@ long news_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 DRIVER newsdriver = {
   "news",			/* driver name */
 				/* driver flags */
-  DR_NEWS|DR_READONLY|DR_NOFAST|DR_NAMESPACE|DR_NONEWMAIL,
+  DR_NEWS|DR_READONLY|DR_NOFAST|DR_NAMESPACE|DR_NONEWMAIL|DR_DIRFMT,
   (DRIVER *) NIL,		/* next driver */
   news_valid,			/* mailbox is valid for us */
   news_parameters,		/* manipulate parameters */
@@ -205,10 +220,10 @@ void news_list (MAILSTREAM *stream,char *ref,char *pat)
       mm_list (stream,'.',pattern,LATT_NOSELECT);
     }
   }
-  if (news_canonicalize (ref,pat,pattern) &&
-      !stat ((char *) mail_parameters (NIL,GET_NEWSSPOOL,NIL),&sbuf) &&
-      ((fd = open ((char *) mail_parameters (NIL,GET_NEWSACTIVE,NIL),O_RDONLY,
-		   NIL)) >= 0)) {
+  else if (news_canonicalize (ref,pat,pattern) &&
+	   !stat ((char *) mail_parameters (NIL,GET_NEWSSPOOL,NIL),&sbuf) &&
+	   ((fd = open ((char *) mail_parameters (NIL,GET_NEWSACTIVE,NIL),
+			O_RDONLY,NIL)) >= 0)) {
     fstat (fd,&sbuf);		/* get file size and read data */
     read (fd,s = (char *) fs_get (sbuf.st_size + 1),sbuf.st_size);
     close (fd);			/* close file */
@@ -253,6 +268,8 @@ void news_lsub (MAILSTREAM *stream,char *ref,char *pat)
 
 long news_canonicalize (char *ref,char *pat,char *pattern)
 {
+  unsigned long i;
+  char *s;
   if (ref && *ref) {		/* have a reference */
     strcpy (pattern,ref);	/* copy reference to pattern */
 				/* # overrides mailbox field in reference */
@@ -263,9 +280,15 @@ long news_canonicalize (char *ref,char *pat,char *pattern)
     else strcat (pattern,pat);	/* anything else is just appended */
   }
   else strcpy (pattern,pat);	/* just have basic name */
-  return ((pattern[0] == '#') && (pattern[1] == 'n') && (pattern[2] == 'e') &&
-	  (pattern[3] == 'w') && (pattern[4] == 's') && (pattern[5] == '.') &&
-	  !strchr (pattern,'/')) ? T : NIL;
+  if ((pattern[0] == '#') && (pattern[1] == 'n') && (pattern[2] == 'e') &&
+      (pattern[3] == 'w') && (pattern[4] == 's') && (pattern[5] == '.') &&
+      !strchr (pattern,'/')) {	/* count wildcards */
+    for (i = 0, s = pattern; *s; *s++) if ((*s == '*') || (*s == '%')) ++i;
+				/* success if not too many */
+    if (i <= MAXWILDCARDS) return LONGT;
+    MM_LOG ("Excessive wildcards in LIST/LSUB",ERROR);
+  }
+  return NIL;
 }
 
 /* News subscribe to mailbox
@@ -335,7 +358,7 @@ MAILSTREAM *news_open (MAILSTREAM *stream)
 {
   long i,nmsgs;
   char *s,tmp[MAILTMPLEN];
-  struct direct **names;
+  struct direct **names = NIL;
   				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &newsproto;
   if (stream->local) fatal ("news recycle stream");
@@ -349,8 +372,6 @@ MAILSTREAM *news_open (MAILSTREAM *stream)
     stream->local = fs_get (sizeof (NEWSLOCAL));
     LOCAL->dirty = NIL;		/* no update to .newsrc needed yet */
     LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
-				/* make temporary buffer */
-    LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
     LOCAL->name = cpystr (stream->mailbox + 6);
     for (i = 0; i < nmsgs; ++i) {
       stream->uid_last = mail_elt (stream,i+1)->private.uid =
@@ -413,8 +434,6 @@ void news_close (MAILSTREAM *stream,long options)
   if (LOCAL) {			/* only if a file is open */
     news_check (stream);	/* dump final checkpoint */
     if (LOCAL->dir) fs_give ((void **) &LOCAL->dir);
-				/* free local scratch buffer */
-    if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
     if (LOCAL->name) fs_give ((void **) &LOCAL->name);
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
@@ -430,13 +449,15 @@ void news_close (MAILSTREAM *stream,long options)
 
 void news_fast (MAILSTREAM *stream,char *sequence,long flags)
 {
-  unsigned long i,j;
-				/* ugly and slow */
+  MESSAGECACHE *elt;
+  unsigned long i;
+				/* set up metadata for all messages */
   if (stream && LOCAL && ((flags & FT_UID) ?
 			  mail_uid_sequence (stream,sequence) :
 			  mail_sequence (stream,sequence)))
     for (i = 1; i <= stream->nmsgs; i++)
-      if (mail_elt (stream,i)->sequence) news_header (stream,i,&j,NIL);
+      if ((elt = mail_elt (stream,i))->sequence &&
+	  !(elt->day && elt->rfc822_size)) news_load_message (stream,i,NIL);
 }
 
 
@@ -454,6 +475,132 @@ void news_flags (MAILSTREAM *stream,char *sequence,long flags)
     for (i = 1; i <= stream->nmsgs; i++) mail_elt (stream,i)->valid = T;
 }
 
+/* News load message into cache
+ * Accepts: MAIL stream
+ *	    message #
+ *	    option flags
+ */
+
+void news_load_message (MAILSTREAM *stream,unsigned long msgno,long flags)
+{
+  unsigned long i,j,nlseen;
+  int fd;
+  unsigned char c,*t;
+  struct stat sbuf;
+  MESSAGECACHE *elt;
+  FDDATA d;
+  STRING bs;
+  elt = mail_elt (stream,msgno);/* get elt */
+				/* build message file name */
+  sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
+				/* anything we need not currently cached? */
+  if ((!elt->day || !elt->rfc822_size ||
+       ((flags & NLM_HEADER) && !elt->private.msg.header.text.data) ||
+       ((flags & NLM_TEXT) && !elt->private.msg.text.text.data)) &&
+      ((fd = open (LOCAL->buf,O_RDONLY,NIL)) >= 0)) {
+    fstat (fd,&sbuf);		/* get file metadata */
+    d.fd = fd;			/* set up file descriptor */
+    d.pos = 0;			/* start of file */
+    d.chunk = LOCAL->buf;
+    d.chunksize = CHUNKSIZE;
+    INIT (&bs,fd_string,&d,sbuf.st_size);
+    if (!elt->day) {		/* set internaldate to file date */
+      struct tm *tm = gmtime (&sbuf.st_mtime);
+      elt->day = tm->tm_mday; elt->month = tm->tm_mon + 1;
+      elt->year = tm->tm_year + 1900 - BASEYEAR;
+      elt->hours = tm->tm_hour; elt->minutes = tm->tm_min;
+      elt->seconds = tm->tm_sec;
+      elt->zhours = 0; elt->zminutes = 0;
+    }
+
+    if (!elt->rfc822_size) {	/* know message size yet? */
+      for (i = 0, j = SIZE (&bs), nlseen = 0; j--; ) switch (SNX (&bs)) {
+      case '\015':		/* unlikely carriage return */
+	if (!j || (CHR (&bs) != '\012')) {
+	  i++;			/* ugh, raw CR */
+	  nlseen = NIL;
+	  break;
+	}
+	SNX (&bs);		/* eat the line feed, drop in */
+      case '\012':		/* line feed? */
+	i += 2;			/* count a CRLF */
+				/* header size known yet? */
+	if (!elt->private.msg.header.text.size && nlseen) {
+				/* note position in file */
+	  elt->private.special.text.size = GETPOS (&bs);
+				/* and CRLF-adjusted size */
+	  elt->private.msg.header.text.size = i;
+	}
+	nlseen = T;		/* note newline seen */
+	break;
+      default:			/* ordinary chararacter */
+	i++;
+	nlseen = NIL;
+	break;
+      }
+      SETPOS (&bs,0);		/* restore old position */
+      elt->rfc822_size = i;	/* note that we have size now */
+				/* header is entire message if no delimiter */
+      if (!elt->private.msg.header.text.size)
+	elt->private.msg.header.text.size = elt->rfc822_size;
+				/* text is remainder of message */
+      elt->private.msg.text.text.size =
+	elt->rfc822_size - elt->private.msg.header.text.size;
+    }
+
+				/* need to load cache with message data? */
+    if (((flags & NLM_HEADER) && !elt->private.msg.header.text.data) ||
+	((flags & NLM_TEXT) && !elt->private.msg.text.text.data)) {
+				/* purge cache if too big */
+      if (LOCAL->cachedtexts > max (stream->nmsgs * 4096,2097152)) {
+				/* just can't keep that much */
+	mail_gc (stream,GC_TEXTS);
+	LOCAL->cachedtexts = 0;
+      }
+      if ((flags & NLM_HEADER) && !elt->private.msg.header.text.data) {
+	t = elt->private.msg.header.text.data =
+	  (unsigned char *) fs_get (elt->private.msg.header.text.size + 1);
+	LOCAL->cachedtexts += elt->private.msg.header.text.size;
+				/* read in message header */
+	for (i = 0; i <= elt->private.msg.header.text.size; i++)
+	  switch (c = SNX (&bs)) {
+	  case '\015':		/* unlikely carriage return */
+	    *t++ = c;
+	    if ((CHR (&bs) == '\012')) *t++ = SNX (&bs);
+	    break;
+	  case '\012':		/* line feed? */
+	    *t++ = '\015';
+	  default:
+	    *t++ = c;
+	    break;
+	  }
+	*t = '\0';		/* tie off string */
+      }
+      if ((flags & NLM_TEXT) && !elt->private.msg.text.text.data) {
+	t = elt->private.msg.text.text.data =
+	  (unsigned char *) fs_get (elt->private.msg.text.text.size + 1);
+	SETPOS (&bs,elt->private.msg.header.text.size);
+	LOCAL->cachedtexts += elt->private.msg.text.text.size;
+				/* read in message text */
+	for (i = 0; i <= elt->private.msg.text.text.size; i++)
+	  switch (c = SNX (&bs)) {
+	  case '\015':		/* unlikely carriage return */
+	    *t++ = c;
+	    if ((CHR (&bs) == '\012')) *t++ = SNX (&bs);
+	    break;
+	  case '\012':		/* line feed? */
+	    *t++ = '\015';
+	  default:
+	    *t++ = c;
+	    break;
+	  }
+	*t = '\0';		/* tie off string */
+      }
+    }
+    close (fd);			/* flush message file */
+  }
+}
+
 /* News fetch message header
  * Accepts: MAIL stream
  *	    message # to fetch
@@ -465,61 +612,17 @@ void news_flags (MAILSTREAM *stream,char *sequence,long flags)
 char *news_header (MAILSTREAM *stream,unsigned long msgno,
 		   unsigned long *length,long flags)
 {
-  unsigned long i,hdrsize;
-  int fd;
-  unsigned char *t;
-  struct stat sbuf;
-  struct tm *tm;
   MESSAGECACHE *elt;
   *length = 0;			/* default to empty */
   if (flags & FT_UID) return "";/* UID call "impossible" */
-				/* get elt */
-  (elt = mail_elt (stream,msgno))->valid = T;
-  if (!elt->private.msg.header.text.data) {
-				/* purge cache if too big */
-    if (LOCAL->cachedtexts > max (stream->nmsgs * 4096,2097152)) {
-      mail_gc (stream,GC_TEXTS);/* just can't keep that much */
-      LOCAL->cachedtexts = 0;
-    }
-				/* build message file name */
-    sprintf (LOCAL->buf,"%s/%lu",LOCAL->dir,elt->private.uid);
-    if ((fd = open (LOCAL->buf,O_RDONLY,NIL)) < 0) return "";
-    fstat (fd,&sbuf);		/* get size of message */
-				/* make plausible IMAPish date string */
-    tm = gmtime (&sbuf.st_mtime);
-    elt->day = tm->tm_mday; elt->month = tm->tm_mon + 1;
-    elt->year = tm->tm_year + 1900 - BASEYEAR;
-    elt->hours = tm->tm_hour; elt->minutes = tm->tm_min;
-    elt->seconds = tm->tm_sec;
-    elt->zhours = 0; elt->zminutes = 0;
-				/* is buffer big enough? */
-    if (sbuf.st_size > LOCAL->buflen) {
-      fs_give ((void **) &LOCAL->buf);
-      LOCAL->buf = (char *) fs_get ((LOCAL->buflen = sbuf.st_size) + 1);
-    }
-				/* slurp message */
-    read (fd,LOCAL->buf,sbuf.st_size);
-				/* tie off file */
-    LOCAL->buf[sbuf.st_size] = '\0';
-    close (fd);			/* flush message file */
-				/* find end of header */
-    for (i = 0,t = LOCAL->buf; *t && !(i && (*t == '\n')); i = (*t++ == '\n'));
-				/* number of header bytes */
-    hdrsize = (*t ? ++t : t) - LOCAL->buf;
-    elt->rfc822_size =		/* size of entire message in CRLF form */
-      (elt->private.msg.header.text.size =
-       strcrlfcpy (&elt->private.msg.header.text.data,&i,LOCAL->buf,
-		   hdrsize)) +
-	 (elt->private.msg.text.text.size =
-	  strcrlfcpy (&elt->private.msg.text.text.data,&i,t,
-		      sbuf.st_size - hdrsize));
-				/* add to cached size */
-    LOCAL->cachedtexts += elt->rfc822_size;
-  }
+  elt = mail_elt (stream,msgno);/* get elt */
+  if (!elt->private.msg.header.text.data)
+    news_load_message (stream,msgno,NLM_HEADER);
   *length = elt->private.msg.header.text.size;
   return (char *) elt->private.msg.header.text.data;
 }
-
+
+
 /* News fetch message text (body only)
  * Accepts: MAIL stream
  *	    message # to fetch
@@ -530,21 +633,19 @@ char *news_header (MAILSTREAM *stream,unsigned long msgno,
 
 long news_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 {
-  unsigned long i;
   MESSAGECACHE *elt;
 				/* UID call "impossible" */
   if (flags & FT_UID) return NIL;
   elt = mail_elt (stream,msgno);/* get elt */
 				/* snarf message if don't have it yet */
   if (!elt->private.msg.text.text.data) {
-    news_header (stream,msgno,&i,flags);
+    news_load_message (stream,msgno,NLM_TEXT);
     if (!elt->private.msg.text.text.data) return NIL;
   }
   if (!(flags & FT_PEEK)) {	/* mark as seen */
     mail_elt (stream,msgno)->seen = T;
     mm_flags (stream,msgno);
   }
-  if (!elt->private.msg.text.text.data) return NIL;
   INIT (bs,mail_string,elt->private.msg.text.text.data,
 	elt->private.msg.text.text.size);
   return T;
@@ -593,11 +694,15 @@ void news_check (MAILSTREAM *stream)
 
 /* News expunge mailbox
  * Accepts: MAIL stream
+ *	    sequence to expunge if non-NIL
+ *	    expunge options
+ * Returns: T if success, NIL if failure
  */
 
-void news_expunge (MAILSTREAM *stream)
+long news_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
-  if (!stream->silent) mm_log ("Expunge ignored on news",NIL);
+  if (!stream->silent) mm_log ("Expunge ignored on readonly mailbox",NIL);
+  return LONGT;
 }
 
 /* News copy message(s)

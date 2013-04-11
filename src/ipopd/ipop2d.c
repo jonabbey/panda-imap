@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	IPOP2D - IMAP to POP2 conversion server
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	16 September 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -51,11 +59,11 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2004.69";	/* server version */
+char *version = "2006.71";	/* server version */
 short state = LISN;		/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
-long idletime = 0;		/* time we went idle */
+time_t idletime = 0;		/* time we went idle */
 unsigned long nmsgs = 0;	/* number of messages */
 unsigned long current = 1;	/* current message number */
 unsigned long size = 0;		/* size of current message */
@@ -409,27 +417,30 @@ short c_read (char *t)
 
 short c_retr (char *t)
 {
+  unsigned long i,j;
+  STRING *bs;
   if (t) {			/* disallow argument */
     fputs ("- Bogus argument given to RETR\015\012",stdout);
     return DONE;
   }
   if (size) {			/* message size valid? */
-    unsigned long i,j;
     t = mail_fetch_header (stream,msg[current],NIL,NIL,&i,FT_PEEK);
     if (i > 2) {		/* only if there is something */
       i -= 2;			/* lop off last two octets */
       while (i) {		/* blat the header */
-	j = fwrite (t,sizeof (char),i,stdout);
+	if (!(j = fwrite (t,sizeof (char),i,stdout))) return DONE;
 	if (i -= j) t += j;	/* advance to incomplete data */
       }
     }
     fputs (status,stdout);	/* yes, output message */
     fputs ("\015\012",stdout);	/* delimit header from text */
-    t = mail_fetch_text (stream,msg[current],NIL,&i,NIL);
-    while (i) {			/* blat the text */
-      j = fwrite (t,sizeof (char),i,stdout);
-      if (i -= j) t += j;	/* advance to incomplete data */
-    }
+    if (t = mail_fetch_text (stream,msg[current],NIL,&i,FT_RETURNSTRINGSTRUCT))
+      while (i) {		/* blat the text */
+	if (!(j = fwrite (t,sizeof (char),i,stdout))) return DONE;
+	if (i -= j) t += j;	/* advance to incomplete data */
+      }
+    else for (bs = &stream->private.string; i--; )
+      if (putc (SNX (bs),stdout) == EOF) return DONE;
     fputs ("\015\012",stdout);	/* trailer to coddle PCNFS' NFSMAIL */
   }
   else return DONE;		/* otherwise go away */

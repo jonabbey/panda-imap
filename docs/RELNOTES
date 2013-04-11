@@ -1,3 +1,69 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
+Updated: 30 August 2006
+
+imap-2006 is a major release.  Programs written for imap-2004g should
+build with this version with minor or no modification.  imap-2005 was not
+released except as development snapshots.
+
+imap-2006 contains major extensions to its Unicode support.  Searching and
+sorting are now done with strings canonicalized to titlecase and decomposed
+form.  Among other things, this means that Latin letters with diacriticals
+will now sort with the basic Latin letter, and case-independent searching of
+such letters (e.g., German umlauts) now works.  Previously, sorting was done
+strictly by Unicode codepoint, and case-independence only worked with ASCII.
+
+imapd now supports the UIDPLUS extension for mailboxes in unix, mmdf, mbx, mx,
+and mix formats.  UID EXPUNGE is fully implemented.  Note that UIDPLUS is not
+supported in the little-used drivers (mh, mtx, tenex) in which meaningful
+APPENDUID/COPYUID data can not be returned.  Refer to bugs.txt for more
+details.
+
+The new mix format is a dual-use mailbox format designed for performance and
+reliability with large mailboxes.  mix is documented in file mixfmt.txt.
+
+SSL/TLS certificate validation on UNIX now checks the alternative names in the
+certificate if the CN does not match.
+
+The new /tls-sslv23 flag in a mailbox name causes a TLS session to use the
+(incorrect) SSLv23 client method instead of the TLSv1 client method.  Some
+broken servers use the SSLv23 server method, and this flag works around that
+problem.  WARNING: use of this flag will cause TLS negotiation to fail with
+a server which uses the proper TLSv1 server method.  Additionally, there are
+known security risks in SSLv2; so users should be suspicious if this switch
+suddenly becomes necesary.
+
+The silly mailbox flag combination /ssl/tls is now rejected as an invalid
+remote specification.  Previous versions tried to negotiate TLS over an SSL
+session; even if the server permitted such a thing it couldn't work.
+
+The memory management of several drivers has been redesigned to consume less
+memory and hopefully be faster.
+
+The private.data member of the MESSAGECACHE (elt) has been replaced with
+a union that contains private.spare.data and private.spare.ptr, the latter
+being a pointer.
+
+A new FT_RETURNSTRINGSTRUCT flag has been added for mail_fetch_body() and
+mail_fetch_text() calls.  If this flag is set, *and* if the function returns
+NIL, then the requested string data is available on a stringstruct on
+stream->private.string.  This is a special hack for the IMAP and POP servers
+and is subject to incompatible change.  The result is a major performance
+improvement in the servers with the mbx driver, particularly with large
+messages.
+
+
 Updated: 15 September 2005
 
 imap-2004g is a maintenance release, and consists solely of a bugfix to

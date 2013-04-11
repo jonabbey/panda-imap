@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Amiga environment routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	8 July 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 #include <grp.h>
@@ -440,7 +448,7 @@ static struct passwd *pwuser (unsigned char *user)
   unsigned char *s;
   struct passwd *pw = getpwnam (user);
   if (!pw) {			/* failed, see if any uppercase characters */
-    for (s = user; *s && !isupper (*s); s++);
+    for (s = user; *s && ((*s < 'A') || (*s > 'Z')); s++);
     if (*s) {			/* yes, try all lowercase form */
       pw = getpwnam (s = lcase (cpystr (user)));
       fs_give ((void **) &s);

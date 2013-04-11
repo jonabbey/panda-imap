@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Berkeley mail routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	22 January 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -37,17 +45,11 @@
 #include <time.h>
 #include <sys\stat.h>
 #include <dos.h>
-#include "bezrkdos.h"
 #include "rfc822.h"
 #include "dummy.h"
 #include "misc.h"
 #include "fdstring.h"
 
-/* Build parameters */
-
-#define CHUNK 4096
-
-
 /* Berkeley I/O stream local data */
 	
 typedef struct bezerk_local {
@@ -81,7 +83,7 @@ long bezerk_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,
 		  long flags);
 long bezerk_ping (MAILSTREAM *stream);
 void bezerk_check (MAILSTREAM *stream);
-void bezerk_expunge (MAILSTREAM *stream);
+long bezerk_expunge (MAILSTREAM *stream,char *sequence,long options);
 long bezerk_copy (MAILSTREAM *stream,char *sequence,char *mailbox,
 		  long options);
 long bezerk_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
@@ -375,7 +377,7 @@ void bezerk_close (MAILSTREAM *stream,long options)
   if (stream && LOCAL) {	/* only if a file is open */
     int silent = stream->silent;
     stream->silent = T;
-    if (options & CL_EXPUNGE) bezerk_expunge (stream);
+    if (options & CL_EXPUNGE) bezerk_expunge (stream,NIL,NIL);
     close (LOCAL->fd);		/* close the local file */
     if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
 				/* nuke the local data */
@@ -437,7 +439,7 @@ long bezerk_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
   d.pos = hdrpos + hdrsize;
 				/* flush old buffer */
   if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
-  d.chunk = LOCAL->buf = (char *) fs_get ((size_t) d.chunksize = CHUNK);
+  d.chunk = LOCAL->buf = (char *) fs_get ((size_t) d.chunksize = CHUNKSIZE);
   INIT (bs,fd_string,(void *) &d,elt->rfc822_size - hdrsize);
   return T;			/* success */
 }
@@ -472,11 +474,15 @@ void bezerk_check (MAILSTREAM *stream)
 
 /* Berkeley mail expunge mailbox
  * Accepts: MAIL stream
+ *	    sequence to expunge if non-NIL
+ *	    expunge options
+ * Returns: T, always
  */
 
-void bezerk_expunge (MAILSTREAM *stream)
+long bezerk_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
-  mm_log ("Expunge ignored on readonly mailbox",WARN);
+  if (!stream->silent) mm_log ("Expunge ignored on readonly mailbox",WARN);
+  return LONGT;
 }
 
 /* Berkeley mail copy message(s)
@@ -546,6 +552,8 @@ long bezerk_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* delete all requested messages */
   if (options & CP_MOVE) for (i = 1; i <= stream->nmsgs; i++)
     if ((elt = mail_elt (stream,i))->sequence) elt->deleted = T;
+  if (mail_parameters (NIL,GET_COPYUID,NIL))
+    mm_log ("Can not return meaningful COPYUID with this mailbox format",WARN);
   return T;
 }
 
@@ -658,6 +666,9 @@ long bezerk_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   }
   fclose (df);
   mm_nocritical (stream);	/* release critical */
+  if (ret && mail_parameters (NIL,GET_APPENDUID,NIL))
+    mm_log ("Can not return meaningful APPENDUID with this mailbox format",
+	    WARN);
   return ret;
 }
 
@@ -757,7 +768,8 @@ long bezerk_parse (MAILSTREAM *stream)
   }
   stream->silent = T;		/* don't pass up mm_exists() events yet */
   db = datemsg + strlen (strcpy (datemsg,"Unparsable date: "));
-  while (sbuf.st_size - curpos){/* while there is data to read */
+				/* while there is data to read */
+  while (i = sbuf.st_size - curpos){
 				/* get to that position in the file */
     lseek (LOCAL->fd,curpos,SEEK_SET);
 				/* read first buffer's worth */

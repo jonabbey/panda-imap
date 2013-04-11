@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	MTX mail routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	8 March 2005
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2005 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -32,11 +40,6 @@
 #include "misc.h"
 #include "fdstring.h"
 
-/* Build parameters */
-
-#define CHUNK 4096
-
-
 /* MTX I/O stream local data */
 	
 typedef struct mtx_local {
@@ -78,7 +81,7 @@ long mtx_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
 void mtx_flagmsg (MAILSTREAM *stream,MESSAGECACHE *elt);
 long mtx_ping (MAILSTREAM *stream);
 void mtx_check (MAILSTREAM *stream);
-void mtx_expunge (MAILSTREAM *stream);
+long mtx_expunge (MAILSTREAM *stream,char *sequence,long options);
 long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
@@ -326,7 +329,7 @@ void mtx_close (MAILSTREAM *stream,long options)
   if (stream && LOCAL) {	/* only if a file is open */
     int silent = stream->silent;
     stream->silent = T;
-    if (options & CL_EXPUNGE) mtx_expunge (stream);
+    if (options & CL_EXPUNGE) mtx_expunge (stream,NIL,NIL);
     close (LOCAL->fd);		/* close the local file */
     if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
 				/* nuke the local data */
@@ -388,7 +391,7 @@ long mtx_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
   d.pos = hdrpos + hdrsize;
 				/* flush old buffer */
   if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
-  d.chunk = LOCAL->buf = (char *) fs_get ((size_t) d.chunksize = CHUNK);
+  d.chunk = LOCAL->buf = (char *) fs_get ((size_t) d.chunksize = CHUNKSIZE);
   INIT (bs,fd_string,(void *) &d,elt->rfc822_size - hdrsize);
   return T;			/* success */
 }
@@ -435,59 +438,68 @@ void mtx_check (MAILSTREAM *stream)
 
 /* MTX mail expunge mailbox
  * Accepts: MAIL stream
+ *	    sequence to expunge if non-NIL
+ *	    expunge options
+ * Returns: T, always
  */
 
-void mtx_expunge (MAILSTREAM *stream)
+long mtx_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
+  long ret;
   unsigned long i = 1;
   unsigned long j,k,m,recent;
   unsigned long n = 0;
   unsigned long delta = 0;
   MESSAGECACHE *elt;
   char tmp[MAILTMPLEN];
-				/* do nothing if stream dead */
-  if (!mtx_ping (stream)) return;
-  if (stream->rdonly) {		/* won't do on readonly files! */
-    mm_log ("Expunge ignored on readonly mailbox",WARN);
-    return;
-  }
-  mm_critical (stream);		/* go critical */
-  recent = stream->recent;	/* get recent now that pinged */ 
-  while (i <= stream->nmsgs) {	/* for each message */
-    elt = mail_elt (stream,i);	/* get cache element */
+  if (!(ret = (sequence ? ((options & EX_UID) ?
+			   mail_uid_sequence (stream,sequence) :
+			   mail_sequence (stream,sequence)) : LONGT) &&
+	mtx_ping (stream)));	/* parse sequence if given, ping stream */
+  else if (stream->rdonly) mm_log ("Expunge ignored on readonly mailbox",WARN);
+  else {
+    mm_critical (stream);	/* go critical */
+    recent = stream->recent;	/* get recent now that pinged */ 
+    while (i <= stream->nmsgs) {/* for each message */
+      elt = mail_elt (stream,i);/* get cache element */
 				/* number of bytes to smash or preserve */
-    k = elt->private.special.text.size + elt->rfc822_size;
-    if (elt->deleted) {		/* if deleted */
-      if (elt->recent) --recent;/* if recent, note one less recent message */
-      delta += k;		/* number of bytes to delete */
-      mail_expunged (stream,i);	/* notify upper levels */
-      n++;			/* count up one more deleted message */
-    }
-    else if (i++ && delta) {	/* preserved message */
+      k = elt->private.special.text.size + elt->rfc822_size;
+				/* if need to expunge this message */
+      if (elt->deleted && (sequence ? elt->sequence : T)) {
+				/* if recent, note one less recent message */
+	if (elt->recent) --recent;
+	delta += k;		/* number of bytes to delete */
+				/* notify upper levels */
+	mail_expunged (stream,i);
+	n++;			/* count up one more deleted message */
+      }
+      else if (i++ && delta) {	/* preserved message */
 				/* first byte to preserve */
-      j = elt->private.special.offset;
-      do {			/* read from source position */
-	m = min (k,(unsigned long) MAILTMPLEN);
-	lseek (LOCAL->fd,j,SEEK_SET);
-	read (LOCAL->fd,tmp,(size_t) m);
+	j = elt->private.special.offset;
+	do {			/* read from source position */
+	  m = min (k,(unsigned long) MAILTMPLEN);
+	  lseek (LOCAL->fd,j,SEEK_SET);
+	  read (LOCAL->fd,tmp,(size_t) m);
 				/* write to destination position */
-	lseek (LOCAL->fd,j - delta,SEEK_SET);
-	write (LOCAL->fd,tmp,(size_t) m);
-	j += m;			/* next chunk, perhaps */
-      } while (k -= m);		/* until done */
-      elt->private.special.offset -= delta;
+	  lseek (LOCAL->fd,j - delta,SEEK_SET);
+	  write (LOCAL->fd,tmp,(size_t) m);
+	  j += m;		/* next chunk, perhaps */
+	} while (k -= m);	/* until done */
+	elt->private.special.offset -= delta;
+      }
     }
-  }
-  if (n) {			/* truncate file after last message */
-    chsize (LOCAL->fd,LOCAL->filesize -= delta);
-    sprintf (tmp,"Expunged %ld messages",n);
-    mm_log (tmp,(long) NIL);	/* output the news */
-  }
-  else mm_log ("No messages deleted, so no update needed",(long) NIL);
-  mm_nocritical (stream);	/* release critical */
+    if (n) {			/* truncate file after last message */
+      chsize (LOCAL->fd,LOCAL->filesize -= delta);
+      sprintf (tmp,"Expunged %ld messages",n);
+      mm_log (tmp,(long) NIL);	/* output the news */
+    }
+    else mm_log ("No messages deleted, so no update needed",(long) NIL);
+    mm_nocritical (stream);	/* release critical */
 				/* notify upper level of new mailbox size */
-  mail_exists (stream,stream->nmsgs);
-  mail_recent (stream,recent);
+    mail_exists (stream,stream->nmsgs);
+    mail_recent (stream,recent);
+  }
+  return ret;
 }
 
 /* MTX mail copy message(s)
@@ -565,6 +577,8 @@ long mtx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
 				/* recalculate status */
       mtx_update_status (stream,i);
     }
+  if (ret && mail_parameters (NIL,GET_COPYUID,NIL))
+    mm_log ("Can not return meaningful COPYUID with this mailbox format",WARN);
   return ret;
 }
 
@@ -667,6 +681,9 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   }
   fclose (df);			/* close the file */ 
   mm_nocritical (stream);	/* release critical */
+  if (ret && mail_parameters (NIL,GET_APPENDUID,NIL))
+    mm_log ("Can not return meaningful APPENDUID with this mailbox format",
+	    WARN);
   return ret;
 }
 

@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	VMS TCP/IP routines for Netlib.
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	24 October 2000
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /* Thanks to Yehavi Bourvine at The Hebrew University of Jerusalem who
@@ -122,22 +130,22 @@ char *tcp_getline (TCPSTREAM *stream)
   }
 				/* copy partial string from buffer */
   memcpy ((ret = stp = (char *) fs_get (n)),st,n);
-				/* get more data from the net */
-  if (!tcp_getdata (stream)) return NIL;
+  if (tcp_getdata (stream)) {	/* get more data from the net */
 				/* special case of newline broken by buffer */
-  if ((c == '\015') && (*stream->iptr == '\012')) {
-    stream->iptr++;		/* eat the line feed */
-    stream->ictr--;
-    ret[n - 1] = '\0';		/* tie off string with null */
-  }
+    if ((c == '\015') && (*stream->iptr == '\012')) {
+      stream->iptr++;		/* eat the line feed */
+      stream->ictr--;
+      ret[n - 1] = '\0';	/* tie off string with null */
+    }
 				/* else recurse to get remainder */
-  else if (st = tcp_getline (stream)) {
-    ret = (char *) fs_get (n + 1 + (m = strlen (st)));
-    memcpy (ret,stp,n);		/* copy first part */
-    memcpy (ret + n,st,m);	/* and second part */
-    fs_give ((void **) &stp);	/* flush first part */
-    fs_give ((void **) &st);	/* flush second part */
-    ret[n + m] = '\0';		/* tie off string with null */
+    else if (st = tcp_getline (stream)) {
+      ret = (char *) fs_get (n + 1 + (m = strlen (st)));
+      memcpy (ret,stp,n);	/* copy first part */
+      memcpy (ret + n,st,m);	/* and second part */
+      fs_give ((void **) &stp);	/* flush first part */
+      fs_give ((void **) &st);	/* flush second part */
+      ret[n + m] = '\0';	/* tie off string with null */
+    }
   }
   return ret;
 }

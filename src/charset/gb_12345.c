@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	GB 12345 conversion table
  *
@@ -10,20 +23,15 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1998
- * Last Edited:	10 January 2001
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2001 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /* GB 12345 is the national standard of the People's Republic of China
  * (mainland China) for traditional Chinese characters.
  */
 
-#define BASE_GB12345_KU 0x21
-#define BASE_GB12345_TEN 0x21
+#define BASE_GB12345_KU 0xa1
+#define BASE_GB12345_TEN 0xa1
 #define MAX_GB12345_KU 89
 #define MAX_GB12345_TEN 94
 

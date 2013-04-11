@@ -1,3 +1,15 @@
+# ========================================================================
+# Copyright 1988-2006 University of Washington
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# 
+# ========================================================================
+
 # Program:	IMAP Toolkit Makefile
 #
 # Author:	Mark Crispin
@@ -9,13 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	30 April 2005
-#
-# The IMAP toolkit provided in this Distribution is
-# Copyright 1988-2005 University of Washington.
-#
-# The full text of our legal notices is contained in the file called
-# CPYRIGHT, included with this Distribution.
+# Last Edited:	30 August 2006
 
 
 # Normal command to build IMAP toolkit:
@@ -69,17 +75,19 @@
 # gso	GCC Solaris
 # gsu	GCC SUN-OS
 # gul	GCC RISC Ultrix (DEC-5000)
+# h11	HP-UX 11i
 # hpp	HP-UX 9.x (see gh9)
 # hpx	HP-UX 10.x (see ghp, ghs, hxd, and shp)
 # hxd	HP-UX 10.x with DCE security (see shp)
 # isc	Interactive Systems
 # ldb	Debian Linux
+# lfd	Fedora Core 4
 # lnx	Linux with traditional passwords and crypt() in the C library
 #	 (see lnp, sl4, sl5, and slx)
 # lnp	Linux with Pluggable Authentication Modules (PAM)
 # lmd	Mandrake Linux
 # lrh	RedHat Linux 7.2 and later
-# lsu	SuSE Linux
+# lsu	SuSE Linux (same as lrh)
 # lyn	LynxOS
 # mct	MachTen
 # mnt	Atari ST Mint (not MacMint)
@@ -296,7 +304,7 @@ SPECIALS:
 
 # Note on SCO you may have to set LN to "ln".
 
-a32 a41 aix bs3 bsi d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx soc sol sos uw2: an
+a32 a41 aix bs3 bsi d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul h11 hpp hpx lnp lyn mct mnt neb nec nto nxt nx3 osf os4 ptx qnx sc5 sco sgi sg6 shp sl4 sl5 slx snx soc sol sos uw2: an
 	$(BUILD) BUILDTYPE=$@
 
 # If you use sv4, you may find that it works to move it to use the an process.
@@ -306,49 +314,51 @@ a32 a41 aix bs3 bsi d-g d54 do4 drs epx ga4 gas gh9 ghp ghs go5 gsc gsg gso gul 
 aos art asv aux bsd cvx dpx dyn isc pyr sv4 ult vul vu2: ua
 	$(BUILD) BUILDTYPE=$@
 
-# Knotheads moved Kerberos and SSL locations on these platforms
 
+# Knotheads moved Kerberos and SSL locations on these platforms
 
 bsf bso:	an
 	$(BUILD) BUILDTYPE=$@ \
-	SPECIALS="GSSDIR=/usr SSLDIR=/usr SSLINCLUDE=/usr/include/openssl SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private LOCKPGM=/usr/sbin/mlock"
+	PASSWDTYPE=pam \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock PAMLDFLAGS=-lpam"
 
 cyg:	an
 	$(BUILD) BUILDTYPE=cyg \
-	SPECIALS="SSLDIR=/usr/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/ssl/certs SSLKEYS=/usr/ssl/certs"
 
 gcs:	an
 	$(BUILD) BUILDTYPE=gso \
-	SPECIALS="SSLDIR=/opt/csw/ssl SSLINCLUDE=/opt/csw/include/openssl SSLLIB=/opt/csw/lib"
+	SPECIALS="SSLINCLUDE=/opt/csw/include/openssl SSLLIB=/opt/csw/lib SSLCERTS=/opt/csw/ssl/certs SSLKEYS=/opt/csw/ssl/certs"
 
 ldb:	an
-	$(BUILD) BUILDTYPE=lnp \
-	SPECIALS="GSSDIR=/usr SSLDIR=/usr SSLINCLUDE=/usr/include/openssl SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private LOCKPGM=/usr/sbin/mlock"
+	$(BUILD) BUILDTYPE=lnp IP=6 \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
+
+lfd:	an	# yes, Fedora is different than RHE (at least today it is)
+	$(BUILD) BUILDTYPE=lnp IP=6 \
+	EXTRACFLAGS="$(EXTRACFLAGS) -I/usr/kerberos/include" \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/pki/tls/certs SSLKEYS=/etc/pki/tls/private GSSDIR=/usr/kerberos LOCKPGM=/usr/sbin/mlock"
 
 lmd:	an
-	$(BUILD) BUILDTYPE=lnp \
-	SPECIALS="SSLDIR=/usr/lib/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
+	$(BUILD) BUILDTYPE=lnp IP=6 \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/lib/ssl/certs SSLKEYS=/usr/lib/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
 
-lrh:	an
-	$(BUILD) BUILDTYPE=lnp \
-	SPECIALS="GSSDIR=/usr/kerberos SSLDIR=/usr/share/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib LOCKPGM=/usr/sbin/mlock" \
-	EXTRACFLAGS="$(EXTRACFLAGS) -I/usr/kerberos/include"
-
-lsu:	an
-	$(BUILD) BUILDTYPE=lnp \
-	SPECIALS="SSLDIR=/usr/share/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
+lrh lsu:	an
+	$(BUILD) BUILDTYPE=lnp IP=6 \
+	EXTRACFLAGS="$(EXTRACFLAGS) -I/usr/kerberos/include" \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/share/ssl/certs SSLKEYS=/usr/share/ssl/private GSSDIR=/usr/kerberos LOCKPGM=/usr/sbin/mlock"
 
 osx:	an
-	$(BUILD) BUILDTYPE=osx \
-	IP=6 EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS) gss" \
-	SPECIALS="SSLDIR=/System/Library/OpenSSL SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
+	$(TOUCH) ip6
+	$(BUILD) BUILDTYPE=$@ IP=6 EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS) gss" \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/System/Library/OpenSSL/certs SSLKEYS=/System/Library/OpenSSL/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
 
 oxp:	an
-	$(BUILD) BUILDTYPE=osx \
-	IP=6 EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS) gss" \
-	SPECIALS="SSLDIR=/System/Library/OpenSSL SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib PAMLDFLAGS=-lpam" \
+	$(TOUCH) ip6
+	$(BUILD) BUILDTYPE=osx IP=6 EXTRAAUTHENTICATORS="$(EXTRAAUTHENTICATORS) gss" \
 	PASSWDTYPE=pam \
-	EXTRACFLAGS="$(EXTRACFLAGS) -DMAC_OSX_KLUDGE=1"
+	EXTRACFLAGS="$(EXTRACFLAGS) -DMAC_OSX_KLUDGE=1" \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/System/Library/OpenSSL/certs SSLKEYS=/System/Library/OpenSSL/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock PAMDLFLAGS=-lpam"
 
 
 # Linux shadow password support doesn't build on traditional systems, but most
@@ -494,10 +504,39 @@ sslnone:
 	@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
 
 
+# IP build choices
+
+ip4:
+
+ip6:
+	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@echo + Building with IPv6 support
+	@echo +
+	@echo + NOTE: Some versions of glibc have a bug in the getaddrinfo
+	@echo + call which does DNS name resolution.  This bug causes host
+	@echo + names to be canonicalized incorrectly, as well as doing an
+	@echo + unnecessary and performance-sapping reverse DNS call.  This
+	@echo + problem does not affect the IPv4 gethostbyname call.
+	@echo +
+	@echo + getaddrinfo is known to work properly on Mac OS X and
+	@echo + Windows.  However, the problem has been observed on some
+	@echo + Linux systems.
+	@echo +
+	@echo + If you are not building for Mac OS X or Windows, you may
+	@echo + want to build with IP=4 unless you are certain that glibc
+	@echo + is fixed on your system.
+	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@echo
+	@echo Do you want to build with IPv6 anyway?  Type y or n please:
+	@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) (make clean;exit 1);; esac'
+	@echo OK, I will remember that you really want to build with IPv6.
+	@echo You will not see this message again.
+	@$(TOUCH) ip6
+
 # C compiler types
 
 an ua:
-	$(MAKE) ssl$(SSLTYPE)
+	@$(MAKE) ssl$(SSLTYPE)
 	@echo Applying $@ process to sources...
 	$(TOOLS)/$@ "$(LN)" src/c-client c-client
 	$(TOOLS)/$@ "$(LN)" src/ansilib c-client
@@ -512,7 +551,7 @@ an ua:
 	$(TOOLS)/$@ "$(LN)" src/tmail tmail
 	$(LN) $(TOOLS)/$@ .
 
-build:	OSTYPE rebuild rebuildclean bundled
+build:	ip$(IP) OSTYPE rebuild rebuildclean bundled
 
 OSTYPE:
 	@echo Building c-client for $(BUILDTYPE)...
@@ -550,12 +589,14 @@ bundled:
 
 
 sysexitwarn:
-	@echo Hmm...it does not look like /usr/include/sysexits.h exists.
-	@echo Either your system is too ancient to have the sysexits.h
-	@echo include, or your C compiler gets it from some other location
-	@echo than /usr/include.  If your system is too old to have the
-	@echo sysexits.h include, you will not be able to build the
-	@echo following programs.
+	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	@echo + Hmm...it does not look like /usr/include/sysexits.h exists.
+	@echo + Either your system is too ancient to have the sysexits.h
+	@echo + include, or your C compiler gets it from some other location
+	@echo + than /usr/include.  If your system is too old to have the
+	@echo + sysexits.h include, you will not be able to build the
+	@echo + following programs.
+	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 clean:
 	@echo Removing old processed sources and binaries...

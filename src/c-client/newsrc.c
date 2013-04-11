@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Newsrc manipulation routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 September 1994
- * Last Edited:	27 April 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -55,8 +63,8 @@ long newsrc_error (char *fmt,char *text,long errflg)
 
 long newsrc_write_error (char *name,FILE *f1,FILE *f2)
 {
-  fclose (f1);			/* close file designators */
-  fclose (f2);
+  if (f1) fclose (f1);		/* close file designators */
+  if (f2) fclose (f2);
   return newsrc_error ("Error writing to %.80s",name,ERROR);
 }
 
@@ -86,9 +94,10 @@ FILE *newsrc_create (MAILSTREAM *stream,int notify)
 
 long newsrc_newstate (FILE *f,char *group,char state,char *nl)
 {
-  return (f && (fputs (group,f) != EOF) && ((putc (state,f)) != EOF) &&
-	  ((putc (' ',f)) != EOF) && (fputs (nl,f) != EOF) &&
-	  (fclose (f) != EOF)) ? LONGT : NIL;
+  long ret = (f && (fputs (group,f) != EOF) && ((putc (state,f)) != EOF) &&
+	      ((putc (' ',f)) != EOF) && (fputs (nl,f) != EOF)) ? LONGT : NIL;
+  if (fclose (f) == EOF) ret = NIL;
+  return ret;
 }
 
 
@@ -224,7 +233,7 @@ long newsrc_update (MAILSTREAM *stream,char *group,char state)
 	fclose (f);		/* punt the file */
 				/* can't win if read something */
 	if (pos) newsrc_error ("Unknown newline convention in %.80s",
-newsrc,ERROR);
+			       newsrc,ERROR);
 				/* file must have been empty, rewrite it */
 	else ret = newsrc_newstate(newsrc_create(stream,NIL),group,state,"\n");
       }
@@ -327,6 +336,7 @@ long newsrc_read (char *group,MAILSTREAM *stream)
 
 long newsrc_write (char *group,MAILSTREAM *stream)
 {
+  long ret = NIL;
   int c = 0,d = EOF;
   char *newsrc = (char *) mail_parameters (stream,GET_NEWSRC,stream);
   char *s,tmp[MAILTMPLEN],backup[MAILTMPLEN],nl[3];
@@ -369,8 +379,7 @@ long newsrc_write (char *group,MAILSTREAM *stream)
 				/* open newsrc for writing */
     else if (!(f = fopen (newsrc,"wb"))) {
       fclose (bf);		/* punt backup */
-      return newsrc_error ("Can't rewrite news state %.80s",
-			   newsrc,ERROR);
+      return newsrc_error ("Can't rewrite news state %.80s",newsrc,ERROR);
     }
   }
   else {			/* create new newsrc file */
@@ -400,7 +409,7 @@ long newsrc_write (char *group,MAILSTREAM *stream)
 	  c = getc (bf);	/* get next character */
 	}
 				/* done with file */
-	if (fclose (f) == EOF) return newsrc_write_error (newsrc,bf,f);
+	if (fclose (f) == EOF) return newsrc_write_error (newsrc,bf,NIL);
 	f = NIL;
       }
 				/* copy remainder of line */
@@ -421,11 +430,12 @@ long newsrc_write (char *group,MAILSTREAM *stream)
     }
   }
   if (f) {			/* still have newsrc file open? */
-    if ((fputs (group,f) == EOF) || ((putc (':',f)) == EOF) ||
-	(!newsrc_newmessages (f,stream,nl[0] ? nl : "\n")) ||
-	(fclose (f) == EOF)) return newsrc_write_error (newsrc,bf,f);
+    ret = ((fputs (group,f) != EOF) && ((putc (':',f)) != EOF) &&
+	   newsrc_newmessages (f,stream,nl[0] ? nl : "\n")) ? LONGT : NIL;
+    if (fclose (f) == EOF) ret = newsrc_write_error (newsrc,NIL,NIL);
   }
-  return LONGT;
+  else ret = LONGT;
+  return ret;
 }
 
 /* Get newsgroup state as text stream

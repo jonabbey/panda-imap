@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	GSSAPI authenticator
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 January 1998
- * Last Edited:	15 March 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -145,9 +153,9 @@ long auth_gssapi_client_work (authchallenge_t challenger,gss_buffer_desc chal,
     data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* negotiate with KDC */
     smj = gss_init_sec_context (&smn,GSS_C_NO_CREDENTIAL,&ctx,crname,NIL,
-				GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG,0,
-				GSS_C_NO_CHANNEL_BINDINGS,GSS_C_NO_BUFFER,NIL,
-				&resp,NIL,NIL);
+				GSS_C_INTEG_FLAG | GSS_C_MUTUAL_FLAG |
+				GSS_C_REPLAY_FLAG,0,GSS_C_NO_CHANNEL_BINDINGS,
+				GSS_C_NO_BUFFER,NIL,&resp,NIL,NIL);
     (*bn) (BLOCK_NONSENSITIVE,data);
 
 				/* while continuation needed */
@@ -161,8 +169,8 @@ long auth_gssapi_client_work (authchallenge_t challenger,gss_buffer_desc chal,
 	data = (*bn) (BLOCK_SENSITIVE,NIL);
 	switch (smj =		/* make sure continuation going OK */
 		gss_init_sec_context (&smn,GSS_C_NO_CREDENTIAL,&ctx,
-				      crname,GSS_C_NO_OID,
-				      GSS_C_MUTUAL_FLAG|GSS_C_REPLAY_FLAG,0,
+				      crname,GSS_C_NO_OID,GSS_C_INTEG_FLAG |
+				      GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG,0,
 				      GSS_C_NO_CHANNEL_BINDINGS,&chal,NIL,
 				      &resp,NIL,NIL)) {
 	case GSS_S_CONTINUE_NEEDED:

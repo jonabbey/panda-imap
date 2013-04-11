@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Kerberos 5 check password
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	5 June 2005
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2005 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /* Check password
@@ -28,7 +36,7 @@
 
 struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
 {
-  char tmp[MAILTMPLEN];
+  char svrnam[MAILTMPLEN],cltnam[MAILTMPLEN];
   krb5_context ctx;
   krb5_timestamp now;
   krb5_principal service;
@@ -37,13 +45,23 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
   struct passwd *ret = NIL;
   if (*pass) {			/* only if password non-empty */
 				/* make service name */
-    sprintf (tmp,"%s@%s",(char *) mail_parameters (NIL,GET_SERVICENAME,NIL),
+    sprintf (svrnam,"%.80s@%.512s",
+	     (char *) mail_parameters (NIL,GET_SERVICENAME,NIL),
 	     tcp_serverhost ());
+				/* make client name with principal */
+    sprintf (cltnam,"%.80s/%.80s",pw->pw_name,
+	     (char *) mail_parameters (NIL,GET_SERVICENAME,NIL));
     krb5_init_context (&ctx);	/* get a context */
 				/* get time, client and server principals */
     if (!krb5_timeofday (ctx,&now) &&
-	!krb5_parse_name (ctx,pw->pw_name,&crd->client) &&
-	!krb5_parse_name (ctx,tmp,&service) &&
+	/* Normally, kerb_cp_svr_name (defined/set in env_unix.c) is NIL, so
+	 * only the user name is used as a client principal.  A few sites want
+	 * to have separate client principals for different services, but many
+	 * other sites vehemently object...
+	 */
+	!krb5_parse_name (ctx,kerb_cp_svr_name ? cltnam : pw->-pw_name,
+			  &crd->client) &&
+	!krb5_parse_name (ctx,svrnam,&service) &&
 	!krb5_build_principal_ext (ctx,&crd->server,
 				   krb5_princ_realm (ctx,crd->client)->length,
 				   krb5_princ_realm (ctx,crd->client)->data,

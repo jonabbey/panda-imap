@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	flock() emulation via fcntl() locking
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	22 January 2002
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -46,8 +54,8 @@ extern int lockslavep;		/* non-zero means slave process */
 #undef SAFE_SCAN_CONTENTS
 #define SAFE_SCAN_CONTENTS(dtb,name,contents,csiz,fsiz) \
   (!dtb || (dtb->flags & DR_LOCKING)) ? \
-   safe_scan_contents (name,contents,csiz,fsiz) : \
-   dummy_scan_contents (name,contents,csiz,fsiz)
+   safe_scan_contents (dtb,name,contents,csiz,fsiz) : \
+   scan_contents (dtb,name,contents,csiz,fsiz)
 #undef SAFE_COPY
 #define SAFE_COPY(dtb,stream,seq,mbx,bits) (dtb->flags & DR_LOCKING) ? \
   safe_copy (dtb,stream,seq,mbx,bits) : (*dtb->copy) (stream,seq,mbx,bits)
@@ -85,8 +93,8 @@ int flocksim (int fd,int operation);
 long safe_delete (DRIVER *dtb,MAILSTREAM *stream,char *mbx);
 long safe_rename (DRIVER *dtb,MAILSTREAM *stream,char *old,char *newname);
 long safe_status (DRIVER *dtb,MAILSTREAM *stream,char *mbx,long flags);
-long safe_scan_contents (char *name,char *contents,unsigned long csiz,
-			 unsigned long fsiz);
+long safe_scan_contents (DRIVER *dtb,char *name,char *contents,
+			 unsigned long csiz,unsigned long fsiz);
 long safe_copy (DRIVER *dtb,MAILSTREAM *stream,char *seq,char *mbx,long flags);
 long safe_append (DRIVER *dtb,MAILSTREAM *stream,char *mbx,append_t af,
 		  void *data);

@@ -1,15 +1,28 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 		  SSL/TLS BUILD AND INSTALLATION NOTES FOR UNIX
-			 Last Updated: 5 January 2004
+			 Last Updated: 20 August 2006
 
 PREREQUISITES BEFORE STARTING:
- 1) Review the information in imap-2004/docs/BUILD.
+ 1) Review the information in imap-2006/docs/BUILD.
  2) Obtain a copy of OpenSSL.  OpenSSL is available from third parties.  We
     do not provide OpenSSL.
  3) Make sure that you know how to build OpenSSL properly on the standard
     /usr/local/ssl directory.  In particular, /usr/local/ssl/include (and
     /usr/local/ssl/include/openssl) and /usr/local/ssl/lib must be set up
     from the OpenSSL build.  If you have a non-standard installation, then
-    you must modify the imap-2004/src/osdep/unix/Makefile file to point
+    you must modify the imap-2006/src/osdep/unix/Makefile file to point
     to the appropriate locations.
  4) Make sure that you know how to obtain appropriate certificates on your
     system.
@@ -22,15 +35,20 @@ mentioned in the OpenSSL README.
 SSL BUILD:
 
      By default, the IMAP toolkit builds with SSL and disabling plaintext
-passwords unless SSL/TLS encryption is in effect (SSLTYPE=nopwd).  Note that
-doing so will produce an IMAP server which is NON-COMPLIANT with current
-IESG security requirements.
+passwords unless SSL/TLS encryption is in effect (SSLTYPE=nopwd).  This
+produces an IMAP server which is compliant with RFC 3501 security
+requirements.
 
      To build with SSL but allow plaintext passwords in insecure sessions,
-add "SSLTYPE=unix" to the make command line.
+add "SSLTYPE=unix" to the make command line.  Note that doing so will
+produce an IMAP server which is NON-COMPLIANT with RFC 3501.
+
+     To build without SSL, add "SSLTYPE=none" to the make command line.
+Note that doing so will produce an IMAP server which is NON-COMPLIANT
+with RFC 3501.
 
      There are other make options relevant to SSL, described in
- imap-2004/src/osdep/unix/Makefile
+ imap-2006/src/osdep/unix/Makefile
 The most important of these are SSLDIR, SSLCRYPTO, and SSLRSA.
 
      SSLDIR is set to /usr/local/ssl by default.  This is the normal
@@ -52,18 +70,43 @@ is no longer any reason to do this.
 SSL INSTALLATION:
 
      Binaries from the build are:
-	imap-2004/mtest/mtest		c-client testbed program
-	imap-2004/ipopd/ipop2d		POP2 daemon
-	imap-2004/ipopd/ipop3d		POP3 daemon
-	imap-2004/imapd/imapd		IMAP4rev1 daemon
+	imap-2006/mtest/mtest		c-client testbed program
+	imap-2006/ipopd/ipop2d		POP2 daemon
+	imap-2006/ipopd/ipop3d		POP3 daemon
+	imap-2006/imapd/imapd		IMAP4rev1 daemon
 
      mtest is normally not used except by c-client developers.
 
 STEP 1:	inetd setup
 
+
      The ipop2d, ipop3d, and imapd daemons should be installed in a system
-daemon directory (in the following examples, /usr/local/etc is used), and
-invoked by your /etc/inetd.conf file with lines such as:
+daemon directory and invoked by a listener such as xinetd or inetd.  In the
+following examples, /usr/local/etc is used).
+
+STEP 1(A): xinetd-specific setup
+
+     If your system uses xinetd, the daemons are invoked by files in your
+/etc/xinetd.d directory with names corresponding to the service names (that
+is: imap, imaps, pop2, pop3, pop3s).  You will need to consult your local
+xinetd documentation to see what should go into these files.  Here is a a
+sample /etc/xinetd.d/imaps file:
+
+service imaps
+{
+	disable		= no
+	socket_type	= stream
+	wait		= no
+	user		= root
+	server		= /usr/local/etc/imapd
+	groups		= yes
+	flags		= REUSE IPv6
+}
+
+STEP 1(B): inetd-specific setup
+
+     If your system still uses inetd, the daemons are invoked by your
+/etc/inetd.conf file with lines such as:
 
 pop	stream	tcp	nowait	root	/usr/local/etc/ipop2d	ipop2d
 pop3	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
@@ -71,10 +114,10 @@ imap	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
 pop3s	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
 imaps	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
 
-     Please refer to imap-2004/docs/BUILD for an important note about inetd's
+     Please refer to imap-2006/docs/BUILD for an important note about inetd's
 limit on the number of new connections.  If that note applies to you, and you
 can configure the number of connection in /etc/inetd.conf as described in
-imap-2004/docs/build, here is the sample /etc/inetd.conf entry with SSL:
+imap-2006/docs/build, here is the sample /etc/inetd.conf entry with SSL:
 
 pop3	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d
 pop3s	stream	tcp	nowait.100	root	/usr/local/etc/ipop3d	ipop3d
@@ -105,7 +148,32 @@ NOTE: The SSL IMAP service *MUST* be called "imaps", and the SSL POP3 service
 *MUST* be called "pop3s".
 
 
-STEP 3:	certificates setup
+STEP 3: PAM setup
+
+     If your system has PAM (Pluggable Authentication Modules -- most
+modern systems do) then you need to set up PAM authenticators for imap and
+pop.  The correct file names are
+	/etc/pam.d/imap
+and
+	/etc/pam.d/pop
+
+     It probably works to copy your /etc/pam.d/ftpd file to the above two
+names.
+
+     Many people get these file names wrong, and then spend a lot of time
+trying to figure out why it doesn't work.  Common mistakes are:
+	/etc/pam.d/imapd
+	/etc/pam.d/imap4
+	/etc/pam.d/imap4rev1
+	/etc/pam.d/imaps
+	/etc/pam.d/ipop3d
+	/etc/pam.d/pop3d
+	/etc/pam.d/popd
+	/etc/pam.d/pop3
+	/etc/pam.d/pop3s
+
+
+STEP 4:	certificates setup
 
 NOTE: We can NOT provide you with support in obtaining certificates.  If you
 need help in doing this, try the contacts mentioned in the OpenSSL README.

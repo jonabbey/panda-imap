@@ -1,3 +1,16 @@
+# ========================================================================
+# Copyright 1988-2006 University of Washington
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# 
+# ========================================================================
+
+
 # Program:	C client makefile for Amiga
 #
 # Author:	Mark Crispin
@@ -9,13 +22,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	14 October 2003
-#
-# The IMAP toolkit provided in this Distribution is
-# Copyright 2003 University of Washington.
-#
-# The full text of our legal notices is contained in the file called
-# CPYRIGHT, included with this Distribution.
+# Last Edited:	30 August 2006
 
 
 # Command line build parameters
@@ -35,6 +42,7 @@ ACTIVEFILE=/UULib/News/Active
 SPOOLDIR=/usr/spool
 MAILSPOOL=/AmiTCP/Mail
 NEWSSPOOL=/UUNews
+MD5PWD="/etc/cram-md5.pwd"
 
 
 # Default formats for creating new mailboxes and for empty mailboxes in the
@@ -47,8 +55,8 @@ NEWSSPOOL=/UUNews
 #
 # NOTE: namespace formats (e.g. mh and news) can not be set as a default format
 # since they do not exist in the default namespace.  Also, it is meaningless to
-# set certain other formats (e.g. mbx and mx) as the EMPTYPROTO since these
-# formats can never be empty files.
+# set certain other formats (e.g. mbx, mx, and mix) as the EMPTYPROTO since
+# these formats can never be empty files.
 
 CREATEPROTO=unixproto
 EMPTYPROTO=unixproto
@@ -65,17 +73,18 @@ RM=rm -f
 
 # Standard distribution build parameters
 
-DEFAULTAUTHENTICATORS=md5 pla log
-DEFAULTDRIVERS=imap nntp pop3 mh mx mbx tenex mtx mmdf unix news phile
+DEFAULTAUTHENTICATORS=ext md5 pla log
+DEFAULTDRIVERS=imap nntp pop3 mh mx mix mbx tenex mtx mmdf unix news phile
+CHUNKSIZE=65536
 
 
 # Normally no need to change any of these
 
 ARCHIVE=c-client.a
-BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o utf8.o \
+BINARIES=mail.o misc.o newsrc.o smanager.o osdep.o utf8.o utf8aux.o \
  dummy.o pseudo.o netmsg.o flstring.o fdstring.o \
  rfc822.o nntp.o smtp.o imap4r1.o pop3.o \
- unix.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o
+ unix.o mbx.o mmdf.o tenex.o mtx.o news.o phile.o mh.o mx.o mix.o
 CFLAGS=$(BASECFLAGS) $(EXTRACFLAGS)
 MAKE=make
 MV=mv
@@ -148,8 +157,9 @@ fdstring.o: mail.h misc.h osdep.h fdstring.h
 flstring.o: mail.h misc.h osdep.h flstring.h
 imap4r1.o: mail.h misc.h osdep.h imap4r1.h rfc822.h
 mail.o: mail.h misc.h osdep.h rfc822.h linkage.h
-mbx.o: mail.h misc.h osdep.h mbx.h dummy.h
+mbx.o: mail.h misc.h osdep.h dummy.h
 mh.o: mail.h misc.h osdep.h mh.h dummy.h
+mix.o: mail.h misc.h osdep.h dummy.h
 mx.o: mail.h misc.h osdep.h mx.h dummy.h
 misc.o: mail.h misc.h osdep.h
 mmdf.o: mail.h misc.h osdep.h pseudo.h dummy.h
@@ -167,6 +177,7 @@ rfc822.o: mail.h misc.h osdep.h rfc822.h
 tenex.o: mail.h misc.h osdep.h dummy.h
 unix.o: mail.h misc.h osdep.h unix.h pseudo.h dummy.h
 utf8.o: mail.h misc.h osdep.h utf8.h
+utf8aux.o: mail.h misc.h osdep.h utf8.h
 
 
 # OS-dependent
@@ -196,9 +207,9 @@ once:
 	./drivers $(EXTRADRIVERS) $(DEFAULTDRIVERS) dummy
 	./mkauths $(EXTRAAUTHENTICATORS) $(DEFAULTAUTHENTICATORS)
 	echo $(CC) > CCTYPE
-	echo $(CFLAGS) > CFLAGS
+	echo $(CFLAGS) -DCHUNKSIZE=$(CHUNKSIZE) > CFLAGS
 	echo -DCREATEPROTO=$(CREATEPROTO) -DEMPTYPROTO=$(EMPTYPROTO) \
-	 -DMAILSPOOL=\"$(MAILSPOOL)\" \
+	 -DMD5ENABLE=\"$(MD5PWD)\" -DMAILSPOOL=\"$(MAILSPOOL)\" \
 	 -DACTIVEFILE=\"$(ACTIVEFILE)\" -DNEWSSPOOL=\"$(NEWSSPOOL)\" \
 	 -DANONYMOUSHOME=\"$(MAILSPOOL)/anonymous\" > OSCFLAGS
 	echo $(BASELDFLAGS) $(EXTRALDFLAGS) > LDFLAGS

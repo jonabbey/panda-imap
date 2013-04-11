@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	NT environment routines
  *
@@ -10,20 +23,11 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	18 January 2005
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2005 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 static char *myUserName = NIL;	/* user name */
 static char *myLocalHost = NIL;	/* local host name */
-static char *myClientAddr = NIL;/* client host address */
-static char *myClientHost = NIL;/* client host name */
-static char *myServerAddr = NIL;/* server host address */
-static char *myServerHost = NIL;/* server host name */
 static char *myHomeDir = NIL;	/* home directory name */
 static char *myNewsrc = NIL;	/* newsrc file name */
 static char *sysInbox = NIL;	/* system inbox name */
@@ -273,7 +277,6 @@ void server_init (char *server,char *service,char *sslservice,
 				/* make sure stdout does binary */
     setmode (fileno (stdin),O_BINARY);
     setmode (fileno (stdout),O_BINARY);
-    setmode (fileno (stderr),O_BINARY);
   }
   alarm_rang = clkint;		/* note the clock interrupt */
   timeBeginPeriod (1000);	/* set the timer interval */
@@ -317,8 +320,8 @@ long server_login (char *user,char *pass,char *authuser,int argc,char *argv[])
   char *s;
 				/* need to get privileges? */
   if (!gotprivs++ && check_nt ()) {
-				/* yes, note client host if specified */
-    if (argc == 2) myClientHost = argv[1];
+				/* hack for inetlisn */
+    if (argc >= 2) myClientHost = argv[1];
 				/* get process token and TCB priv value */
     if (!(OpenProcessToken (GetCurrentProcess (),
 			    TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,&hdl) &&
@@ -513,6 +516,27 @@ char *myusername_full (unsigned long *flags)
   return ret;
 }
 
+/* Return my local host name
+ * Returns: my local host name
+ */
+
+char *mylocalhost (void)
+{
+  if (!myLocalHost) {
+    char tmp[MAILTMPLEN];
+    if (!wsa_initted++) {	/* init Windows Sockets */
+      WSADATA wsock;
+      if (WSAStartup (WINSOCK_VERSION,&wsock)) {
+	wsa_initted = 0;
+	return "random-pc";	/* try again later? */
+      }
+    }
+    myLocalHost = cpystr ((gethostname (tmp,MAILTMPLEN-1) == SOCKET_ERROR) ?
+			  "random-pc" : tcp_canonical (tmp));
+  }
+  return myLocalHost;
+}
+
 /* Return my home directory name
  * Returns: my home directory name
  */
@@ -575,32 +599,49 @@ char *mailboxdir (char *dst,char *dir,char *name)
 
 char *mailboxfile (char *dst,char *name)
 {
+  char homedev[3];
   char *dir = myhomedir ();
+  if (dir[0] && isalpha (dir[0]) && (dir[1] == ':')) {
+    homedev[0] = dir[0];	/* copy home device */
+    homedev[1] = dir[1];
+    homedev[3] = '\0';
+  }
+  else homedev[0] = '\0';	/* ??no home device?? */
   *dst = '\0';			/* default to empty string */
 				/* check for INBOX */
-  if (!compare_cstring (name,"INBOX")) return dst;
+  if (!compare_cstring (name,"INBOX"));
 				/* reject names with / */
-  if (strchr (name,'/')) return NIL;
-  else if (*name == '#') {	/* namespace names */
+  else if (strchr (name,'/')) dst = NIL;
+  else switch (*name) {
+  case '#':			/* namespace names */
     if (((name[1] == 'u') || (name[1] == 'U')) &&
 	((name[2] == 's') || (name[2] == 'S')) &&
 	((name[3] == 'e') || (name[3] == 'E')) &&
 	((name[4] == 'r') || (name[4] == 'R')) && (name[5] == '.')) {
-				/* copy user name */
+				/* copy user name to destination buffer */
       for (dir = dst,name += 6; *name && (*name != '\\'); *dir++ = *name++);
       *dir++ = '\0';		/* tie off user name */
-      if (!(dir = win_homedir (dst))) return NIL;
+				/* look up homedir for user name */
+      if (dir = win_homedir (dst)) {
 				/* build resulting name */
-      sprintf (dst,"%s\\%s",dir,name);
-      fs_give ((void **) &dir);	/* clean up other user's home dir */
-      return dst;
+	sprintf (dst,"%s\\%s",dir,name);
+	fs_give ((void **) &dir);
+      }
+      else dst = NIL;
     }
-    else return NIL;		/* unknown namespace name */
+    else dst = NIL;		/* unknown namespace name */
+    break;
+  case '\\':			/* absolute path on default drive? */
+    sprintf (dst,"%s%s",homedev,name);
+    break;
+  default:			/* any other name */
+    if (name[1] == ':') {	/* some other drive? */
+      if (name[2] == '\\') strcpy (dst,name);
+      else sprintf (dst,"%c:\\%s",name[0],name+2);
+    }
+				/* build home-directory relative name */
+    else sprintf (dst,"%s\\%s",dir,name);
   }
-				/* absolute path name? */
-  else if ((*name == '\\') || (name[1] == ':')) return strcpy (dst,name);
-				/* build resulting name */
-  sprintf (dst,"%s\\%s",dir,name);
   return dst;			/* return it */
 }
 

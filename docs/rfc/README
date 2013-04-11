@@ -1,0 +1,62 @@
+The following documents are necessary to understand the syntax rules
+most of the remaining documents.  Note that some documents refer to
+RFC 2234 which has been replaced by RFC 4234:
+   rfc4234.txt	Augmented BNF for Syntax Specifications - ABNF
+   rfc4466.txt	Collected Extensions to IMAP4 ABNF
+
+
+The following documents specify the IMAP protocol:
+   rfc3501.txt	Internet Message Access Protocol - Version 4rev1
+
+
+The following documents provide additional information which is useful
+in understanding the IMAP protocol:
+   rfc1733.txt	Distributed Electronic Mail Models in IMAP4
+   rfc2180.txt	IMAP4 Multi-Accessed Mailbox Practice
+   rfc2683.txt	IMAP4 Implementation Recommendations
+   rfc4549.txt	Synchronization Operations for Disconnected IMAP4 Clients
+
+
+The following documents describe extensions to the IMAP protocol.
+Items marked with "*" are supported in this distribution:
+   rfc4314.txt	ACL
+ * rfc3516.txt	BINARY
+   rfc4469.txt	CATENATE
+   rfc3348.txt	CHILDREN
+   rfc2971.txt	ID
+ * rfc2177.txt	IDLE
+ * rfc2088.txt	LITERAL+
+ * rfc2221.txt	LOGIN-REFERRALS
+ * rfc2193.txt	MAILBOX-REFERRALS
+ * rfc3502.txt	MULTIAPPEND
+ * rfc2342.txt	NAMESPACE
+   rfc2087.txt	QUOTA
+ * rfc4315.txt	UIDPLUS
+ * rfc3691.txt	UNSELECT
+   rfc4467.txt	URLAUTH
+   rfc4551.txt	CONDSTORE
+
+
+The following documents describe SASL and SASL mechanisms supported in
+this distribution:
+   rfc4422.txt	Simple Authentication and Security Layer (SASL)
+
+   rfc4505.txt	ANONYMOUS
+   rfc2195.txt	CRAM-MD5
+   rfc2222.txt	GSSAPI
+   rfc4616.txt	PLAIN
+
+
+The following documents are primarily of historic interest:
+
+   rfc1732.txt	IMAP4 Compatibility with IMAP2 and IMAP2bis
+   rfc2061.txt	IMAP4 Compatibility with IMAP2bis
+   rfc2062.txt	Internet Message Access Protocol - Obsolete Syntax
+
+
+The following documents discuss matters which are related to IMAP:
+
+   rfc2192.txt	IMAP URL Scheme
+   rfc3503.txt	MDN Profile for IMAP
+   rfc3656.txt	MUPDATE Distributed Mailbox Database Protocol
+   rfc4468.txt	Message Submission BURL Extension

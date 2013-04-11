@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	IPOP3D - IMAP to POP3 conversion server
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	16 September 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /* Parameter files */
@@ -57,11 +65,11 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2004.89";	/* server version */
+char *version = "2006.93";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
-long idletime = 0;		/* time we went idle */
+time_t idletime = 0;		/* time we went idle */
 unsigned long nmsgs = 0;	/* current number of messages */
 unsigned long ndele = 0;	/* number of deletes */
 unsigned long last = 0;		/* highest message accessed */
@@ -87,7 +95,7 @@ int pass_login (char *t,int argc,char *argv[]);
 char *apop_login (char *chal,char *user,char *md5,int argc,char *argv[]);
 char *responder (void *challenge,unsigned long clen,unsigned long *rlen);
 int mbxopen (char *mailbox);
-long blat (char *text,long lines,unsigned long size);
+long blat (char *text,long lines,unsigned long size,STRING *st);
 void rset ();
 
 /* Main program */
@@ -106,14 +114,14 @@ int main (int argc,char *argv[])
 #include "linkage.c"
 				/* initialize server */
   server_init (pgmname,"pop3","pop3s",clkint,kodint,hupint,trmint);
-  challenge[0] = '\0';		/* find the CRAM-MD5 authenticator */
-  if (i = mail_lookup_auth_name ("CRAM-MD5",NIL)) {
-    AUTHENTICATOR *a = mail_lookup_auth (i);
-    if (a->server) {		/* have an MD5 enable file? */
+  {				/* set up MD5 challenge */
+    AUTHENTICATOR *auth = mail_lookup_auth (1);
+    while (auth && compare_cstring (auth->name,"CRAM-MD5")) auth = auth->next;
 				/* build challenge -- less than 128 chars */
+    if (auth && auth->server && !(auth->flags & AU_DISABLE))
       sprintf (challenge,"<%lx.%lx@%.64s>",(unsigned long) getpid (),
 	       (unsigned long) time (0),tcp_serverhost ());
-    }
+    else challenge[0] = '\0';	/* no MD5 authentication */
   }
   /* There are reports of POP3 clients which get upset if anything appears
    * between the "+OK" and the "POP3" in the greeting.
@@ -179,7 +187,8 @@ int main (int argc,char *argv[])
 	  PSOUT ("USER\015\012");
 				/* display secure server authenticators */
 	for (auth = mail_lookup_auth (1), s = "SASL"; auth; auth = auth->next)
-	  if (auth->server && (i || (auth->flags & AU_SECURE))) {
+	  if (auth->server && !(auth->flags & AU_DISABLE) &&
+	      !(auth->flags & AU_HIDE) && (i || (auth->flags & AU_SECURE))) {
 	    if (s) {
 	      PSOUT (s);
 	      s = NIL;
@@ -216,7 +225,9 @@ int main (int argc,char *argv[])
 	    PSOUT ("+OK Supported authentication mechanisms:\015\012");
 	    i = !mail_parameters (NIL,GET_DISABLEPLAINTEXT,NIL);
 	    for (auth = mail_lookup_auth (1); auth; auth = auth->next)
-	      if (auth->server && (i || (auth->flags & AU_SECURE))) {
+	      if (auth->server && !(auth->flags & AU_DISABLE) &&
+		  !(auth->flags & AU_HIDE) &&
+		  (i || (auth->flags & AU_SECURE))) {
 		PSOUT (auth->name);
 		CRLF;
 	      }
@@ -340,18 +351,29 @@ int main (int argc,char *argv[])
 	      sprintf (tmp,"+OK %lu octets\015\012",
 		       (elt = mail_elt (stream,msg[i]))->rfc822_size + SLEN);
 	      PSOUT (tmp);
-				/* output header */
+				/* get header */
 	      t = mail_fetch_header (stream,msg[i],NIL,NIL,&k,FT_PEEK);
-	      blat (t,-1,k);
-				/* output status */
+	      blat (t,-1,k,NIL);/* write up to trailing CRLF */
+				/* build status */
 	      sprintf (tmp,STATUS,elt->seen ? "R" : " ",
 		       elt->recent ? " " : "O");
-	      PSOUT (tmp);
-	      CRLF;		/* delimit header and text */
+	      if (k < 4) CRLF;	/* don't write Status: if no header */
+				/* normal header ending with CRLF CRLF? */
+	      else if (t[k-3] == '\012') {
+		PSOUT (tmp);	/* write status */
+		CRLF;		/* then write second CRLF */
+	      }
+	      else {		/* abnormal - no blank line at end of header */
+		CRLF;		/* write CRLF first then */
+		PSOUT (tmp);
+	      }
 				/* output text */
-	      t = mail_fetch_text (stream,msg[i],NIL,&k,NIL);
-	      blat (t,-1,k);
-	      CRLF;		/* end of list */
+	      t = mail_fetch_text (stream,msg[i],NIL,&k,
+				   FT_RETURNSTRINGSTRUCT);
+	      if (k) {		/* only if there is a text body */
+		blat (t,-1,k,&stream->private.string);
+		CRLF;		/* end of list */
+	      }
 	      PBOUT ('.');
 	      CRLF;
 	    }
@@ -398,19 +420,28 @@ int main (int argc,char *argv[])
 				/* update highest message accessed */
 	      if (i > last) last = i;
 	      PSOUT ("+OK Top of message follows\015\012");
-				/* output header */
+				/* get header */
 	      t = mail_fetch_header (stream,msg[i],NIL,NIL,&k,FT_PEEK);
-	      blat (t,-1,k);
-				/* output status */
+	      blat (t,-1,k,NIL);/* write up to trailing CRLF */
+				/* build status */
 	      sprintf (tmp,STATUS,elt->seen ? "R" : " ",
 		       elt->recent ? " " : "O");
-	      PSOUT (tmp);
-	      CRLF;		/* delimit header and text */
+	      if (k < 4) CRLF;	/* don't write Status: if no header */
+				/* normal header ending with CRLF CRLF? */
+	      else if (t[k-3] == '\012') {
+		PSOUT (tmp);	/* write status */
+		CRLF;		/* then write second CRLF */
+	      }
+	      else {		/* abnormal - no blank line at end of header */
+		CRLF;		/* write CRLF first then */
+		PSOUT (tmp);
+	      }
 	      if (j) {		/* want any text lines? */
 				/* output text */
-		t = mail_fetch_text (stream,msg[i],NIL,&k,FT_PEEK);
+		t = mail_fetch_text (stream,msg[i],NIL,&k,
+				     FT_PEEK | FT_RETURNSTRINGSTRUCT);
 				/* tie off final line if full text output */
-		if (j -= blat (t,j,k)) CRLF;
+		if (k && (j -= blat (t,j,k,&stream->private.string))) CRLF;
 	      }
 	      PBOUT ('.');	/* end of list */
 	      CRLF;
@@ -714,6 +745,7 @@ int mbxopen (char *mailbox)
  * Accepts: string
  *	    maximum number of lines if greater than zero
  *	    maximum number of bytes to output
+ *	    alternative stringstruct
  * Returns: number of lines output
  *
  * This routine is uglier and kludgier than it should be, just to be robust
@@ -724,28 +756,43 @@ int mbxopen (char *mailbox)
  * counts have to match, there's no choice but to truncate.
  */
 
-long blat (char *text,long lines,unsigned long size)
+long blat (char *text,long lines,unsigned long size,STRING *st)
 {
   char c,d,e;
   long ret = 0;
 				/* no-op if zero lines or empty string */
   if (!(lines && (size-- > 2))) return 0;
-  c = *text++; d = *text++;	/* collect first two bytes */
-  if (c == '.') PBOUT ('.');	/* double string-leading dot if necessary */
-  while (lines && --size) {	/* copy loop */
-    e = *text++;		/* get next byte */
-    PBOUT (c);			/* output character */
-    if (c == '\012') {		/* end of line? */
-      ret++; --lines;		/* count another line */
+  if (text) {
+    c = *text++; d = *text++;	/* collect first two bytes */
+    if (c == '.') PBOUT ('.');	/* double string-leading dot if necessary */
+    while (lines && --size) {	/* copy loop */
+      e = *text++;		/* get next byte */
+      PBOUT (c);		/* output character */
+      if (c == '\012') {	/* end of line? */
+	ret++; --lines;		/* count another line */
 				/* double leading dot as necessary */
-      if (lines && size && (d == '.')) PBOUT ('.');
+	if (lines && size && (d == '.')) PBOUT ('.');
+      }
+      c = d; d = e;		/* move to next character */
     }
-    c = d; d = e;		/* move to next character */
+  }
+  else {
+    c = SNX (st); d = SNX (st);	/* collect first two bytes */
+    if (c == '.') PBOUT ('.');	/* double string-leading dot if necessary */
+    while (lines && --size) {	/* copy loop */
+      e = SNX (st);		/* get next byte */
+      PBOUT (c);		/* output character */
+      if (c == '\012') {	/* end of line? */
+	ret++; --lines;		/* count another line */
+				/* double leading dot as necessary */
+	if (lines && size && (d == '.')) PBOUT ('.');
+      }
+      c = d; d = e;		/* move to next character */
+    }
   }
   return ret;
 }
-
-
+
 /* Reset mailbox
  */
 
@@ -923,7 +970,11 @@ void mm_login (NETMBX *mb,char *username,char *password,long trial)
 {
 				/* set user name */
   strncpy (username,*mb->user ? mb->user : user,NETMAXUSER-1);
-  strncpy (password,pass,255);	/* and password */
+  if (pass) {
+    strncpy (password,pass,255);/* and password */
+    fs_give ((void **) &pass);
+  }
+  else memset (password,0,256);	/* no password to send, abort login */
   username[NETMAXUSER] = password[255] = '\0';
 }
 

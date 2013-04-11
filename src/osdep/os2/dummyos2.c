@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Dummy routines for OS2
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	26 August 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /* Thanks to Nicholas Sheppard for the original version */
@@ -50,7 +58,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream);
 void dummy_close (MAILSTREAM *stream,long options);
 long dummy_ping (MAILSTREAM *stream);
 void dummy_check (MAILSTREAM *stream);
-void dummy_expunge (MAILSTREAM *stream);
+long dummy_expunge (MAILSTREAM *stream,char *sequence,long options);
 long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long dummy_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
@@ -577,11 +585,14 @@ void dummy_check (MAILSTREAM *stream)
 
 /* Dummy expunge mailbox
  * Accepts: MAIL stream
+ *	    sequence to expunge if non-NIL
+ *	    expunge options
+ * Returns: T, always
  */
 
-void dummy_expunge (MAILSTREAM *stream)
+long dummy_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
-				/* return silently */
+  return LONGT;
 }
 
 /* Dummy copy message(s)
@@ -658,7 +669,8 @@ char *dummy_file (char *dst,char *name)
 
 long dummy_canonicalize (char *tmp,char *ref,char *pat)
 {
-  char dev[4];
+  unsigned long i;
+  char *s,dev[4];
 				/* initially no device */
   dev[0] = dev[1] = dev[2] = dev[3] = '\0';
   if (ref) switch (*ref) {	/* preliminary reference check */
@@ -692,5 +704,11 @@ long dummy_canonicalize (char *tmp,char *ref,char *pat)
 				/* build name */
   sprintf (tmp,"%s%s%s",dev,ref ? ref : "",pat);
   ucase (tmp);			/* force upper case */
+				/* count wildcards */
+  for (i = 0, s = tmp; *s; *s++) if ((*s == '*') || (*s == '%')) ++i;
+  if (i > MAXWILDCARDS) {	/* ridiculous wildcarding? */
+    MM_LOG ("Excessive wildcards in LIST/LSUB",ERROR);
+    return NIL;
+  }
   return T;
 }

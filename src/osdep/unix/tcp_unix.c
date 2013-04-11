@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	UNIX TCP/IP routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	8 August 2005
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2005 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 #include "ip_unix.c"
@@ -34,6 +42,12 @@ static char *sshcommand = NIL;	/* ssh command */
 static char *sshpath = NIL;	/* ssh path */
 static long allowreversedns = T;/* allow reverse DNS lookup */
 static long tcpdebug = NIL;	/* extra TCP debugging telemetry */
+static char *myClientAddr = NIL;/* client IP address */
+static char *myClientHost = NIL;/* client DNS name */
+static long myClientPort = -1;	/* client port number */
+static char *myServerAddr = NIL;/* server IP address */
+static char *myServerHost = NIL;/* server DNS name */
+static long myServerPort = -1;	/* server port number */
 
 extern long maxposint;		/* get this from write.c */
 
@@ -446,22 +460,22 @@ char *tcp_getline (TCPSTREAM *stream)
   }
 				/* copy partial string from buffer */
   memcpy ((ret = stp = (char *) fs_get (n)),st,n);
-				/* get more data from the net */
-  if (!tcp_getdata (stream)) fs_give ((void **) &ret);
+  if (tcp_getdata (stream)) {	/* get more data from the net */
 				/* special case of newline broken by buffer */
-  else if ((c == '\015') && (*stream->iptr == '\012')) {
-    stream->iptr++;		/* eat the line feed */
-    stream->ictr--;
-    ret[n - 1] = '\0';		/* tie off string with null */
-  }
+    if ((c == '\015') && (*stream->iptr == '\012')) {
+      stream->iptr++;		/* eat the line feed */
+      stream->ictr--;
+      ret[n - 1] = '\0';	/* tie off string with null */
+    }
 				/* else recurse to get remainder */
-  else if (st = tcp_getline (stream)) {
-    ret = (char *) fs_get (n + 1 + (m = strlen (st)));
-    memcpy (ret,stp,n);		/* copy first part */
-    memcpy (ret + n,st,m);	/* and second part */
-    fs_give ((void **) &stp);	/* flush first part */
-    fs_give ((void **) &st);	/* flush second part */
-    ret[n + m] = '\0';		/* tie off string with null */
+    else if (st = tcp_getline (stream)) {
+      ret = (char *) fs_get (n + 1 + (m = strlen (st)));
+      memcpy (ret,stp,n);	/* copy first part */
+      memcpy (ret + n,st,m);	/* and second part */
+      fs_give ((void **) &stp);	/* flush first part */
+      fs_give ((void **) &st);	/* flush second part */
+      ret[n + m] = '\0';	/* tie off string with null */
+    }
   }
   return ret;
 }
@@ -496,7 +510,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
     while (size > 0) {		/* until request satisfied */
       time_t tl = time (0);
       time_t now = tl;
-      int ti = ttmo_read ? now + ttmo_read : 0;
+      time_t ti = ttmo_read ? now + ttmo_read : 0;
       if (tcpdebug) mm_log ("Reading TCP buffer",TCPDEBUG);
       tmo.tv_usec = 0;
       FD_ZERO (&fds);		/* initialize selection vector */
@@ -557,7 +571,7 @@ long tcp_getdata (TCPSTREAM *stream)
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     time_t tl = time (0);	/* start of request */
     time_t now = tl;
-    int ti = ttmo_read ? now + ttmo_read : 0;
+    time_t ti = ttmo_read ? now + ttmo_read : 0;
     if (tcpdebug) mm_log ("Reading TCP data",TCPDEBUG);
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
@@ -629,7 +643,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   while (size > 0) {		/* until request satisfied */
     time_t tl = time (0);	/* start of request */
     time_t now = tl;
-    int ti = ttmo_write ? now + ttmo_write : 0;
+    time_t ti = ttmo_write ? now + ttmo_write : 0;
     if (tcpdebug) mm_log ("Writing to TCP",TCPDEBUG);
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
@@ -766,16 +780,17 @@ char *tcp_localhost (TCPSTREAM *stream)
  * Returns: client host address
  */
 
-static char *myClientAddr = NIL;
-
 char *tcp_clientaddr ()
 {
   if (!myClientAddr) {
     size_t sadrlen;
     struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
-    myClientAddr =		/* get stdin's peer name */
-      cpystr (getpeername (0,sadr,(void *) &sadrlen) ?
-	      "UNKNOWN" : ip_sockaddrtostring (sadr));
+    if (getpeername (0,sadr,(void *) &sadrlen))
+      myClientAddr = cpystr ("UNKNOWN");
+    else {			/* get stdin's peer name */
+      myClientAddr = ip_sockaddrtostring (sadr);
+      if (myClientPort < 0) myClientPort = ip_sockaddrtoport (sadr);
+    }
     fs_give ((void **) &sadr);
   }
   return myClientAddr;
@@ -786,35 +801,58 @@ char *tcp_clientaddr ()
  * Returns: client host name
  */
 
-static char *myClientHost = NIL;
-
 char *tcp_clienthost ()
 {
   if (!myClientHost) {
     size_t sadrlen;
     struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
-    myClientHost =		/* get stdin's peer name */
-      getpeername (0,sadr,(void *) &sadrlen) ?
-        cpystr ("UNKNOWN") : tcp_name (sadr,T);
+    if (getpeername (0,sadr,(void *) &sadrlen)) {
+      char *s,*t,*v,tmp[MAILTMPLEN];
+      if ((s = getenv (t = "SSH_CLIENT")) ||
+	  (s = getenv (t = "KRB5REMOTEADDR")) ||
+	  (s = getenv (t = "SSH2_CLIENT"))) {
+	if (v = strchr (s,' ')) *v = '\0';
+	sprintf (v = tmp,"%.80s=%.80s",t,s);
+      }
+      else v = "UNKNOWN";
+      myClientHost = cpystr (v);
+    }
+    else {			/* get stdin's peer name */
+      myClientHost = tcp_name (sadr,T);
+      if (!myClientAddr) myClientAddr = ip_sockaddrtostring (sadr);
+      if (myClientPort < 0) myClientPort = ip_sockaddrtoport (sadr);
+    }
     fs_give ((void **) &sadr);
   }
   return myClientHost;
+}
+
+
+/* TCP/IP get client port number (server calls only)
+ * Returns: client port number
+ */
+
+long tcp_clientport ()
+{
+  if (!myClientHost && !myClientAddr) tcp_clientaddr ();
+  return myClientPort;
 }
 
 /* TCP/IP get server host address (server calls only)
  * Returns: server host address
  */
 
-static char *myServerAddr = NIL;
-
 char *tcp_serveraddr ()
 {
   if (!myServerAddr) {
     size_t sadrlen;
     struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
-    myServerAddr =		/* get stdin's peer name */
-      cpystr (getsockname (0,sadr,(void *) &sadrlen) ?
-	      "UNKNOWN" : ip_sockaddrtostring (sadr));
+    if (getsockname (0,sadr,(void *) &sadrlen))
+      myServerAddr = cpystr ("UNKNOWN");
+    else {			/* get stdin's name */
+      myServerAddr = ip_sockaddrtostring (sadr);
+      if (myServerPort < 0) myServerPort = ip_sockaddrtoport (sadr);
+    }
     fs_give ((void **) &sadr);
   }
   return myServerAddr;
@@ -825,18 +863,19 @@ char *tcp_serveraddr ()
  * Returns: server host name
  */
 
-static char *myServerHost = NIL;
-static long myServerPort = -1;
-
 char *tcp_serverhost ()
 {
   if (!myServerHost) {		/* once-only */
     size_t sadrlen;
     struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
 				/* get stdin's name */
-    myServerHost = (getsockname (0,sadr,(void *) &sadrlen) ||
-		    ((myServerPort = ip_sockaddrtoport (sadr)) < 0)) ?
-      cpystr (mylocalhost ()) : tcp_name (sadr,NIL);
+    if (getsockname (0,sadr,(void *) &sadrlen))
+      myServerHost = cpystr (mylocalhost ());
+    else {			/* get stdin's name */
+      myServerHost = tcp_name (sadr,NIL);
+      if (!myServerAddr) myServerAddr = ip_sockaddrtostring (sadr);
+      if (myServerPort < 0) myServerPort = ip_sockaddrtoport (sadr);
+    }
     fs_give ((void **) &sadr);
   }
   return myServerHost;
@@ -849,7 +888,7 @@ char *tcp_serverhost ()
 
 long tcp_serverport ()
 {
-  if (!myServerHost) tcp_serverhost ();
+  if (!myServerHost && !myServerAddr) tcp_serveraddr ();
   return myServerPort;
 }
 

@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Plain authenticator
  *
@@ -10,26 +23,20 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	15 March 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
-long auth_plain_valid (void);
 long auth_plain_client (authchallenge_t challenger,authrespond_t responder,
 			char *service,NETMBX *mb,void *stream,
 			unsigned long *trial,char *user);
 char *auth_plain_server (authresponse_t responder,int argc,char *argv[]);
 
 AUTHENTICATOR auth_pla = {
-  AU_AUTHUSER,			/* allow authuser */
+  AU_AUTHUSER | AU_HIDE,	/* allow authuser, hidden */
   "PLAIN",			/* authenticator name */
-  auth_plain_valid,		/* check if valid */
+  NIL,				/* always valid */
   auth_plain_client,		/* client method */
-  NIL,				/* server method */
+  auth_plain_server,		/* server method */
   NIL				/* next authenticator */
 };
 
@@ -100,16 +107,6 @@ long auth_plain_client (authchallenge_t challenger,authrespond_t responder,
   return ret;
 }
 
-/* Check if PLAIN valid on this system
- * Returns: T, always
- */
-
-long auth_plain_valid (void)
-{
-  return T;			/* PLAIN is valid */
-}
-
-
 /* Server authenticator
  * Accepts: responder function
  *	    argument count

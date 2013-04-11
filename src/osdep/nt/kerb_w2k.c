@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	GSSAPI Kerberos Shim 5 for Windows 2000/XP IMAP Toolkit
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 March 2000
- * Last Edited:	3 May 2005
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2005 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 /*  The purpose of this module is to be a shim, so that the auth_gss.c module
@@ -65,6 +73,7 @@ typedef ULONG gss_qop_t;
 #define GSS_C_REPLAY_FLAG ISC_REQ_REPLAY_DETECT
 #define GSS_C_SEQUENCE_FLAG ISC_REQ_SEQUENCE_DETECT
 #define GSS_C_CONF_FLAG ISC_REQ_CONFIDENTIALITY
+#define GSS_C_INTEG_FLAG ISC_REQ_INTEGRITY
 
 
 /* Credential usage options */
@@ -488,7 +497,7 @@ OM_uint32 gss_wrap (OM_uint32 *minor_status,gss_ctx_id_t context_handle,
     /* MSDN claims that for EncryptMessage() in Kerberos, you need an
      * uninitialized SECBUFFER_STREAM_HEADER; a SECBUFFER_DATA that "contains
      * the message to be encrypted.  The message is encrypted in place,
-     * overwirting the original contents of its buffer"; an uninitialized
+     * overwriting the original contents of its buffer"; an uninitialized
      * SECBUFFER_STREAM_TRAILER, and an uninitialized SECBUFFER_EMPTY.  I've
      * never been able to get it to work that way.
      */

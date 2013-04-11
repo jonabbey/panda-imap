@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	SSL authentication/encryption module
  *
@@ -10,16 +23,11 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	27 April 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 #define crypt ssl_private_crypt
-#include <x509.h>
+#include <x509v3.h>
 #include <ssl.h>
 #include <err.h>
 #include <pem.h>
@@ -51,7 +59,7 @@ typedef struct ssl_stream {
 static SSLSTREAM *ssl_start(TCPSTREAM *tstream,char *host,unsigned long flags);
 static char *ssl_start_work (SSLSTREAM *stream,char *host,unsigned long flags);
 static int ssl_open_verify (int ok,X509_STORE_CTX *ctx);
-static char *ssl_extract_cn (char *name);
+static char *ssl_validate_cert (X509 *cert,char *host);
 static long ssl_compare_hostnames (unsigned char *s,unsigned char *pat);
 static long ssl_abort (SSLSTREAM *stream);
 static RSA *ssl_genkey (SSL *con,int export,int keylength);
@@ -84,24 +92,21 @@ void ssl_onceonlyinit (void)
 {
   if (!sslonceonly++) {		/* only need to call it once */
     int fd;
-    unsigned long i;
     char tmp[MAILTMPLEN];
     struct stat sbuf;
 				/* if system doesn't have /dev/urandom */
     if (stat ("/dev/urandom",&sbuf)) {
-      if ((fd = open (tmpnam (tmp),O_WRONLY|O_CREAT,0600)) < 0)
-	i = (unsigned long) tmp;
-      else {
-	unlink (tmp);		/* don't need the file */
-	fstat (fd,&sbuf);	/* get information about the file */
-	i = sbuf.st_ino;	/* remember its inode */
-	close (fd);		/* or its descriptor */
-      }
+      while ((fd = open (tmpnam (tmp),O_WRONLY|O_CREAT|O_EXCL,0600)) < 0)
+	sleep (1);
+      unlink (tmp);		/* don't need the file */
+      fstat (fd,&sbuf);		/* get information about the file */
+      close (fd);		/* flush descriptor */
 				/* not great but it'll have to do */
-      sprintf (tmp + strlen (tmp),"%.80s%lx%lx%lx",
-	       tcp_serverhost (),i,
-	       (unsigned long) (time (0) ^ gethostid ()),
-	       (unsigned long) getpid ());
+      sprintf (tmp + strlen (tmp),"%.80s%lx%.80s%lx%lx%lx%lx%lx",
+	       tcp_serveraddr (),(unsigned long) tcp_serverport (),
+	       tcp_clientaddr (),(unsigned long) tcp_clientport (),
+	       (unsigned long) sbuf.st_ino,(unsigned long) time (0),
+	       (unsigned long) gethostid (),(unsigned long) getpid ());
       RAND_seed (tmp,strlen (tmp));
     }
 				/* apply runtime linkage */
@@ -202,9 +207,14 @@ static char *ssl_start_work (SSLSTREAM *stream,char *host,unsigned long flags)
 {
   BIO *bio;
   X509 *cert;
-  char *s,*err,tmp[MAILTMPLEN];
+  unsigned long sl,tl;
+  char *s,*t,*err,tmp[MAILTMPLEN];
   sslcertificatequery_t scq =
     (sslcertificatequery_t) mail_parameters (NIL,GET_SSLCERTIFICATEQUERY,NIL);
+  sslclientcert_t scc =
+    (sslclientcert_t) mail_parameters (NIL,GET_SSLCLIENTCERT,NIL);
+  sslclientkey_t sck =
+    (sslclientkey_t) mail_parameters (NIL,GET_SSLCLIENTKEY,NIL);
   if (ssl_last_error) fs_give ((void **) &ssl_last_error);
   ssl_last_host = host;
   if (!(stream->context = SSL_CTX_new ((flags & NET_TLSCLIENT) ?
@@ -218,6 +228,28 @@ static char *ssl_start_work (SSLSTREAM *stream,char *host,unsigned long flags)
   else SSL_CTX_set_verify (stream->context,SSL_VERIFY_PEER,ssl_open_verify);
 				/* set default paths to CAs */
   SSL_CTX_set_default_verify_paths (stream->context);
+				/* want to send client certificate? */
+  if (scc && (s = (*scc) ()) && (sl = strlen (s))) {
+    if (cert = PEM_read_bio_X509 (bio = BIO_new_mem_buf (s,sl),NIL,NIL,NIL)) {
+      SSL_CTX_use_certificate (stream->context,cert);
+      X509_free (cert);
+    }
+    BIO_free (bio);
+    if (!cert) return "SSL client certificate failed";
+				/* want to supply private key? */
+    if ((t = (sck ? (*sck) () : s)) && (tl = strlen (t))) {
+      EVP_PKEY *key;
+      if (key = PEM_read_bio_PrivateKey (bio = BIO_new_mem_buf (t,tl),
+					 NIL,NIL,"")) {
+	SSL_CTX_use_PrivateKey (stream->context,key);
+	EVP_PKEY_free (key);
+      }
+      BIO_free (bio);
+      memset (t,0,tl);		/* erase key */
+    }
+    if (s != t) memset (s,0,sl);/* erase certificate if different from key */
+  }
+
 				/* create connection */
   if (!(stream->con = (SSL *) SSL_new (stream->context)))
     return "SSL connection failed";
@@ -229,23 +261,14 @@ static char *ssl_start_work (SSLSTREAM *stream,char *host,unsigned long flags)
   if (SSL_write (stream->con,"",0) < 0)
     return ssl_last_error ? ssl_last_error : "SSL negotiation failed";
 				/* need to validate host names? */
-  if (!(flags & NET_NOVALIDATECERT)) {
-				/* get certificate */
-    if (!(cert = SSL_get_peer_certificate (stream->con)))
-      err = "No certificate from server";
-				/* locate Common Name */
-    else if (!(s = ssl_extract_cn (cert->name)))
-      err = "Unable to locate common name in certificate";
-				/* wildcard match it with user's name */
-    else err = ssl_compare_hostnames (host,s) ? NIL :
-      "Server name does not match certificate";
-    if (err) {			/* got an error? */
+  if (!(flags & NET_NOVALIDATECERT) &&
+      (err = ssl_validate_cert (cert = SSL_get_peer_certificate (stream->con),
+				host))) {
 				/* application callback */
-      if (scq) return (*scq) (err,host,cert->name) ? NIL : "";
+    if (scq) return (*scq) (err,host,cert ? cert->name : "???") ? NIL : "";
 				/* error message to return via mm_log() */
-      sprintf (tmp,"*%.128s: %.255s",err,cert->name);
-      return ssl_last_error = cpystr (tmp);
-    }
+    sprintf (tmp,"*%.128s: %.255s",err,cert ? cert->name : "???");
+    return ssl_last_error = cpystr (tmp);
   }
   return NIL;
 }
@@ -279,20 +302,42 @@ static int ssl_open_verify (int ok,X509_STORE_CTX *ctx)
 }
 
 
-/* SSL extract Common Name
- * Accepts: name
- * Returns: common name, or NIL if failure
+/* SSL validate certificate
+ * Accepts: certificate
+ *	    host to validate against
+ * Returns: NIL if validated, else string of error message
  */
 
-static char *ssl_extract_cn (char *name)
+static char *ssl_validate_cert (X509 *cert,char *host)
 {
-  char *s;
-  if (name && (name = strstr (name,"/CN=")) && (s = strchr (name += 4,'/')))
-    *s = '\0';
-  return name;
+  int i,n;
+  char *s,*t,*ret;
+  void *ext;
+  GENERAL_NAME *name;
+				/* make sure have a certificate */
+  if (!cert) ret = "No certificate from server";
+				/* and that it has a name */
+  else if (!cert->name) ret = "No name in certificate";
+				/* locate CN */
+  else if (s = strstr (cert->name,"/CN=")) {
+    if (t = strchr (s += 4,'/')) *t = '\0';
+				/* host name matches pattern? */
+    ret = ssl_compare_hostnames (host,s) ? NIL :
+      "Server name does not match certificate";
+    if (t) *t = '/';		/* restore smashed delimiter */
+				/* if mismatch, see if in extensions */
+    if (ret && (ext = X509_get_ext_d2i (cert,NID_subject_alt_name,NIL,NIL)) &&
+	(n = sk_GENERAL_NAME_num (ext)))
+      /* older versions of OpenSSL use "ia5" instead of dNSName */
+      for (i = 0; ret && (i < n); i++)
+	if ((name = sk_GENERAL_NAME_value (ext,i)) &&
+	    (name->type = GEN_DNS) && (s = name->d.ia5->data) &&
+	    ssl_compare_hostnames (host,s)) ret = NIL;
+  }
+  else ret = "Unable to locate common name in certificate";
+  return ret;
 }
-
-
+
 /* Case-independent wildcard pattern match
  * Accepts: base string
  *	    pattern string
@@ -301,15 +346,23 @@ static char *ssl_extract_cn (char *name)
 
 static long ssl_compare_hostnames (unsigned char *s,unsigned char *pat)
 {
-  if (*pat != '*')		/* non-wildcard */
-    return ((isupper (*pat) ? tolower (*pat) : *pat) ==
-	    (isupper (*s) ? tolower (*s) : *s)) ?
-	      (*pat ? ssl_compare_hostnames (s+1,pat+1) : T) : NIL;
-  if (pat[1]) {			/* scan remainder of string until delimiter */
-    do if (ssl_compare_hostnames (s,pat+1)) return T;
-    while ((*s != '.') && *s++);
+  long ret = NIL;
+  switch (*pat) {
+  case '*':			/* wildcard */
+    if (pat[1]) {		/* there must be a pattern suffix */
+				/* there is, scan base against it */
+      do if (ssl_compare_hostnames (s,pat+1)) ret = LONGT;
+      while (!ret && (*s != '.') && *s++);
+    }
+    break;
+  case '\0':			/* end of pattern */
+    if (!*s) ret = LONGT;	/* success if base is also at end */
+    break;
+  default:			/* non-wildcard, recurse if match */
+    if (!compare_uchar (*pat,*s)) ret = ssl_compare_hostnames (s+1,pat+1);
+    break;
   }
-  return NIL;			/* wildcard ran off end of string */
+  return ret;
 }
 
 /* SSL receive line
@@ -401,10 +454,12 @@ long ssl_getdata (SSLSTREAM *stream)
   if (!stream->con || ((sock = SSL_get_fd (stream->con)) < 0)) return NIL;
   (*bn) (BLOCK_TCPREAD,NIL);
   while (stream->ictr < 1) {	/* if nothing in the buffer */
-    if (!SSL_pending (stream->con)) {
-      time_t tl = time (0);	/* start of request */
-      time_t now = tl;
-      int ti = ttmo_read ? now + ttmo_read : 0;
+    time_t tl = time (0);	/* start of request */
+    time_t now = tl;
+    int ti = ttmo_read ? now + ttmo_read : 0;
+    if (SSL_pending (stream->con)) i = 1;
+    else {
+      if (tcpdebug) mm_log ("Reading SSL data",TCPDEBUG);
       tmo.tv_usec = 0;
       FD_ZERO (&fds);		/* initialize selection vector */
       FD_ZERO (&efds);		/* handle errors too */
@@ -417,18 +472,32 @@ long ssl_getdata (SSLSTREAM *stream)
 	now = time (0);		/* fake timeout if interrupt & time expired */
 	if ((i < 0) && (errno == EINTR) && ti && (ti <= now)) i = 0;
       } while ((i < 0) && (errno == EINTR));
-      if (i <= 0) {		/* failed, timeout with continue? */
-	if (!i && tmoh && ((*tmoh) (now - t,now - tl))) continue;
-				/* error or timeout no-continue */
-	else return ssl_abort (stream);
-      }
     }
-    while (((i = SSL_read (stream->con,stream->ibuf,SSLBUFLEN)) < 0) &&
-	   ((errno == EINTR) ||
-	    (SSL_get_error (stream->con,i) == SSL_ERROR_WANT_READ)));
-    if (i < 1) return ssl_abort (stream);
-    stream->iptr = stream->ibuf;/* point at TCP buffer */
-    stream->ictr = i;		/* set new byte count */
+    if (i) {			/* non-timeout result from select? */
+      errno = 0;		/* just in case */
+      if (i > 0)		/* read what we can */
+	while (((i = SSL_read (stream->con,stream->ibuf,SSLBUFLEN)) < 0) &&
+	       ((errno == EINTR) ||
+		(SSL_get_error (stream->con,i) == SSL_ERROR_WANT_READ)));
+      if (i <= 0) {		/* error seen? */
+	if (tcpdebug) {
+	  char *s,tmp[MAILTMPLEN];
+	  if (i) sprintf (s = tmp,"SSL data read I/O error %d SSL error %d",
+			  errno,SSL_get_error (stream->con,i));
+	  else s = "SSL data read end of file";
+	  mm_log (s,TCPDEBUG);
+	}
+	return ssl_abort (stream);
+      }
+      stream->iptr = stream->ibuf;/* point at TCP buffer */
+      stream->ictr = i;		/* set new byte count */
+      if (tcpdebug) mm_log ("Successfully read SSL data",TCPDEBUG);
+    }
+				/* timeout, punt unless told not to */
+    else if (!tmoh || !(*tmoh) (now - t,now - tl)) {
+      if (tcpdebug) mm_log ("SSL data read timeout",TCPDEBUG);
+      return ssl_abort (stream);
+    }
   }
   (*bn) (BLOCK_NONE,NIL);
   return T;
@@ -459,11 +528,20 @@ long ssl_sout (SSLSTREAM *stream,char *string,unsigned long size)
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   if (!stream->con) return NIL;
   (*bn) (BLOCK_TCPWRITE,NIL);
+  if (tcpdebug) mm_log ("Writing to SSL",TCPDEBUG);
 				/* until request satisfied */
   for (i = 0; size > 0; string += i,size -= i)
 				/* write as much as we can */
-    if ((i = SSL_write (stream->con,string,(int) min (SSLBUFLEN,size))) < 0)
+    if ((i = SSL_write (stream->con,string,(int) min (SSLBUFLEN,size))) < 0) {
+      if (tcpdebug) {
+	char tmp[MAILTMPLEN];
+	sprintf (tmp,"SSL data write I/O error %d SSL error %d",
+		 errno,SSL_get_error (stream->con,i));
+	mm_log (tmp,TCPDEBUG);
+      }
       return ssl_abort (stream);/* write failed */
+    }
+  if (tcpdebug) mm_log ("successfully wrote to TCP",TCPDEBUG);
   (*bn) (BLOCK_NONE,NIL);
   return LONGT;			/* all done */
 }
@@ -636,10 +714,12 @@ void ssl_server_init (char *server)
 	  sslstdio->octr = SSLBUFLEN;
 				/* current output buffer pointer */
 	  sslstdio->optr = sslstdio->obuf;
-				/* allow PLAIN authenticator */
-	  auth_pla.server = auth_plain_server;
+				/* allow plaintext if disable value was 2 */
 	  if ((long) mail_parameters (NIL,GET_DISABLEPLAINTEXT,NIL) > 1)
 	    mail_parameters (NIL,SET_DISABLEPLAINTEXT,NIL);
+				/* unhide PLAIN SASL authenticator */
+	  mail_parameters (NIL,UNHIDE_AUTHENTICATOR,"PLAIN");
+	  mail_parameters (NIL,UNHIDE_AUTHENTICATOR,"LOGIN");
 	  return;
 	}
       }

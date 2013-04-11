@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	UNIX environment routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	22 February 2002
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 2002 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -39,7 +47,6 @@ typedef struct dotlock_base {
 
 /* dorc() options */
 
-#define RISKPHRASE "I accept the risk"
 #define SYSCONFIG "/etc/c-client.cf"
 
 
@@ -48,15 +55,6 @@ typedef struct dotlock_base {
 #define ANONYMOUSUSER "nobody"	/* anonymous user */
 #define UNLOGGEDUSER "root"	/* unlogged-in user */
 #define ADMINGROUP "mailadm"	/* mail administrator group */
-
-
-/*
- * Attention: all sorcerer's apprentices who think that 0666 is a mistake.
- * You are wrong.  Read the FAQ.  Do not meddle in the affairs of wizards,
- * for they are subtle and quick to anger.
- */
-
-#define MANDATORYLOCKPROT 0666	/* don't change this */
 
 /* Function prototypes */
 

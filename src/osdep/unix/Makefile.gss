@@ -1,3 +1,15 @@
+# ========================================================================
+# Copyright 1988-2006 University of Washington
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# 
+# ========================================================================
+
 # Program:	GSSAPI makefile
 #
 # Author:	Mark Crispin
@@ -9,23 +21,19 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	4 March 2003
-#
-# The IMAP toolkit provided in this Distribution is
-# Copyright 1988-2003 University of Washington.
-#
-# The full text of our legal notices is contained in the file called
-# CPYRIGHT, included with this Distribution.
+# Last Edited:	30 August 2006
 
 
 # Extended flags needed for additional authenticators.  You may need to modify.
 
 GSSDIR=/usr/local
-GSSCFLAGS= -I$(GSSDIR)/include -DGSS_C_NT_HOSTBASED_SERVICE=gss_nt_service_name
-GSSOLDLDFLAGS= -L$(GSSDIR)/lib -lgssapi_krb5 -lkrb5 -lcrypto -lcom_err
-GSSNEWLDFLAGS= -L$(GSSDIR)/lib -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err
+GSSINCLUDE=$(GSSDIR)/include
+GSSLIB=$(GSSDIR)/lib
+GSSCFLAGS= -I$(GSSINCLUDE) -DGSS_C_NT_HOSTBASED_SERVICE=gss_nt_service_name
+GSSOLDLDFLAGS= -L$(GSSLIB) -lgssapi_krb5 -lkrb5 -lcrypto -lcom_err
+GSSNEWLDFLAGS= -L$(GSSLIB) -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err
 
 gss:	# GSSAPI Kerberos V flags
 	echo $(GSSCFLAGS) >> OSCFLAGS
-	sh -c '(test -f $(GSSDIR)/lib/libk5crypto.a) && echo $(GSSNEWLDFLAGS) || echo $(GSSOLDLDFLAGS)' >> LDFLAGS
+	sh -c '(test -f $(GSSLIB)/libk5crypto.a) && echo $(GSSNEWLDFLAGS) || echo $(GSSOLDLDFLAGS)' >> LDFLAGS
 	echo "#include \"kerb_mit.c\"" >> auths.c

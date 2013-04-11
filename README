@@ -1,5 +1,18 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+*/
+
 			   IMAP Toolkit Environment
-			      14 September 2004
+			        30 August 2006
 				 Mark Crispin
 
 
@@ -16,7 +29,7 @@ If you intend to build this software with a non-default configuration
 (including building a non-compliant server without SSL support), please
 refer to the docs/BUILD file for more information.
 
-1) Look in imap-2004/Makefile and find your system type code.  For example,
+1) Look in imap-2006/Makefile and find your system type code.  For example,
    modern versions of Linux will use either "slx", "lnp", or one of the
    lnp-variants (such as "lrh").
 
@@ -29,13 +42,20 @@ refer to the docs/BUILD file for more information.
    pop3 service on TCP port 110, and the imap service on TCP port 143.  Also
    update Yellow Pages/NIS/NetInfo/etc. if appropriate on your system.
 
-5) Update /etc/inetd.conf to invoke the POP2, POP3, and IMAP daemons on their
-   associated services.
+5) Update /etc/inetd.conf (or install files on /etc/xinetd.d) to invoke the
+   POP2, POP3, and IMAP daemons on their associated services.
+
+6) If your system uses PAM authentication, be sure to set up /etc/pam.d/imap
+   (*not* /etc/pam.d/imapd) and /etc/pam.d/pop (*not* /etc/pam.d/ipop3d or
+   /etc/pam.d/pop3d or /etc/pam.d/popd or /etc/pam.d/pop3).
+
+7) Unless you built your system without SSL support, you will need to set
+   up SSL server certificates as described in docs/SSLBUILD.
 
 6) That's all!
 
-Read the file docs/BUILD if you need more detailed information and/or you
-don't understand these quick build instructions.
+Read the file docs/BUILD and docs/SSLBUILD if you need more detailed
+information and/or you don't understand these quick build instructions.
 
 			     MISCELLANEOUS NOTES
 

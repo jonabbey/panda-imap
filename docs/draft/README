@@ -1,4 +1,4 @@
-Last Updated: 8 April 2004
+Last Updated: 11 September 2006
 
 This directory contains Internet Drafts which, at the time of release of
 this software, were not yet been published as RFCs.  These documents are
@@ -11,13 +11,12 @@ by the successor RFC.
 
 File Name	I-D Name
 ---------	--------
-sort.txt	draft-ietf-imapext-sort-15.txt
+sort.txt	draft-ietf-imapext-sort-17.txt
 		;; SORT and THREAD commands
-		;; Status: awaiting IESG action
-		;;  will be blocked waiting for i18n
+		;; Status: approved, blocked waiting for i18n
 
-i18n.txt	draft-ietf-imapext-i18n-01.txt
-		;; new document
+i18n.txt	draft-ietf-imapext-i18n-06.txt
+		;; internationalization in IMAP
 
-compare.txt	draft-newman-i18n-comparator-01.txt
-		;; new document
+compare.txt	draft-newman-i18n-comparator-13.txt
+		;; internationalized string comparisons

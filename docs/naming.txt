@@ -1,6 +1,19 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 		       Mailbox Name Conventions
 			     Mark Crispin
-			    16 August 2005
+			    5 October 2005
 
 
 Please refer to the file drivers.txt for related information.
@@ -99,6 +112,10 @@ where:
 			 needed if server uses self-signed certificates
   "/tls"		force use of start-TLS to encrypt the session, and
 			 reject connection to servers that do not support it
+  "/tls-sslv23"		use the depreciated SSLv23 client when negotiating
+			 TLS to the server.  This is necessary with some
+			 broken servers which (incorrectly) think that TLS
+			 is just another way of doing SSL.
   "/notls"		do not do start-TLS to encrypt the session, even
 			 with servers that support it
   "/readonly"		request read-only mailbox open (IMAP only; ignored

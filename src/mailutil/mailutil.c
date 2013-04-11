@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Mail utility
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 February 1994
- * Last Edited:	27 January 2005
- *
- * The IMAP tools software provided in this Distribution is
- * Copyright 1988-2005 by the University of Washington
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	13 September 2006
  */
 
 
@@ -29,9 +37,11 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
+char *version = "2006.3";	/* program version */
 int debugp = NIL;		/* flag saying debug */
 int verbosep = NIL;		/* flag saying verbose */
 int rwcopyp = NIL;		/* flag saying readwrite copy (for POP) */
+int kwcopyp = NIL;		/* flag saying keyword copy */
 int critical = NIL;		/* flag saying in critical code */
 int trycreate = NIL;		/* [TRYCREATE] seen */
 char *suffix = NIL;		/* suffer merge mode suffix text */
@@ -146,24 +156,27 @@ int main (int argc,char *argv[])
   MAILSTREAM *source = NIL;
   MAILSTREAM *dest = NIL;
   SEARCHPGM *criteria;
-  char c,*s,**args,*dp,*t,*t1,tmp[MAILTMPLEN],mbx[MAILTMPLEN];
+  char c,*s,*dp,*t,*t1,tmp[MAILTMPLEN],mbx[MAILTMPLEN];
   unsigned long m,len,curlen,start,last;
-  int nargs,i;
+  int i;
   int merge = NIL;
   int ret = 1;
+  int moreswitchp = T;
   char *cmd = NIL;
   char *src = NIL;
   char *dst = NIL;
   char *pgm = argc ? argv[0] : "mailutil";
 #include "linkage.c"
-  for (nargs = argc ? argc - 1 : 0,args = argv + 1; nargs; args++,nargs--) {
-    if (*(s = *args) == '-') {	/* parse switches */
+  for (i = 1; i < argc; i++) {
+    s = argv[i];		/* pick up argument */
+				/* parse switches */
+    if (moreswitchp && (*s == '-')) {
       if (!strcmp (s,"-debug") || !strcmp (s,"-d")) debugp = T;
       else if (!strcmp (s,"-verbose") || !strcmp (s,"-v")) verbosep = T;
       else if (!strcmp (s,"-rwcopy") || !strcmp (s,"-rw")) rwcopyp = T;
-      else if ((nargs > 1) && (!strcmp (s,"-merge") || !strcmp (s,"-m"))) {
-	args++,nargs--;		/* advance to next argument */
-	if (!strcmp (s = *args,"prompt")) merge = mPROMPT;
+      else if (!strcmp (s,"-kwcopy") || !strcmp (s,"-kw")) kwcopyp = T;
+      else if ((!strcmp (s,"-merge") || !strcmp (s,"-m")) && (++i < argc)) {
+	if (!strcmp (s = argv[i],"prompt")) merge = mPROMPT;
 	else if (!strcmp (s,"append")) merge = mAPPEND;
 	else if (!strncmp (s,"suffix=",7) && s[7]) {
 	  merge = mSUFFIX;
@@ -174,6 +187,9 @@ int main (int argc,char *argv[])
 	  exit (ret);
 	}
       }
+				/* -- means no more switches, so mailbox
+				   name can start with "-" */
+      else if ((s[1] == '-') && !s[2]) moreswitchp = NIL;
       else {
 	printf ("unknown switch: %s\n",s);
 	exit (ret);
@@ -191,32 +207,32 @@ int main (int argc,char *argv[])
 
   if (!strcmp (cmd,"check")) {	/* check for new messages */
     if (!src) src = "INBOX";
-    if (dst || merge || rwcopyp)
-      printf ("usage: %s check [-debug] [-verbose] [mailbox]\n",pgm);
+    if (dst || merge || rwcopyp || kwcopyp)
+      printf ("usage: %s check [-d[ebug]] [-v[erbose]] [mailbox]\n",pgm);
     else if (mail_status (source = (*src == '{') ?
 			  mail_open (NIL,src,OP_HALFOPEN |
 				     (debugp ? OP_DEBUG : NIL)) : NIL,
 			  src,SA_MESSAGES | SA_RECENT | SA_UNSEEN)) ret = 0;
   }
   else if (!strcmp (cmd,"create")) {
-    if (!src || dst || merge || rwcopyp)
-      printf ("usage: %s create [-debug] [-verbose] mailbox\n",pgm);
+    if (!src || dst || merge || rwcopyp || kwcopyp)
+      printf ("usage: %s create [-d[ebug]] [-v[erbose]] mailbox\n",pgm);
     else if (mail_create (source = (*src == '{') ?
 			  mail_open (NIL,src,OP_HALFOPEN |
 				     (debugp ? OP_DEBUG : NIL)) : NIL,src))
       ret = 0;
   }
   else if (!strcmp (cmd,"delete")) {
-    if (!src || dst || merge || rwcopyp)
-      printf ("usage: %s delete [-debug] [-verbose] mailbox\n",pgm);
+    if (!src || dst || merge || rwcopyp || kwcopyp)
+      printf ("usage: %s delete [-d[ebug]] [-v[erbose]] mailbox\n",pgm);
     else if (mail_delete (source = (*src == '{') ?
 			  mail_open (NIL,src,OP_HALFOPEN |
 				     (debugp ? OP_DEBUG : NIL)) : NIL,src))
       ret = 0;
   }
   else if (i = !strcmp (cmd,"rename")) {
-    if (!src || !dst || merge || rwcopyp)
-      printf ("usage: %s %s [-debug] [-verbose] source destination\n",pgm,cmd);
+    if (!src || !dst || merge || rwcopyp || kwcopyp)
+      printf ("usage: %s %s [-d[ebug]] [-v[erbose]] src dst\n",pgm,cmd);
     else if (mail_rename (source = (*src == '{') ?
 			  mail_open (NIL,src,OP_HALFOPEN |
 				     (debugp ? OP_DEBUG : NIL)) : NIL,src,dst))
@@ -224,7 +240,8 @@ int main (int argc,char *argv[])
   }
   else if ((i = !strcmp (cmd,"move")) || !strcmp (cmd,"copy")) {
     if (!src || !dst || merge)
-      printf ("usage: %s %s [-debug] [-verbose] source destination\n",pgm,cmd);
+      printf("usage: %s %s [-d[ebug]] [-v[erbose]] [-rw[copy]] [-kw[copy]] src dst\n",
+	     pgm,cmd);
     else if (source = mail_open (NIL,src,((i || rwcopyp) ? NIL : OP_READONLY) |
 				 (debugp ? OP_DEBUG : NIL))) {
       dest = NIL;		/* open destination stream if network */
@@ -236,7 +253,8 @@ int main (int argc,char *argv[])
   }
   else if ((i = !strcmp (cmd,"appenddelete")) || !strcmp (cmd,"append")) {
     if (!src || !dst || merge)
-      printf ("usage: %s %s [-debug] [-verbose] source destination\n",pgm,cmd);
+      printf("usage: %s %s [-d[ebug]] [-v[erbose]] [-rw[copy]] [-kw[copy]] src dst\n",
+	     pgm,cmd);
     else if (source = mail_open (NIL,src,((i || rwcopyp) ? NIL : OP_READONLY) |
 				 (debugp ? OP_DEBUG : NIL))) {
       dest = NIL;		/* open destination stream if network */
@@ -248,8 +266,9 @@ int main (int argc,char *argv[])
   }
 
   else if (!strcmp (cmd,"prune")) {
-    if (!src || !dst || merge || rwcopyp || !(criteria = mail_criteria (dst)))
-      printf ("usage: %s prune [-debug] [-verbose] mailbox search_criteria\n",
+    if (!src || !dst || merge || rwcopyp || kwcopyp ||
+	!(criteria = mail_criteria (dst)))
+      printf ("usage: %s prune [-d[ebug]] [-v[erbose]] mailbox search_criteria\n",
 	      pgm);
     else if ((source = mail_open (NIL,src,(debugp ? OP_DEBUG : NIL))) &&
 	     mail_search_full (source,NIL,criteria,SE_FREE)) {
@@ -291,7 +310,7 @@ int main (int argc,char *argv[])
 
   else if (!strcmp (cmd,"transfer")) {
     if (!src || !dst)
-      printf ("usage: %s transfer [-debug] [-verbose] source destination\n",
+      printf ("usage: %s transfer [-d[ebug]] [-v[erbose]] [-rw[copy]]\n  [-kw[copy]] [-m[erge] m] src dst\n",
 	      pgm);
     else if ((*src == '{') &&	/* open source mailbox */
 	     !(source = mail_open (NIL,src,OP_HALFOPEN |
@@ -343,7 +362,7 @@ int main (int argc,char *argv[])
 	}
 	if (source = mail_open (source,tmp+1,(debugp ? OP_DEBUG : NIL) | 
 				(rwcopyp ? NIL : OP_READONLY))) {
-	  ret = mbxcopy (source,dest,mbx,T,NIL,merge);
+	  if (mbxcopy (source,dest,mbx,T,NIL,merge)) ret = 0;
 	  if (source->dtb->flags & DR_LOCAL) source = mail_close (source);
 	}
 	else printf ("can't open source mailbox %s\n",tmp+1);
@@ -352,24 +371,27 @@ int main (int argc,char *argv[])
   }
 
   else {
-    printf ("usage: %s check [-debug] [-verbose] [mailbox]\n",pgm);
-    puts   ("        ;; report number of messages and new messages");
-    printf ("       %s create [-debug] [-verbose] new_mailbox\n",pgm);
-    puts   ("        ;; create new mailbox");
-    printf ("       %s delete [-debug] [-verbose] mailbox\n",pgm);
-    puts   ("        ;; delete existing mailbox");
-    printf ("       %s rename [-debug] [-verbose] source destination\n",pgm);
-    puts   ("        ;; rename mailbox to a new name");
-    printf ("       %s (copy | move) [-debug] [-verbose] old_mailbox new_mailbox\n",pgm);
-    puts   ("        ;; create new mailbox and copy/move messages");
-    printf ("       %s (append | appenddelete) [-debug] [-verbose] source destination\n",pgm);
-    puts   ("        ;; copy/move messages to existing mailbox");
-    printf ("       %s prune [-debug] [-verbose] mailbox search_criteria\n",
-	    pgm);
-    puts   ("        ;; prune mailbox of messages matching criteria");
-    printf ("       %s transfer [-debug] [-verbose] [-merge mode] source destination\n",pgm);
-    puts   ("        ;; make copy of source hierarchy to destination");
-    puts   ("        ;;  -merge modes are prompt, append, or suffix=xxxx");
+    printf ("%s version %s\n\nusage: %s command [switches] arguments\n",
+	    pgm,version,pgm);
+    puts   (" check [-d[ebug]] [-v[erbose]] [mailbox]");
+    puts   ("   ;; report number of messages and new messages");
+    puts   (" create [-d[ebug]] [-v[erbose]] mailbox");
+    puts   ("   ;; create new mailbox");
+    puts   (" delete [-d[ebug]] [-v[erbose]] mailbox");
+    puts   ("   ;; delete existing mailbox");
+    puts   (" rename [-d[ebug]] [-v[erbose]] src dst");
+    puts   ("   ;; rename mailbox to a new name");
+    puts   (" copy [-d[ebug]] [-v[erbose]] [-rw[copy]] [-kw[copy]] src dst");
+    puts   (" move [-d[ebug]] [-v[erbose]] [-rw[copy]] [-kw[copy]] src dst");
+    puts   ("   ;; create new mailbox and copy/move messages");
+    puts   (" append [-d[ebug]] [-v[erbose]] [-rw[copy]] [-kw[copy]] src dst");
+    puts   (" appenddelete [-d[ebug]] [-v[erbose]] [-rw[copy]] [-kw[copy]] src dst");
+    puts   ("   ;; copy/move messages to existing mailbox");
+    puts   (" prune [-d[ebug]] [-v[erbose]] mailbox search_criteria");
+    puts   ("   ;; prune mailbox of messages matching criteria");
+    puts   (" transfer [-d[ebug]] [-v[erbose]] [-rw[copy]] [-kw[copy]] [-m[erge] m] src dst");
+    puts   ("   ;; copy source hierarchy to destination");
+    puts   ("   ;;  -merge modes are prompt, append, or suffix=xxxx");
   }
 				/* close streams */
   if (source) mail_close (source);
@@ -422,6 +444,43 @@ int mbxcopy (MAILSTREAM *source,MAILSTREAM *dest,char *dst,int create,int del,
     }
     if (ndst) dst = ndst;	/* if alternative name given, use it */
   }
+
+  if (kwcopyp) {
+    int i;
+    size_t len;
+    char *dummymsg = "Date: Thu, 18 May 2006 00:00 -0700\r\nFrom: dummy@example.com\r\nSubject: dummy\r\n\r\ndummy\r\n";
+    for (i = 0,len = 0; i < NUSERFLAGS; ++i)
+      if (source->user_flags[i]) len += strlen (source->user_flags[i]) + 1;
+    if (len) {			/* easy if no user flags to copy... */
+      char *t;
+      char *tail = "\\Deleted)";
+      char *flags = (char *) fs_get (1 + len + strlen (tail) + 1);
+      s = flags; *s++ = '(';
+      for (i = 0; i < NUSERFLAGS; ++i) if (t = source->user_flags[i]) {
+	while (*t) *s++ = *t++;
+	*s++ = ' ';
+      }
+      strcpy (s,tail);		/* terminate flags list */
+      if ((dst[0] == '#') && ((dst[1] == 'D') || (dst[1] == 'd')) &&
+	  ((dst[2] == 'R') || (dst[2] == 'r')) &&
+	  ((dst[3] == 'I') || (dst[3] == 'i')) &&
+	  ((dst[4] == 'V') || (dst[4] == 'v')) &&
+	  ((dst[5] == 'E') || (dst[5] == 'e')) &&
+	  ((dst[6] == 'R') || (dst[6] == 'r')) && (dst[7] == '.') &&
+	  (t = strchr (dst+8,'/'))) ++t;
+      else t = dst;
+      INIT (&st,mail_string,dummymsg,strlen (dummymsg));
+      if (!(mail_append (dest,dst,&st) &&
+	    (dest = mail_open (dest,t,debugp ? OP_DEBUG : NIL)))) {
+	fs_give ((void **) &flags);
+	return NIL;
+      }
+      mail_setflag (dest,"*",flags);
+      mail_expunge (dest);
+      fs_give ((void **) &flags);
+    }
+  }
+
   if (source->nmsgs) {		/* non-empty source */
     if (verbosep) printf ("%s [%lu message(s)] => %s\n",
 			      source->mailbox,source->nmsgs,dst);
@@ -657,15 +716,20 @@ void mm_dlog (char *string)
 
 void mm_login (NETMBX *mb,char *username,char *password,long trial)
 {
-  char *s;
-  if (*mb->user) strcpy (username,mb->user);
+  char *s,tmp[MAILTMPLEN];
+  if (*mb->user) {
+    sprintf (tmp,"{%s/%s/user=%s} password: ",mb->host,mb->service,
+	     strcpy (username,mb->user));
+    s = tmp;
+  }
   else {
     printf ("{%s/%s} username: ",mb->host,mb->service);
     fgets (username,NETMAXUSER-1,stdin);
     username[NETMAXUSER-1] = '\0';
     if (s = strchr (username,'\n')) *s = '\0';
+    s = "password: ";
   }
-  strcpy (password,getpass ("password: "));
+  strcpy (password,getpass (s));
 }
 
 

@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Standalone Mailbox Lock program
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 February 1999
- * Last Edited:	21 June 2004
- *
- * The IMAP tools software provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 #include <errno.h>
@@ -56,7 +64,7 @@ void die (char *msg,int code)
 
 int main (int argc,char *argv[])
 {
-  int ld;
+  int ld,i;
   int tries = LOCKTIMEOUT * 60 - 1;
   size_t len;
   char *s,*lock,*hitch,tmp[1024];
@@ -105,14 +113,26 @@ int main (int argc,char *argv[])
 				/* make sure others can break the lock */
       chmod (hitch,LOCKPROTECTION);
       close (ld);		/* close the hitching-post */
-      link (hitch,lock);	/* tie hitching-post to lock, ignore failure */
-      stat (hitch,&sb);		/* get its data */
+      /* Note: link() may return an error even if it actually succeeded.  So we
+       * always check for success via the link count, and ignore the error if
+       * the link count is right.
+       */
+				/* tie hitching-post to lock */
+      i = link (hitch,lock) ? errno : 0;
+				/* success if link count now 2 */
+      if (!stat (hitch,&sb) && (sb.st_nlink == 2)) ld = 0;
+      else if (i == EPERM) {	/* links not allowed? */
+	/* Probably a FAT filesystem on Linux.  It can't be NFS, so try
+	 * creating the lock file directly.
+	 */
+	if ((ld = open (lock,O_WRONLY|O_CREAT|O_EXCL,LOCKPROTECTION)) >= 0)
+	  close (ld);		/* close the file */
+				/* give up immediately if protection failure */
+	else if (errno != EEXIST) tries = 0;
+      }
       unlink (hitch);		/* flush hitching post */
-      /* If link count .ne. 2, hitch failed.  Set ld to -1 as if open() failed
-	 so we try again.  If extant lock file and time now is .gt. file time
-	 plus timeout interval, flush the lock so can win next time around. */
-      if ((ld = (sb.st_nlink != 2) ? -1 : 0) && (!stat (lock,&sb)) &&
-	  (t > sb.st_ctime + LOCKTIMEOUT * 60)) unlink (lock);
+      if (!stat (lock,&sb) && (t > sb.st_ctime + LOCKTIMEOUT * 60))
+	unlink (lock);		/* time out lock if enough time has passed */
     }
 				/* give up immediately if protection failure */
     else if (errno == EACCES) tries = 0;

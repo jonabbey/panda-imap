@@ -1,4 +1,17 @@
-# Program:	MAILUTIL Makefile for Windows 2000
+# ========================================================================
+# Copyright 1988-2006 University of Washington
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# 
+# ========================================================================
+
+
+# Program:	MAILUTIL Makefile for Windows 2000/XP
 #
 # Author:	Mark Crispin
 #		Networks and Distributed Computing
@@ -9,22 +22,18 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		25 February 1996
-# Last Edited:	21 August 2002
-#
-# The IMAP toolkit provided in this Distribution is
-# Copyright 2002 University of Washington.
-#
-# The full text of our legal notices is contained in the file called
-# CPYRIGHT, included with this Distribution.
+# Last Edited:	30 August 2006
 
 
 C = ..\c-client
 CCLIENTLIB = $C\cclient.lib
-LIBS = $(CCLIENTLIB) wsock32.lib winmm.lib advapi32.lib secur32.lib crypt32.lib
-CFLAGS= -I$C /MT /W3 /DWIN32 -nologo $(EXTRACFLAGS)
+LIBS = $(CCLIENTLIB) ws2_32.lib winmm.lib advapi32.lib secur32.lib crypt32.lib
+OSCOMPAT = /DWIN32
+VSCOMPAT = /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE
+CFLAGS= -I$C /MT /W3 $(OSCOMPAT) $(VSCOMPAT) -nologo $(EXTRACFLAGS)
 
 mailutil: $(CCLIENTLIB) mailutil.obj
-	LINK /NOLOGO /DEF:mailutil.def mailutil.obj $(LIBS)
+	LINK /NOLOGO mailutil.obj $(LIBS)
 
 mailutil.obj: $C\mail.h $C\smtp.h $C\misc.h $C\osdep.h mailutil.c
 

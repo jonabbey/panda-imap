@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Dummy routines for Mac
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	5 March 2003
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2003 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -34,7 +42,7 @@ MAILSTREAM *dummy_open (MAILSTREAM *stream);
 void dummy_close (MAILSTREAM *stream,long options);
 long dummy_ping (MAILSTREAM *stream);
 void dummy_check (MAILSTREAM *stream);
-void dummy_expunge (MAILSTREAM *stream);
+long dummy_expunge (MAILSTREAM *stream,char *sequence,long options);
 long dummy_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long dummy_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
@@ -244,11 +252,14 @@ void dummy_check (MAILSTREAM *stream)
 
 /* Dummy expunge mailbox
  * Accepts: MAIL stream
+ *	    sequence to expunge if non-NIL
+ *	    expunge options
+ * Returns: T, always
  */
 
-void dummy_expunge (MAILSTREAM *stream)
+long dummy_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
-				/* return silently */
+  return LONGT;
 }
 
 /* Dummy copy message(s)
@@ -281,20 +292,4 @@ long dummy_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   sprintf (tmp,"Can't append to %s",mailbox);
   mm_log (tmp,ERROR);		/* pass up error */
   return NIL;			/* always fails */
-}
-
-/* Dummy canonicalize name
- * Accepts: buffer to write name
- *	    reference
- *	    pattern
- * Returns: T if success, NIL if failure
- */
-
-long dummy_canonicalize (char *tmp,char *ref,char *pat)
-{
-  if (*pat == '{' || (ref && (*ref == '{'))) return NIL;
-				/* write name with reference */
-  if (ref && *ref) sprintf (tmp,"%s%s",ref,pat);
-  else strcpy (tmp,pat);	/* ignore reference, only need mailbox name */
-  return T;
 }

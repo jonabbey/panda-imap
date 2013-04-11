@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Miscellaneous utility routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	27 April 2004
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2004 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -31,16 +39,18 @@
 #include "osdep.h"
 #include "misc.h"
 
-/* Convert string to all uppercase
+/* Convert ASCII string to all uppercase
  * Accepts: string pointer
  * Returns: string pointer
+ *
+ * Don't use islower/toupper since this function must be ASCII only.
  */
 
 unsigned char *ucase (unsigned char *s)
 {
   unsigned char *t;
 				/* if lowercase covert to upper */
-  for (t = s; *t; t++) if (!(*t & 0x80) && islower (*t)) *t = toupper (*t);
+  for (t = s; *t; t++) if ((*t >= 'a') && (*t <= 'z')) *t -= ('a' - 'A');
   return s;			/* return string */
 }
 
@@ -48,13 +58,15 @@ unsigned char *ucase (unsigned char *s)
 /* Convert string to all lowercase
  * Accepts: string pointer
  * Returns: string pointer
+ *
+ * Don't use isupper/tolower since this function must be ASCII only.
  */
 
 unsigned char *lcase (unsigned char *s)
 {
   unsigned char *t;
 				/* if uppercase covert to lower */
-  for (t = s; *t; t++) if (!(*t & 0x80) && isupper (*t)) *t = tolower (*t);
+  for (t = s; *t; t++) if ((*t >= 'A') && (*t <= 'Z')) *t += ('a' - 'A');
   return s;			/* return string */
 }
 
@@ -243,6 +255,32 @@ long search (unsigned char *base,long basec,unsigned char *pat,long patc)
   return NIL;			/* pattern not found */
 }
 
+/* Boyer-Moore string search
+ * Accepts: base string
+ *	    length of base string
+ *	    pattern string
+ *	    length of pattern string
+ * Returns: T if pattern exists inside base, else NIL
+ */
+
+long ssearch (unsigned char *base,long basec,unsigned char *pat,long patc)
+{
+  long i,j,k;
+  int c;
+  unsigned char mask[256];
+				/* validate arguments */
+  if (base && (basec > 0) && pat && (basec >= patc)) {
+    if (patc <= 0) return T;	/* empty pattern always succeeds */
+    memset (mask,0,256);	/* initialize search validity mask */
+    for (i = 0; i < patc; i++) mask[pat[i]] = T;
+				/* Boyer-Moore type search */
+    for (i = --patc, c = pat[i]; i < basec; i += (mask[c] ? 1 : (j + 1)))
+      for (j = patc,c = base[k = i]; (c == pat[j]); j--,c = base[--k])
+	if (!j) return T;	/* found a match! */
+  }
+  return NIL;			/* pattern not found */
+}
+
 /* Create a hash table
  * Accepts: size of new table (note: should be a prime)
  * Returns: hash table
@@ -358,6 +396,22 @@ void **hash_lookup_and_add (HASHTAB *hashtab,char *key,void *data,long extra)
   return (hashtab->table[i] = ret)->data;
 }
 
+/* Convert two hex characters into byte
+ * Accepts: char for high nybble
+ *	    char for low nybble
+ * Returns: byte
+ *
+ * Arguments must be isxdigit validated
+ */
+
+unsigned char hex2byte (unsigned char c1,unsigned char c2)
+{
+				/* merge the two nybbles */
+  return ((c1 -= (isdigit (c1) ? '0' : ((c1 <= 'Z') ? 'A' : 'a') - 10)) << 4) +
+    (c2 - (isdigit (c2) ? '0' : ((c2 <= 'Z') ? 'A' : 'a') - 10));
+}
+
+
 /* Compare two unsigned longs
  * Accepts: first value
  *	    second value
@@ -372,7 +426,21 @@ int compare_ulong (unsigned long l1,unsigned long l2)
 }
 
 
-/* Compare two case-independent strings
+/* Compare two unsigned chars, case-independent
+ * Accepts: first value
+ *	    second value
+ * Returns: -1 if c1 < c2, 0 if c1 == c2, 1 if c1 > c2
+ *
+ * Don't use isupper/tolower since this function must be ASCII only.
+ */
+
+int compare_uchar (unsigned char c1,unsigned char c2)
+{
+  return compare_ulong (((c1 >= 'A') && (c1 <= 'Z')) ? c1 + ('a' - 'A') : c1,
+			((c2 >= 'A') && (c2 <= 'Z')) ? c2 + ('a' - 'A') : c2);
+}
+
+/* Compare two case-independent ASCII strings
  * Accepts: first string
  *	    second string
  * Returns: -1 if s1 < s2, 0 if s1 == s2, 1 if s1 > s2
@@ -383,10 +451,7 @@ int compare_cstring (unsigned char *s1,unsigned char *s2)
   int i;
   if (!s1) return s2 ? -1 : 0;	/* empty string cases */
   else if (!s2) return 1;
-  for (; *s1 && *s2; s1++,s2++)
-    if (i = (compare_ulong (islower (*s1) ? toupper (*s1) : *s1,
-			    islower (*s2) ? toupper (*s2) : *s2)))
-      return i;			/* found a difference */
+  for (; *s1 && *s2; s1++,s2++) if (i = (compare_uchar (*s1,*s2))) return i;
   if (*s1) return 1;		/* first string is longer */
   return *s2 ? -1 : 0;		/* second string longer : strings identical */
 }
@@ -406,9 +471,7 @@ int compare_csizedtext (unsigned char *s1,SIZEDTEXT *s2)
   if (!s1) return s2 ? -1 : 0;	/* null string cases */
   else if (!s2) return 1;
   for (s = (char *) s2->data,j = s2->size; *s1 && j; ++s1,++s,--j)
-    if (i = (compare_ulong (isupper (*s1) ? tolower (*s1) : *s1,
-			    isupper (*s) ? tolower (*s) : *s)))
-      return i;			/* found a difference */
+    if (i = (compare_uchar (*s1,*s))) return i;
   if (*s1) return 1;		/* first string is longer */
   return j ? -1 : 0;		/* second string longer : strings identical */
 }

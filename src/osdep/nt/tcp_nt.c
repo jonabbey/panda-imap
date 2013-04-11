@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Winsock TCP/IP routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited: 8 August 2005
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2005 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited: 30 August 2006
  */
 
 #include "ip_nt.c"
@@ -37,10 +45,19 @@ char *tcp_name_valid (char *s);
 int wsa_initted = 0;		/* init ? */
 static int wsa_sock_open = 0;	/* keep track of open sockets */
 static tcptimeout_t tmoh = NIL;	/* TCP timeout handler routine */
-static long ttmo_read = 0;	/* TCP timeouts, in seconds */
+static long ttmo_open = 0;	/* TCP timeouts, in seconds */
+static long ttmo_read = 0;
 static long ttmo_write = 0;
 static long allowreversedns = T;/* allow reverse DNS lookup */
 static long tcpdebug = NIL;	/* extra TCP debugging telemetry */
+static char *myClientAddr = NIL;/* client host address */
+static char *myClientHost = NIL;/* client host name */
+static long myClientPort = -1;	/* client port */
+static char *myServerAddr = NIL;/* server host address */
+static char *myServerHost = NIL;/* server host name */
+static long myServerPort = -1;	/* server port */
+
+extern long maxposint;		/* get this from write.c */
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -56,6 +73,11 @@ void *tcp_parameters (long function,void *value)
     tmoh = (tcptimeout_t) value;
   case GET_TIMEOUT:
     ret = (void *) tmoh;
+    break;
+  case SET_OPENTIMEOUT:
+    ttmo_open = (long) value ? (long) value : (long) WSA_INFINITE;
+  case GET_OPENTIMEOUT:
+    ret = (void *) ttmo_open;
     break;
   case SET_READTIMEOUT:
     ttmo_read = (long) value;
@@ -184,8 +206,13 @@ int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
 		     char *tmp,char *hst)
 {
   int sock;
-  size_t len;
   char *s;
+  size_t len;
+  DWORD eo;
+  WSAEVENT event;
+  WSANETWORKEVENTS events;
+  unsigned long cmd = 0;
+  int err = 0;
   struct protoent *pt = getprotobyname ("tcp");
   struct sockaddr *sadr = ip_sockaddr (family,adr,adrlen,port,&len);
   sprintf (tmp,"Trying IP address [%s]",ip_sockaddrtostring (sadr));
@@ -196,32 +223,55 @@ int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
     sprintf (tmp,"Unable to create TCP socket (%d)",WSAGetLastError ());
   else {
     wsa_sock_open++;		/* count this socket as open */
-				/* open connection */
+				/* set socket nonblocking */
+    if (ttmo_open) WSAEventSelect (sock,event = WSACreateEvent (),FD_CONNECT);
+				/* open connection under timer if blocking */
     if (connect (sock,sadr,len) == SOCKET_ERROR) {
-      switch (WSAGetLastError ()) {
-      case WSAECONNREFUSED:
-	s = "Refused";
-	break;
-      case WSAENOBUFS:
-	s = "Insufficient system resources";
-	break;
-      case WSAETIMEDOUT:
-	s = "Timed out";
-	break;
-      case WSAEHOSTUNREACH:
-	s = "Host unreachable";
-	break;
-      default:
-	s = "Unknown error";
-	break;
+				/* need to block? */
+      if ((err = WSAGetLastError ()) == WSAEWOULDBLOCK)
+	switch (eo = WSAWaitForMultipleEvents (1,&event,T,ttmo_open*1000,NIL)){
+	case WSA_WAIT_EVENT_0:	/* got an event? */
+	  err = (WSAEnumNetworkEvents (sock,event,&events) == SOCKET_ERROR) ?
+	    WSAGetLastError () : events.iErrorCode[FD_CONNECT_BIT];
+	  break;
+	default:		/* all other conditions */
+	  err = eo;		/* error from WSAWaitForMultipleEvents() */
+	  break;
+	}
+    }
+
+    switch (err) {		/* see what condition we're in */
+    case NIL:			/* good condition, set back to blocking mode */
+      WSAEventSelect (sock,event,NIL);
+      if (ioctlsocket (sock,FIONBIO,&cmd) == SOCKET_ERROR) {
+	err = WSAGetLastError();/* oops */
+	s = "Can't set blocking mode";
       }
-      sprintf (tmp,"Can't connect to %.80s,%ld: %s (%d)",hst,port,s,
-	       WSAGetLastError ());
+      break;
+    case WSAECONNREFUSED:
+      s = "Refused";
+      break;
+    case WSAENOBUFS:
+      s = "Insufficient system resources";
+      break;
+    case WSA_WAIT_TIMEOUT: case WSAETIMEDOUT:
+      s = "Timed out";
+      break;
+    case WSAEHOSTUNREACH:
+      s = "Host unreachable";
+      break;
+    default:			/* horrible error 69 */
+      s = "Unknown error";
+      break;
+    }
+    WSACloseEvent (event);	/* flush event */
+    if (err) {			/* got an error? */
+      sprintf (tmp,"Can't connect to %.80s,%ld: %s (%d)",hst,port,s,err);
       tcp_abort (&sock);	/* flush socket */
       sock = INVALID_SOCKET;
     }
   }
-  fs_give ((void **) &sadr);
+  fs_give ((void **) &sadr);	/* and socket address */
   return sock;			/* return the socket */
 }
   
@@ -265,22 +315,22 @@ char *tcp_getline (TCPSTREAM *stream)
   }
 				/* copy partial string from buffer */
   memcpy ((ret = stp = (char *) fs_get (n)),st,n);
-				/* get more data from the net */
-  if (!tcp_getdata (stream)) fs_give ((void **) &ret);
+  if (tcp_getdata (stream)) {	/* get more data from the net */
 				/* special case of newline broken by buffer */
-  else if ((c == '\015') && (*stream->iptr == '\012')) {
-    stream->iptr++;		/* eat the line feed */
-    stream->ictr--;
-    ret[n - 1] = '\0';		/* tie off string with null */
-  }
+    if ((c == '\015') && (*stream->iptr == '\012')) {
+      stream->iptr++;		/* eat the line feed */
+      stream->ictr--;
+      ret[n - 1] = '\0';	/* tie off string with null */
+    }
 				/* else recurse to get remainder */
-  else if (st = tcp_getline (stream)) {
-    ret = (char *) fs_get (n + 1 + (m = strlen (st)));
-    memcpy (ret,stp,n);		/* copy first part */
-    memcpy (ret + n,st,m);	/* and second part */
-    fs_give ((void **) &stp);	/* flush first part */
-    fs_give ((void **) &st);	/* flush second part */
-    ret[n + m] = '\0';		/* tie off string with null */
+    else if (st = tcp_getline (stream)) {
+      ret = (char *) fs_get (n + 1 + (m = strlen (st)));
+      memcpy (ret,stp,n);	/* copy first part */
+      memcpy (ret + n,st,m);	/* and second part */
+      fs_give ((void **) &stp);	/* flush first part */
+      fs_give ((void **) &st);	/* flush second part */
+      ret[n + m] = '\0';	/* tie off string with null */
+    }
   }
   return ret;
 }
@@ -321,7 +371,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
       else {			/* socket case */
 	time_t tl = time (0);
 	time_t now = tl;
-	int ti = ttmo_read ? now + ttmo_read : 0;
+	time_t ti = ttmo_read ? now + ttmo_read : 0;
 	tmo.tv_usec = 0;
 	FD_ZERO (&fds);		/* initialize selection vector */
 	FD_ZERO (&efds);	/* handle errors too */
@@ -330,7 +380,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 	FD_SET (stream->tcpsi,&efds);
 	errno = NIL;		/* initially no error */
 	do {			/* block under timeout */
-	  tmo.tv_sec = ti ? ti - now : 0;
+	  tmo.tv_sec = (long) (ti ? ti - now : 0);
 	  i = select (stream->tcpsi+1,&fds,NIL,&efds,ti ? &tmo : NIL);
 	  now = time (0);	/* fake timeout if interrupt & time expired */
 	  if ((i < 0) && ((errno = WSAGetLastError ()) == WSAEINTR) && ti &&
@@ -342,7 +392,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 			   SOCKET_ERROR) &&
 			  ((errno = WSAGetLastError ()) == WSAEINTR));
 	else if (!i) {		/* timeout, ignore if told to resume */
-	  if (tmoh && (*tmoh) (now - t,now - tl)) continue;
+	  if (tmoh && (*tmoh) ((long) (now - t),(long) (now - tl))) continue;
 				/* otherwise punt */
 	  if (tcpdebug) mm_log ("TCP buffer read timeout",TCPDEBUG);
 	  return tcp_abort (&stream->tcpsi);
@@ -390,7 +440,7 @@ long tcp_getdata (TCPSTREAM *stream)
     else {
       time_t tl = time (0);
       time_t now = tl;
-      int ti = ttmo_read ? now + ttmo_read : 0;
+      time_t ti = ttmo_read ? now + ttmo_read : 0;
       tmo.tv_usec = 0;
       FD_ZERO (&fds);		/* initialize selection vector */
       FD_ZERO (&efds);		/* handle errors too */
@@ -399,7 +449,7 @@ long tcp_getdata (TCPSTREAM *stream)
       FD_SET (stream->tcpsi,&efds);
       errno = NIL;		/* initially no error */
       do {			/* block under timeout */
-	tmo.tv_sec = ti ? ti - now : 0;
+	tmo.tv_sec = (long) (ti ? ti - now : 0);
 	i = select (stream->tcpsi+1,&fds,NIL,&efds,ti ? &tmo : NIL);
 	now = time (0);		/* fake timeout if interrupt & time expired */
 	if ((i < 0) && ((errno = WSAGetLastError ()) == WSAEINTR) && ti &&
@@ -410,7 +460,7 @@ long tcp_getdata (TCPSTREAM *stream)
 			 SOCKET_ERROR) &&
 			((errno = WSAGetLastError ()) == WSAEINTR));
       else if (!i) {		/* timeout, ignore if told to resume */
-	if (tmoh && (*tmoh) (now - t,now - tl)) continue;
+	if (tmoh && (*tmoh) ((long) (now - t),(long) (now - tl))) continue;
 				/* otherwise punt */
 	if (tcpdebug) mm_log ("TCP data read timeout",TCPDEBUG);
 	return tcp_abort (&stream->tcpsi);
@@ -473,7 +523,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
     else {
       time_t tl = time (0);	/* start of request */
       time_t now = tl;
-      int ti = ttmo_write ? now + ttmo_write : 0;
+      time_t ti = ttmo_write ? now + ttmo_write : 0;
       tmo.tv_usec = 0;
       FD_ZERO (&fds);		/* initialize selection vector */
       FD_ZERO (&efds);		/* handle errors too */
@@ -482,7 +532,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
       FD_SET(stream->tcpso,&efds);
       errno = NIL;		/* block and write */
       do {			/* block under timeout */
-	tmo.tv_sec = ti ? ti - now : 0;
+	tmo.tv_sec = (long) (ti ? ti - now : 0);
 	i = select (stream->tcpso+1,NIL,&fds,&efds,ti ? &tmo : NIL);
 	now = time (0);		/* fake timeout if interrupt & time expired */
 	if ((i < 0) && ((errno = WSAGetLastError ()) == WSAEINTR) && ti &&
@@ -494,7 +544,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 			 SOCKET_ERROR) &&
 			((errno = WSAGetLastError ()) == WSAEINTR));
       else if (!i) {		/* timeout, ignore if told to resume */
-	if (tmoh && (*tmoh) (now - t,now - tl)) continue;
+	if (tmoh && (*tmoh) ((long) (now - t),(long) (now - tl))) continue;
 				/* otherwise punt */
 	if (tcpdebug) mm_log ("TCP write timeout",TCPDEBUG);
 	return tcp_abort (&stream->tcpsi);
@@ -625,9 +675,12 @@ char *tcp_clientaddr ()
   if (!myClientAddr) {
     size_t sadrlen;
     struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
-    myClientAddr =		/* get stdin's peer name */
-      ((getpeername (0,sadr,&sadrlen) == SOCKET_ERROR) || (sadrlen <= 0)) ?
-      cpystr ("UNKNOWN") : ip_sockaddrtostring (sadr);
+    if ((getpeername (0,sadr,(void *) &sadrlen) == SOCKET_ERROR) ||
+	(sadrlen <= 0)) myClientAddr = cpystr ("UNKNOWN");
+    else {			/* get stdin's peer name */
+      myClientAddr = ip_sockaddrtostring (sadr);
+      if (myClientPort < 0) myClientPort = ip_sockaddrtoport (sadr);
+    }
     fs_give ((void **) &sadr);
   }
   return myClientAddr;
@@ -643,12 +696,27 @@ char *tcp_clienthost ()
   if (!myClientHost) {
     size_t sadrlen;
     struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
-    myClientHost =		/* get stdin's peer name */
-      ((getpeername (0,sadr,&sadrlen) == SOCKET_ERROR) || (sadrlen <= 0)) ?
-      cpystr ("UNKNOWN") : tcp_name (sadr,T);
+    if ((getpeername (0,sadr,(void *) &sadrlen) == SOCKET_ERROR) ||
+	(sadrlen <= 0)) myClientHost = cpystr ("UNKNOWN");
+    else {			/* get stdin's peer name */
+      myClientHost = tcp_name (sadr,T);
+      if (!myClientAddr) myClientAddr = ip_sockaddrtostring (sadr);
+      if (myClientPort < 0) myClientPort = ip_sockaddrtoport (sadr);
+    }
     fs_give ((void **) &sadr);
   }
   return myClientHost;
+}
+
+
+/* TCP/IP get client port number (server calls only)
+ * Returns: client port number
+ */
+
+long tcp_clientport ()
+{
+  if (!myClientHost && !myClientAddr) tcp_clientaddr ();
+  return myClientPort;
 }
 
 /* TCP/IP get server host address (server calls only)
@@ -660,9 +728,19 @@ char *tcp_serveraddr ()
   if (!myServerAddr) {
     size_t sadrlen;
     struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
-    myServerAddr =		/* get stdin's peer name */
-      ((getsockname (0,sadr,&sadrlen) == SOCKET_ERROR) || (sadrlen <= 0)) ?
-      cpystr ("UNKNOWN") : cpystr (ip_sockaddrtostring (sadr));
+    if (!wsa_initted++) {	/* init Windows Sockets */
+      WSADATA wsock;
+      if (WSAStartup (WINSOCK_VERSION,&wsock)) {
+	wsa_initted = 0;
+	return "random-pc";	/* try again later? */
+      }
+    }
+    if ((getsockname (0,sadr,(void *) &sadrlen) == SOCKET_ERROR) ||
+	(sadrlen <= 0)) myServerAddr = cpystr ("UNKNOWN");
+    else {			/* get stdin's name */
+      myServerAddr = ip_sockaddrtostring (sadr);
+      if (myServerPort < 0) myServerPort = ip_sockaddrtoport (sadr);
+    }
     fs_give ((void **) &sadr);
   }
   return myServerAddr;
@@ -673,11 +751,9 @@ char *tcp_serveraddr ()
  * Returns: server host name
  */
 
-static long myServerPort = -1;
-
 char *tcp_serverhost ()
 {
-  if (!myServerHost) {
+  if (!myServerHost) {		/* once-only */
     size_t sadrlen;
     struct sockaddr *sadr = ip_newsockaddr (&sadrlen);
     if (!wsa_initted++) {	/* init Windows Sockets */
@@ -688,10 +764,13 @@ char *tcp_serverhost ()
       }
     }
 				/* get stdin's name */
-    myServerHost = ((getsockname (0,sadr,(void *) &sadrlen) == SOCKET_ERROR)||
-		    (sadrlen <= 0) ||
-                    ((myServerPort = ip_sockaddrtoport (sadr)) < 0)) ?
-      cpystr (mylocalhost ()) : tcp_name (sadr,NIL);
+    if ((getsockname (0,sadr,(void *) &sadrlen) == SOCKET_ERROR) ||
+	(sadrlen <= 0)) myServerHost = cpystr (mylocalhost ());
+    else {			/* get stdin's name */
+      myServerHost = tcp_name (sadr,NIL);
+      if (!myServerAddr) myServerAddr = ip_sockaddrtostring (sadr);
+      if (myServerPort < 0) myServerPort = ip_sockaddrtoport (sadr);
+    }
     fs_give ((void **) &sadr);
   }
   return myServerHost;
@@ -704,7 +783,7 @@ char *tcp_serverhost ()
 
 long tcp_serverport ()
 {
-  if (!myServerHost) tcp_serverhost ();
+  if (!myServerHost && !myServerAddr) tcp_serveraddr ();
   return myServerPort;
 }
 
@@ -761,28 +840,6 @@ char *tcp_name (struct sockaddr *sadr,long flag)
   return cpystr (ret);
 }
 
-/* Return my local host name
- * Returns: my local host name
- */
-
-char *mylocalhost (void)
-{
-  if (!myLocalHost) {
-    char tmp[MAILTMPLEN];
-    if (!wsa_initted++) {	/* init Windows Sockets */
-      WSADATA wsock;
-      if (WSAStartup (WINSOCK_VERSION,&wsock)) {
-	wsa_initted = 0;
-	return "random-pc";	/* try again later? */
-      }
-    }
-    myLocalHost = cpystr ((gethostname (tmp,MAILTMPLEN-1) == SOCKET_ERROR) ?
-			  "random-pc" : tcp_canonical (tmp));
-  }
-  return myLocalHost;
-}
-
-
 /* Validate name
  * Accepts: domain name
  * Returns: T if valid, NIL otherwise

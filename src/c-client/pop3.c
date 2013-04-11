@@ -1,3 +1,16 @@
+/* ========================================================================
+ * Copyright 1988-2006 University of Washington
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * 
+ * ========================================================================
+ */
+
 /*
  * Program:	Post Office Protocol 3 (POP3) client routines
  *
@@ -10,12 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	5 March 2005
- * 
- * The IMAP toolkit provided in this Distribution is
- * Copyright 1988-2005 University of Washington.
- * The full text of our legal notices is contained in the file called
- * CPYRIGHT, included with this Distribution.
+ * Last Edited:	30 August 2006
  */
 
 
@@ -97,7 +105,7 @@ long pop3_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags);
 unsigned long pop3_cache (MAILSTREAM *stream,MESSAGECACHE *elt);
 long pop3_ping (MAILSTREAM *stream);
 void pop3_check (MAILSTREAM *stream);
-void pop3_expunge (MAILSTREAM *stream);
+long pop3_expunge (MAILSTREAM *stream,char *sequence,long options);
 long pop3_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long pop3_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 
@@ -170,11 +178,9 @@ static long pop3_sslport = 0;
 DRIVER *pop3_valid (char *name)
 {
   NETMBX mb;
-  char mbx[MAILTMPLEN];
   return (mail_valid_net_parse (name,&mb) &&
 	  !strcmp (mb.service,pop3driver.name) && !mb.authuser[0] &&
-	  !strcmp (ucase (strcpy (mbx,mb.mailbox)),"INBOX")) ?
-	    &pop3driver : NIL;
+	  !compare_cstring (mb.mailbox,"INBOX")) ? &pop3driver : NIL;
 }
 
 
@@ -419,6 +425,7 @@ MAILSTREAM *pop3_open (MAILSTREAM *stream)
 	       net_host (LOCAL->netstream) : mb.host,
 	       net_port (LOCAL->netstream));
       if (mb.tlsflag) strcat (tmp,"/tls");
+      if (mb.tlssslv23) strcat (tmp,"/tls-sslv23");
       if (mb.notlsflag) strcat (tmp,"/notls");
       if (mb.sslflag) strcat (tmp,"/ssl");
       if (mb.novalidate) strcat (tmp,"/novalidate-cert");
@@ -562,7 +569,8 @@ long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *pwd,char *usr)
     mb->tlsflag = T;		/* TLS OK, get into TLS at this end */
     LOCAL->netstream->dtb = ssld;
     if (!(LOCAL->netstream->stream =
-	  (*stls) (LOCAL->netstream->stream,mb->host,NET_TLSCLIENT |
+	  (*stls) (LOCAL->netstream->stream,mb->host,
+		   (mb->tlssslv23 ? NIL : NET_TLSCLIENT) |
 		   (mb->novalidate ? NET_NOVALIDATECERT : NIL)))) {
 				/* drat, drop this connection */
       if (LOCAL->netstream) net_close (LOCAL->netstream);
@@ -744,7 +752,7 @@ void pop3_close (MAILSTREAM *stream,long options)
   if (LOCAL) {			/* only if a file is open */
     if (LOCAL->netstream) {	/* close POP3 connection */
       stream->silent = T;
-      if (options & CL_EXPUNGE) pop3_expunge (stream);
+      if (options & CL_EXPUNGE) pop3_expunge (stream,NIL,NIL);
       stream->silent = silent;
       pop3_send (stream,"QUIT",NIL);
       mm_notify (stream,LOCAL->reply,BYE);
@@ -928,33 +936,46 @@ void pop3_check (MAILSTREAM *stream)
 
 /* POP3 mail expunge mailbox
  * Accepts: MAIL stream
+ *	    sequence to expunge if non-NIL
+ *	    expunge options
+ * Returns: T if success, NIL if failure
  */
 
-void pop3_expunge (MAILSTREAM *stream)
+long pop3_expunge (MAILSTREAM *stream,char *sequence,long options)
 {
   char tmp[MAILTMPLEN];
+  MESSAGECACHE *elt;
   unsigned long i = 1,n = 0;
-  while (i <= stream->nmsgs) {
-    if (mail_elt (stream,i)->deleted && pop3_send_num (stream,"DELE",i)) {
+  long ret;
+  if (ret = sequence ? ((options & EX_UID) ?
+			mail_uid_sequence (stream,sequence) :
+			mail_sequence (stream,sequence)) :
+      LONGT) {			/* build selected sequence if needed */
+    while (i <= stream->nmsgs) {
+      elt = mail_elt (stream,i);
+      if (elt->deleted && (sequence ? elt->sequence : T) &&
+	  pop3_send_num (stream,"DELE",i)) {
 				/* expunging currently cached message? */
-      if (LOCAL->cached == mail_uid (stream,i)) {
+	if (LOCAL->cached == mail_uid (stream,i)) {
 				/* yes, close current file */
-	if (LOCAL->txt) fclose (LOCAL->txt);
-	LOCAL->txt = NIL;
-	LOCAL->cached = LOCAL->hdrsize = 0;
+	  if (LOCAL->txt) fclose (LOCAL->txt);
+	  LOCAL->txt = NIL;
+	  LOCAL->cached = LOCAL->hdrsize = 0;
+	}
+	mail_expunged (stream,i);
+	n++;
       }
-      mail_expunged (stream,i);
-      n++;
+      else i++;			/* try next message */
     }
-    else i++;			/* try next message */
-  }
-  if (!stream->silent) {	/* only if not silent */
-    if (n) {			/* did we expunge anything? */
-      sprintf (tmp,"Expunged %lu messages",n);
-      mm_log (tmp,(long) NIL);
+    if (!stream->silent) {	/* only if not silent */
+      if (n) {			/* did we expunge anything? */
+	sprintf (tmp,"Expunged %lu messages",n);
+	mm_log (tmp,(long) NIL);
+      }
+      else mm_log ("No messages deleted, so no update needed",(long) NIL);
     }
-    else mm_log ("No messages deleted, so no update needed",(long) NIL);
   }
+  return ret;
 }
 
 /* POP3 mail copy message(s)
