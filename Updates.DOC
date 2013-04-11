@@ -1,0 +1,164 @@
+		      C-Client Revision History
+
+Note: Dates in this revision history indicate when the work was completed.
+
+ 1 June 1992	Creation.  Changes prior to this were not noted.
+
+ 1 June 1992	[tenex.c] Fixed tenex driver so that copying messages to an
+		open mailbox does not hang.  Still need to have protection
+		against multiple simultaneous attempts to append in this
+		format.
+
+ 2 June 1992	[bezerk.c, imap2.c, mail.c/h, mh.c, mtest.c, news.c, tenex.c]
+		Changed elt internal dates to be stored as numeric fields
+		instead of strings.
+
+ 2 June 1992	[mail.c/h, mh.h, news.h, os_???.c] Moved months array from
+		osdep stuff into main module.
+
+ 3 June 1992	[imap2.c] Repaired small memory leaks in IMAP MIME support.
+
+ 3 June 1992	[os_hpp.c/h] Emulate gethostid () on HP/UX.
+
+ 3 June 1992	[imapd.c, ms.c, InfoPanel.nib, MBoxWindow.m, ReadWindow.m,
+		 ReplyWindow.m, Utilities.m] Updated c-client bundled tools
+		to use new internal date strategy.
+
+ 4 June 1992	[rfc822.c] Fixed gruesome bogosity in rfc822_8bit.
+
+ 7 June 1992	[bezerk.c/h, tenex.c/h, mh.c/h, news.c/h] Removed `date'
+		per-message local driver variables; use the numeric dates
+		stored in the elt internal date instead.
+
+ 8 June 1992	[mail.c/h] Made it portable to DOS and Mac once again.
+
+ 8 June 1992	[rfc822.c] Fixed a couple of bugs in quoted-printable encoding.
+		It seems that people are actually trying to use the QP support!
+
+ 8 June 1992	[bezerk.c/h, dummy.c/h, imap2.c/h, mail.c/h, mbox.c, mh.c/h,
+		 mtest.c, news.c/h, tenex.c/h] Created the concept of `long'
+		vs. `short' caching.  Modified all drivers to know about the
+		new mechanism.  The mail_fetchenvelope() function is now
+		history, and is replaced by mail_fetchstructure() which has a
+		new argument, a pointer to a destination body pointer.
+
+ 9 June 1992	[MBoxWindow.m, ReadWindow.m, ReplyWindow.m/h] Update
+		MailManager to know about long elt's.
+
+ 9 June 1992	[bezerk.c, imap2.c, mh.c, news.c, tenex.c] Implement short
+		cache support in all drivers.
+
+10 June 1992	[mail.c/h, tenex.c] Change API for mail_open() so that the
+		third argument (formerly debug) is now an options bitmask.
+		The options are defined in mail.h
+
+10 June 1992	[mtest.c, ms.c, imapd.c, MailManager.m] Update main programs
+		to know about new mail_open() API.
+
+11 June 1992	[bezerk.c, imap2.c, mh.c, news.c, tenex.c] Fix bug in returning
+		bodies from mail_fetchstructure().
+
+16 June 1992	[bezerk.c, imap2.c, mail.c/h, tenex.c] Put all cache management
+		under the control of a single function which can be overridden
+		by the main program.
+
+16 June 1992	[os_ptx.c] Fix rimap on PTX.
+
+17 June 1992	[ipop3d.c] Fix missing response in POP3 TOP command.
+
+17 June 1992	[bezerk.c, tenex.c] Implement read only open in local drivers.
+
+18 June 1992	[smtp.h] Remove prototype for smtp_parse_address().
+
+18 June 1992	[Internals.DOC] Update and expand API document.
+
+24 June 1992	[dawz.c/h] Started work on DOS local file driver.  Updates to
+		it won't be documented until first release.
+
+25 June 1992	[rfc822.c] Fixed crash caused by Content-Type with a subtype
+		delimiter but no subtype.
+
+25 June 1992	[imap2.c] Fix bug parsing body contents with short caches.
+
+ 1 July 1992	[rfc822.c] Fixed yet another bug in quoted-printable encoding.
+
+ 6 July 1992	[*dbw*, *dpc*] More changes to B&W and PC-TCP stuff from Ken
+		Bobey.
+
+ 8 July 1992	[os_???.c] Fixed handling of CR's in tcp_getline().
+
+12 July 1992	[mail.h] Added data1 and data2 to elt.
+
+12 July 1992	[os_???.h, bezerk.c, dummy.c, mbox.c, mh.c, news.c, tenex.c]
+		Move include of sys/uio.h to osdep.h files because not all
+		Unix systems have it.
+
+12 July 1992	[os_???.c/h, bezerk.c] New lockname() osdep routine to make a
+		status lock file instead of being wired into bezerk.c code.
+
+12 July 1992	[os_???.c/h, bezerk.c] NFSKLUDGE switch controls the NFS
+		kludge, yet another concession for SCO cretinism.
+
+14 July 1992	[os_sco.c/h, makefile.sco] More updates to SCO sources.
+
+15 July 1992	[mail.c, imap2.c/h, bezerk.c, mh.c, news.c, tenex.c] Make
+		cache flushing when recycling a stream be the driver's
+		responsibility.  imap2 now uses the new data1/data2 elt words
+		to hold its string cache pointers.
+
+15 July 1992	[non-ANSI os_???.c] Fix lockname() definitions.
+
+16 July 1992	[os_???.c/h] Yet another episode in the parsing of lines from
+		TCP.  Fix lockname() definitions in non-ANSI sources again.
+
+16 July 1992	[bezerk.c/h, mbox.c] Delete fname local stream variable.  Fix
+		lock file name.
+
+19 July 1992	[makefile.sco, os_sco.c] Yet more random updates to SCO stuff.
+
+21 July 1992	[os_???.c/h, bezerk.c, dummy.c, imap2.c, mail.c, mbox.c, mh.c,
+		 misc.c, mtest.c, news.c, nntp.c, smtp.c, tenex.c] Shuffled
+		includes some more.  <sys/types.h> is now moved to the osdep
+		file so the <sys/uio.h> includes work.  Deleted some UNIX
+		dependent code.
+
+21 July 1992	[os_???.c/h, imapd.c, ipop?d.c] Added argc and argv as
+		arguments to server_login() for SCO's benefit.  What a
+		troublesome operating system!
+
+21 July 1992	[mtest.c] Put dawz hooks into mtest.
+
+22 July 1992	[dawz.c/h] First release of dawz local file driver for DOS.
+		Is presently missing MIME and text search capability, also does
+		not support user keywords (although some hooks are there).
+
+22 July 1992	[makefile.d??] Added dawz driver to DOS makefiles.
+
+22 July 1992	[bezerk.c, imap2.c, mail.c, tenex.c] Fixed bogus references to
+		mm_cache() function instead of (*mailcache) ().
+
+23 July 1992	[os_sco.c/h] More SCO madness (the last time?).
+
+23 July 1992	[imap2.c] Fixed rimapd behavior when the login is OK but there
+		is no /etc/rimapd.
+
+23 July 1992	[bezerk.c/h, mbox.c] Fix mbox behavior when bezerk mailbox is
+		gubbish.
+
+12 August 1992	[os_ptx.c/h, mh.c, news.c] Fixes for PTX.
+
+13 August 1992	[os_ptx.c, news.c] More fixes for PTX.
+
+20 August 1992	[mail.c, imap2.c] Fix missing cast of lelt and elt from
+		mailcache function.
+
+20 August 1992	[mh.c, news.c] PTX fixes of 13 August broke DYNIX.
+
+31 August 1992	[rfc822.c] Fix comment-as-name handling when host is missing
+		(thanks LGL!).
+
+31 August 1992	[ReadWindow.nib, SendWindow.nib] Make EasyMail build again (it
+		had been broken since the EMACS editing stuff was added).
+
+9 September 1992[bezerk.h/c] Fixed bad file closing bug when recycling a
+		bezerk stream.

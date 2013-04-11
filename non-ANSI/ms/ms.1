@@ -1,0 +1,143 @@
+.TH ms l  "11 September 1991"
+.SH NAME
+ms \- distributed electronic mail client
+.SH SYNTAX
+.B ms
+.SH DESCRIPTION
+.I ms
+is the user agent (client) of a distributed electronic mail system using the
+Interactive Mail Access Protocol described in RFC 1176.  Its interface
+is a subset of the
+.I MM
+program on Unix and DEC-20s.  See the mm(l) man page for more details
+on this interface.
+.PP
+.I ms
+was written using the
+.I CCMD
+package developed at Columbia to mimic the command interface on DEC-20s.
+Thus, it has copious internal help, completion of partially typed commands 
+on escape, and help on partial commands when "?" is typed.
+.PP
+These are the most useful commands:
+.PP
+.I GET
+mailbox
+.sp
+.in 10
+Open the specified local or remote mailbox.  Remote mailbox names are
+in the form {server}mailbox.  The default is INBOX.  For example,
+.B GET {FOO.BAR.EDU}
+will open your primary mailbox at FOO.BAR.EDU.  You will be prompted
+for your username and password at the host.
+.in
+.sp
+.I BBOARD
+bboard
+.sp
+.in 10
+Open the specified local or remote bulletin board.  Remote bulletin
+board names are in the form {server}bboard.  On Unix systems a bboard
+is a Usenet newsgroup.  The default is general.  For example
+.B BBOARD {FOO.BAR.EDU}rec.arts.anime
+will open the newsgroup rec.arts.anime at FOO.BAR.EDU.  You will be
+prompted for your username and password at the host.
+.in
+.sp
+.I SEND
+address
+.sp
+.in 10
+Send mail to specified address or list of addresses.  All addresses may be
+either local (without an "@") or in RFC 822 format.
+.in
+.sp
+.I HEADERS
+msgs
+.sp
+.in 10
+Displays a one-line summary of the specified messages.
+.in
+.sp
+.I TYPE
+msgs
+.sp
+.in 10
+Types the specified messages.
+.in
+.sp
+.I READ
+msgs
+.sp
+.in 10
+Enters read sub-mode on the specified messages.
+.in
+.sp
+.I DELETE
+msgs
+.sp
+.in 10
+Delete specified messages from current file.
+.in
+.sp
+.sp
+.I EXIT
+.sp
+.in 10
+Permanently removes deleted messages from the mail file, closes any network
+connection, and gets out of MS.
+.in
+.sp
+.I HELP
+topic
+.sp
+.in 10
+Type a message explaining the specified topic.
+.in
+.sp
+Please type "?" to the "MS>" prompt for a complete list of commands.
+After that you can type "HELP" followed by the individual command name, i.e. 
+"HELP SEND".
+.SH "SEE ALSO"
+mm(1), emacs(1), mail(1), sendmail(8),
+"HELP MM" on any DEC-20
+
+.SH FILES
+.ta 3i
+/etc/passwd	to find your personal name
+.br
+/usr/ucb/more	for output of long text
+
+.SH BUGS
+.PP
+Use the
+.I BUG
+command in
+.I ms
+to send mail about bugs to the maintainers of
+.IR ms .
+
+.SH AUTHORS
+.I ms
+was written with
+.I CCMD
+and the
+.I portable C client
+at the University of Washington by Mark Crispin.
+.I CCMD
+was written at Columbia University by Andrew Lowry and Howie Kaye.
+The
+.I portable C client
+was initially written at Stanford University by Mark Crispin, and
+was subsequently substantially redesigned and rewritten at the
+University of Washington by Mark Crispin.
+.PP
+.SH COPYRIGHT
+.I ms
+is copyright 1991 by the University of Washington.
+.I ms
+may be distributed without restriction for non-commercial use.
+Any sale or use of
+.I ms
+or adaptations thereof for commercial purposes is prohibited except
+under license.

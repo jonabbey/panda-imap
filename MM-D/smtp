@@ -1,0 +1,718 @@
+(DEFINE-FILE-INFO PACKAGE "INTERLISP" READTABLE "INTERLISP" BASE 10)
+(FILECREATED " 7-Jun-88 13:01:31" {SAFE}</B/MRC>SMTP.;69 38012  
+
+      previous date%: "26-May-88 09:33:45" |{MCS:MCS:STANFORD}<LANE>MM>SMTP.;9|
+)
+
+
+(PRETTYCOMPRINT SMTPCOMS)
+
+(RPAQQ SMTPCOMS 
+       (                                       (* ; 
+                            "Simple Mail Transport Protocol --- Mark Crispin")
+                                               (* ; 
+          "Mail Transfer Protocol routines --- interface between SMTP and MM")
+        (FNS MTP.ENVELOPE MTP.DISPLAY.ENVELOPE MTP.ENVELOPE.TOLIST 
+             MTP.ENVELOPE.SUBJECT MTP.MAIL MTP.TTYLINE)
+                                               (* ; 
+                             "Simple Mail Transfer Protocol support routines")
+        (FNS SMTP.MAIL SMTP.OPEN SMTP.OPEN.TCP SMTP.LOGOUT SMTP.REPLY SMTP.SEND
+             SMTP.START SMTP.RCPT SMTP.DATA SMTP.MAILBOX SMTP.LOCK SMTP.UNLOCK)
+                                               (* ; "SMTP contact ports")
+        (CONSTANTS (SMTP.PORT.TCP 25))
+                                               (* ; "SMTP codes")
+        (CONSTANTS (SMTP.GREET 220)
+               (SMTP.OK 250)
+               (SMTP.READY 354)
+               (SMTP.SOFTFATAL 421))
+                                               (* ; 
+                                             "Single line string readtable")
+        [INITVARS (SMTP.RDTBL (COPYREADTABLE 'ORIG]
+        (P (for I from 0 to 127 do (SETSYNTAX I 'OTHER SMTP.RDTBL))
+           (SETSYNTAX (CHARCODE CR)
+                  'BREAKCHAR SMTP.RDTBL))
+                                               (* ; "Commonly used strings")
+        [INITVARS (MTP.CRLF (CONCAT (CHARACTER (CHARCODE CR))
+                                   (CHARACTER (CHARCODE LF]
+                                               (* ; "RFC822 support routines")
+        (FNS RFC822.MESSAGE RFC822.HEADER RFC822.HEADER.LINE RFC822.DATE 
+             RFC822.MESSAGE-ID RFC822.MAILBOX)
+                                               (* ; "RFC822 parsing routines")
+        (FNS RFC822.PARSE.MAILBOX RFC822.PARSE.PHRASE RFC822.PARSE.ROUTEADDR 
+             RFC822.PARSE.ADDRSPEC RFC822.PARSE.WORD RFC822.TRIM.WHITESPACE)
+        (INITVARS (RFC822.DELIMITERS (CHARCODE (NULL ^A ^B ^C ^D ^E ^F ^G ^H ^I
+                                                     ^J ^K ^L ^M ^N ^O ^P ^Q ^R
+                                                     ^S ^T ^U ^V ^W ^X ^Y ^Z 
+                                                     ^%[ ^\ ^%] ^^ ^_ SPACE %(
+                                                     %) < > @ %, ; %: %" %[ %]
+                                                     DEL)))
+               (RFC822.HOST.DELIMITERS (CHARCODE (NULL ^A ^B ^C ^D ^E ^F ^G ^H
+                                                       ^I ^J ^K ^L ^M ^N ^O ^P
+                                                       ^Q ^R ^S ^T ^U ^V ^W ^X
+                                                       ^Y ^Z ^%[ ^\ ^%] ^^ ^_ 
+                                                       SPACE %( %) < > @ %, ; 
+                                                       %: %" DEL)))
+               (RFC822.LWSPCHARNEGTABLE (MAKEBITTABLE (LIST (CHARCODE SPACE)
+                                                            (CHARCODE TAB))
+                                               T)))
+                                               (* ; 
+                                             "User-settable parameters")
+        (INITVARS (SMTP.PROTOCOL 'TCP)
+               (SMTP.DEBUG NIL)
+               (SMTP.GAG T)
+               (SMTP.LOCKDEBUG NIL)
+               (SMTP.EOF (CONCAT MTP.CRLF ".")))
+                                               (* ; "Declare all globals")
+        (GLOBALVARS SMTP.PORT.TCP SMTP.RDTBL MTP.CRLF RFC822.DELIMITERS 
+               RFC822.HOST.DELIMITERS RFC822.LWSPCHARNEGTABLE SMTP.PROTOCOL 
+               SMTP.DEBUG SMTP.GAG SMTP.LOCKDEBUG SMTP.EOF)
+        (GLOBALVARS PROMPTWINDOW \IP.DEFAULT.CONFIGURATION 
+               INTERNET.LOCAL.DOMAIN)
+                                               (* ; "Internet domain service")
+        (FILES TCPDOMAIN)))
+
+
+
+(* ; "Simple Mail Transport Protocol --- Mark Crispin")
+
+
+
+
+(* ; "Mail Transfer Protocol routines --- interface between SMTP and MM")
+
+(DEFINEQ
+
+(MTP.ENVELOPE
+  [LAMBDA (WINDOW MESSAGE)                               (* ; "Edited 19-Feb-88 12:30 by MRC")
+                                                             (* ; 
+                                               "Prompts for and parses RFC822 envelope information")
+    (with MM.MESSAGE MESSAGE (while (NOT To) do (MTP.ENVELOPE.TOLIST WINDOW MESSAGE
+                                                                   'To))
+           (MTP.ENVELOPE.TOLIST WINDOW MESSAGE 'cc))
+    (MTP.ENVELOPE.SUBJECT WINDOW MESSAGE])
+
+(MTP.DISPLAY.ENVELOPE
+  [LAMBDA (MESSAGE)                                      (* ; "Edited 17-Aug-87 18:55 by MRC")
+                                                             (* ; 
+                                              "Display the envelope for the message being composed")
+    (CONCAT (RFC822.HEADER.LINE 'From (fetch (MM.MESSAGE From) of MESSAGE)
+                   T)
+           (LET (NEWSTRING)
+                (CONCATLIST (for FIELD in '(Sender Reply-To Subject To cc bcc)
+                               collect (if (SETQ NEWSTRING
+                                                    (RFC822.HEADER.LINE
+                                                     FIELD
+                                                     (RECORDACCESS FIELD MESSAGE
+                                                            (CONSTANT (RECLOOK 'MM.MESSAGE))
+                                                            'FETCH)
+                                                     T))
+                                               then (CONCAT (CHARACTER (CHARCODE CR))
+                                                               NEWSTRING)
+                                             else ""])
+
+(MTP.ENVELOPE.TOLIST
+  [LAMBDA (WINDOW MESSAGE LISTNAME)                      (* ; "Edited 17-Aug-87 18:56 by MRC")
+                                                             (* ; 
+                                                  "Prompts for and parses a generic RFC822 to-list")
+    (LET (LINE RECIPIENT (MOREFLG T))
+         (while MOREFLG
+            do (SETQ LINE (RFC822.TRIM.WHITESPACE (MTP.TTYLINE (CONCAT LISTNAME ": ")
+                                                                 WINDOW)))
+                  (SETQ MOREFLG NIL)
+                  (while LINE
+                     do (if (SETQ RECIPIENT (RFC822.PARSE.MAILBOX LINE))
+                                then (RECORDACCESS LISTNAME MESSAGE (CONSTANT (RECLOOK
+                                                                                   'MM.MESSAGE))
+                                                'REPLACE
+                                                (APPEND (RECORDACCESS LISTNAME MESSAGE
+                                                               (CONSTANT (RECLOOK 'MM.MESSAGE))
+                                                               'FETCH)
+                                                       (LIST RECIPIENT)))
+                                      (if (SETQ LINE (RFC822.TRIM.WHITESPACE
+                                                          (fetch (MM.ADDRESS Extra) of 
+                                                                                            RECIPIENT
+                                                                 )))
+                                          then (if (EQ (NTHCHARCODE LINE 1)
+                                                               (CHARCODE %,))
+                                                       then (SETQ LINE (RFC822.TRIM.WHITESPACE
+                                                                            (SUBSTRING LINE 2)))
+                                                     else (printout WINDOW 
+                                                                     "Junk at end of mailbox: " LINE
+                                                                     T)
+                                                           (SETQ LINE NIL))
+                                                (SETQ MOREFLG (NOT LINE)))
+                              else (printout WINDOW "Bad mailbox: " LINE T)
+                                    (SETQ LINE NIL)
+                                    (SETQ MOREFLG T])
+
+(MTP.ENVELOPE.SUBJECT
+  [LAMBDA (WINDOW MESSAGE)                               (* ; "Edited 19-Feb-88 12:31 by MRC")
+                                                             (* ; 
+                                                "Prompts for and sets up a Subject in the envelope")
+    (replace (MM.MESSAGE Subject) of MESSAGE with (MTP.TTYLINE "Subject: " WINDOW])
+
+(MTP.MAIL
+  [LAMBDA (WINDOW MESSAGE HOST)                          (* ; "Edited 29-Feb-88 16:23 by MRC")
+                                                             (* ; "Queue message to service host")
+    (SMTP.MAIL MESSAGE HOST])
+
+(MTP.TTYLINE
+  [LAMBDA (PROMPT WINDOW)                                (* ; "Edited 24-Feb-88 17:14 by MRC")
+                                                             (* ; 
+                                                           "Prompt for and get a line from the TTY")
+    (RESETFORM (TTYDISPLAYSTREAM WINDOW)
+           (TTY.PROCESS (THIS.PROCESS))
+           (TTYIN PROMPT NIL NIL '(STRING NORAISE])
+)
+
+
+
+(* ; "Simple Mail Transfer Protocol support routines")
+
+(DEFINEQ
+
+(SMTP.MAIL
+  [LAMBDA (MESSAGE HOST)                                 (* ; "Edited 29-Feb-88 15:49 by MRC")
+                                                             (* ; 
+                                                           "Send message to the specified server")
+    (PROG ((STREAM (SMTP.OPEN HOST MESSAGE))
+           (WINFLG T))
+          (if STREAM
+              then
+              (if (AND (SMTP.START STREAM 'MAIL MESSAGE)
+                           (with MM.MESSAGE MESSAGE
+                                  (for FIELD in (LIST To cc bcc)
+                                     do [if (AND FIELD WINFLG)
+                                                then (for ITEM in FIELD
+                                                            do (SETQ WINFLG (SMTP.RCPT STREAM
+                                                                                       ITEM]
+                                     finally (RETURN WINFLG)))
+                           (SMTP.DATA STREAM MESSAGE)
+                           (SMTP.LOGOUT STREAM))
+                  then (RETURN 'OK)
+                else (SMTP.LOGOUT STREAM])
+
+(SMTP.OPEN
+  [LAMBDA (HOST MESSAGE)                                 (* ; "Edited 29-Feb-88 16:38 by MRC")
+                                                             (* ; 
+                      "Opens an SMTP connection, returns stream if successful else an error string")
+    (with MM.MESSAGE MESSAGE (SETQ Error NIL)
+           (PROG (STREAM REPLY)
+                 (if (AND (SETQ STREAM (SELECTQ SMTP.PROTOCOL
+                                               (TCP (SMTP.OPEN.TCP HOST))
+                                               (ERROR "Unknown SMTP protocol" SMTP.PROTOCOL)))
+                              (SETQ REPLY (SMTP.REPLY STREAM))
+                              (EQ SMTP.GREET (SUBATOM REPLY 1 3))
+                              [SETQ REPLY (SMTP.SEND STREAM 'HELO (LIST " " (GETSTREAMPROP
+                                                                                 STREAM
+                                                                                 'SMTPLOCALHOST]
+                              (EQ SMTP.OK (SUBATOM REPLY 1 3)))
+                     then (SMTP.UNLOCK STREAM T)
+                           (RETURN STREAM)
+                   else (SETQ Error (OR REPLY (CONCAT SMTP.SOFTFATAL " Can't connect to host")))
+                         (if STREAM
+                             then (CLOSEF STREAM])
+
+(SMTP.OPEN.TCP
+  [LAMBDA (HOST)                                         (* ; "Edited 25-Mar-88 09:32 by cdl")
+                                                             (* ; 
+                                                           "Open SMTP connection using TCP/IP")
+    (PROG ((HOSTADDR (DOMAIN.HOSTP HOST))
+           STREAM)
+          (DECLARE (GLOBALVARS INTERNET.LOCAL.DOMAIN \IP.DEFAULT.CONFIGURATION))
+          (if HOSTADDR
+              then (if (SETQ STREAM (TCP.OPEN HOSTADDR SMTP.PORT.TCP NIL 'ACTIVE 'INPUT T))
+                           then (PUTSTREAMPROP STREAM 'OUTSTREAM (TCP.OTHER.STREAM STREAM))
+                                 (PUTSTREAMPROP STREAM 'SMTPHOST HOST)
+                                 (PUTSTREAMPROP STREAM 'SMTPLOCALHOST (CONCAT (fetch (IPINIT
+                                                                                          HOSTNAME)
+                                                                                 of 
+                                                                            \IP.DEFAULT.CONFIGURATION
+                                                                                     )
+                                                                             "." 
+                                                                             INTERNET.LOCAL.DOMAIN))
+                                 (PUTSTREAMPROP STREAM 'SMTPFOREIGNHOST (DOMAIN.LOOKUP.NAME HOSTADDR)
+                                        )
+                                 (RETURN STREAM))
+            else (printout PROMPTWINDOW T "No such host as " HOST])
+
+(SMTP.LOGOUT
+  [LAMBDA (STREAM)                                       (* ; "Edited 17-Aug-87 18:58 by MRC")
+                                                             (* ; "Log out an SMTP connection")
+    (SMTP.SEND STREAM 'QUIT)
+    (CLOSEF? STREAM)
+    'OK])
+
+(SMTP.REPLY
+  [LAMBDA (STREAM)                                       (* ; "Edited 29-Mar-88 10:30 by cdl")
+                                                             (* ; 
+                                                           "Reads a reply string from the server")
+    (if (AND (OPENP STREAM)
+                 (NOT (EOFP STREAM)))
+        then (LET ((REPLY (CONSTANT null))
+                       REPLYLINE)
+                      [while (EQ (NTHCHARCODE (SETQ REPLYLINE (RSTRING STREAM SMTP.RDTBL))
+                                            4)
+                                     (CHARCODE -)) do (SETQ REPLY (CONCAT REPLY REPLYLINE
+                                                                                 (CHARACTER
+                                                                                  (BIN STREAM))
+                                                                                 (CHARACTER
+                                                                                  (BIN STREAM]
+                      (SETQ REPLY (CONCAT REPLY REPLYLINE))
+                      (if SMTP.DEBUG
+                          then (printout PROMPTWINDOW T REPLY)
+                        elseif (NOT SMTP.GAG)
+                          then (printout PROMPTWINDOW '!))
+                                                             (* ; "Slurp TCP/IP newline")
+                      (to (CONSTANT (NCHARS MTP.CRLF)) do (BIN STREAM))
+                      REPLY)
+      else (CONCAT SMTP.SOFTFATAL " SMTP connection went away!"])
+
+(SMTP.SEND
+  [LAMBDA (STREAM COMMAND ARGS NOUNLOCKFLG NOLOCKFLG)    (* ; "Edited 25-Mar-88 08:32 by cdl")
+                                                             (* ; 
+                                                           "Sends an SMTP command to the server")
+    (if (OR NOLOCKFLG (SMTP.LOCK STREAM))
+        then (if (AND (OPENP STREAM)
+                              (NOT (EOFP STREAM)))
+                     then [LET [(OSTREAM (GETSTREAMPROP STREAM 'OUTSTREAM]
+                                                             (* ; 
+                                                           "Note: PRIN3 is here for a reason")
+                                   (PRIN3 COMMAND OSTREAM)
+                                   (if SMTP.DEBUG
+                                       then (printout PROMPTWINDOW T COMMAND)
+                                     elseif (NOT SMTP.GAG)
+                                       then (printout PROMPTWINDOW '+))
+                                   [if ARGS
+                                       then (RESETFORM (RADIX 10)
+                                                       (for ARG inside ARGS
+                                                          do (PRIN3 ARG OSTREAM)
+                                                                (if SMTP.DEBUG
+                                                                    then (printout PROMPTWINDOW 
+                                                                                    ARG]
+                                                             (* ; "Note: must use MTP.CRLF here")
+                                   (PRIN3 MTP.CRLF OSTREAM)
+                                   (FORCEOUTPUT OSTREAM T)
+                                   (PROG1 (SMTP.REPLY STREAM)
+                                       (if (NOT NOUNLOCKFLG)
+                                           then (SMTP.UNLOCK STREAM)))]
+                   else (SMTP.UNLOCK STREAM)
+                         (CONCAT SMTP.SOFTFATAL "SMTP connection went away!"])
+
+(SMTP.START
+  [LAMBDA (STREAM TYPE MESSAGE)                          (* ; "Edited 23-Mar-88 18:08 by cdl")
+                                                             (* ; "Initiate a MAIL transaction")
+    (SMTP.SEND STREAM (CONCAT TYPE " FROM:<"
+                                 [with MM.MESSAGE MESSAGE
+                                        (if Return-Path
+                                            then (SMTP.MAILBOX Return-Path)
+                                          else (LET ((HOST (MM.SERVICEHOST)))
+                                                        (CONCAT (CAR (\INTERNAL/GETPASSWORD HOST))
+                                                               '@ HOST]
+                                 '>])
+
+(SMTP.RCPT
+  [LAMBDA (STREAM ADDRESS)                               (* ; "Edited 26-Jan-88 16:20 by MRC")
+                                                             (* ; 
+                                                           "Negotiates a single SMTP RCPT command")
+    (PROG [(REPLY (SMTP.SEND STREAM "RCPT TO:<" (LIST (SMTP.MAILBOX ADDRESS)
+                                                          ">"]
+          (with MM.ADDRESS ADDRESS (if (EQ SMTP.OK (SUBATOM REPLY 1 3))
+                                           then (SETQ RcptError NIL)
+                                                 (RETURN REPLY)
+                                         else (SETQ RcptError REPLY])
+
+(SMTP.DATA
+  [LAMBDA (STREAM MESSAGE)                               (* ; "Edited 28-Jan-88 17:17 by MRC")
+                                                             (* ; "Send mail data, end transaction")
+    (PROG ((REPLY (SMTP.SEND STREAM 'DATA NIL T)))
+          (if (AND (EQ SMTP.READY (SUBATOM REPLY 1 3))
+                       (SETQ REPLY (SMTP.SEND STREAM (RFC822.MESSAGE MESSAGE)
+                                          SMTP.EOF NIL T))
+                       (EQ SMTP.OK (SUBATOM REPLY 1 3)))
+              then (RETURN REPLY)
+            else (replace (MM.MESSAGE Error) of MESSAGE with REPLY])
+
+(SMTP.MAILBOX
+  [LAMBDA (ADDRESS)                                      (* ; "Edited 17-Aug-87 18:59 by MRC")
+                                                             (* ; "Output an SMTP format address")
+    (with MM.ADDRESS ADDRESS
+           (if RouteList
+               then (CONCAT [CONCATLIST (for route on RouteList
+                                               join (LIST '@ (CAR route)
+                                                              (if (CDR route)
+                                                                  then '%,
+                                                                else '%:]
+                               Mailbox "@" Host)
+             else (CONCAT Mailbox "@" Host])
+
+(SMTP.LOCK
+  [LAMBDA (STREAM)                                       (* ; "Edited 17-Aug-87 18:59 by MRC")
+                                                             (* ; "Locks the SMTP stream")
+    (PROG NIL
+          (if (PUTSTREAMPROP STREAM 'SMTPLOCK T)
+              then (printout PROMPTWINDOW T "SMTP operation in progress, please wait")
+            else (if SMTP.LOCKDEBUG
+                         then (printout PROMPTWINDOW '<))
+                  (RETURN T])
+
+(SMTP.UNLOCK
+  [LAMBDA (STREAM NOERROR)                               (* ; "Edited 17-Aug-87 18:59 by MRC")
+                                                             (* ; "Unlocks the SMTP stream")
+    (if (OR (PUTSTREAMPROP STREAM 'SMTPLOCK NIL)
+                NOERROR)
+        then (if SMTP.LOCKDEBUG
+                     then (printout PROMPTWINDOW '>))
+      else (ERROR "SMTP unlock when already unlocked"])
+)
+
+
+
+(* ; "SMTP contact ports")
+
+(DECLARE%: EVAL@COMPILE 
+
+(RPAQQ SMTP.PORT.TCP 25)
+
+
+(CONSTANTS (SMTP.PORT.TCP 25))
+)
+
+
+
+(* ; "SMTP codes")
+
+(DECLARE%: EVAL@COMPILE 
+
+(RPAQQ SMTP.GREET 220)
+
+(RPAQQ SMTP.OK 250)
+
+(RPAQQ SMTP.READY 354)
+
+(RPAQQ SMTP.SOFTFATAL 421)
+
+
+(CONSTANTS (SMTP.GREET 220)
+       (SMTP.OK 250)
+       (SMTP.READY 354)
+       (SMTP.SOFTFATAL 421))
+)
+
+
+
+(* ; "Single line string readtable")
+
+
+(RPAQ? SMTP.RDTBL (COPYREADTABLE 'ORIG))
+
+(for I from 0 to 127 do (SETSYNTAX I 'OTHER SMTP.RDTBL))
+
+(SETSYNTAX (CHARCODE CR)
+       'BREAKCHAR SMTP.RDTBL)
+
+
+
+(* ; "Commonly used strings")
+
+
+(RPAQ? MTP.CRLF (CONCAT (CHARACTER (CHARCODE CR))
+                           (CHARACTER (CHARCODE LF))))
+
+
+
+(* ; "RFC822 support routines")
+
+(DEFINEQ
+
+(RFC822.MESSAGE
+  [LAMBDA (MESSAGE)                                      (* ; "Edited 17-Aug-87 19:00 by MRC")
+                                                             (* ; 
+                                                         "Returns RFC822 representation of message")
+    (with MM.MESSAGE MESSAGE (OR Message-ID (SETQ Message-ID (RFC822.MESSAGE-ID)))
+           (CONCAT (RFC822.HEADER MESSAGE)
+                  MTP.CRLF Body])
+
+(RFC822.HEADER
+  [LAMBDA (MESSAGE)                                      (* ; "Edited 11-Jan-88 13:38 by MRC")
+                                                             (* ; 
+ "Returns an RFC822 header for the given message.  This function written for clarity not for speed")
+    (CONCATLIST (for FIELD in '(Date From Sender Reply-To Subject To cc Message-ID 
+                                             In-Reply-To)
+                   collect (OR (RFC822.HEADER.LINE FIELD (RECORDACCESS
+                                                                  FIELD MESSAGE
+                                                                  (CONSTANT (RECLOOK 'MM.MESSAGE))
+                                                                  'FETCH))
+                                   ""])
+
+(RFC822.HEADER.LINE
+  [LAMBDA (FIELDNAME FIELD NONLFLAG)                     (* ; "Edited 23-Mar-88 08:13 by cdl")
+                                                             (* ; 
+                "Outputs an RFC822 header line.  This function written for structure not for speed")
+    (LET ((NEWLINE (if NONLFLAG
+                       then (CONSTANT null)
+                     else MTP.CRLF)))
+         (SELECTQ FIELDNAME
+             (Date (CONCAT "Date: " (RFC822.DATE FIELD)
+                          NEWLINE))
+             (Message-ID (CONCAT "Message-ID: <" (RFC822.MESSAGE-ID FIELD)
+                                ">" NEWLINE))
+             (if FIELD
+                 then (CONCAT FIELDNAME ": "
+                                 (if (LISTP FIELD)
+                                     then [CONCATLIST
+                                               (for ITEM on FIELD
+                                                  join (LIST (RFC822.MAILBOX (CAR ITEM))
+                                                                 (if (CDR ITEM)
+                                                                     then ", "
+                                                                   else (CONSTANT null]
+                                   else FIELD)
+                                 NEWLINE])
+
+(RFC822.DATE
+  [LAMBDA (DATE)                                         (* ; "Edited 25-Mar-88 09:00 by cdl")
+                                                             (* ; "Outputs date in RFC822 format")
+    (LET [(DATESTRING (GDATE DATE (DATEFORMAT SPACES TIME.ZONE DAY.OF.WEEK DAY.SHORT]
+         (CONCAT (SUBSTRING DATESTRING -4 -2)
+                ", "
+                (SUBSTRING DATESTRING (if (EQ (NTHCHARCODE DATESTRING 1)
+                                                  (CHARCODE SPACE))
+                                          then 2
+                                        else 1)
+                       -7])
+
+(RFC822.MESSAGE-ID
+  [LAMBDA (ID)                                           (* ; "Edited 25-Mar-88 09:32 by cdl")
+                                                             (* ; 
+                                                           "Return an RFC822 format Message ID")
+    (OR ID (LET ((HOST (MM.SERVICEHOST)))
+                (DECLARE (GLOBALVARS \IP.DEFAULT.CONFIGURATION))
+                (CONCAT (IDATE)
+                       "."
+                       (GENSYM)
+                       "."
+                       (fetch (IPINIT HOSTNAME) of \IP.DEFAULT.CONFIGURATION)
+                       "."
+                       (CAR (\INTERNAL/GETPASSWORD HOST))
+                       "@" HOST])
+
+(RFC822.MAILBOX
+  [LAMBDA (ADDRESS)                                      (* ; "Edited 17-Aug-87 19:01 by MRC")
+                                                             (* ; "Output an RFC822 format address")
+    (with MM.ADDRESS ADDRESS (if PersonalName
+                                     then (CONCAT PersonalName " <" (SMTP.MAILBOX ADDRESS)
+                                                     ">")
+                                   else (SMTP.MAILBOX ADDRESS])
+)
+
+
+
+(* ; "RFC822 parsing routines")
+
+(DEFINEQ
+
+(RFC822.PARSE.MAILBOX
+  [LAMBDA (STRING)                                       (* ; "Edited 17-Aug-87 19:01 by MRC")
+                                                             (* ; "Parse an RFC822 format mailbox")
+    (LET ((NAMPTR (RFC822.PARSE.PHRASE STRING))
+          ADDRESS)
+
+         (* ;; "This is much more complicated than it should be because there are still cretins out there who output addrspecs without an @.  This makes it difficult to tell a phrase from an addrspec!")
+
+         (if [AND NAMPTR (SETQ ADDRESS (RFC822.PARSE.ROUTEADDR (RFC822.TRIM.WHITESPACE
+                                                                        (SUBSTRING STRING
+                                                                               (ADD1 NAMPTR]
+             then (replace (MM.ADDRESS PersonalName) of ADDRESS
+                         with (SUBSTRING STRING 1 NAMPTR))
+                   ADDRESS
+           else                                          (* ; 
+                                                           "No phrase found, look for addrspec")
+                 (RFC822.PARSE.ADDRSPEC STRING])
+
+(RFC822.PARSE.PHRASE
+  [LAMBDA (STRING)                                       (* ; "Edited 17-Aug-87 19:02 by MRC")
+                                                             (* ; "Parse an RFC822 phrase")
+    (LET ((CURPOS (RFC822.PARSE.WORD STRING))
+          WSP NEXT)
+         (if (AND CURPOS (NOT (ZEROP CURPOS)))
+             then (SETQ WSP (SUB1 (OR (STRPOSL RFC822.LWSPCHARNEGTABLE (SUBSTRING STRING
+                                                                                  (ADD1 CURPOS)))
+                                          1)))
+                   (if [SETQ NEXT (RFC822.PARSE.PHRASE (SUBSTRING STRING
+                                                                      (PLUS CURPOS WSP 1]
+                       then (if (ZEROP NEXT)
+                                    then CURPOS
+                                  else (PLUS CURPOS WSP NEXT)))
+           else CURPOS])
+
+(RFC822.PARSE.ROUTEADDR
+  [LAMBDA (STR)                                          (* ; "Edited 17-Aug-87 19:02 by MRC")
+                                                             (* ; "Parse an RFC822 route-addr")
+    (if (AND STR (GREATERP (NCHARS STR)
+                            2)
+                 (EQ (NTHCHARCODE STR 1)
+                     (CHARCODE <)))
+        then (PROG ((ADDRESS (create MM.ADDRESS))
+                        (STRING (SUBSTRING STR 2))
+                        DELIMITER ENDPTR)
+                       (with MM.ADDRESS ADDRESS
+                              (while (EQ (NTHCHARCODE STRING 1)
+                                             (CHARCODE @))
+                                 do (if (NOT (SETQ ENDPTR (RFC822.PARSE.WORD
+                                                                   (SETQ STRING (SUBSTRING STRING 2))
+                                                                   RFC822.HOST.DELIMITERS)))
+                                            then (RETURN))
+                                       [SETQ RouteList (APPEND RouteList (LIST (SUBSTRING STRING 1 
+                                                                                      ENDPTR]
+                                       (if (EQ [SETQ DELIMITER (PROG1 (NTHCHARCODE STRING
+                                                                                 (add ENDPTR 1))
+                                                                       (SETQ STRING
+                                                                        (SUBSTRING STRING
+                                                                               (ADD1 ENDPTR))))]
+                                                   (CHARCODE %:))
+                                           then (RETURN)
+                                         elseif (NEQ DELIMITER (CHARCODE %,))
+                                           then (SETQ STRING NIL)))
+                              (if (AND (RFC822.PARSE.ADDRSPEC STRING ADDRESS)
+                                           (EQ (NTHCHARCODE Extra 1)
+                                               (CHARCODE >)))
+                                  then (SETQ Extra (SUBSTRING Extra 2))
+                                        (RETURN ADDRESS])
+
+(RFC822.PARSE.ADDRSPEC
+  [LAMBDA (STR ADDR)                                     (* ; "Edited 29-Feb-88 15:58 by MRC")
+                                                             (* ; "Parse an RFC822 addr-spec")
+    (if [AND STR (NOT (ZEROP (NCHARS STR]
+        then
+        (PROG ((ADDRESS (OR ADDR (create MM.ADDRESS)))
+               (STRING (CONCAT STR))
+               DELIMITER ENDPTR)
+              (with MM.ADDRESS ADDRESS
+                     (if (SETQ ENDPTR (RFC822.PARSE.WORD STRING))
+                         then (if (AND (NOT (ZEROP ENDPTR))
+                                               (SETQ Mailbox (SUBSTRING STRING 1 ENDPTR)))
+                                      then (SETQ Host
+                                                (OR [if (EQ (NTHCHARCODE STRING (ADD1 ENDPTR))
+                                                                (CHARCODE @))
+                                                        then (AND (SETQ STRING
+                                                                       (SUBSTRING STRING
+                                                                              (PLUS ENDPTR 2)))
+                                                                      (SUBSTRING STRING 1
+                                                                             (SETQ ENDPTR
+                                                                              (RFC822.PARSE.WORD
+                                                                               STRING 
+                                                                               RFC822.HOST.DELIMITERS
+                                                                               ]
+                                                    (MM.SERVICEHOST)))
+                                            [if ENDPTR
+                                                then (SETQ Extra (SUBSTRING STRING (ADD1 ENDPTR]
+                                            (RETURN ADDRESS))
+                       else (SETQ Mailbox STRING)
+                             (SETQ Host (MM.SERVICEHOST))
+                             (RETURN ADDRESS])
+
+(RFC822.PARSE.WORD
+  [LAMBDA (STRING DELIMITERS)                            (* ; "Edited 17-Aug-87 19:03 by MRC")
+
+    (* ;; "Locate an atom delimiter in an RFC822 format address.  Return character position before the delimiter")
+
+    (if STRING
+        then (PROG ((CURPOS 1)
+                        (MAXPOS (NCHARS STRING))
+                        (DELIMS (OR DELIMITERS RFC822.DELIMITERS)))
+                                                             (* ; 
+             "In the case of a quoted string the end of the quoted string is the position returned")
+                       (if (EQ (NTHCHARCODE STRING 1)
+                                   (CHARCODE %"))
+                           then (while (AND (LEQ (add CURPOS 1)
+                                                         MAXPOS)
+                                                    (NEQ (NTHCHARCODE STRING CURPOS)
+                                                         (CHARCODE %")))
+                                       do (if (EQ (NTHCHARCODE STRING CURPOS)
+                                                          (CHARCODE \))
+                                                  then (add CURPOS 1))
+                                       finally (add CURPOS 1))
+                         else (while (AND (LEQ CURPOS MAXPOS)
+                                                  (NOT (MEMBER (NTHCHARCODE STRING CURPOS)
+                                                              DELIMS)))
+                                     do (if (EQ (NTHCHARCODE STRING CURPOS)
+                                                        (CHARCODE \))
+                                                then (add CURPOS 1))
+                                           (add CURPOS 1)))
+                       (if (LEQ CURPOS MAXPOS)
+                           then (RETURN (SUB1 CURPOS])
+
+(RFC822.TRIM.WHITESPACE
+  [LAMBDA (STRING)                                       (* ; "Edited 17-Aug-87 19:03 by MRC")
+                                                             (* ; "Trim leading whitespace")
+    (if STRING
+        then (LET ((ENDPOS (STRPOSL RFC822.LWSPCHARNEGTABLE STRING)))
+                      (if ENDPOS
+                          then (SUBSTRING STRING ENDPOS])
+)
+
+(RPAQ? RFC822.DELIMITERS 
+       (CHARCODE (NULL ^A ^B ^C ^D ^E ^F ^G ^H ^I ^J ^K ^L ^M ^N ^O ^P ^Q ^R ^S
+                       ^T ^U ^V ^W ^X ^Y ^Z ^%[ ^\ ^%] ^^ ^_ SPACE %( %) < > @
+                       %, ; %: %" %[ %] DEL)))
+
+(RPAQ? RFC822.HOST.DELIMITERS 
+       (CHARCODE (NULL ^A ^B ^C ^D ^E ^F ^G ^H ^I ^J ^K ^L ^M ^N ^O ^P ^Q ^R ^S
+                       ^T ^U ^V ^W ^X ^Y ^Z ^%[ ^\ ^%] ^^ ^_ SPACE %( %) < > @
+                       %, ; %: %" DEL)))
+
+(RPAQ? RFC822.LWSPCHARNEGTABLE (MAKEBITTABLE (LIST (CHARCODE SPACE)
+                                                       (CHARCODE TAB))
+                                          T))
+
+
+
+(* ; "User-settable parameters")
+
+
+(RPAQ? SMTP.PROTOCOL 'TCP)
+
+(RPAQ? SMTP.DEBUG NIL)
+
+(RPAQ? SMTP.GAG T)
+
+(RPAQ? SMTP.LOCKDEBUG NIL)
+
+(RPAQ? SMTP.EOF (CONCAT MTP.CRLF "."))
+
+
+
+(* ; "Declare all globals")
+
+(DECLARE%: DOEVAL@COMPILE DONTCOPY
+
+(GLOBALVARS SMTP.PORT.TCP SMTP.RDTBL MTP.CRLF RFC822.DELIMITERS 
+       RFC822.HOST.DELIMITERS RFC822.LWSPCHARNEGTABLE SMTP.PROTOCOL SMTP.DEBUG
+       SMTP.GAG SMTP.LOCKDEBUG SMTP.EOF)
+)
+(DECLARE%: DOEVAL@COMPILE DONTCOPY
+
+(GLOBALVARS PROMPTWINDOW \IP.DEFAULT.CONFIGURATION INTERNET.LOCAL.DOMAIN)
+)
+
+
+
+(* ; "Internet domain service")
+
+
+(FILESLOAD TCPDOMAIN)
+(DECLARE%: DONTCOPY
+  (FILEMAP (NIL (4368 9875 (MTP.ENVELOPE 4378 . 4951) (MTP.DISPLAY.ENVELOPE 4953
+ . 6205) (MTP.ENVELOPE.TOLIST 6207 . 8782) (MTP.ENVELOPE.SUBJECT 8784 . 9188) (
+MTP.MAIL 9190 . 9443) (MTP.TTYLINE 9445 . 9873)) (9939 22168 (SMTP.MAIL 9949 . 
+11173) (SMTP.OPEN 11175 . 12562) (SMTP.OPEN.TCP 12564 . 14220) (SMTP.LOGOUT 
+14222 . 14505) (SMTP.REPLY 14507 . 16119) (SMTP.SEND 16121 . 18264) (SMTP.START 
+18266 . 19031) (SMTP.RCPT 19033 . 19764) (SMTP.DATA 19766 . 20427) (SMTP.MAILBOX
+ 20429 . 21204) (SMTP.LOCK 21206 . 21712) (SMTP.UNLOCK 21714 . 22166)) (22974 
+27570 (RFC822.MESSAGE 22984 . 23454) (RFC822.HEADER 23456 . 24276) (
+RFC822.HEADER.LINE 24278 . 25668) (RFC822.DATE 25670 . 26323) (RFC822.MESSAGE-ID
+ 26325 . 27056) (RFC822.MAILBOX 27058 . 27568)) (27611 36691 (
+RFC822.PARSE.MAILBOX 27621 . 28806) (RFC822.PARSE.PHRASE 28808 . 29763) (
+RFC822.PARSE.ROUTEADDR 29765 . 32116) (RFC822.PARSE.ADDRSPEC 32118 . 34320) (
+RFC822.PARSE.WORD 34322 . 36268) (RFC822.TRIM.WHITESPACE 36270 . 36689)))))
+STOP

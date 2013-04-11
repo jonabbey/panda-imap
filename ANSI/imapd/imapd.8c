@@ -1,0 +1,40 @@
+.TH IMAPD 8C "January 16, 1992"
+.UC 5
+.SH NAME
+IMAPd \- Interactive Mail Access Protocol server
+.SH SYNOPSIS
+.B /usr/etc/imapd
+.SH DESCRIPTION
+.I IMAPd
+is a server which supports the
+.B IMAP
+remote mail access protocol as documented in RFC-1176.
+.I IMAPd
+has also been extended to support the Borenstein/Freed
+.I Multipurpose Internet Mail Extensions (MIME)
+proposed stanard extensions to electronic mail.
+.I IMAPd
+is invoked by the internet server (see
+.IR inetd (8)),
+normally for requests to connect to the
+.B IMAP
+port as indicated by the
+.I /etc/services
+file (see
+.IR services (5)).
+.PP
+.I IMAPd
+can also be accessed via
+.IR rsh (1C)
+by many Unix-based clients.  To do this, the
+.I IMAPd
+binary must have a link to
+.I /etc/rimapd
+since this is where this software expects it to be located.
+.SH "SEE ALSO"
+rsh(1C) ipopd(8C)
+.SH BUGS
+The MIME draft is a Proposed Standard and may be subject to change in the
+future.  This may require changes to
+.I IMAPd
+when this happens.

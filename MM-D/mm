@@ -1,0 +1,2119 @@
+(DEFINE-FILE-INFO PACKAGE "INTERLISP" READTABLE "INTERLISP" BASE 10)
+(FILECREATED "15-Jun-88 15:42:36" {SAFE}</B/MRC>MM.;168 121301 
+
+      changes to%:  (FILES TABLEBROWSERDECLS)
+                    (VARS MMCOMS)
+                    (FNS MM.MAILBOXWINDOW MM.NEWMAILBOX MM.TOGGLE.SELECTED 
+                         MM.REPLACE.TABLEITEMS MM.COMPOSEMENUITEMS MM.REMOVE)
+
+      previous date%: " 7-Jun-88 13:15:28" {SAFE}</B/MRC>MM.;167)
+
+
+(PRETTYCOMPRINT MMCOMS)
+
+(RPAQQ MMCOMS 
+       (                                       (* ; 
+                                "MM-D Electronic Mailsystem  -- Mark Crispin")
+                                               (* ; "Primary mail menu setup")
+        (FNS MM MM.PRIMARYMAILMENU MM.ADDNEWMAILBOX MM.SEARCHFORMAILBOXES)
+                                               (* ; 
+                                             "Message selection menu setup")
+        (FNS MM.CREATEMAILBOXWINDOW MM.MAILBOXWINDOW MM.FLAGMENU 
+             MM.MAILBOXWINDOWTITLE MM.CREATEMAILBOXTB MM.MAILBOXMENU 
+             MM.COMMANDMENUITEMS MM.MAILBOXMENUITEMS MM.TBPRINTFN MM.TABLEITEM
+             MM.UPDATE MM.TBPROP MM.HEADERLINE MM.CLOSEMAILBOXWINDOW 
+             MM.FIND.TABLEITEM)
+                                               (* ; 
+                                             "Primary mail menu functions")
+        (FNS MM.NEWMAILBOX MM.SELECTMESSAGES MM.DOSELECTION MM.SELECTMENUITEMS
+             MM.SELECT MM.HARDCOPY MM.QUIT MM.EXIT MM.CHECKMAILBOX 
+             MM.CHECKENTIREMAILBOX MM.EXPUNGEMAILBOX MM.TOGGLE.SELECTED 
+             MM.TOGGLED.SELECTEDFN MM.REPLACE.TABLEITEMS)
+                                               (* ; 
+                                             "Message reading functions")
+        (FNS MM.READMESSAGE MM.TEDITMESSAGE MM.READMENUITEMS 
+             MM.READCOMMANDMENUITEMS MM.READCLOSE MM.SETFLAG MM.CLEARFLAG 
+             MM.REPLYMESSAGE MM.HARDCOPYMESSAGE MM.COPYMESSAGE MM.MOVEMESSAGE 
+             MM.NEXTMESSAGE MM.PREVIOUSMESSAGE MM.KILLMESSAGE MM.MOVETOMESSAGE)
+        (FUNCTIONS MM.MSGNO)
+                                               (* ; 
+                                             "Message composition functions")
+        (FNS MM.COMPOSEMESSAGE MM.REPLY MM.FROMADDRESS MM.REPLY.ADDRESS 
+             MM.COMPOSEMENUITEMS MM.ADD.RECIPIENT MM.REMOVE MM.SUBJECT 
+             MM.REPAINT.ENVELOPE MM.SENDMESSAGE MM.COMPOSEQUIT)
+                                               (* ; "Utility functions")
+        (FNS MM.SERVICEHOST MM.PROMPTFORMAILBOX MM.PROMPTFORLINE MM.MAILBOX 
+             MM.MENU MM.ICONFN MM.GET.WINDOW.REGION MM.FLAGMENUITEMS 
+             MM.DOSEQUENCE MM.ADDNEWMESSAGES MM.EXISTS MM.EXPUNGED MM.SEARCHED
+             MM.LOCK MM.UNLOCK MM.YCOORD.FROM.ITEM)
+                                               (* ; 
+                                         "TEdit plain text utility functions")
+        (FNS MM.TEDIT.FIXUP MM.TEDIT.STRIPEOLS)
+                                               (* ; 
+                                             "User-settable parameters")
+        (INITVARS MM.SERVICEHOSTS              (* ; "Known IMAP servers")
+               MM.PERSONALNAME
+                                               (* ; "Personal name string")
+               (MM.PRIMARYMAILMENUFONT '(GACHA 10))
+                                               (* ; 
+                                             "Font used in primary mail menu")
+               (MM.ICONFONT '(HELVETICA 8))
+                                               (* ; "Font used in icons")
+               (MM.MAXIMUMDISPLAYEDMESSAGES 40)
+                                               (* ; 
+                                             "Maximum messages in browser")
+               (MM.MINIMUMDISPLAYEDMESSAGES 20)
+                                               (* ; 
+                                             "Minimum messages in browser")
+               (MM.MAXFROMLENGTH 20)
+                                               (* ; 
+                                            "Length of displayed From string")
+               (MM.MAXSUBJECTLENGTH 35)
+                                               (* ; 
+                                             "Length of displayed Subject")
+               (MM.READWINDOWSIZE (CREATEPOSITION 80 24))
+               (MM.COMPOSEWINDOWSIZE (CREATEPOSITION 78 24))
+                                               (* ; 
+                                             "Dimensions of a 24x80 screen")
+               MM.DEFAULT.CC
+                                               (* ; "Default CC list")
+               MM.DEFAULT.BCC
+                                               (* ; "Default BCC list")
+               (MM.LIST.CONSECUTIVE.INDEX T)
+                                               (* ; 
+                       "T to have listings show consecutive sequence numbers")
+               MM.LIST.ON.SEPARATE.PAGES
+                                               (* ; 
+                                       "T to list messages on separate pages")
+               MM.LIST.INCLUDE.HEADERS
+                                               (* ; 
+                                   "T to have a header listing on first page")
+               MM.LIST.HOST
+                                               (* ; 
+                                             "Host for SEND.FILE.TO.PRINTER")
+               (MM.DEFAULT.SEARCH.PATTERN "*.TXT")
+                                               (* ; 
+                                           "Pattern for Search for Mailboxes")
+               (MM.REMEMBER.POSITIONS T)
+                                               (* ; 
+                           "Flag to turn on/off remembering window positions")
+               MM.WINDOW
+                                               (* ; "Window of primary menu")
+               MM.MAILBOXES
+                                               (* ; 
+                                        "List of mailboxes used by this user")
+               (MM.SYSTEM.FLAGS '(\Flagged \Deleted \Answered \Seen \XXXX \YYYY
+                                        ))
+                                               (* ; "System-reserved flags")
+               MM.TEDIT.MENU
+                                               (* ; 
+                                           "Extended TEDIT menu for composer")
+               (MM.TEDIT.TABWIDTH 8)
+                                               (* ; 
+                               "Assumed width of a tabstop for line breaking")
+               (MM.TEDIT.FIXUPFLG T)
+                                               (* ; 
+                             "Flag to turn on or off automatic line breaking")
+               )
+                                               (* ; "Declare all globals")
+                                               (* ; 
+            "Maximum header line length --- See MM.HEADERLINE for the fields")
+        [VARS (MM.MAXIMUMHEADERLINELENGTH (PLUS (NCHARS "NUFAD 10-Jan ")
+                                                MM.MAXFROMLENGTH 1 
+                                                MM.MAXSUBJECTLENGTH
+                                                (NCHARS " (9999999 chars)"]
+        (GLOBALVARS MM.SERVICEHOSTS MM.PERSONALNAME MM.PRIMARYMAILMENUFONT 
+               MM.ICONFONT MM.MAXIMUMDISPLAYEDMESSAGES 
+               MM.MINIMUMDISPLAYEDMESSAGES MM.MAXFROMLENGTH MM.MAXSUBJECTLENGTH
+               MM.READWINDOWSIZE MM.COMPOSEWINDOWSIZE MM.DEFAULT.CC 
+               MM.DEFAULT.BCC MM.LIST.CONSECUTIVE.INDEX 
+               MM.LIST.ON.SEPARATE.PAGES MM.LIST.INCLUDE.HEADERS MM.LIST.HOST 
+               MM.DEFAULT.SEARCH.PATTERN MM.REMEMBER.POSITIONS MM.WINDOW 
+               MM.MAILBOXES MM.SYSTEM.FLAGS MM.TEDIT.MENU MM.TEDIT.TABWIDTH 
+               MM.TEDIT.FIXUPFLG MM.COMPOSEMENUITEMS MM.MAXIMUMHEADERLINELENGTH
+               )
+                                               (* ; "Records")
+        (RECORDS MM.CACHE MM.MESSAGE MM.ADDRESS MM.ZOOMDATA)
+                                               (* ; 
+                                             "Other mailsystem globals")
+        (GLOBALVARS MAP.LOOKAHEAD)
+                                               (* ; "System globals")
+        (GLOBALVARS PROMPTWINDOW LOGINHOST/DIR TEDIT.DEFAULT.MENU)
+                                               (* ; 
+     "At compile time, also need EXPORTS.ALL for records such as TITLEDICON.")
+        (DECLARE%: DONTCOPY DONTEVAL@LOAD EVAL@COMPILE (FILES TABLEBROWSERDECLS
+                                                              ))
+                                               (* ; "Auxillary modules")
+        (FILES IMAP2 SMTP MMICONS)))
+
+
+
+(* ; "MM-D Electronic Mailsystem  -- Mark Crispin")
+
+
+
+
+(* ; "Primary mail menu setup")
+
+(DEFINEQ
+
+(MM
+  [LAMBDA (MAILBOX POSITION)                             (* ; "Edited 26-May-88 11:18 by cdl")
+                                                             (* ; 
+                                                      "Puts up a new primary mail menu at POSITION")
+    (LET (POSITIONS ICONWINDOW)
+         (if MM.WINDOW
+             then [if MM.REMEMBER.POSITIONS
+                          then (SETQ POSITIONS (WINDOWPROP MM.WINDOW 'MM.POSITIONS))
+                                (if (NULL POSITION)
+                                    then (SETQ POSITION (with REGION (WINDOWPROP MM.WINDOW
+                                                                                    'REGION)
+                                                                   (CREATEPOSITION LEFT BOTTOM]
+                   (SETQ ICONWINDOW (WINDOWPROP MM.WINDOW 'ICONWINDOW))
+                   (CLOSEW MM.WINDOW))
+         [if (NULL MM.MAILBOXES)
+             then (MM.SERVICEHOST)                   (* ; "Make sure at least one there")
+                   (for host inside MM.SERVICEHOSTS do (pushnew MM.MAILBOXES
+                                                                          (PACKFILENAME 'HOST host
+                                                                                 'NAME
+                                                                                 'INBOX]
+         (if MAILBOX
+             then (pushnew MM.MAILBOXES MAILBOX))
+         (SETQ MM.WINDOW (MENUWINDOW (create
+                                      MENU
+                                      TITLE _ "MM Mailboxes"
+                                      ITEMS _ [for ITEM in MM.MAILBOXES
+                                                 collect
+                                                 `(,ITEM (OPEN ,ITEM)
+                                                         "Open this mailbox"
+                                                         (SUBITEMS ("Remove From Menu"
+                                                                    (REMOVE ,ITEM)
+                                                                    "Remove this mailbox from menu"]
+                                      WHENSELECTEDFN _ (FUNCTION MM.PRIMARYMAILMENU))
+                                T))
+         (ATTACHMENU [create MENU
+                            TITLE _ "Primary Mail Menu"
+                            MENUCOLUMNS _ 1
+                            ITEMS _ '(("Compose Message" (MM.COMPOSEMESSAGE)
+                                             "Compose a new message")
+                                      ("Open New Mailbox" (MM.ADDNEWMAILBOX)
+                                             "Select a new mailbox not listed in the mailboxes menu"
+                                             (SUBITEMS ("Search For Mailboxes" (
+                                                                              MM.SEARCHFORMAILBOXES
+                                                                                )
+                                                              
+                                                        "Search for mailbox names based on a pattern"
+                                                              ]
+                MM.WINDOW
+                'TOP)
+         (WINDOWPROP MM.WINDOW 'ICON (OR ICONWINDOW MM.ZMAILICON))
+         (WINDOWPROP MM.WINDOW 'MM.POSITIONS POSITIONS)
+         [MOVEW MM.WINDOW (OR POSITION (with POSITION (MINATTACHEDWINDOWEXTENT MM.WINDOW)
+                                              (GETBOXPOSITION XCOORD YCOORD NIL NIL NIL 
+                                                     "Specify the position of the primary mail menu"]
+         (OPENW MM.WINDOW])
+
+(MM.PRIMARYMAILMENU
+  [LAMBDA (MAILBOX MENU KEY)                             (* ; "Edited 29-Mar-88 15:05 by cdl")
+                                                             (* ; 
+                                          "Reacts to clicking a selection in the primary mail menu")
+    (if MAILBOX
+        then (LET (OPERATION ITEM)
+                      (if (LISTP MAILBOX)
+                          then (SETQ ITEM (CADR MAILBOX))
+                                (SETQ OPERATION (CAR ITEM))
+                                (SETQ MAILBOX (CADR ITEM)))
+                      (SELECTQ KEY
+                          (MIDDLE (BKSYSBUF MAILBOX T))
+                          (SELECTQ OPERATION
+                              (REMOVE (SETQ MM.MAILBOXES (DREMOVE MAILBOX MM.MAILBOXES))
+                                      (with REGION (WINDOWPROP MM.WINDOW 'REGION)
+                                             (MM NIL (CREATEPOSITION LEFT BOTTOM))))
+                              (PROGN (ALLOW.BUTTON.EVENTS)
+                                     (if (AND (MM.CREATEMAILBOXWINDOW MAILBOX (MAP.OPEN
+                                                                                       MAILBOX))
+                                                  (NOT (MEMB MAILBOX MM.MAILBOXES)))
+                                         then (with REGION (WINDOWPROP MM.WINDOW 'REGION)
+                                                         (MM MAILBOX (CREATEPOSITION LEFT BOTTOM])
+
+(MM.ADDNEWMAILBOX
+  [LAMBDA NIL                                            (* ; "Edited 29-Mar-88 14:46 by cdl")
+                                                             (* ; 
+                                                       "Add a new mailbox to the Primary Mail Menu")
+    (LET (MAILBOX)
+         (printout PROMPTWINDOW T)
+         (if (SETQ MAILBOX (PROMPTFORWORD "New mailbox name:" NIL NIL PROMPTWINDOW NIL
+                                      'TTY))
+             then (MM.PRIMARYMAILMENU (PACKFILENAME 'BODY MAILBOX 'NAME 'INBOX 'HOST
+                                                     (FILENAMEFIELD (DIRECTORYNAME T)
+                                                            'HOST])
+
+(MM.SEARCHFORMAILBOXES
+  [LAMBDA NIL                                            (* ; "Edited 29-Apr-88 16:02 by MRC")
+                                                             (* ; 
+                                         "Search for a new mailbox to add to the Primary Mail Menu")
+    (LET (PATTERN FILES)
+         (printout PROMPTWINDOW T)
+         (if (SETQ PATTERN (PROMPTFORWORD "Mailbox pattern:" MM.DEFAULT.SEARCH.PATTERN NIL 
+                                      PROMPTWINDOW NIL 'TTY))
+             then (if (SETQ FILES (DIRECTORY PATTERN))
+                          then (for FILE in (DREVERSE FILES)
+                                      do (pushnew MM.MAILBOXES (PACKFILENAME 'DEVICE NIL
+                                                                              'VERSION NIL
+                                                                              'BODY FILE)))
+                                (with REGION (WINDOWPROP MM.WINDOW 'REGION)
+                                       (MM NIL (CREATEPOSITION LEFT BOTTOM)))
+                        else (printout PROMPTWINDOW T "No files matching pattern" %,
+                                        (PACKFILENAME 'BODY PATTERN 'DIRECTORY (DIRECTORYNAME T))
+                                        %, "found."])
+)
+
+
+
+(* ; "Message selection menu setup")
+
+(DEFINEQ
+
+(MM.CREATEMAILBOXWINDOW
+  [LAMBDA (MAILBOX STREAM)                               (* ; "Edited 28-Apr-88 14:53 by cdl")
+                                                             (* ; 
+                                         "Create a message selection menu for the selected mailbox")
+    (if STREAM
+        then (LET ((RECENT (GETSTREAMPROP STREAM 'RECENT))
+                       (CHOPOFFPREVENTIONFUZZ 2)
+                       NDISPLAYEDMESSAGES REGION POSITION WINDOW)
+                      [with REGION
+                             [SETQ REGION
+                              (CREATEREGION NIL NIL (WIDTHIFWINDOW (PLUS (TIMES 
+                                                                           MM.MAXIMUMHEADERLINELENGTH
+                                                                                (CHARWIDTH
+                                                                                 (CHARCODE A)
+                                                                                 
+                                                                               MM.PRIMARYMAILMENUFONT
+                                                                                 ))
+                                                                         TB.LEFT.MARGIN))
+                                     (PLUS CHOPOFFPREVENTIONFUZZ
+                                           (HEIGHTIFWINDOW (TIMES (SETQ NDISPLAYEDMESSAGES
+                                                                   (IMIN MM.MAXIMUMDISPLAYEDMESSAGES
+                                                                         (if RECENT
+                                                                             then (IMAX 
+                                                                          MM.MINIMUMDISPLAYEDMESSAGES
+                                                                                            RECENT)
+                                                                           else 
+                                                                          MM.MINIMUMDISPLAYEDMESSAGES
+                                                                                )))
+                                                                  (FONTHEIGHT MM.PRIMARYMAILMENUFONT)
+                                                                  )
+                                                  T]
+                             (if [AND MM.REMEMBER.POSITIONS (SETQ POSITION
+                                                                 (ASSOC 'BROWSER (WINDOWPROP
+                                                                                  MM.WINDOW
+                                                                                  'MM.POSITIONS]
+                                 then (WINDOWDELPROP MM.WINDOW 'MM.POSITIONS POSITION)
+                                       (with POSITION (CDR POSITION)
+                                              (SETQ LEFT XCOORD)
+                                              (SETQ BOTTOM YCOORD))
+                               else (SETQ REGION (GETBOXREGION WIDTH HEIGHT NIL NIL NIL 
+                                                     "Specify position of the message selection menu"
+                                                            ]
+                      [SETQ WINDOW (CREATEW REGION (MM.MAILBOXWINDOWTITLE MAILBOX
+                                                          (GETSTREAMPROP STREAM 'NMSGS]
+                      (WINDOWPROP WINDOW 'CLOSEFN (FUNCTION MM.CLOSEMAILBOXWINDOW))
+                      (WINDOWPROP WINDOW 'ICON MM.MAILBOXICON)
+                      (WINDOWPROP WINDOW 'ICONFN (FUNCTION MM.ICONFN))
+                      (MM.MAILBOXWINDOW WINDOW STREAM MAILBOX NDISPLAYEDMESSAGES)
+                      (MM.ADDNEWMESSAGES WINDOW)
+                      WINDOW])
+
+(MM.MAILBOXWINDOW
+  [LAMBDA (WINDOW STREAM MAILBOX NDISPLAYEDMESSAGES)
+                                         (* ; "Edited 15-Jun-88 15:35 by MRC")
+                                               (* ; 
+                                             "Stuff a window with a mailbox")
+    (LET ((NMSGS (GETSTREAMPROP STREAM 'NMSGS))
+          (FLAGLST (GETSTREAMPROP STREAM 'FLAGLST))
+          MESSAGEARRAY)
+         (PUTSTREAMPROP STREAM 'TWINDOW WINDOW)
+         (PUTSTREAMPROP STREAM 'MESSAGEARRAY (SETQ MESSAGEARRAY
+                                              (CL:MAKE-ARRAY NMSGS
+                                                     ':ADJUSTABLE T)))
+         (WINDOWPROP WINDOW 'TITLE (MM.MAILBOXWINDOWTITLE MAILBOX NMSGS))
+         (WINDOWPROP WINDOW 'TSTREAM STREAM)
+         (WINDOWPROP WINDOW 'MAILBOXNAME MAILBOX)
+         (WINDOWPROP WINDOW 'FLAGLST FLAGLST)
+         (WINDOWPROP WINDOW 'FLAGMENU (MM.FLAGMENU FLAGLST))
+         (WINDOWPROP WINDOW 'MESSAGEARRAY MESSAGEARRAY)
+         (WINDOWPROP WINDOW 'NMSGS NMSGS)
+         (MM.CREATEMAILBOXTB WINDOW MM.PRIMARYMAILMENUFONT STREAM NMSGS 
+                MESSAGEARRAY NDISPLAYEDMESSAGES)
+         (ATTACHMENU (create MENU
+                            ITEMS _ (MM.MAILBOXMENUITEMS WINDOW)
+                            TITLE _ "Messages"
+                            WHENSELECTEDFN _ (FUNCTION MM.MAILBOXMENU)
+                            MENUOUTLINESIZE _ 1)
+                WINDOW
+                'RIGHT
+                'TOP)
+         (ATTACHMENU (create MENU
+                            ITEMS _ (MM.COMMANDMENUITEMS WINDOW)
+                            MENUROWS _ 1
+                            CENTERFLG _ T)
+                WINDOW
+                'BOTTOM])
+
+(MM.FLAGMENU
+  [LAMBDA (FLAGLST)                                      (* ; "Edited 28-Mar-88 08:15 by cdl")
+                                                             (* ; "Return a flagmenu")
+    (LET ((FLAGITEMS (for FLAG in FLAGLST unless (FMEMB FLAG MM.SYSTEM.FLAGS)
+                        collect FLAG)))
+         (if FLAGITEMS
+             then (create MENU
+                             ITEMS _ FLAGITEMS
+                             TITLE _ "Keywords"])
+
+(MM.MAILBOXWINDOWTITLE
+  [LAMBDA (NAME NMSGS)                                   (* ; "Edited  6-Jul-87 15:30 by MRC")
+                                                             (* ; 
+                                                      "Make a title for a message selection window")
+    (CONCAT NAME " Message Selection Menu of " NMSGS " Messages"])
+
+(MM.CREATEMAILBOXTB
+  [LAMBDA (WINDOW BFONT STREAM NMSGS MESSAGEARRAY NDISPLAYEDMSGS)
+                                         (* ; "Edited  7-Jun-88 13:00 by MRC")
+                                               (* ; 
+          "Create TableBrowser for given messagearray and number of messages")
+    (LET ([BROWSER (TB.MAKE.BROWSER NIL WINDOW
+                          `(FONT %, BFONT COLUMNS 5 PRINTFN MM.TBPRINTFN]
+          [FIRSTVISIBLEITEM (ADD1 (DIFFERENCE NMSGS (IMIN NMSGS NDISPLAYEDMSGS]
+          TABLEITEM)
+         (WINDOWPROP WINDOW 'SHOW NIL)         (* ; 
+                                            "Tell MM.TBPRINTFN to do nothing")
+         [if (GREATERP FIRSTVISIBLEITEM 1)
+             then [for MSGNO from 1
+                         to (SUB1 FIRSTVISIBLEITEM)
+                         do (TB.INSERT.ITEM BROWSER
+                                       (SETQ TABLEITEM
+                                        (MM.TABLEITEM STREAM MESSAGEARRAY 
+                                               MSGNO]
+                   (with REGION (DSPCLIPPINGREGION NIL WINDOW)
+                          (SCROLLBYREPAINTFN WINDOW 0
+                                 (PLUS BOTTOM HEIGHT
+                                       (MINUS (MM.YCOORD.FROM.ITEM BROWSER
+                                                     TABLEITEM]
+         (WINDOWPROP WINDOW 'SHOW T)
+         (for MSGNO from FIRSTVISIBLEITEM to NMSGS
+            do (TB.INSERT.ITEM BROWSER (MM.TABLEITEM STREAM 
+                                                  MESSAGEARRAY MSGNO)))
+         (MM.SELECT WINDOW 'NEW)           (* ; 
+                                             "Auto-select new messages")
+         BROWSER])
+
+(MM.MAILBOXMENU
+  [LAMBDA (ITEM MENU BUTTON)                             (* ; "Edited  6-Apr-88 17:41 by MRC")
+                                                             (* ; 
+                                                  "Reacts to selecting a primary mailbox menu item")
+    (LET ((WINDOW (MAINWINDOW (WFROMMENU MENU)))
+          STREAM SEQUENCE)
+         (DECLARE (SPECVARS SEQUENCE))
+         (if (AND (SETQ STREAM (WINDOWPROP WINDOW 'TSTREAM))
+                      (MM.LOCK STREAM))
+             then (ALLOW.BUTTON.EVENTS)
+                   (if (EQLENGTH (SETQ SEQUENCE (for NEXTITEM
+                                                       in (TB.COLLECT.ITEMS (WINDOWPROP
+                                                                                 WINDOW
+                                                                                 'TABLEBROWSER))
+                                                       collect (MM.TBPROP NEXTITEM
+                                                                          'MSGNO)
+                                                       when (fetch (TABLEITEM TISELECTED)
+                                                                   of NEXTITEM)))
+                                  1)
+                       then (SETQ SEQUENCE (CAR SEQUENCE)))
+                   (ERRORSET (CADR ITEM))
+                   (MM.ADDNEWMESSAGES WINDOW)
+                   (MM.UNLOCK STREAM])
+
+(MM.COMMANDMENUITEMS
+  [LAMBDA (WINDOW)                                       (* ; "Edited 25-Apr-88 11:25 by cdl")
+                                                             (* ; "Return a command menu")
+    `((Quit (MM.QUIT ,WINDOW)
+            "Quits out of this mailbox")
+      (Exit (MM.EXIT ,WINDOW)
+            "Expunges mailbox then quits")
+      ("New Mailbox" (MM.NEWMAILBOX ,WINDOW)
+             "Get a new mailbox")
+      (Compose (MM.COMPOSEMESSAGE)
+             "Compose a new message")
+      (Zoom (MM.TOGGLE.SELECTED ,WINDOW)
+            "Toggle between showing only selected messages and showing all messages")
+      (Expunge (MM.EXPUNGEMAILBOX ,WINDOW)
+             "Expunges (erases) deleted messages from the mailbox")
+      (Check (MM.CHECKMAILBOX ,WINDOW)
+             "Checks mailbox to see if there are any new messages"
+             (SUBITEMS ("Check New Messages" (MM.CHECKMAILBOX ,WINDOW)
+                              "Checks mailbox to see if there are any new messages")
+                    ("Check Entire Mailbox" (MM.CHECKENTIREMAILBOX ,WINDOW)
+                           "Re-checks the entire mailbox to see if any flags, etc. have changed"])
+
+(MM.MAILBOXMENUITEMS
+  [LAMBDA (WINDOW)                                       (* ; "Edited 28-Mar-88 08:56 by cdl")
+                                                             (* ; "Return a primary menu")
+    `((Read (MM.READMESSAGE ,WINDOW SEQUENCE)
+            "Reads the selected messages")
+      [Select (MM.SELECTMESSAGES ,WINDOW)
+             "Select a set of messages by a particular characteristic"
+             (SUBITEMS ,@(MM.SELECTMENUITEMS WINDOW]
+      (Answer (MM.REPLY ,WINDOW SEQUENCE)
+             "Compose a reply (to the sender only) to each of the selected messages"
+             (SUBITEMS ("Answer to Sender only" (MM.REPLY ,WINDOW SEQUENCE)
+                              
+                      "Send answer only to the sender or reply address of the message being answered"
+                              )
+                    ("Answer to All" (MM.REPLY ,WINDOW SEQUENCE T)
+                           
+                  "Send answer to the reply address and all recipients of the message being answered"
+                           )))
+      (File (MM.DOSEQUENCE ,WINDOW SEQUENCE 'MAP.COPYMESSAGE (MM.PROMPTFORMAILBOX
+                                                                  ,WINDOW))
+            "Copy the selected messages into another mailbox"
+            (SUBITEMS (Copy (MM.DOSEQUENCE ,WINDOW SEQUENCE 'MAP.COPYMESSAGE (
+                                                                                MM.PROMPTFORMAILBOX
+                                                                                  ,WINDOW))
+                            "Copy the selected messages into another mailbox")
+                   (Move (MM.DOSEQUENCE ,WINDOW SEQUENCE 'MAP.MOVEMESSAGE (MM.PROMPTFORMAILBOX
+                                                                               ,WINDOW))
+                         
+                      "Move selected messages into another mailbox and delete them from this mailbox"
+                         )))
+      (Hardcopy (MM.HARDCOPY ,WINDOW SEQUENCE)
+             "Send the selected messages to the default printer")
+      [Keyword [MM.DOSEQUENCE ,WINDOW SEQUENCE 'MAP.SETFLAG (MM.MENU (WINDOWPROP ,WINDOW
+                                                                                    'FLAGMENU]
+             "Set a keyword in the selected messages"
+             (SUBITEMS [Set [MM.DOSEQUENCE ,WINDOW SEQUENCE 'MAP.SETFLAG
+                                   (MM.MENU (WINDOWPROP ,WINDOW 'FLAGMENU]
+                            "Set a keyword in the selected messages"
+                            ,(MM.FLAGMENUITEMS WINDOW 'MM.DOSEQUENCE ''MAP.SETFLAG]
+                    (Clear [MM.DOSEQUENCE ,WINDOW SEQUENCE 'MAP.CLEARFLAG
+                                  (MM.MENU (WINDOWPROP ,WINDOW 'FLAGMENU]
+                           "Clear a keyword in the selected messages"
+                           ,(MM.FLAGMENUITEMS WINDOW 'MM.DOSEQUENCE ''MAP.CLEARFLAG]
+      (Flag (MM.DOSEQUENCE ,WINDOW SEQUENCE 'MAP.SETFLAG '\Flagged)
+            "Flag the selected messages as requiring special attention"
+            (SUBITEMS (Unflag (MM.DOSEQUENCE ,WINDOW SEQUENCE 'MAP.CLEARFLAG '\Flagged)
+                             "Clear the flagged status of the selected messages")))
+      (Delete (MM.DOSEQUENCE ,WINDOW SEQUENCE 'MAP.SETFLAG '\Deleted)
+             "Mark the selected messages for deletion"
+             (SUBITEMS (Undelete (MM.DOSEQUENCE ,WINDOW SEQUENCE 'MAP.CLEARFLAG '\Deleted)
+                              "Clear the deleted status of the selected messages"])
+
+(MM.TBPRINTFN
+  [LAMBDA (BROWSER ITEM WINDOW)                          (* ; "Edited 26-May-88 10:28 by cdl")
+                                                             (* ; 
+                                                           "Display headerline for selected item")
+    (if (WINDOWPROP WINDOW 'SHOW)
+        then (LET ((STREAM (MM.TBPROP ITEM 'STREAM))
+                       (MESSAGEARRAY (MM.TBPROP ITEM 'MESSAGEARRAY))
+                       (MSGNO (MM.TBPROP ITEM 'MSGNO))
+                       (DELETED (fetch (TABLEITEM TIDELETED) of ITEM))
+                       MSGFLAGS FONT)
+                      (if (MAP.LOCKED? STREAM)
+                          then                           (* ; "The stream is locked, so note that it has to be done later -- save ITEM not MSGNO since that may change ")
+                                (UNINTERRUPTABLY
+                                    (WINDOWADDPROP WINDOW 'REDISPLAYMSGS ITEM))
+                                (SPACES MM.MAXIMUMHEADERLINELENGTH WINDOW)
+                        else (SETQ MSGFLAGS (fetch (MM.CACHE Flags) of (MAP.ELT 
+                                                                                         MESSAGEARRAY
+                                                                                          MSGNO)))
+                              (SETQ FONT (if (MEMB '\Flagged MSGFLAGS)
+                                             then (FONTCOPY MM.PRIMARYMAILMENUFONT 'WEIGHT
+                                                             'BOLD)
+                                           else MM.PRIMARYMAILMENUFONT))
+                              (RESETLST
+                                  [RESETSAVE NIL `(DSPFONT ,(DSPFONT FONT WINDOW)
+                                                         ,WINDOW]
+                                  (MM.HEADERLINE STREAM MESSAGEARRAY MSGNO WINDOW))
+                              (if (MEMB '\Deleted MSGFLAGS)
+                                  then (if (NOT DELETED)
+                                               then (TB.DELETE.ITEM BROWSER ITEM))
+                                else (if DELETED
+                                             then (TB.UNDELETE.ITEM BROWSER ITEM])
+
+(MM.TABLEITEM
+  [LAMBDA (STREAM MESSAGEARRAY MSGNO SELECTED)           (* ; "Edited 23-Mar-88 11:45 by cdl")
+                                                             (* ; "Create a message tableitem")
+    (create TABLEITEM
+           TI# _ 1
+           TISELECTED _ SELECTED
+           TIDATA _ `(STREAM ,STREAM MESSAGEARRAY ,MESSAGEARRAY MSGNO ,MSGNO])
+
+(MM.UPDATE
+  [LAMBDA (WINDOW MSGNO)                                 (* ; "Edited 29-Apr-88 16:06 by MRC")
+                                                             (* ; 
+                                                   "Updates Primary Mail Menu with new information")
+    (LET ((BROWSER (WINDOWPROP WINDOW 'TABLEBROWSER))
+          ITEM)
+         (if BROWSER
+             then (SETQ ITEM (MM.FIND.TABLEITEM BROWSER MSGNO))
+                   (TB.REDISPLAY.ITEMS BROWSER ITEM ITEM])
+
+(MM.TBPROP
+  [LAMBDA (TBITEM PROP)                                  (* ; "Edited  6-Jul-87 15:32 by MRC")
+                                                             (* ; 
+                                      "Returns a property to the table browser item's TIDATA field")
+    (LISTGET (fetch (TABLEITEM TIDATA) of TBITEM)
+           PROP])
+
+(MM.HEADERLINE
+  [LAMBDA (STREAM MESSAGEARRAY MSGNO WINDOW)             (* ; "Edited 20-May-88 12:49 by MRC")
+                                                             (* ; 
+                        "Writes a menu header line in window for message MSGNO in the messagearray")
+    (LET ((STRING (ALLOCSTRING MM.MAXIMUMHEADERLINELENGTH (CHARCODE SPACE)))
+          HEADER FLAGLST SUBJECTSTRING FLAGLENGTH)
+         (if (MAP.FETCHENVELOPE STREAM MESSAGEARRAY MSGNO)
+             then (with MM.CACHE (MAP.ELT MESSAGEARRAY MSGNO)
+                             (printout (SETQ HEADER (OPENSTRINGSTREAM STRING 'OUTPUT))
+                                    (if (MEMB '\Recent (SETQ FLAGLST (APPEND Flags)))
+                                        then (SETQ FLAGLST (DREMOVE '\Recent FLAGLST))
+                                              (if (MEMB '\Seen FLAGLST)
+                                                  then (SETQ FLAGLST (DREMOVE '\Seen FLAGLST))
+                                                        "R "
+                                                else "N ")
+                                      else (if (MEMB '\Seen FLAGLST)
+                                                   then (SETQ FLAGLST (DREMOVE '\Seen FLAGLST))
+                                                         "  "
+                                                 else " U"))
+                                    (if (MEMB '\Flagged FLAGLST)
+                                        then (SETQ FLAGLST (DREMOVE '\Flagged FLAGLST))
+                                              "F"
+                                      else " ")
+                                    (if (MEMB '\Answered FLAGLST)
+                                        then (SETQ FLAGLST (DREMOVE '\Answered FLAGLST))
+                                              "A"
+                                      else " ")
+                                    (if (MEMB '\Deleted FLAGLST)
+                                        then (SETQ FLAGLST (DREMOVE '\Deleted FLAGLST))
+                                              "D"
+                                      else " ")
+                                    %,
+                                    (SUBSTRING InternalDate 1 6)
+                                    %,
+                                    (OR FromText (MAP.FETCHFROMSTRING STREAM MESSAGEARRAY MSGNO 
+                                                        MM.MAXFROMLENGTH))
+                                    %,)
+                             (SETQ SUBJECTSTRING (OR SubjectText (MAP.FETCHSUBJECT STREAM 
+                                                                        MESSAGEARRAY MSGNO 
+                                                                        MM.MAXSUBJECTLENGTH)))
+                             [if FLAGLST
+                                 then (printout HEADER "{" [SUBSTRING (SETQ FLAGLST (MKSTRING
+                                                                                         FLAGLST))
+                                                                      2
+                                                                      (SUB1 (SETQ FLAGLENGTH
+                                                                             (NCHARS FLAGLST]
+                                                 "} ")
+                                       (if (GREATERP (PLUS (NCHARS SUBJECTSTRING)
+                                                               (add FLAGLENGTH 1))
+                                                      MM.MAXSUBJECTLENGTH)
+                                           then (SETQ SUBJECTSTRING (SUBSTRING SUBJECTSTRING 1
+                                                                               (DIFFERENCE 
+                                                                                  MM.MAXSUBJECTLENGTH
+                                                                                      FLAGLENGTH]
+                             (printout HEADER SUBJECTSTRING " (" RFC822.Size " chars)")))
+         (if WINDOW
+             then (printout WINDOW STRING))              (* ; 
+         "Trim trailing spaces, not strictly necessary but gets around bug in TITLEDICONW later on")
+         (while (EQ (CHARCODE SPACE)
+                        (NTHCHARCODE STRING -1)) do (GLC STRING))
+         STRING])
+
+(MM.CLOSEMAILBOXWINDOW
+  [LAMBDA (WINDOW)                                       (* ; "Edited 28-Apr-88 14:53 by cdl")
+                                                             (* ; 
+                                                      "React to closing the message selection menu")
+    (PROG ((STREAM (WINDOWPROP WINDOW 'TSTREAM NIL)))
+          (if STREAM
+              then (if (MM.LOCK STREAM)
+                           then (MM.UNLOCK STREAM)
+                         else (RETURN 'DON'T))
+                    (MAP.CLOSE STREAM)
+                    (PUTSTREAMPROP STREAM 'TWINDOW NIL))
+          (for WINDOW in (ATTACHEDWINDOWS WINDOW)
+             do                                          (* ; 
+                                              "Since menu items have pointers to window in them...")
+                   (for MENU in (WINDOWPROP WINDOW 'MENU) do (DELETEMENU MENU NIL WINDOW)
+                          ))
+          (WINDOWPROP WINDOW 'FLAGLST NIL)
+          (WINDOWPROP WINDOW 'MESSAGEARRAY NIL)
+          (WINDOWPROP WINDOW 'FLAGMENU NIL)
+          (WINDOWPROP WINDOW 'ZOOMDATA NIL)
+          (if MM.REMEMBER.POSITIONS
+              then (WINDOWADDPROP MM.WINDOW 'MM.POSITIONS (CONS 'BROWSER
+                                                                    (with REGION
+                                                                           (WINDOWPROP WINDOW
+                                                                                  'REGION)
+                                                                           (CREATEPOSITION LEFT 
+                                                                                  BOTTOM])
+
+(MM.FIND.TABLEITEM
+  [LAMBDA (BROWSER MSGNO)                                (* ; "Edited 29-Apr-88 16:07 by MRC")
+    (DECLARE (SPECVARS MSGNO))                           (* ; 
+                                                           "Replaces TB.NTH.ITEM when zooming")
+    (TB.FIND.ITEM BROWSER (FUNCTION (LAMBDA (BROWSER ITEM)
+                                      (DECLARE (USEDFREE MSGNO))
+                                      (EQUAL MSGNO (MM.TBPROP ITEM 'MSGNO])
+)
+
+
+
+(* ; "Primary mail menu functions")
+
+(DEFINEQ
+
+(MM.NEWMAILBOX
+  [LAMBDA (WINDOW)                   (* ; "Edited 15-Jun-88 15:37 by MRC")
+                                               (* ; "Get a new mailbox")
+    (LET ((STREAM (WINDOWPROP WINDOW 'TSTREAM))
+          MAILBOX RECENT)
+         (if (AND (MM.LOCK STREAM)
+                      (SETQ MAILBOX (MM.MAILBOX)))
+             then (DETACHALLWINDOWS WINDOW)
+                   (WINDOWDELPROP WINDOW 'CLOSEFN 'TB.CLOSEFN)
+                   (MM.UNLOCK STREAM)      (* ; 
+         "MAP.OPEN may make a new stream, so we can't count use locking here")
+                   (until (SETQ STREAM (MAP.OPEN MAILBOX STREAM))
+                      do (SETQ MAILBOX (MM.MAILBOX)))
+                   (MM.LOCK STREAM)
+                   (MM.MAILBOXWINDOW
+                    WINDOW STREAM MAILBOX
+                    (IMIN MM.MAXIMUMDISPLAYEDMESSAGES
+                          (if (SETQ RECENT (GETSTREAMPROP STREAM
+                                                      'RECENT))
+                              then (IMAX MM.MINIMUMDISPLAYEDMESSAGES RECENT
+                                             )
+                            else MM.MINIMUMDISPLAYEDMESSAGES)))
+                   (MM.ADDNEWMESSAGES WINDOW)
+                   (MM.UNLOCK STREAM)
+           else (MM.UNLOCK STREAM])
+
+(MM.SELECTMESSAGES
+  [LAMBDA (WINDOW)                                       (* ; "Edited 28-Mar-88 18:34 by cdl")
+                                                             (* ; 
+                                                "Prompt for selection criteria and select messages")
+    (LET (ITEM SELECTMENU SELECTION)
+         (if (WINDOWPROP WINDOW 'SELECTMENUWINDOW)
+             then (printout (GETPROMPTWINDOW WINDOW)
+                             T "Selection already in progress")
+           else [SETQ SELECTMENU (OR (WINDOWPROP WINDOW 'SELECTMENU)
+                                         (create MENU
+                                                TITLE _ "Selection Menu"
+                                                ITEMS _ (APPEND (MM.SELECTMENUITEMS WINDOW T)
+                                                               `(("Do Selection" (MM.DOSELECTION
+                                                                                  ,WINDOW)
+                                                                        "Do the selection now"]
+                 (WINDOWPROP WINDOW 'SELECTMENU SELECTMENU)
+                 (WINDOWPROP WINDOW 'SELECTMENUWINDOW (ADDMENU SELECTMENU))
+                 (WINDOWPROP WINDOW 'SELECTION NIL])
+
+(MM.DOSELECTION
+  [LAMBDA (WINDOW)                                       (* ; "Edited 29-Mar-88 18:16 by cdl")
+                                                             (* ; "Do accumulated selection")
+    (bind (BROWSER _ (WINDOWPROP WINDOW 'TABLEBROWSER))
+           ITEM while (SETQ ITEM (TB.FIND.SELECTED.ITEM BROWSER))
+       do (TB.DESELECTRANGE BROWSER ITEM ITEM)
+             (TB.SHOW.SELECTION BROWSER ITEM 'ERASE))
+    (DELETEMENU (WINDOWPROP WINDOW 'SELECTMENU)
+           T
+           (WINDOWPROP WINDOW 'SELECTMENUWINDOW NIL))
+    (MAP.SELECT (WINDOWPROP WINDOW 'TSTREAM)
+           (WINDOWPROP WINDOW 'SELECTION])
+
+(MM.SELECTMENUITEMS
+  [LAMBDA (WINDOW FLG)                                   (* ; "Edited 19-Apr-88 17:28 by MRC")
+                                                             (* ; "Return a selection menu")
+    (LET ([ITEMS `((Text (MM.SELECT ,WINDOW 'TEXT ,FLG)
+                         "Select messages which contain the specified text"
+                         (SUBITEMS ("Entire message" (MM.SELECT ,WINDOW 'TEXT ,FLG)
+                                          
+                     "Select messages which contain the specified text in the message header or body"
+                                          )
+                                ("Message body only" (MM.SELECT ,WINDOW 'BODY ,FLG)
+                                       
+                               "Select messages which contain the specified text in the message body"
+                                       )))
+                   (Subject (MM.SELECT ,WINDOW 'SUBJECT ,FLG)
+                          "Select messages which contain the specified text in the subject")
+                   (From (MM.SELECT ,WINDOW 'FROM ,FLG)
+                         "Select messages which contain the specified From address")
+                   (To (MM.SELECT ,WINDOW 'TO ,FLG)
+                       "Select messages which contain the specified To address"
+                       (SUBITEMS (To (MM.SELECT ,WINDOW 'TO ,FLG)
+                                     "Select messages which contain the specified To address")
+                              (cc (MM.SELECT ,WINDOW 'CC ,FLG)
+                                  "Select messages which contain the specified cc address")
+                              (bcc (MM.SELECT ,WINDOW 'BCC ,FLG)
+                                   "Select messages which contain the specified bcc address")))
+                   (New (MM.SELECT ,WINDOW 'NEW ,FLG)
+                        "Select messages which are RECENT and UNSEEN")
+                   (Recent (MM.SELECT ,WINDOW 'RECENT ,FLG)
+                          "Select messages which arrived since the last time you read your mail")
+                   (Old (MM.SELECT ,WINDOW 'OLD ,FLG)
+                        "Select messages which had already arrived the last time you read your mail")
+                   (Date (MM.SELECT ,WINDOW 'ON ,FLG)
+                         "Select messages which arrived on a particular date"
+                         (SUBITEMS ("On Date" (MM.SELECT ,WINDOW 'ON ,FLG)
+                                          "Select messages which arrived on a particular date")
+                                ("Before Date" (MM.SELECT ,WINDOW 'BEFORE ,FLG)
+                                       "Select messages which arrived before a particular date")
+                                ("Since Date" (MM.SELECT ,WINDOW 'SINCE ,FLG)
+                                       "Select messages which arrived since a particular date")))
+                   (Seen (MM.SELECT ,WINDOW 'SEEN ,FLG)
+                         "Select messsages which have been read previously"
+                         (SUBITEMS (Unseen (MM.SELECT ,WINDOW 'UNSEEN ,FLG)
+                                          "Select messages which have not yet been read")))
+                   (Flagged (MM.SELECT ,WINDOW 'FLAGGED ,FLG)
+                          "Select messages which are flagged"
+                          (SUBITEMS (Unflagged (MM.SELECT ,WINDOW 'UNFLAGGED ,FLG)
+                                           "Select messages which are not flagged")))
+                   (Deleted (MM.SELECT ,WINDOW 'DELETED ,FLG)
+                          "Select messages which are deleted"
+                          (SUBITEMS (Undeleted (MM.SELECT ,WINDOW 'UNDELETED ,FLG)
+                                           "Select messages which are not deleted")))
+                   (Answered (MM.SELECT ,WINDOW 'ANSWERED ,FLG)
+                          "Select messages which have been answered"
+                          (SUBITEMS (Unanswered (MM.SELECT ,WINDOW 'UNANSWERED ,FLG)
+                                           "Select Messages which have not yet been answered"]
+          (SUBITEMS (MM.FLAGMENUITEMS WINDOW 'KEYWORD FLG)))
+         [if (CDR SUBITEMS)
+             then (SETQ ITEMS (APPEND ITEMS `((Keyworded (MM.SELECT ,WINDOW 'KEYWORD
+                                                                    ,FLG)
+                                                         
+                                                     "Select messages which have a specified keyword"
+                                                         ,SUBITEMS)
+                                                  (Unkeyworded (MM.SELECT ,WINDOW 'UNKEYWORD
+                                                                      ,FLG)
+                                                         
+                                              "Select messages which do not have a specified keyword"
+                                                         ,SUBITEMS]
+         ITEMS])
+
+(MM.SELECT
+  [LAMBDA (WINDOW CRITERIA DON'TSELECTFLG)               (* ; "Edited 19-Apr-88 17:33 by MRC")
+                                                             (* ; 
+                                                    "Select messages based upon the given criteria")
+    (LET ((SELECTION (SELECTQ CRITERIA
+                         ((TEXT BODY SUBJECT) 
+                              (MM.PROMPTFORLINE "Text: " NIL WINDOW))
+                         ((FROM TO CC BCC) 
+                              (MM.PROMPTFORLINE "Address: " NIL WINDOW))
+                         ((KEYWORD UNKEYWORD) 
+                              (MM.MENU (WINDOWPROP WINDOW 'FLAGMENU)))
+                         ((ON SINCE BEFORE) 
+                              (MM.PROMPTFORLINE "Date: " NIL WINDOW))
+                         CRITERIA)))
+         (if SELECTION
+             then [if (FMEMB CRITERIA
+                                     '(TEXT BODY SUBJECT FROM TO CC BCC KEYWORD UNKEYWORD ON SINCE 
+                                            BEFORE))
+                          then (SETQ SELECTION (LIST CRITERIA (if (LISTP SELECTION)
+                                                                      then (CAR SELECTION)
+                                                                    else SELECTION]
+                   (if DON'TSELECTFLG
+                       then [LET [(CURRENT (WINDOWPROP WINDOW 'SELECTION]
+                                     [SETQ CURRENT (if (MEMB SELECTION CURRENT)
+                                                       then (DREMOVE SELECTION CURRENT)
+                                                     else (NCONC CURRENT (MKLIST SELECTION]
+                                     (WINDOWPROP WINDOW 'SELECTION CURRENT)
+                                     (printout (GETPROMPTWINDOW WINDOW)
+                                            T "Current selection: " CURRENT)
+                                     (TOTOPW (WINDOWPROP WINDOW 'SELECTMENUWINDOW]
+                     else (MAP.SELECT (WINDOWPROP WINDOW 'TSTREAM)
+                                     SELECTION])
+
+(MM.HARDCOPY
+  [LAMBDA (WINDOW SEQUENCE)                              (* ; "Edited 30-Mar-88 10:17 by cdl")
+                                                             (* ; "Hardcopy a message sequence")
+    (LET ((STREAM (WINDOWPROP WINDOW 'TSTREAM))
+          (MESSAGEARRAY (WINDOWPROP WINDOW 'MESSAGEARRAY))
+          [LISTFILE (OPENSTREAM '{NODIRCORE} 'BOTH NIL '((EOL CRLF]
+          (INDEX 0)
+          MESSAGESTREAM)
+         (LINELENGTH MAX.SMALLP LISTFILE)                    (* ; 
+                                      "Arbitrarily long length to prevent Lisp from folding lines ")
+         (if (MOUSECONFIRM "Hardcopy message(s) to" (OR MM.LIST.HOST (DEFAULTPRINTER))
+                        (GETPROMPTWINDOW WINDOW))
+             then (if MM.LIST.INCLUDE.HEADERS
+                          then (printout LISTFILE "-- Messages from mailbox: "
+                                          (WINDOWPROP WINDOW 'MAILBOXNAME)
+                                          " --" T "   " (DATE (DATEFORMAT NO.LEADING.SPACES TIME.ZONE
+                                                                     DAY.OF.WEEK))
+                                          T T)
+                                (for MSGNO inside SEQUENCE
+                                   do (printout LISTFILE .FR 6 (if MM.LIST.CONSECUTIVE.INDEX
+                                                                       then (add INDEX 1)
+                                                                     else MSGNO)
+                                                 ") ")
+                                         (MM.HEADERLINE STREAM MESSAGEARRAY MSGNO LISTFILE)
+                                         (printout LISTFILE T))
+                                (SETQ INDEX 0))
+                   (for MSGNO inside SEQUENCE
+                      do (if MM.LIST.ON.SEPARATE.PAGES
+                                 then (printout LISTFILE .PAGE))
+                            (printout LISTFILE "Message " (if MM.LIST.CONSECUTIVE.INDEX
+                                                              then (add INDEX 1)
+                                                            else MSGNO)
+                                   " -- ************************" T)
+                            (if (SETQ MESSAGESTREAM (MAP.FETCHMESSAGE STREAM MESSAGEARRAY MSGNO))
+                                then (if (OPENP MESSAGESTREAM)
+                                             then (CLOSEF MESSAGESTREAM))
+                                      [OPENSTREAM MESSAGESTREAM 'INPUT NIL '((EOL CRLF]
+                                      (COPYBYTES MESSAGESTREAM LISTFILE)
+                              else (printout LISTFILE "Message inaccessible" T)))
+                   (SETFILEPTR LISTFILE 0)
+                   (SEND.FILE.TO.PRINTER LISTFILE MM.LIST.HOST '(DOCUMENT.NAME "MM-D Listing"))
+                   (printout (GETPROMPTWINDOW WINDOW)
+                          T "Hardcopy complete"])
+
+(MM.QUIT
+  [LAMBDA (WINDOW)                                       (* ; "Edited 25-Apr-88 08:10 by cdl")
+                                                             (* ; "Quits out of MM")
+                                                             (* ; 
+                                                    "MM.CLOSEMAILBOXWINDOW does the MM.LOCK action")
+    (CLOSEW WINDOW])
+
+(MM.EXIT
+  [LAMBDA (WINDOW)                                       (* ; "Edited  6-Apr-88 18:16 by MRC")
+                                                             (* ; "Expunges mailbox then quits")
+                                                             (* ; 
+                  "Note that these functions do the MM.LOCK action, so we don't need to do it here")
+    (MM.EXPUNGEMAILBOX WINDOW)
+    (MM.QUIT WINDOW])
+
+(MM.CHECKMAILBOX
+  [LAMBDA (WINDOW)                                       (* ; "Edited  6-Apr-88 18:20 by MRC")
+                                                             (* ; "Check for new messages")
+    (LET [(STREAM (WINDOWPROP WINDOW 'TSTREAM]
+         (if (MM.LOCK STREAM)
+             then (MAP.CHECKMAILBOX STREAM)
+                   (MM.ADDNEWMESSAGES WINDOW)
+                   (MM.UNLOCK STREAM])
+
+(MM.CHECKENTIREMAILBOX
+  [LAMBDA (WINDOW)                                       (* ; "Edited  6-Apr-88 18:22 by MRC")
+                                                             (* ; "Re-check entire mailbox")
+    (LET [(STREAM (WINDOWPROP WINDOW 'TSTREAM]
+         (MM.CHECKMAILBOX WINDOW)
+         (if (MM.LOCK STREAM)
+             then (MM.UNLOCK STREAM)
+                   (MAP.FETCHFLAGS STREAM 1 (WINDOWPROP WINDOW 'NMSGS))
+                   (REDISPLAYW WINDOW])
+
+(MM.EXPUNGEMAILBOX
+  [LAMBDA (WINDOW)                                       (* ; "Edited  6-Apr-88 18:18 by MRC")
+                                                             (* ; "Expunges the mailbox")
+    (LET [(STREAM (WINDOWPROP WINDOW 'TSTREAM]
+         (if (MM.LOCK STREAM)
+             then (MAP.EXPUNGEMAILBOX STREAM)
+                   (MM.ADDNEWMESSAGES WINDOW)
+                   [WINDOWPROP WINDOW 'TITLE (MM.MAILBOXWINDOWTITLE (WINDOWPROP WINDOW
+                                                                               'MAILBOXNAME)
+                                                    (WINDOWPROP WINDOW 'NMSGS]
+                   (MM.UNLOCK STREAM])
+
+(MM.TOGGLE.SELECTED
+  [LAMBDA (WINDOW)                   (* ; "Edited 15-Jun-88 15:32 by MRC")
+                                               (* ; 
+                                             "Zoom in on selected messages")
+    (LET
+     ((BROWSER (WINDOWPROP WINDOW 'TABLEBROWSER))
+      (ZOOMDATA (WINDOWPROP WINDOW 'ZOOMDATA NIL))
+      (PROMPTSTREAM (GETPROMPTWINDOW WINDOW))
+      MENU MENUITEM ITEMS)
+     [for WINDOW in (ATTACHEDWINDOWS WINDOW)
+        thereis (SETQ MENU (for MENU in (WINDOWPROP WINDOW
+                                                           'MENU)
+                                  thereis (SETQ MENUITEM
+                                               (ASSOC 'Zoom
+                                                      (with MENU MENU ITEMS
+                                                             ]
+     (SETQ ITEMS (TB.COLLECT.ITEMS BROWSER))
+     (if ZOOMDATA
+         then [with MM.ZOOMDATA ZOOMDATA
+                         (if (SETQ ITEMS (for ITEM in ITEMS
+                                                unless (MEMB ITEM NewItems)
+                                                collect ITEM))
+                             then          (* ; 
+      "Add new messages that showed up while we were in 'selected only' mode")
+                                   (SETQ OldItems (NCONC OldItems ITEMS]
+               (MM.REPLACE.TABLEITEMS BROWSER ZOOMDATA)
+               (SHADEITEM MENUITEM MENU WHITESHADE)
+               (with MENU MENU (SETQ WHENSELECTEDFN (FUNCTION 
+                                                       BACKGROUNDWHENSELECTEDFN
+                                                         )))
+       else (PRINTOUT PROMPTSTREAM T "Collecting selected messagess...")
+             [SETQ ZOOMDATA
+              (create MM.ZOOMDATA
+                     NewItems _
+                     (bind (STREAM _ (WINDOWPROP WINDOW 'TSTREAM))
+                            (MESSAGEARRAY _ (WINDOWPROP WINDOW
+                                                   'MESSAGEARRAY))
+                        declare (SPECVARS (STREAM MESSAGEARRAY ITEM))
+                        for ITEM in ITEMS
+                        when (with TABLEITEM ITEM TISELECTED)
+                        collect (PROGN     (* ; 
+                       "Turn off look ahead when picking out random messages")
+                                           [RESETVAR MAP.LOOKAHEAD NIL
+                                            (MAP.FETCHENVELOPE
+                                             STREAM MESSAGEARRAY
+                                             (MM.TBPROP ITEM 'MSGNO]
+                                           ITEM]
+             (if (with MM.ZOOMDATA ZOOMDATA NewItems)
+                 then (with MM.ZOOMDATA ZOOMDATA (SETQ OldItems ITEMS)
+                                 [SETQ FirstVisibleItem
+                                  (TB.NTH.ITEM BROWSER
+                                         (TB.FIRST.VISIBLE.ITEM#
+                                          BROWSER
+                                          (DSPCLIPPINGREGION NIL WINDOW]
+                                 (TB.REPLACE.ITEMS BROWSER (APPEND NewItems)))
+                       (WINDOWPROP WINDOW 'ZOOMDATA ZOOMDATA)
+                       (with MENU MENU (SETQ WHENSELECTEDFN
+                                            (FUNCTION MM.TOGGLED.SELECTEDFN)))
+                       (SHADEITEM MENUITEM MENU GRAYSHADE)
+                       (PRINTOUT PROMPTSTREAM T)
+               else (PRINTOUT PROMPTSTREAM T "No messages selected!"])
+
+(MM.TOGGLED.SELECTEDFN
+  [LAMBDA (ITEM FROMMENU BUTTON)                         (* ; "Edited 29-Apr-88 16:23 by MRC")
+                                                             (* ; "Bottom menu buttoneventfn")
+    (PROG [(WINDOW (MAINWINDOW (WFROMMENU FROMMENU]
+          (if (EQ (CAR ITEM)
+                      'Expunge)
+              then (PRINTOUT (GETPROMPTWINDOW WINDOW)
+                              T "You must UnZoom in order to Expunge!")
+                    (RETURN)
+            elseif (EQUAL (CAR ITEM)
+                              "New Mailbox")
+              then (PRINTOUT (GETPROMPTWINDOW WINDOW)
+                              T "Leaving Zoom mode...")
+                    (MM.TOGGLE.SELECTED WINDOW))
+          (RETURN (BACKGROUNDWHENSELECTEDFN ITEM FROMMENU BUTTON])
+
+(MM.REPLACE.TABLEITEMS
+  [LAMBDA (BROWSER ZOOMDATA)         (* ; "Edited 15-Jun-88 15:31 by MRC")
+                                               (* ; 
+                                "Put the indicated items back in the browser")
+    (LET ((%#ITEMS 0)
+          (WINDOW (fetch (TABLEBROWSER TBWINDOW) of BROWSER))
+          (YPOS (MM.YCOORD.FROM.ITEM BROWSER
+                       (with MM.ZOOMDATA ZOOMDATA FirstVisibleItem)))
+          REGION FIRSTSEL)
+         (with TABLEBROWSER BROWSER
+                [with MM.ZOOMDATA ZOOMDATA
+                       [for ITEM in OldItems
+                          do (with TABLEITEM ITEM (SETQ TI#
+                                                           (add %#ITEMS 1]
+                       (SETQ TBITEMS OldItems)
+                       (SETQ TB#ITEMS %#ITEMS)
+                       (SETQ TB#DELETED (for ITEM in OldItems
+                                           count (with TABLEITEM ITEM 
+                                                            TIDELETED]
+                (if (SETQ FIRSTSEL (TB.FIND.SELECTED.ITEM BROWSER 1 %#ITEMS
+                                              ))
+                    then (SETQ TBFIRSTSELECTEDITEM FIRSTSEL)
+                          (SETQ TBLASTSELECTEDITEM (TB.REV.FIND.SELECTED.ITEM
+                                                    BROWSER FIRSTSEL %#ITEMS))
+                  else (SETQ TBFIRSTSELECTEDITEM (ADD1 %#ITEMS))
+                        (SETQ TBLASTSELECTEDITEM 0)))
+         (TB.SET.FONT BROWSER)
+         (SCROLLBYREPAINTFN WINDOW 0
+                (DIFFERENCE (PLUS (fetch (REGION TOP)
+                                     of (SETQ REGION (DSPCLIPPINGREGION
+                                                          NIL WINDOW)))
+                                  (FONTPROP (with TABLEBROWSER BROWSER 
+                                                   TBFONT)
+                                         'DESCENT))
+                       YPOS))
+         (TB.DISPLAY.LINES BROWSER (TB.FIRST.VISIBLE.ITEM# BROWSER REGION)
+                (TB.LAST.VISIBLE.ITEM# BROWSER REGION])
+)
+
+
+
+(* ; "Message reading functions")
+
+(DEFINEQ
+
+(MM.READMESSAGE
+  [LAMBDA (WINDOW SEQUENCE)                              (* ; "Edited 26-Feb-88 15:03 by MRC")
+                                                             (* ; "Read a particular message")
+    (LET ((STREAM (WINDOWPROP WINDOW 'TSTREAM))
+          (MESSAGEARRAY (WINDOWPROP WINDOW 'MESSAGEARRAY))
+          (MSGNO (if (LISTP SEQUENCE)
+                     then (CAR SEQUENCE)
+                   else SEQUENCE))
+          MESSAGE)
+         (if (AND MSGNO (SETQ MESSAGE (MAP.FETCHMESSAGE STREAM MESSAGEARRAY MSGNO)))
+             then (MM.TEDITMESSAGE STREAM MESSAGEARRAY SEQUENCE WINDOW MSGNO MESSAGE])
+
+(MM.TEDITMESSAGE
+  [LAMBDA (STREAM MESSAGEARRAY SEQUENCE PRIMARYWINDOW MSGNO MESSAGE OLDWINDOW)
+                                                             (* ; "Edited 28-Apr-88 15:08 by cdl")
+                                                             (* ; 
+                                                          "Invoke TEdit on this message and window")
+    (LET (WINDOW)
+         (if (SETQ WINDOW OLDWINDOW)
+             then (WINDOWPROP WINDOW 'TITLE (MM.HEADERLINE STREAM MESSAGEARRAY MSGNO))
+           else (SETQ WINDOW (CREATEW (MM.GET.WINDOW.REGION MM.READWINDOWSIZE 'READ 
+                                                 PRIMARYWINDOW)
+                                        (MM.HEADERLINE STREAM MESSAGEARRAY MSGNO)))
+                 (WINDOWADDPROP WINDOW 'CLOSEFN (FUNCTION MM.READCLOSE))
+                 (WINDOWPROP WINDOW 'ICONFN (FUNCTION MM.ICONFN))
+                 (WINDOWPROP WINDOW 'PRIMARYWINDOW PRIMARYWINDOW)
+                 (WINDOWPROP WINDOW 'FLAGMENU (WINDOWPROP PRIMARYWINDOW 'FLAGMENU))
+                 (WINDOWPROP WINDOW 'FLAGLST (WINDOWPROP PRIMARYWINDOW 'FLAGLST))
+                 (WINDOWPROP WINDOW 'MESSAGEARRAY MESSAGEARRAY)
+                 (WINDOWPROP WINDOW 'MAILBOXNAME (WINDOWPROP PRIMARYWINDOW 'MAILBOXNAME))
+                 (WINDOWPROP WINDOW 'SEQUENCE SEQUENCE)
+                 (WINDOWPROP WINDOW 'TSTREAM STREAM)
+                 (ATTACHMENU (create MENU
+                                    TITLE _ "Read Menu"
+                                    ITEMS _ (MM.READMENUITEMS WINDOW)
+                                    MENUOUTLINESIZE _ 1)
+                        WINDOW
+                        'RIGHT
+                        'TOP)
+                 (ATTACHMENU (create MENU
+                                    ITEMS _ (MM.READCOMMANDMENUITEMS WINDOW)
+                                    CENTERFLG _ T)
+                        WINDOW
+                        'BOTTOM))
+         (WINDOWPROP WINDOW 'MESSAGERECORD (MAP.ELT MESSAGEARRAY MSGNO))
+         [OPENTEXTSTREAM MESSAGE WINDOW NIL NIL
+                `(PROMPTWINDOW DON'T PARALOOKS (TABS (,(TIMES MM.TEDIT.TABWIDTH
+                                                              (CHARWIDTH (CHARCODE A)
+                                                                     (DSPFONT NIL WINDOW]
+         (MM.UPDATE PRIMARYWINDOW MSGNO)
+         (TOTOPW WINDOW])
+
+(MM.READMENUITEMS
+  [LAMBDA (WINDOW)                                       (* ; "Edited 25-Mar-88 16:46 by cdl")
+                                                             (* ; "Return a read menu")
+    `((Reply (MM.REPLYMESSAGE ,WINDOW)
+             "Compose a reply (to the sender only) to this message"
+             (SUBITEMS ("Reply to Sender only" (MM.REPLYMESSAGE ,WINDOW)
+                              "Send answer only to the sender or reply address of this message")
+                    ("Reply to All" (MM.REPLYMESSAGE ,WINDOW T)
+                           "Reply to the reply address and all recipients of this message")))
+      (File (MM.COPYMESSAGE ,WINDOW)
+            "Copy this message into another mailbox"
+            (SUBITEMS (Copy (MM.COPYMESSAGE ,WINDOW)
+                            "Copy this message into another mailbox")
+                   (Move (MM.MOVEMESSAGE ,WINDOW)
+                         "Move this message into another mailbox and delete it from this mailbox")))
+      (Hardcopy (MM.HARDCOPYMESSAGE ,WINDOW)
+             "Sends this message to the default printer")
+      [Keyword (MM.SETFLAG ,WINDOW)
+             "Set a keyword on this message"
+             (SUBITEMS [Set (MM.SETFLAG ,WINDOW)
+                            "Set a keyword on this message"
+                            ,(MM.FLAGMENUITEMS WINDOW 'MM.SETFLAG]
+                    (Clear (MM.CLEARFLAG ,WINDOW)
+                           "Clear a keyword on this message"
+                           ,(MM.FLAGMENUITEMS WINDOW 'MM.CLEARFLAG]
+      (Flag (MM.SETFLAG ,WINDOW '\Flagged)
+            "Flag this message for special attention"
+            (SUBITEMS (Unflag (MM.CLEARFLAG ,WINDOW '\Flagged)
+                             "Clear the flagged status of this message")))
+      (Delete (MM.SETFLAG ,WINDOW '\Deleted)
+             "Mark this message for deletion"
+             (SUBITEMS (Undelete (MM.CLEARFLAG ,WINDOW '\Deleted)
+                              "Clear the deleted status of this message"])
+
+(MM.READCOMMANDMENUITEMS
+  [LAMBDA (WINDOW)                                       (* ; "Edited 24-Feb-88 18:24 by MRC")
+                                                             (* ; "Return a read command menu")
+    `((Quit (CLOSEW ,WINDOW)
+            "Quits reading this message and closes its window")
+      (Previous (MM.PREVIOUSMESSAGE ,WINDOW)
+             "Read the previous message")
+      (Kill (MM.KILLMESSAGE ,WINDOW)
+            "Delete the current message and read the next message")
+      (Next (MM.NEXTMESSAGE ,WINDOW)
+            "Read the next message"])
+
+(MM.READCLOSE
+  [LAMBDA (WINDOW)                                       (* ; "Edited 28-Apr-88 15:03 by cdl")
+                                                             (* ; 
+                                   "Break the menu/window circularity so it gets garbage collected")
+    (PROG [(STREAM (WINDOWPROP WINDOW 'TSTREAM]
+          [if (AND STREAM (OPENP STREAM)
+                       (NOT (EOFP STREAM)))
+              then (if (MM.LOCK STREAM)
+                           then (MM.UNLOCK STREAM)
+                         else (RETURN 'DON'T]
+          (for WINDOW in (ATTACHEDWINDOWS WINDOW)
+             do                                          (* ; 
+                                              "Since menu items have pointers to window in them...")
+                   (for MENU in (WINDOWPROP WINDOW 'MENU) do (DELETEMENU MENU NIL WINDOW)
+                          ))
+          (WINDOWPROP WINDOW 'MESSAGEARRAY NIL)
+          (WINDOWPROP WINDOW 'TSTREAM NIL)
+          (WINDOWPROP WINDOW 'MESSAGERECORD NIL)
+          [if MM.REMEMBER.POSITIONS
+              then (WINDOWADDPROP (WINDOWPROP WINDOW 'PRIMARYWINDOW)
+                              'MM.POSITIONS
+                              (CONS 'READ (with REGION (WINDOWPROP WINDOW 'REGION)
+                                                 (CREATEPOSITION LEFT BOTTOM]
+          (WINDOWPROP WINDOW 'PRIMARYWINDOW NIL])
+
+(MM.SETFLAG
+  [LAMBDA (WINDOW FLAG)                                  (* ; "Edited  6-Apr-88 18:38 by MRC")
+                                                             (* ; 
+                                                      "Prompts for flag and sets it in the message")
+    (LET ((STREAM (WINDOWPROP WINDOW 'TSTREAM))
+          (MSGNO (MM.MSGNO WINDOW)))
+         (if (AND STREAM MSGNO (MM.LOCK STREAM))
+             then [MAP.SETFLAG STREAM MSGNO (OR FLAG (MM.MENU (WINDOWPROP WINDOW 'FLAGMENU]
+                   (MM.UPDATE (WINDOWPROP WINDOW 'PRIMARYWINDOW)
+                          MSGNO)
+                   (WINDOWPROP WINDOW 'TITLE (MM.HEADERLINE STREAM (WINDOWPROP WINDOW
+                                                                              'MESSAGEARRAY)
+                                                    MSGNO))
+                   (MM.UNLOCK STREAM])
+
+(MM.CLEARFLAG
+  [LAMBDA (WINDOW FLAG)                                  (* ; "Edited  6-Apr-88 18:38 by MRC")
+                                                             (* ; 
+                                                    "Prompts for flag and clears it in the message")
+    (LET ((STREAM (WINDOWPROP WINDOW 'TSTREAM))
+          (MSGNO (MM.MSGNO WINDOW)))
+         (if (AND STREAM MSGNO (MM.LOCK STREAM))
+             then [MAP.CLEARFLAG STREAM MSGNO (OR FLAG (MM.MENU (WINDOWPROP WINDOW
+                                                                               'FLAGMENU]
+                   (MM.UPDATE (WINDOWPROP WINDOW 'PRIMARYWINDOW)
+                          MSGNO)
+                   (WINDOWPROP WINDOW 'TITLE (MM.HEADERLINE STREAM (WINDOWPROP WINDOW
+                                                                              'MESSAGEARRAY)
+                                                    MSGNO))
+                   (MM.UNLOCK STREAM])
+
+(MM.REPLYMESSAGE
+  [LAMBDA (WINDOW ALL)                                   (* ; "Edited  6-Apr-88 18:29 by MRC")
+                                                             (* ; "Reply to the current message")
+    (LET [(MSGNO (MM.MSGNO WINDOW))
+          (STREAM (WINDOWPROP WINDOW 'TSTREAM]
+         (if (AND MSGNO (MM.LOCK STREAM))
+             then (MM.REPLY WINDOW MSGNO ALL)
+                   (MM.UNLOCK STREAM])
+
+(MM.HARDCOPYMESSAGE
+  [LAMBDA (WINDOW)                                       (* ; "Edited  6-Apr-88 18:35 by MRC")
+                                                             (* ; "Hardcopy the current message")
+    (LET [(MSGNO (MM.MSGNO WINDOW))
+          (STREAM (WINDOWPROP WINDOW 'TSTREAM]
+         (if (AND MSGNO (MM.LOCK STREAM))
+             then (MM.HARDCOPY WINDOW MSGNO)
+                   (MM.UNLOCK STREAM])
+
+(MM.COPYMESSAGE
+  [LAMBDA (WINDOW)                                       (* ; "Edited 25-Apr-88 08:35 by cdl")
+                                                             (* ; "Copy message to another mailbox")
+    (LET ((MSGNO (MM.MSGNO WINDOW))
+          (STREAM (WINDOWPROP WINDOW 'TSTREAM))
+          MAILBOX)
+         (if (AND MSGNO (SETQ MAILBOX (MM.PROMPTFORMAILBOX WINDOW))
+                      (MM.LOCK STREAM))
+             then (MAP.COPYMESSAGE (WINDOWPROP WINDOW 'TSTREAM)
+                             MSGNO MAILBOX)
+                   (MM.UNLOCK STREAM])
+
+(MM.MOVEMESSAGE
+  [LAMBDA (WINDOW)                                       (* ; "Edited 25-Apr-88 08:35 by cdl")
+                                                             (* ; "Move message to another mailbox")
+    (LET ((MSGNO (MM.MSGNO WINDOW))
+          (STREAM (WINDOWPROP WINDOW 'TSTREAM))
+          MAILBOX)
+         (if (AND MSGNO (SETQ MAILBOX (MM.PROMPTFORMAILBOX WINDOW))
+                      (MM.LOCK STREAM))
+             then (if (MAP.MOVEMESSAGE STREAM MSGNO MAILBOX)
+                          then (printout (GETPROMPTWINDOW WINDOW)
+                                          T "Move completed"))
+                   (MM.UPDATE (WINDOWPROP WINDOW 'PRIMARYWINDOW)
+                          MSGNO)
+                   (MM.UNLOCK STREAM])
+
+(MM.NEXTMESSAGE
+  [LAMBDA (WINDOW)                                       (* ; "Edited 25-Apr-88 16:10 by cdl")
+                                                             (* ; "Move to next message")
+    (LET ((MESSAGEARRAY (WINDOWPROP WINDOW 'MESSAGEARRAY))
+          (SEQUENCE (WINDOWPROP WINDOW 'SEQUENCE))
+          (MSGNO (MM.MSGNO WINDOW))
+          (BROWSER (WINDOWPROP (WINDOWPROP WINDOW 'PRIMARYWINDOW)
+                          'TABLEBROWSER))
+          NEWMESSAGENO TABLEITEMS)
+         (if [AND MSGNO [SETQ NEWMESSAGENO (if (LISTP SEQUENCE)
+                                                   then (CADR (FMEMB MSGNO SEQUENCE))
+                                                 elseif [SETQ TABLEITEMS
+                                                             (CDR (FMEMB (MM.FIND.TABLEITEM
+                                                                          BROWSER MSGNO)
+                                                                         (TB.COLLECT.ITEMS BROWSER]
+                                                   then (MM.TBPROP (CAR TABLEITEMS)
+                                                                   'MSGNO]
+                      (LEQ NEWMESSAGENO (WINDOWPROP (WINDOWPROP WINDOW 'PRIMARYWINDOW)
+                                               'NMSGS]
+             then (MM.MOVETOMESSAGE WINDOW (WINDOWPROP WINDOW 'TSTREAM)
+                             MESSAGEARRAY NEWMESSAGENO)
+                   (printout (GETPROMPTWINDOW WINDOW)
+                          T)
+                   T
+           else (printout (GETPROMPTWINDOW WINDOW)
+                           T "No further messages to read")
+                 NIL])
+
+(MM.PREVIOUSMESSAGE
+  [LAMBDA (WINDOW)                                       (* ; "Edited 25-Apr-88 16:11 by cdl")
+                                                             (* ; "Move to previous message")
+    (LET ((SEQUENCE (WINDOWPROP WINDOW 'SEQUENCE))
+          (MSGNO (MM.MSGNO WINDOW))
+          (BROWSER (WINDOWPROP (WINDOWPROP WINDOW 'PRIMARYWINDOW)
+                          'TABLEBROWSER))
+          NEWMESSAGENO TABLEITEMS)
+         (if (AND MSGNO [SETQ NEWMESSAGENO (if (LISTP SEQUENCE)
+                                                   then (CADR (FMEMB MSGNO (REVERSE SEQUENCE)))
+                                                 elseif [SETQ TABLEITEMS
+                                                             (CDR (FMEMB (MM.FIND.TABLEITEM
+                                                                          BROWSER MSGNO)
+                                                                         (DREVERSE (TB.COLLECT.ITEMS
+                                                                                    BROWSER]
+                                                   then (MM.TBPROP (CAR TABLEITEMS)
+                                                                   'MSGNO]
+                      (NOT (ZEROP NEWMESSAGENO)))
+             then (MM.MOVETOMESSAGE WINDOW (WINDOWPROP WINDOW 'TSTREAM)
+                             (WINDOWPROP WINDOW 'MESSAGEARRAY)
+                             NEWMESSAGENO)
+                   (printout (GETPROMPTWINDOW WINDOW)
+                          T)
+                   T
+           else (printout (GETPROMPTWINDOW WINDOW)
+                           T "No previous message to read")
+                 NIL])
+
+(MM.KILLMESSAGE
+  [LAMBDA (WINDOW)                                       (* ; "Edited  6-Apr-88 18:41 by MRC")
+                                                             (* ; 
+                                                 "Delete the current message, move to next message")
+    (LET [(STREAM (WINDOWPROP WINDOW 'TSTREAM]
+         (if (MM.LOCK STREAM)
+             then (MM.UNLOCK STREAM)
+                   (MM.SETFLAG WINDOW '\Deleted)
+                   (if (NOT (MM.NEXTMESSAGE WINDOW))
+                       then (CLOSEW WINDOW])
+
+(MM.MOVETOMESSAGE
+  [LAMBDA (WINDOW STREAM MESSAGEARRAY MSGNO)             (* ; "Edited  6-Apr-88 18:40 by MRC")
+                                                             (* ; 
+                                               "Move message in window to specified message number")
+    (if (MM.LOCK STREAM)
+        then (LET ((MESSAGE (MAP.FETCHMESSAGE STREAM MESSAGEARRAY MSGNO)))
+                      (if MESSAGE
+                          then (MM.TEDITMESSAGE STREAM MESSAGEARRAY (WINDOWPROP WINDOW
+                                                                                   'SEQUENCE)
+                                          (WINDOWPROP WINDOW 'PRIMARYWINDOW)
+                                          MSGNO MESSAGE WINDOW)))
+              (MM.UNLOCK STREAM])
+)
+
+(DEFMACRO MM.MSGNO (W)                     (* ; 
+                                          "Get message number of this window")
+   `(fetch (MM.CACHE Msg#) of (WINDOWPROP ,W 'MESSAGERECORD)))
+
+
+
+(* ; "Message composition functions")
+
+(DEFINEQ
+
+(MM.COMPOSEMESSAGE
+  [LAMBDA (MESSAGE REPLYRECORD REPLYWINDOW TITLE)        (* ; "Edited 28-Apr-88 15:45 by cdl")
+                                                             (* ; "Compose a new message")
+    (DECLARE (GLOBALVARS TEDIT.DEFAULT.MENU))
+    (LET (WINDOW ENVELOPEWINDOW)
+         (SETQ WINDOW (CREATEW (MM.GET.WINDOW.REGION MM.COMPOSEWINDOWSIZE 'COMPOSE
+                                      (OR REPLYWINDOW MM.WINDOW))
+                             (OR TITLE "Message Composition Window")))
+         (WINDOWPROP WINDOW 'ENVELOPEWINDOW (SETQ ENVELOPEWINDOW (GETPROMPTWINDOW WINDOW 5)))
+         (if (NULL MESSAGE)
+             then (SETQ MESSAGE (create MM.MESSAGE
+                                           From _ (MM.FROMADDRESS)))
+                   (MTP.ENVELOPE ENVELOPEWINDOW MESSAGE))
+         (with MM.MESSAGE MESSAGE (SETQ cc (APPEND cc MM.DEFAULT.CC))
+                (SETQ bcc (APPEND bcc MM.DEFAULT.BCC)))      (* ; 
+                                                   "Too bad NCONC won't work if it's initially NIL")
+         (WINDOWPROP WINDOW 'MESSAGE MESSAGE)
+         (WINDOWPROP WINDOW 'REPLYWINDOW REPLYWINDOW)
+         (WINDOWPROP WINDOW 'REPLYRECORD REPLYRECORD)
+         (WINDOWPROP ENVELOPEWINDOW 'MESSAGE MESSAGE)
+         (WINDOWPROP ENVELOPEWINDOW 'REPAINTFN (FUNCTION MM.REPAINT.ENVELOPE))
+                                                             (* ; 
+                                          "Allow envelope window to redisplay itself independently")
+         [WINDOWPROP ENVELOPEWINDOW 'PASSTOMAINCOMS (DREMOVE 'REDISPLAYW (WINDOWPROP ENVELOPEWINDOW
+                                                                                'PASSTOMAINCOMS]
+         (REDISPLAYW ENVELOPEWINDOW)
+         (ATTACHMENU (create MENU
+                            ITEMS _ (MM.COMPOSEMENUITEMS WINDOW)
+                            CENTERFLG _ T)
+                WINDOW
+                'BOTTOM)
+         [if [OR (NULL MM.TEDIT.MENU)
+                     (NOT (EQUAL (with MENU TEDIT.DEFAULT.MENU ITEMS)
+                                 (with MENU MM.TEDIT.MENU (CDR ITEMS]
+             then (SETQ MM.TEDIT.MENU (with MENU TEDIT.DEFAULT.MENU
+                                                 (create MENU
+                                                        ITEMS _ `((Compress (MM.TEDIT.STRIPEOLS
+                                                                             TEXTOBJ)
+                                                                         "Convert EOLS to spaces.")
+                                                                  ,@ITEMS)
+                                                        IMAGE _ NIL
+                                                        MENUROWS _ NIL using TEDIT.DEFAULT.MENU]
+         (WINDOWPROP WINDOW 'ICON MM.ENVELOPEICON)
+         (WINDOWPROP WINDOW 'ICONFN (FUNCTION MM.ICONFN))
+         (WINDOWADDPROP WINDOW 'CLOSEFN (FUNCTION MM.COMPOSEQUIT))
+         (TEDIT NIL WINDOW NIL `(MENU ,MM.TEDIT.MENU PARALOOKS
+                                      [TABS (,(TIMES MM.TEDIT.TABWIDTH (CHARWIDTH (CHARCODE A)
+                                                                              (DSPFONT NIL WINDOW]
+                                      AFTERQUITFN MM.COMPOSEQUIT])
+
+(MM.REPLY
+  [LAMBDA (WINDOW SEQUENCE ALL)                          (* ; "Edited 28-Apr-88 15:40 by cdl")
+                                                             (* ; "Reply to a message sequence")
+    (LET ((STREAM (WINDOWPROP WINDOW 'TSTREAM))
+          (MESSAGEARRAY (WINDOWPROP WINDOW 'MESSAGEARRAY))
+          ENVELOPEWINDOW ENVELOPE SUBJECT)
+         (for MSGNO inside SEQUENCE
+            do (if (SETQ ENVELOPE (OR (fetch (MM.CACHE Envelope) of (MAP.ELT 
+                                                                                         MESSAGEARRAY
+                                                                                           MSGNO))
+                                              (MAP.FETCHENVELOPE STREAM MESSAGEARRAY MSGNO)))
+                       then (if (SETQ SUBJECT (fetch (MM.MESSAGE Subject) of ENVELOPE
+                                                             ))
+                                    then                 (* ; 
+                              "Insert a %"Re:%" in front of the subject if one isn't there already")
+                                          (OR (STRING-EQUAL (SUBSTRING SUBJECT 1 3)
+                                                     "re:")
+                                              (SETQ SUBJECT (CONCAT "Re: " SUBJECT))) 
+                                                             (* ; 
+                                     "Can't use STRPOS since  a case-independent compare is needed")
+                                  else (SETQ SUBJECT "(reply to message)"))
+                             (MM.COMPOSEMESSAGE
+                              [create MM.MESSAGE
+                                     From _ (MM.FROMADDRESS)
+                                     To _ (MM.REPLY.ADDRESS (fetch (MM.MESSAGE Reply-To)
+                                                                   of ENVELOPE))
+                                     cc _ [if ALL
+                                              then (MM.REPLY.ADDRESS
+                                                        (APPEND (fetch (MM.MESSAGE To)
+                                                                   of ENVELOPE)
+                                                               (fetch (MM.MESSAGE cc)
+                                                                  of ENVELOPE)
+                                                               (fetch (MM.MESSAGE bcc)
+                                                                  of ENVELOPE]
+                                     Subject _ SUBJECT
+                                     In-Reply-To _ (OR (fetch (MM.MESSAGE Message-ID)
+                                                          of ENVELOPE)
+                                                       (CONCAT "Message from "
+                                                              (RFC822.MAILBOX
+                                                               (CAR (fetch (MM.MESSAGE From)
+                                                                       of ENVELOPE)))
+                                                              " of "
+                                                              (fetch (MM.MESSAGE Date)
+                                                                 of ENVELOPE]
+                              (MAP.ELT MESSAGEARRAY MSGNO)
+                              (OR (WINDOWPROP WINDOW 'PRIMARYWINDOW)
+                                  WINDOW)
+                              "Message Reply Window")
+                     else (printout (GETPROMPTWINDOW WINDOW)
+                                     T "No envelope for message " MSGNO])
+
+(MM.FROMADDRESS
+  [LAMBDA NIL                                            (* ; "Edited 23-Mar-88 18:07 by cdl")
+                                                             (* ; 
+                                         "Return a From address block for a message being composed")
+    (LET ((HOST (MM.SERVICEHOST)))
+         `(,(create MM.ADDRESS
+                   PersonalName _ MM.PERSONALNAME
+                   Mailbox _ (CAR (\INTERNAL/GETPASSWORD HOST))
+                   Host _ HOST])
+
+(MM.REPLY.ADDRESS
+  [LAMBDA (ADDRESS)                                      (* ; "Edited 14-Apr-88 11:38 by MRC")
+                                                             (* ; 
+                                       "Convert an envelope address record to an MM.ADDRESS record")
+    (for addr in ADDRESS collect (create MM.ADDRESS
+                                                    PersonalName _ (fetch (MM.ADDRESS 
+                                                                                     PersonalName)
+                                                                      of addr)
+                                                    RouteList _ (fetch (MM.ADDRESS RouteList)
+                                                                   of addr)
+                                                    Mailbox _ (fetch (MM.ADDRESS Mailbox)
+                                                                 of addr)
+                                                    Host _ (fetch (MM.ADDRESS Host) of addr])
+
+(MM.COMPOSEMENUITEMS
+  [LAMBDA (WINDOW)                   (* ; "Edited 15-Jun-88 15:41 by MRC")
+                                               (* ; "Return a compose menu")
+    `((Abort (CLOSEW ,WINDOW)
+             "Abort (cancel) composition of this message")
+      (Remove (MM.REMOVE (GETPROMPTWINDOW ,WINDOW))
+             "Remove a recipient in any category")
+      (Subject (MM.SUBJECT (GETPROMPTWINDOW ,WINDOW))
+             "Change the subject of the message")
+      ("Add bcc" (MM.ADD.RECIPIENT (GETPROMPTWINDOW ,WINDOW)
+                        'bcc)
+             "Add a new blind carbon copy recipient")
+      ("Add cc" (MM.ADD.RECIPIENT (GETPROMPTWINDOW ,WINDOW)
+                       'cc)
+             "Add a new carbon copy recipient")
+      ("Add To" (MM.ADD.RECIPIENT (GETPROMPTWINDOW ,WINDOW)
+                       'To)
+             "Add a new primary recipient")
+      (Send (MM.SENDMESSAGE ,WINDOW)
+            "Queue this message for delivery"
+            (SUBITEMS ("Add Line Breaks" (RESETVAR MM.TEDIT.FIXUPFLG T
+                                          (MM.SENDMESSAGE ,WINDOW))
+                             "Add line breaks before sending")
+                   ("Send As Is" (RESETVAR MM.TEDIT.FIXUPFLG NIL
+                                  (MM.SENDMESSAGE ,WINDOW))
+                          "Send the text as is"])
+
+(MM.ADD.RECIPIENT
+  [LAMBDA (WINDOW LIST)                                  (* ; "Edited 19-Feb-88 12:40 by MRC")
+                                                             (* ; 
+                                                           "Add recipient to a recipient list")
+    (RESETFORM (TTYDISPLAYSTREAM WINDOW)
+           (TTY.PROCESS (THIS.PROCESS))
+           (printout WINDOW T)
+           (MTP.ENVELOPE.TOLIST WINDOW (WINDOWPROP WINDOW 'MESSAGE)
+                  LIST)
+           (REDISPLAYW WINDOW])
+
+(MM.REMOVE
+  [LAMBDA (WINDOW)                   (* ; "Edited 15-Jun-88 15:33 by MRC")
+                                               (* ; 
+                                          "Prompt for and remove a recipient")
+    (LET
+     ((MESSAGE (WINDOWPROP WINDOW 'MESSAGE))
+      RECIPIENT)
+     (with
+      MM.MESSAGE MESSAGE
+      (if [SETQ RECIPIENT
+               (MENU (create
+                      MENU
+                      TITLE _ "Which Recipient?"
+                      ITEMS _ (for ADDRESS in (APPEND To cc bcc)
+                                 collect
+                                 `(,(RFC822.MAILBOX ADDRESS)
+                                   ,(KWOTE ADDRESS)
+                                   "Select this address to remove"]
+          then                             (* ; 
+                          "The SETQ is necessary in case DREMOVE returns NIL")
+          (SETQ cc (DREMOVE RECIPIENT cc))
+          (SETQ bcc (DREMOVE RECIPIENT bcc))
+          [if (NULL (SETQ To (DREMOVE RECIPIENT To)))
+              then (if cc
+                           then (SETQ To cc)
+                                 (SETQ cc NIL)
+                         else (RESETFORM (TTYDISPLAYSTREAM WINDOW)
+                                         (TTY.PROCESS (THIS.PROCESS))
+                                         (printout WINDOW T)
+                                         (while (NULL To)
+                                            do (MTP.ENVELOPE.TOLIST
+                                                    WINDOW MESSAGE 'To]
+          (REDISPLAYW WINDOW])
+
+(MM.SUBJECT
+  [LAMBDA (WINDOW)                                       (* ; "Edited 19-Feb-88 12:39 by MRC")
+                                                             (* ; 
+                                                           "Change the subject of this message")
+    (RESETFORM (TTYDISPLAYSTREAM WINDOW)
+           (TTY.PROCESS (THIS.PROCESS))
+           (printout WINDOW T)
+           (MTP.ENVELOPE.SUBJECT WINDOW (WINDOWPROP WINDOW 'MESSAGE))
+           (REDISPLAYW WINDOW])
+
+(MM.REPAINT.ENVELOPE
+  [LAMBDA (WINDOW REGION)                                (* ; "Edited  6-Jul-87 15:38 by MRC")
+                                                             (* ; "Repaint the envelope window")
+    (MOVETOUPPERLEFT WINDOW REGION)
+    (printout WINDOW (MTP.DISPLAY.ENVELOPE (WINDOWPROP WINDOW 'MESSAGE])
+
+(MM.SENDMESSAGE
+  [LAMBDA (WINDOW)                                       (* ; "Edited 13-Apr-88 18:21 by MRC")
+                                                             (* ; 
+                                                         "Deliver message and close compose window")
+    (LET
+     ((MESSAGE (WINDOWPROP WINDOW 'MESSAGE))
+      (REPLYRECORD (WINDOWPROP WINDOW 'REPLYRECORD))
+      (PROMPTSTREAM (GETPROMPTWINDOW WINDOW))
+      [TSTREAM (OPENSTREAM '{NODIRCORE} 'BOTH NIL '((EOL CRLF]
+      (SSTREAM (CL:MAKE-STRING-OUTPUT-STREAM))
+      REPLYWINDOW REPLYSTREAM MSGNO)
+     (if MM.TEDIT.FIXUPFLG
+         then (PRINTOUT PROMPTSTREAM T "Checking for long lines...") 
+                                                             (* ; 
+                                                           "Warning, assumes fixed pitch font")
+               (MM.TEDIT.FIXUP (TEXTSTREAM WINDOW))
+               (PRINTOUT PROMPTSTREAM " done." T))
+     (COPYCHARS (COERCETEXTOBJ (TEXTSTREAM WINDOW)
+                       'STREAM)
+            TSTREAM)
+     (SETFILEPTR TSTREAM 0)
+     (COPYBYTES TSTREAM SSTREAM)
+     (WINDOWPROP WINDOW 'ICON MM.ALIENMAILCARRIERICON)
+     (WINDOWPROP WINDOW 'ICONWINDOW NIL)
+     (SHRINKW WINDOW)
+     (with
+      MM.MESSAGE MESSAGE (SETQ Body (CL:GET-OUTPUT-STREAM-STRING SSTREAM))
+      (SHRINKW WINDOW)
+      (for host inside MM.SERVICEHOSTS
+         do
+         (if (MTP.MAIL PROMPTWINDOW MESSAGE host)
+             then (if [AND REPLYRECORD (SETQ MSGNO (fetch (MM.CACHE Msg#) of 
+                                                                                          REPLYRECORD
+                                                                  ))
+                                   [OPENWP (SETQ REPLYWINDOW (WINDOWPROP WINDOW 'REPLYWINDOW]
+                                   (OPENP (SETQ REPLYSTREAM (WINDOWPROP REPLYWINDOW 'TSTREAM]
+                          then (MAP.SETFLAG REPLYSTREAM MSGNO '\Answered)
+                                (MM.UPDATE REPLYWINDOW MSGNO))
+                   (TEDIT.KILL WINDOW)
+                   (CLOSEW WINDOW)
+                   (RETURN)
+           else (if Error
+                        then (printout PROMPTWINDOW T "Queue to " host " failed: " Error)
+                      else                               (* ; 
+                                "The strange-looking LIST is because they are fields of MM.MESSAGE")
+                            [for FIELD in (LIST To cc bcc)
+                               do (for ITEM in FIELD
+                                         do (with MM.ADDRESS ITEM
+                                                       (if RcptError
+                                                           then (printout PROMPTSTREAM T 
+                                                                           "Recipient " (SMTP.MAILBOX
+                                                                                         ITEM)
+                                                                           " failed: " RcptError)
+                                                                 (SETQ RcptError NIL]
+                            (WINDOWPROP WINDOW 'ICON MM.ENVELOPEICON)
+                            (WINDOWPROP WINDOW 'ICONWINDOW NIL)
+                            (EXPANDW WINDOW)
+                            (RETURN])
+
+(MM.COMPOSEQUIT
+  [LAMBDA (WINDOW)                                       (* ; "Edited 28-Apr-88 15:32 by cdl")
+                                                             (* ; 
+                                          "Break window circularities so it gets garbage collected")
+    [if MM.REMEMBER.POSITIONS
+        then (WINDOWADDPROP (OR (WINDOWPROP WINDOW 'REPLYWINDOW)
+                                    MM.WINDOW)
+                        'MM.POSITIONS
+                        (CONS 'COMPOSE (with REGION (WINDOWPROP WINDOW 'REGION)
+                                              (CREATEPOSITION LEFT BOTTOM]
+    (WINDOWPROP WINDOW 'MESSAGE NIL)
+    (WINDOWPROP WINDOW 'ENVELOPEWINDOW NIL)
+    (WINDOWPROP WINDOW 'REPLYRECORD NIL)
+    (WINDOWPROP WINDOW 'REPLYWINDOW NIL)
+    (DETACHALLWINDOWS WINDOW)
+    (WINDOWPROP WINDOW 'ATTACHEDWINDOWS NIL])
+)
+
+
+
+(* ; "Utility functions")
+
+(DEFINEQ
+
+(MM.SERVICEHOST
+  [LAMBDA NIL                                            (* ; "Edited 23-Mar-88 12:39 by cdl")
+                                                             (* ; "Returns name of service host")
+    (DECLARE (GLOBALVARS LOGINHOST/DIR))
+    (if (LISTP MM.SERVICEHOSTS)
+        then (CAR MM.SERVICEHOSTS)
+      else (OR MM.SERVICEHOSTS (SETQ MM.SERVICEHOSTS (MKATOM (DOMAIN.LOOKUP.NAME
+                                                                  (DOMAIN.HOSTP (FILENAMEFIELD
+                                                                                 LOGINHOST/DIR
+                                                                                 'HOST])
+
+(MM.PROMPTFORMAILBOX
+  [LAMBDA (WINDOW)                                       (* ; "Edited 25-Apr-88 08:48 by cdl")
+                                                             (* ; 
+                                                           "Prompt for a destination mailbox")
+    (LET ((MAILBOX (MM.PROMPTFORLINE "Destination mailbox on this repository: " 'INBOX WINDOW))
+          (MAILBOXHOST (FILENAMEFIELD (WINDOWPROP WINDOW 'MAILBOXNAME)
+                              'HOST))
+          HOST)
+         (if MAILBOX
+             then (SETQ HOST (FILENAMEFIELD MAILBOX 'HOST))
+                   (if (OR (NULL HOST)
+                               (EQUAL HOST MAILBOXHOST)
+                               (EQUAL (DODIP.HOSTP HOST)
+                                      (DODIP.HOSTP MAILBOXHOST))
+                               (MOUSECONFIRM NIL 
+               "Copying between servers not implemented; Left to copy to this server, right to abort"
+                                      (GETPROMPTWINDOW WINDOW)))
+                       then (PACKFILENAME 'HOST NIL 'BODY MAILBOX])
+
+(MM.PROMPTFORLINE
+  [LAMBDA (PROMPT DEFAULT MAINWINDOW)                    (* ; "Edited 28-Mar-88 15:16 by cdl")
+                                                             (* ; 
+                                                     "Prompts for a text line in the prompt window")
+    (LET ((WINDOW (GETPROMPTWINDOW MAINWINDOW)))
+         (printout WINDOW T)
+         (OR (RESETLST
+                 (RESETSAVE (TTY.PROCESS (THIS.PROCESS)))
+                 (RESETSAVE (TTYDISPLAYSTREAM WINDOW))
+                 (TTYIN PROMPT NIL NIL '(STRING NORAISE)))
+             DEFAULT])
+
+(MM.MAILBOX
+  [LAMBDA NIL                                            (* ; "Edited 23-Mar-88 17:36 by cdl")
+                                                             (* ; "Return a mailbox name")
+    (MENU (create MENU
+                 TITLE _ "Which mailbox?"
+                 ITEMS _ MM.MAILBOXES])
+
+(MM.MENU
+  [LAMBDA (MENU)                                         (* ; "Edited 10-Mar-88 12:13 by MRC")
+                                                             (* ; 
+             "Jacket into MENU function, handles case of NIL menu and a selection that returns NIL")
+    (if MENU
+        then (LIST (MENU MENU])
+
+(MM.ICONFN
+  [LAMBDA (WINDOW)                                       (* ; "Edited  6-May-88 15:05 by MRC")
+                                                             (* ; 
+                                                           "Put up an icon when window is shrunk")
+    (OR (WINDOWPROP WINDOW 'ICONWINDOW)
+        (LET [(ICON (WINDOWPROP WINDOW 'ICON]
+             (if (OR (NULL ICON)
+                         (with TITLEDICON ICON TITLEREG))
+                 then (TITLEDICONW ICON (WINDOWPROP WINDOW 'TITLE)
+                                 MM.ICONFONT NIL T)
+               else (with TITLEDICON ICON (ICONW ICON MASK (with REGION
+                                                                          (WINDOWPROP WINDOW
+                                                                                 'REGION)
+                                                                          (CREATEPOSITION LEFT BOTTOM
+                                                                                 ))
+                                                         T])
+
+(MM.GET.WINDOW.REGION
+  [LAMBDA (SIZE TYPE WINDOW)                             (* ; "Edited 29-Apr-88 17:01 by MRC")
+                                                             (* ; "Get a region for a window")
+    (DECLARE (GLOBALVARS DEFAULTFONT))
+    (LET (REGION POSITION)
+         (with REGION [SETQ REGION (with
+                                        POSITION SIZE
+                                        (CREATEREGION NIL NIL
+                                               [WIDTHIFWINDOW
+                                                (ADD1 (PLUS (TIMES XCOORD (CHARWIDTH (CHARCODE A)
+                                                                                 DEFAULTFONT))
+                                                            (PROGN 
+                                                             (* ; "Add in TEdit's cursor margins")
+                                                                   16]
+                                               (HEIGHTIFWINDOW (TIMES YCOORD (FONTPROP DEFAULTFONT
+                                                                                    'HEIGHT))
+                                                      T]
+                (if [AND MM.REMEMBER.POSITIONS (SETQ POSITION (ASSOC TYPE (WINDOWPROP
+                                                                               WINDOW
+                                                                               'MM.POSITIONS]
+                    then (WINDOWDELPROP WINDOW 'MM.POSITIONS POSITION)
+                          (with POSITION (CDR POSITION)
+                                 (SETQ LEFT XCOORD)
+                                 (SETQ BOTTOM YCOORD))
+                          REGION
+                  else (GETBOXREGION WIDTH HEIGHT])
+
+(MM.FLAGMENUITEMS
+  [LAMBDA (WINDOW FUNCTION FUNARG)                       (* ; "Edited 28-Mar-88 16:02 by cdl")
+                                                             (* ; 
+                                                        "Return a flag item list for flag submenu.")
+
+    (* ;; "   FUNCTION may be a real function (for setting or clearing flags) or, for SELECT, may be %"KEYWORD%" or %"UNKEYWORD%".")
+
+    (* ;; "  The FUNARG argument can only be given if there is a sequence in effect (ugh).")
+
+    (LET [(FLAGLST (WINDOWPROP WINDOW 'FLAGLST]
+         `(SUBITEMS ,@(SELECTQ FUNCTION
+                          ((KEYWORD UNKEYWORD) 
+                               (for FLAG in FLAGLST
+                                  collect (LIST FLAG `(MM.SELECT ,WINDOW
+                                                                 '(,FUNCTION ,FLAG)
+                                                                 ,FUNARG)
+                                                    "Select this keyword")
+                                  unless (FMEMB FLAG MM.SYSTEM.FLAGS)))
+                          (for FLAG in FLAGLST
+                             collect (LIST FLAG [if FUNARG
+                                                        then `(,FUNCTION ,WINDOW SEQUENCE
+                                                                   ,FUNARG
+                                                                   ,(KWOTE FLAG))
+                                                      else `(,FUNCTION ,WINDOW
+                                                                 ,(KWOTE FLAG]
+                                               "Select this keyword")
+                             unless (FMEMB FLAG '(\Flagged \Deleted])
+
+(MM.DOSEQUENCE
+  [LAMBDA (WINDOW SEQUENCE MANIPULATEFN MANIPULATEFNARG) (* ; "Edited  6-Apr-88 17:59 by MRC")
+                                                             (* ; 
+                                                           "Perform an operation on a sequence")
+    (if SEQUENCE
+        then (LET ((STREAM (WINDOWPROP WINDOW 'TSTREAM))
+                       SEQ)
+                      (for MSGNO inside SEQUENCE
+                         do (SETQ SEQ (if SEQ
+                                              then (CONCAT SEQ "," MSGNO)
+                                            else MSGNO)))
+                      (APPLY* MANIPULATEFN (WINDOWPROP WINDOW 'TSTREAM)
+                             SEQ MANIPULATEFNARG)
+                      (for MSGNO inside SEQUENCE do (MM.UPDATE WINDOW MSGNO])
+
+(MM.ADDNEWMESSAGES
+  [LAMBDA (WINDOW)                                       (* ; "Edited 26-May-88 10:20 by cdl")
+                                                             (* ; 
+                                                           "Adds any new messages to the browser")
+    (LET ((STREAM (WINDOWPROP WINDOW 'TSTREAM))
+          (BROWSER (WINDOWPROP WINDOW 'TABLEBROWSER))
+          (MESSAGEARRAY (WINDOWPROP WINDOW 'MESSAGEARRAY))
+          (REDISPLAYMSGS (WINDOWPROP WINDOW 'REDISPLAYMSGS NIL))
+          CURRENT NEW)
+         (if (AND STREAM BROWSER MESSAGEARRAY)
+             then (if [AND (NEQ (SETQ CURRENT (WINDOWPROP WINDOW 'NMSGS))
+                                        (SETQ NEW (GETSTREAMPROP STREAM 'NMSGS]
+                          then [if (LESSP CURRENT NEW)
+                                       then (add CURRENT 1)
+                                             (for MSGNO from CURRENT to NEW
+                                                do (TB.INSERT.ITEM BROWSER
+                                                              (MM.TABLEITEM STREAM MESSAGEARRAY 
+                                                                     MSGNO NIL]
+                                (WINDOWPROP WINDOW 'NMSGS NEW)
+                                (WINDOWPROP WINDOW 'TITLE (MM.MAILBOXWINDOWTITLE
+                                                           (WINDOWPROP WINDOW 'MAILBOXNAME)
+                                                           NEW)))
+                   (for ITEM in REDISPLAYMSGS do (MM.UPDATE WINDOW
+                                                                    (MM.TBPROP ITEM 'MSGNO])
+
+(MM.EXISTS
+  [LAMBDA (NMSGS STREAM)                                 (* ; "Edited 20-May-88 11:47 by MRC")
+                                                             (* ; 
+                              "Called by Mail Access Protocol when notifying of a new mailbox size")
+    (LET ((MESSAGEARRAY (GETSTREAMPROP STREAM 'MESSAGEARRAY))
+          (CURRENT (STREAMPROP STREAM 'NMSGS))
+          (WINDOW (STREAMPROP STREAM 'TWINDOW))
+          DELTA)
+         (SETQ WINDOW (if WINDOW
+                          then (GETPROMPTWINDOW WINDOW)
+                        else PROMPTWINDOW))
+         (if CURRENT
+             then (SETQ DELTA (DIFFERENCE NMSGS CURRENT))
+                   [COND
+                      ((MINUSP DELTA)
+                       (ERROR "Mailbox shrunk"))
+                      ((ZEROP DELTA)
+                       NIL)
+                      (T (if (EQ DELTA 1)
+                             then (printout WINDOW T "There is 1 new message.  ")
+                           else (printout WINDOW T "There are " DELTA " new messages.  "))
+                                                             (* ; 
+              "Extra spaces after message are so that 'Check completed' message can follow cleanly")
+                         (CL:ADJUST-ARRAY MESSAGEARRAY NMSGS)
+                         (for i from CURRENT to NMSGS
+                            do (CL:SETF (CL:AREF MESSAGEARRAY (SUB1 i))
+                                          NIL)
+                                  (MAP.ELT MESSAGEARRAY i]
+           else (printout WINDOW T (if (EQ NMSGS 1)
+                                           then "There is 1 message."
+                                         else (CONCAT "There are " NMSGS " messages."])
+
+(MM.EXPUNGED
+  [LAMBDA (WINDOW MSG)                                   (* ; "Edited 26-May-88 10:16 by cdl")
+                                                             (* ; 
+                             "Called by Mail Access Protocol when notifying of an expunged message")
+    (LET [(MESSAGEARRAY (WINDOWPROP WINDOW 'MESSAGEARRAY))
+          (BROWSER (WINDOWPROP WINDOW 'TABLEBROWSER))
+          (NMSGS (WINDOWPROP WINDOW 'NMSGS]
+         (WINDOWPROP WINDOW 'NMSGS (add NMSGS -1))
+         (TB.REMOVE.ITEM BROWSER (TB.NTH.ITEM BROWSER MSG))
+         (replace (MM.CACHE Msg#) of (CL:AREF MESSAGEARRAY (SUB1 MSG)) with NIL)
+         (if (LEQ MSG NMSGS)
+             then (for i from MSG to NMSGS
+                         do (CL:SETF (CL:AREF MESSAGEARRAY (SUB1 i))
+                                       (CL:AREF MESSAGEARRAY i))
+                               (replace (MM.CACHE Msg#) of (CL:AREF MESSAGEARRAY (SUB1 i))
+                                  with i)
+                               (LISTPUT (fetch (TABLEITEM TIDATA) of (TB.NTH.ITEM BROWSER i))
+                                      'MSGNO i)))
+         (CL:SETF (CL:AREF MESSAGEARRAY NMSGS)
+                NIL])
+
+(MM.SEARCHED
+  [LAMBDA (WINDOW MSGNO)                                 (* ; "Edited 25-Apr-88 13:51 by cdl")
+                                                             (* ; 
+                                                        "Here when a message has been searched out")
+    (LET ((BROWSER (WINDOWPROP WINDOW 'TABLEBROWSER))
+          ITEM)
+         (if (SETQ ITEM (MM.FIND.TABLEITEM BROWSER MSGNO))
+             then (TB.SELECT.ITEM BROWSER ITEM])
+
+(MM.LOCK
+  [LAMBDA (STREAM)                                       (* ; "Edited  6-Apr-88 18:36 by MRC")
+                                                             (* ; 
+                                                           "Put an MM command lock on the stream")
+    (if (AND STREAM (PUTSTREAMPROP STREAM 'MMLOCK T))
+        then (printout (GETPROMPTWINDOW (STREAMPROP STREAM 'TWINDOW))
+                        T "MM command in progress, please wait")
+              NIL
+      else T])
+
+(MM.UNLOCK
+  [LAMBDA (STREAM)                                       (* ; "Edited  6-Apr-88 18:37 by MRC")
+                                                             (* ; "Release the MM command lock")
+    (if (NOT (AND STREAM (PUTSTREAMPROP STREAM 'MMLOCK NIL)))
+        then (ERROR "MM unlock when already unlocked"])
+
+(MM.YCOORD.FROM.ITEM
+  [LAMBDA (BROWSER ITEM)                                 (* ; "Edited 26-May-88 09:13 by cdl")
+    (DIFFERENCE (fetch (TABLEBROWSER TBORIGIN) of BROWSER)
+           (TIMES (fetch (TABLEBROWSER TBFONTHEIGHT) of BROWSER)
+                  (OR (FIXP ITEM)
+                      (fetch (TABLEITEM TI#) of ITEM])
+)
+
+
+
+(* ; "TEdit plain text utility functions")
+
+(DEFINEQ
+
+(MM.TEDIT.FIXUP
+  [LAMBDA (STREAM)                                       (* ; "Edited 29-Apr-88 17:04 by MRC")
+                                                             (* ; 
+                                                         "Put in line breaks at appropriate places")
+    (DECLARE (SPECVARS STREAM))
+    (RESETLST
+        [RESETSAVE (SETFILEPTR STREAM 0)
+               `(SETFILEPTR ,STREAM ,(GETFILEPTR STREAM]
+        [bind (CHARPTR _ 0)
+               (LINELENGTH _ (QUOTIENT (with REGION (DSPCLIPPINGREGION NIL (\TEDIT.MAINW STREAM))
+                                                             (* ; "Adjust for TEdit cursor margin")
+                                              (DIFFERENCE WIDTH 16))
+                                    (CHARWIDTH (CHARCODE A)
+                                           STREAM)))
+               (LINEPTR _ 0)
+               CH declare%: (SPECVARS LINEPTR CH) until (EOFP STREAM)
+           do (SELCHARQ (BIN STREAM)
+                       (EOL (SETQ CHARPTR 0)
+                            (SETQ LINEPTR (GETFILEPTR STREAM)))
+                       (TAB (SETQ CHARPTR (TIMES (ADD1 (QUOTIENT CHARPTR MM.TEDIT.TABWIDTH))
+                                                 MM.TEDIT.TABWIDTH)))
+                       (ADD1VAR CHARPTR))
+                 (if (GREATERP CHARPTR LINELENGTH)
+                     then (RESETLST
+                                  [RESETSAVE NIL `(SETFILEPTR ,STREAM ,(GETFILEPTR STREAM]
+                                  [if (SETQ CH (for FILEPTR from (SUB1 (GETFILEPTR STREAM
+                                                                                          ))
+                                                      to LINEPTR by -1
+                                                      eachtime (SETFILEPTR STREAM FILEPTR)
+                                                      thereis (SELCHARQ (BIN STREAM)
+                                                                       (SPACE T)
+                                                                       NIL)))
+                                      then (ADD1VAR CH)
+                                            (TEDIT.SETSEL STREAM CH 1 NIL T)
+                                            (TEDIT.INSERT STREAM (CHARACTER (CHARCODE EOL])
+                           (if CH
+                               then (SETQ LINEPTR CH)
+                                     (SETQ CHARPTR (DIFFERENCE (GETFILEPTR STREAM)
+                                                          LINEPTR))
+                             else                        (* ; 
+                                                     "Don't keep looking at unbroken block of text")
+                                   (add LINEPTR CHARPTR])])
+
+(MM.TEDIT.STRIPEOLS
+  [LAMBDA (TEXTOBJ)                                      (* ; "Edited 29-Apr-88 17:04 by MRC")
+                                                             (* ; 
+                                       "Replace all the EOLs with SPACEs in the current selection.")
+    (LET* ((STREAM (TEXTSTREAM TEXTOBJ))
+           (SELECTION (TEDIT.GETSEL STREAM)))
+          (LET ((CH# (fetch (SELECTION CH#) of SELECTION))
+                (CHLIM (fetch (SELECTION CHLIM) of SELECTION)))
+               (while (SETQ CH# (TEDIT.FIND (TEXTOBJ STREAM)
+                                           [CONSTANT (MKSTRING (CHARACTER (CHARCODE EOL]
+                                           CH# CHLIM))
+                  do (if (AND (NOT (EOFP STREAM))
+                                      (NEQ (CHARCODE EOL)
+                                           (\PEEKBIN STREAM)))
+                             then (TEDIT.SETSEL STREAM CH# 1 'RIGHT T)
+                                   [TEDIT.INSERT STREAM (CONSTANT (MKSTRING (CHARACTER (CHARCODE
+                                                                                        SPACE]
+                           else (ADD1VAR CH#))
+                        (ADD1VAR CH#) finally (TEDIT.SETSEL STREAM CHLIM 0])
+)
+
+
+
+(* ; "User-settable parameters")
+
+
+(RPAQ? MM.SERVICEHOSTS NIL)
+
+(RPAQ? MM.PERSONALNAME NIL)
+
+(RPAQ? MM.PRIMARYMAILMENUFONT '(GACHA 10))
+
+(RPAQ? MM.ICONFONT '(HELVETICA 8))
+
+(RPAQ? MM.MAXIMUMDISPLAYEDMESSAGES 40)
+
+(RPAQ? MM.MINIMUMDISPLAYEDMESSAGES 20)
+
+(RPAQ? MM.MAXFROMLENGTH 20)
+
+(RPAQ? MM.MAXSUBJECTLENGTH 35)
+
+(RPAQ? MM.READWINDOWSIZE (CREATEPOSITION 80 24))
+
+(RPAQ? MM.COMPOSEWINDOWSIZE (CREATEPOSITION 78 24))
+
+(RPAQ? MM.DEFAULT.CC NIL)
+
+(RPAQ? MM.DEFAULT.BCC NIL)
+
+(RPAQ? MM.LIST.CONSECUTIVE.INDEX T)
+
+(RPAQ? MM.LIST.ON.SEPARATE.PAGES NIL)
+
+(RPAQ? MM.LIST.INCLUDE.HEADERS NIL)
+
+(RPAQ? MM.LIST.HOST NIL)
+
+(RPAQ? MM.DEFAULT.SEARCH.PATTERN "*.TXT")
+
+(RPAQ? MM.REMEMBER.POSITIONS T)
+
+(RPAQ? MM.WINDOW NIL)
+
+(RPAQ? MM.MAILBOXES NIL)
+
+(RPAQ? MM.SYSTEM.FLAGS '(\Flagged \Deleted \Answered \Seen \XXXX \YYYY))
+
+(RPAQ? MM.TEDIT.MENU NIL)
+
+(RPAQ? MM.TEDIT.TABWIDTH 8)
+
+(RPAQ? MM.TEDIT.FIXUPFLG T)
+
+
+
+(* ; "Declare all globals")
+
+
+
+
+(* ; "Maximum header line length --- See MM.HEADERLINE for the fields")
+
+
+(RPAQ MM.MAXIMUMHEADERLINELENGTH (PLUS (NCHARS "NUFAD 10-Jan ")
+                                           MM.MAXFROMLENGTH 1 
+                                           MM.MAXSUBJECTLENGTH
+                                           (NCHARS " (9999999 chars)")))
+(DECLARE%: DOEVAL@COMPILE DONTCOPY
+
+(GLOBALVARS MM.SERVICEHOSTS MM.PERSONALNAME MM.PRIMARYMAILMENUFONT MM.ICONFONT
+       MM.MAXIMUMDISPLAYEDMESSAGES MM.MINIMUMDISPLAYEDMESSAGES MM.MAXFROMLENGTH
+       MM.MAXSUBJECTLENGTH MM.READWINDOWSIZE MM.COMPOSEWINDOWSIZE MM.DEFAULT.CC
+       MM.DEFAULT.BCC MM.LIST.CONSECUTIVE.INDEX MM.LIST.ON.SEPARATE.PAGES 
+       MM.LIST.INCLUDE.HEADERS MM.LIST.HOST MM.DEFAULT.SEARCH.PATTERN 
+       MM.REMEMBER.POSITIONS MM.WINDOW MM.MAILBOXES MM.SYSTEM.FLAGS 
+       MM.TEDIT.MENU MM.TEDIT.TABWIDTH MM.TEDIT.FIXUPFLG MM.COMPOSEMENUITEMS 
+       MM.MAXIMUMHEADERLINELENGTH)
+)
+
+
+
+(* ; "Records")
+
+(DECLARE%: EVAL@COMPILE
+
+(RECORD MM.CACHE (Msg# InternalDate Flags Envelope RFC822.Size FromText 
+                           SubjectText RFC822.Header RFC822.Stream))
+
+(RECORD MM.MESSAGE 
+        (Date Subject From Sender Reply-To To cc bcc In-Reply-To Message-ID 
+              Return-Path Body Error))
+
+(RECORD MM.ADDRESS (PersonalName RouteList Mailbox Host Extra RcptError))
+
+(RECORD MM.ZOOMDATA (NewItems OldItems FirstVisibleItem))
+)
+
+
+
+(* ; "Other mailsystem globals")
+
+(DECLARE%: DOEVAL@COMPILE DONTCOPY
+
+(GLOBALVARS MAP.LOOKAHEAD)
+)
+
+
+
+(* ; "System globals")
+
+(DECLARE%: DOEVAL@COMPILE DONTCOPY
+
+(GLOBALVARS PROMPTWINDOW LOGINHOST/DIR TEDIT.DEFAULT.MENU)
+)
+
+
+
+(* ; "At compile time, also need EXPORTS.ALL for records such as TITLEDICON.")
+
+(DECLARE%: DONTCOPY DONTEVAL@LOAD EVAL@COMPILE 
+
+(FILESLOAD TABLEBROWSERDECLS)
+)
+
+
+
+(* ; "Auxillary modules")
+
+
+(FILESLOAD IMAP2 SMTP MMICONS)
+(DECLARE%: DONTCOPY
+  (FILEMAP (NIL (9046 16490 (MM 9056 . 12876) (MM.PRIMARYMAILMENU 12878 . 14405) (
+MM.ADDNEWMAILBOX 14407 . 15144) (MM.SEARCHFORMAILBOXES 15146 . 16488)) (16536 
+41635 (MM.CREATEMAILBOXWINDOW 16546 . 20467) (MM.MAILBOXWINDOW 20469 . 22233) (
+MM.FLAGMENU 22235 . 22742) (MM.MAILBOXWINDOWTITLE 22744 . 23116) (
+MM.CREATEMAILBOXTB 23118 . 24902) (MM.MAILBOXMENU 24904 . 26414) (
+MM.COMMANDMENUITEMS 26416 . 27645) (MM.MAILBOXMENUITEMS 27647 . 31302) (
+MM.TBPRINTFN 31304 . 33624) (MM.TABLEITEM 33626 . 34003) (MM.UPDATE 34005 . 
+34524) (MM.TBPROP 34526 . 34895) (MM.HEADERLINE 34897 . 39364) (
+MM.CLOSEMAILBOXWINDOW 39366 . 41127) (MM.FIND.TABLEITEM 41129 . 41633)) (41680 
+64600 (MM.NEWMAILBOX 41690 . 43064) (MM.SELECTMESSAGES 43066 . 44359) (
+MM.DOSELECTION 44361 . 45019) (MM.SELECTMENUITEMS 45021 . 50123) (MM.SELECT 
+50125 . 52298) (MM.HARDCOPY 52300 . 55368) (MM.QUIT 55370 . 55771) (MM.EXIT 
+55773 . 56226) (MM.CHECKMAILBOX 56228 . 56673) (MM.CHECKENTIREMAILBOX 56675 . 
+57181) (MM.EXPUNGEMAILBOX 57183 . 57893) (MM.TOGGLE.SELECTED 57895 . 61582) (
+MM.TOGGLED.SELECTEDFN 61584 . 62408) (MM.REPLACE.TABLEITEMS 62410 . 64598)) (
+64643 81029 (MM.READMESSAGE 64653 . 65310) (MM.TEDITMESSAGE 65312 . 67743) (
+MM.READMENUITEMS 67745 . 69830) (MM.READCOMMANDMENUITEMS 69832 . 70435) (
+MM.READCLOSE 70437 . 71908) (MM.SETFLAG 71910 . 72834) (MM.CLEARFLAG 72836 . 
+73843) (MM.REPLYMESSAGE 73845 . 74300) (MM.HARDCOPYMESSAGE 74302 . 74759) (
+MM.COPYMESSAGE 74761 . 75366) (MM.MOVEMESSAGE 75368 . 76165) (MM.NEXTMESSAGE 
+76167 . 77883) (MM.PREVIOUSMESSAGE 77885 . 79612) (MM.KILLMESSAGE 79614 . 80205)
+ (MM.MOVETOMESSAGE 80207 . 81027)) (81288 98840 (MM.COMPOSEMESSAGE 81298 . 84648
+) (MM.REPLY 84650 . 88453) (MM.FROMADDRESS 88455 . 88974) (MM.REPLY.ADDRESS 
+88976 . 90069) (MM.COMPOSEMENUITEMS 90071 . 91460) (MM.ADD.RECIPIENT 91462 . 
+91993) (MM.REMOVE 91995 . 93636) (MM.SUBJECT 93638 . 94142) (MM.REPAINT.ENVELOPE
+ 94144 . 94481) (MM.SENDMESSAGE 94483 . 97952) (MM.COMPOSEQUIT 97954 . 98838)) (
+98875 114116 (MM.SERVICEHOST 98885 . 99593) (MM.PROMPTFORMAILBOX 99595 . 100716)
+ (MM.PROMPTFORLINE 100718 . 101314) (MM.MAILBOX 101316 . 101638) (MM.MENU 101640
+ . 101984) (MM.ICONFN 101986 . 103099) (MM.GET.WINDOW.REGION 103101 . 104911) (
+MM.FLAGMENUITEMS 104913 . 106715) (MM.DOSEQUENCE 106717 . 107587) (
+MM.ADDNEWMESSAGES 107589 . 109315) (MM.EXISTS 109317 . 111132) (MM.EXPUNGED 
+111134 . 112390) (MM.SEARCHED 112392 . 112877) (MM.LOCK 112879 . 113402) (
+MM.UNLOCK 113404 . 113748) (MM.YCOORD.FROM.ITEM 113750 . 114114)) (114168 118344
+ (MM.TEDIT.FIXUP 114178 . 117025) (MM.TEDIT.STRIPEOLS 117027 . 118342)))))
+STOP

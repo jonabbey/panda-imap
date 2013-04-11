@@ -1,0 +1,49 @@
+# Program:	Portable C client makefile -- MS-DOS (B&W) version
+#
+# Author:	Ken Bobey
+#
+# Date:		24 March 1992
+# Last Edited:	22 July 1992
+#
+# Copyright 1992 by the University of Washington
+#
+#  Permission to use, copy, modify, and distribute this software and its
+# documentation for any purpose and without fee is hereby granted, provided
+# that the above copyright notice appears in all copies and that both the
+# above copyright notice and this permission notice appear in supporting
+# documentation, and that the name of the University of Washington not be
+# used in advertising or publicity pertaining to distribution of the software
+# without specific, written prior permission.  This software is made
+# available "as is", and
+# THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
+# WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
+# NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
+# INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
+# (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+
+# Use these for Windows 3.0 LARGE MODEL
+CC = p:\x\msc6\bin\cl
+LIB = p:\x\msc6\bin\lib
+LINK = p:\x\msc6\bin\link
+CFLAGS = -c -AL -Gsw -Zei -Ip:\x\msc6\include -Ip:\x\bwtcp3\include
+LFLAGS = /NOE /NOI /ST:20000
+LLIBS = cclient.lib p:\x\bwtcp3\lib\lbwtcp p:\x\msc6\lib\llibce
+
+cfiles = nntp.c imap2.c dawz.c smtp.c misc.c rfc822.c mail.c mtest.c os_dbw.c
+
+objfiles = nntp.obj imap2.obj dawz.c smtp.obj misc.obj rfc822.obj mail.obj mtest.obj os_dbw.obj
+
+mtest: mtest.obj cclient.lib
+	 $(LINK) $(LFLAGS) mtest,mtest.exe,,$(LLIBS),,
+
+cclient.lib: $(objfiles)
+	 erase cclient.lib
+	 $(LIB) cclient.lib +nntp +imap2 +dawz +smtp +misc +rfc822 +mail +os_dbw,,
+
+.c.obj:
+	$(CC) $(CFLAGS) $*.c
+

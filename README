@@ -1,0 +1,171 @@
+		     IMAP Development Environment
+			     25 June 1992
+			     Mark Crispin
+
+COPYRIGHT NOTICE:
+
+Some portions Copyright 1988 by The Leland Stanford Junior University.
+Copyright 1989, 1990, 1991, 1992 by the University of Washington.
+
+ Permission to use, copy, modify, and distribute this software and its
+documentation for any purpose and without fee is hereby granted, provided
+that the above copyright notices appear in all copies and that both the
+above copyright notices and this permission notice appear in supporting
+documentation, and that the name of the University of Washington or The
+Leland Stanford Junior University not be used in advertising or publicity
+pertaining to distribution of the software without specific, written prior
+permission.  This software is made available "as is", and
+THE UNIVERSITY OF WASHINGTON AND THE LELAND STANFORD JUNIOR UNIVERSITY
+DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, WITH REGARD TO THIS SOFTWARE,
+INCLUDING WITHOUT LIMITATION ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE, AND IN NO EVENT SHALL THE UNIVERSITY OF
+WASHINGTON OR THE LELAND STANFORD JUNIOR UNIVERSITY BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
+RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+CONTRACT, TORT (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+
+BUG REPORTING ADDRESS:
+
+     Although this software is not "supported" per se, bugs or questions
+regarding this software may be reported to the author:
+ Internet:	MRC@CAC.Washington.EDU
+ Postal mail:	Mark Crispin
+		University of Washington
+		Networks and Distributed Computing, HG-45
+		Seattle, WA  98195
+		USA
+ Phone:		+1 (206) 543-5762
+ FAX:		+1 (206) 543-3909
+
+CONTENTS:
+
+     This directory tree contains the following:
+
+Documentation:
+ . README		this file
+ . RFC1176.TXT		IMAP2 protocol RFC
+ . IMAP2bis.TXT		temporary documentation of MIME extensions for IMAP
+ . RFC1341.TXT		MIME (message body format) Internet Proposed Standard
+
+Global build files:
+ . Makefile		master makefile for Unix
+ . systype		link to ANSI or non-ANSI depending upon your C compiler
+ . ANSI			ANSI C sources
+ . non-ANSI		sources converted into pre-ANSI C
+
+C-Client programs:
+ . c-client		portable C-Client, used by programs below
+ . ms			Unix MS client (MM-like interface)
+ . ipopd		Unix POP2/POP3 servers with IMAP2 client support
+ . MailManager		NeXT MailManager client
+ . EasyMail		NeXT EasyMail client
+ . imapd		IMAP2 server (on Unix, runs under inetd)
+
+Other programs:
+ . MM-D			Xerox Lisp MM-D client
+ . mapser		server for TOPS-20
+
+NOTES ON THE VARIOUS COMPONENTS:
+
+     MS runs under BSD Unix and requires Columbia's CCMD command package in
+a ccmd directory at the same level as the root of this directory tree.
+
+     MTest has been run under BSD Unix, MS-DOS, Macintosh, and TOPS-20.  It
+is a very primitive interface, however, and is suited mainly as a
+model of how to write a main program for the C-Client.  You should take
+a look at the source to figure out how to use it; briefly, it first asks
+for a mailbox name (either a local file path or an IMAP mailbox in the
+form {hostname}mailbox) and then puts you in a command mode where "?" will
+give you a list of commands.
+
+     MailManager and EasyMail run on a NeXT and requires the NeXT
+Application Kit to build and execute.  MS and MTest will also run on the
+NeXT, albeit inside a terminal emulator window.
+
+     The Unix clients ms and/or mtest may be installed on a system
+directory.  There is also a man page for ms.  A version of the Pine
+mailer with IMAP support will be released in the near future.
+
+     The Unix servers ipop2d, ipop3d, and imapd should be installed in
+a system daemon directory, and invoked by your /etc/inetd.conf file
+with lines such as:
+	pop	stream	tcp	nowait	root	/usr/local/etc/ipop2d	ipop2d
+	pop3	stream	tcp	nowait	root	/usr/local/etc/ipop3d	ipop3d
+	imap	stream	tcp	nowait	root	/usr/local/etc/imapd	imapd
+You may also have to edit your /etc/services (or Yellow Pages,
+Netinfo, etc. equivalent) to register these services, e.g.
+	pop		109/tcp		postoffice
+	pop3		110/tcp
+	imap		143/tcp
+
+     If you want to enable the rimap capability, which allows users with a
+suitable client and .rhosts file on the server to access IMAP services
+without transmitting her password in the clear over the network, you need
+to have /etc/rimapd as a link to the real copy of imapd.  Assuming you have
+imapd installed on /usr/local/etc as above:
+	% ln -s /usr/local/etc/imapd /etc/rimapd
+
+     Technical note: rimap works by having the client routine tcp_aopen()
+invoke `rsh _host_ exec /etc/rimapd' in an child process, and then
+returning pipes to that process' standard I/O instead of a TCP socket.  You
+can set up `e-mail only accounts' by making the shell be something which
+accepts only that string and not ordinary Unix shell commands.
+
+     If your Unix system does not have an ANSI C compiler, you must
+change the systype link to use the non-ANSI sources before building:
+	% cd imap
+	% rm systype
+	% ln -s non-ANSI systype
+
+     Before doing a make, you should connect to the c-client/ directory and
+make sure that Makefile is lunk to the appropriate makefile.xxx for your
+system.  For example, if you are running on a Sun, do:
+	% cd imap/c-client
+	% rm Makefile
+	% ln -s makefile.sun Makefile
+
+     If your system type is not one of the ones supplied, start with
+makefile.nxt if you are using an ANSI compiler and makefile.dyn if you are
+using a non-ANSI compiler, then modify them as necessary.  If you send the
+result back to us, we will make it available for others using your
+particular system type.
+
+     If you are building an MS-DOS client, you will need the NCSA TCP/IP
+parameter file in ..\NCSA\NCSA.H and the NCSA library in ..\NCSA\NCSA.LIB
+in order to build the MAIL.LIB library.  You will need to rename
+MAKEFILE.DOS to MAKEFILE.  MTest runs under MS-DOS.
+
+     If you are building a Macintosh client, you will need MacTCP installed
+on your system as well as the MacTCP C includes and libraries.  MTest runs
+on the Macintosh.
+
+     If you use a Mac C compiler with 2-byte ints (such as THINK C's normal
+mode) you will need to fix some bugs in the MacTCP C includes and libraries
+to prevent it from generating bad code, since those MacTCP files violate
+Apple's standards of always using explicit shorts or longs, never ints.
+You could avoid this if you set 4-byte ints in THINK C; however, the ANSI
+library uses 2-byte ints so you lose the functionality of those functions.
+C-Client itself is 2-byte int or 4-byte int clean; it can be used in either
+mode.
+
+     The most important bug in the MacTCP files that you need to fix is in
+the file AddressXlation.h, you need to change the definition of the rtnCode
+member of the hostInfo structure to be long instead of int.  There are
+several other changes you need to make if you decide to compile dnr.c under
+THINK C instead of using the Apple-supplied object file; see me for details
+if you decide to undertake such an effort.
+
+     I have provided C-Client sources for TOPS-20 systems, but you're
+on your own in terms of a nice TOPS-20 like main program.  Maybe
+someday some nice person will try porting MS to TOPS-20.  It's been a few
+years since I last tried building C-Client on TOPS-20, so some hacking may
+be needed to get it to work.
+
+     If you are building a TOPS-20 server, you should install MAPSER.EXE on
+SYSTEM: and have IMAPSV.EXE invoked as a SYSJOB or PTYCON subjob (NOT a
+SYSJOB subfork) at system startup.
+
+     To run MM-D, you must have the TCP/IP libraries, including the
+TCPDOMAIN library, loaded in your environment.
