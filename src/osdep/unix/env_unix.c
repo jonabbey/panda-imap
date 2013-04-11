@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	25 June 2001
+ * Last Edited:	17 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -50,14 +50,18 @@ static short disableFcntlLock = NIL;
 				/* warning on EACCES errors on .lock files */
 static short lockEaccesError = T;
 static short hideDotFiles = NIL;/* hide files whose names start with . */
-				/* 1 = disable plaintext, 2 = if not SSL */
-static long disablePlaintext = NIL;
 				/* advertise filesystem root */
 static short advertisetheworld = NIL;
 				/* disable automatic shared namespaces */
 static short noautomaticsharedns = NIL;
+static short netfsstatbug = NIL;/* compensate for broken stat() on network
+				 * filesystems (AFS and old NFS).  Don't do
+				 * this unless you really have to!
+				 */
 				/* allow user config files */
 static short allowuserconfig = NIL;
+				/* 1 = disable plaintext, 2 = if not SSL */
+static long disablePlaintext = NIL;
 static long list_max_level = 20;/* maximum level of list recursion */
 				/* default file protection */
 static long mbx_protection = 0600;
@@ -294,6 +298,11 @@ void *env_parameters (long function,void *value)
     has_no_life = value ? T : NIL;
   case GET_USERHASNOLIFE:
     ret = (void *) (has_no_life ? VOIDT : NIL);
+    break;
+  case SET_NETFSSTATBUG:
+    netfsstatbug = value ? T : NIL;
+  case GET_NETFSSTATBUG:
+    ret = (void *) (netfsstatbug ? VOIDT : NIL);
     break;
   case SET_BLOCKNOTIFY:
     mailblocknotify = (blocknotify_t) value;
@@ -1446,6 +1455,8 @@ void dorc (char *file,long flag)
 	  mail_parameters (NIL,SET_TRUSTDNS,(void *) atol (k));
 	else if (!compare_cstring (s,"set sasl-uses-ptr-name"))
 	  mail_parameters (NIL,SET_SASLUSESPTRNAME,(void *) atol (k));
+	else if (!compare_cstring (s,"set network-filesystem-stat-bug"))
+	  netfsstatbug = atoi (k);
 
 	else if (!file) {	/* only allowed in system init */
 	  if (!compare_cstring (s,"set black-box-directory") &&

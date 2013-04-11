@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	16 August 2001
+ * Last Edited:	22 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -57,7 +57,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2001.77";	/* server version */
+char *version = "2001.78";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
@@ -192,28 +192,7 @@ int main (int argc,char *argv[])
 
       else switch (state) {	/* else dispatch based on state */
       case AUTHORIZATION:	/* waiting to get logged in */
-	if (!strcmp (s,"USER")) {
-	  if (host) fs_give ((void **) &host);
-	  if (user) fs_give ((void **) &user);
-	  if (pass) fs_give ((void **) &pass);
-	  if (t && *t) {	/* if user name given */
-				/* skip leading whitespace (bogus clients!) */
-	    while (*t == ' ') ++t;
-				/* remote user name? */
-	    if (s = strchr (t,':')) {
-	      *s++ = '\0';	/* tie off host name */
-	      host = cpystr (t);/* copy host name */
-	      user = cpystr (s);/* copy user name */
-	    }
-				/* local user name */
-	    else user = cpystr (t);
-	    PSOUT ("+OK User name accepted, password please\015\012");
-	  }
-	  else PSOUT ("-ERR Missing username argument\015\012");
-	}
-	else if (user && *user && !strcmp (s,"PASS"))
-	  state = login (t,argc,argv);
-	else if (!strcmp (s,"AUTH")) {
+	if (!strcmp (s,"AUTH")) {
 	  if (t && *t) {	/* mechanism given? */
 	    if (host) fs_give ((void **) &host);
 	    if (user) fs_give ((void **) &user);
@@ -284,6 +263,29 @@ int main (int argc,char *argv[])
 	  }
 	  else PSOUT ("+OK STLS completed\015\012");
 	}
+	else if (!mail_parameters (NIL,GET_DISABLEPLAINTEXT,NIL) &&
+		 !strcmp (s,"USER")) {
+	  if (host) fs_give ((void **) &host);
+	  if (user) fs_give ((void **) &user);
+	  if (pass) fs_give ((void **) &pass);
+	  if (t && *t) {	/* if user name given */
+				/* skip leading whitespace (bogus clients!) */
+	    while (*t == ' ') ++t;
+				/* remote user name? */
+	    if (s = strchr (t,':')) {
+	      *s++ = '\0';	/* tie off host name */
+	      host = cpystr (t);/* copy host name */
+	      user = cpystr (s);/* copy user name */
+	    }
+				/* local user name */
+	    else user = cpystr (t);
+	    PSOUT ("+OK User name accepted, password please\015\012");
+	  }
+	  else PSOUT ("-ERR Missing username argument\015\012");
+	}
+	else if (!mail_parameters (NIL,GET_DISABLEPLAINTEXT,NIL) &&
+		 user && *user && !strcmp (s,"PASS"))
+	  state = login (t,argc,argv);
 	else PSOUT ("-ERR Unknown AUTHORIZATION state command\015\012");
 	break;
 

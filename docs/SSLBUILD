@@ -1,5 +1,5 @@
 		  SSL BUILD AND INSTALLATION NOTES FOR UNIX
-			 Last Updated: 28 June 2001
+			 Last Updated: 3 October 2001
 
 PREREQUISITES BEFORE STARTING:
  1) Make sure that you understand how to do a non-SSL build of the IMAP
@@ -107,14 +107,20 @@ STEP 3:	certificates setup
 NOTE: We can NOT provide you with support in obtaining certificates.  If you
 need help in doing this, try the contacts mentioned in the OpenSSL README.
 
+WARNING: Do NOT install servers built with SSL support unless you also plan to
+install proper certificates!  It is NOT supported to run SSL-enabled servers
+on a system without the proper certificates.
+
      You must set up certificates on /usr/local/ssl/certs.  You should install
 both the certificate authority certificates from the SSL distribution after
 building OpenSSL, plus your own certificates.  The latter should have been
 purchased from a certificate authority, although self-signed certificates are
 permissible.  A sample certificate file is at the end of this document.
 
-     Install the IMAP certificate on /usr/local/ssl/certs/imapd.pem and the
-POP3 certificate on /usr/local/ssl/certs/ipop3d.pem.  These files should be
+     Install the resulting certificate file on /usr/local/ssl/certs, with a
+file name consisting of the server name and a suffix of ".pem".  For example,
+install the imapd certificate on /usr/local/ssl/certs/imapd.pem and the ipop3d
+certificate on /usr/local/ssl/certs/ipop3d.pem.  These files should be
 protected against random people accessing them.  It is permissible for
 imapd.pem and ipop3d.pem to be links to the same file.
 
@@ -122,11 +128,16 @@ imapd.pem and ipop3d.pem to be links to the same file.
 certificate.  The private key must not be encrypted.
 
      The following command to openssl can be used to create a self-signed
-certificate with a 10-year expiration.  Please note that we DO NOT recommend,
-encourage, or sanction the use of self-signed certificates; nor will we be
-responsible for any problems (including security problems!) which result
-from your use of a self-signed certificate.
+certificate with a 10-year expiration:
 	req -new -x509 -nodes -out imapd.pem -keyout imapd.pem -days 3650
+
+			*** IMPORTANT ***
+     We DO NOT recommend, encourage, or sanction the use of self-signed
+certificates.  Nor will we be responsible for any problems (including security
+problems!) which result from your use of a self-signed certificate.  Use of
+self-signed certificates should be limited to testing only.  Buy a real
+certificate from a certificate authority!
+			*** IMPORTANT ***
 
      If you have a multihomed system with multiple domain names (and hence
 separate certifications for each domain name), you can append the IP address

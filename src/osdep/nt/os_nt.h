@@ -10,16 +10,17 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	24 October 2000
+ * Last Edited:	9 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <sys\types.h>
 #include <time.h>
 #include <io.h>

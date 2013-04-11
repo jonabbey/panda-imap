@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	28 August 2001
+ * Last Edited:	14 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -681,6 +681,11 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
     }
 				/* get server capabilities again */
     if (LOCAL->netstream && !LOCAL->gotcapability) imap_capability (stream);
+				/* save state for future recycling */
+    if (mb.tlsflag) LOCAL->tlsflag = T;
+    if (mb.notlsflag) LOCAL->notlsflag = T;
+    if (mb.sslflag) LOCAL->sslflag = T;
+    if (mb.novalidate) LOCAL->novalidate = T;
   }
 
   if (LOCAL->netstream) {	/* still have a connection? */
@@ -700,11 +705,11 @@ MAILSTREAM *imap_open (MAILSTREAM *stream)
     if (!((i = net_port (LOCAL->netstream)) & 0xffff0000))
       sprintf (tmp + strlen (tmp),":%lu",i);
     strcat (tmp,"/imap");
-    if (mb.tlsflag) strcat (tmp,"/tls");
-    if (mb.notlsflag) strcat (tmp,"/notls");
-    if (mb.sslflag) strcat (tmp,"/ssl");
-    if (mb.novalidate) strcat (tmp,"/novalidate-cert");
-    if (mb.secflag) strcat (tmp,"/secure");
+    if (LOCAL->tlsflag) strcat (tmp,"/tls");
+    if (LOCAL->notlsflag) strcat (tmp,"/notls");
+    if (LOCAL->sslflag) strcat (tmp,"/ssl");
+    if (LOCAL->novalidate) strcat (tmp,"/novalidate-cert");
+    if (stream->secure) strcat (tmp,"/secure");
     if (stream->rdonly) strcat (tmp,"/readonly");
     if (stream->anonymous) strcat (tmp,"/anonymous");
     else {			/* record user name */
@@ -771,7 +776,7 @@ IMAPPARSEDREPLY *imap_rimap (MAILSTREAM *stream,char *service,NETMBX *mb,
   NETSTREAM *tstream;
   IMAPPARSEDREPLY *reply = NIL;
 				/* try rimap open */
-  if (tstream = net_aopen (NIL,mb,service,usr)) {
+  if (!mb->norsh && (tstream = net_aopen (NIL,mb,service,usr))) {
 				/* if success, see if reasonable banner */
     if (net_getbuffer (tstream,(long) 1,c) && (*c == '*')) {
       i = 0;			/* copy to buffer */
@@ -874,8 +879,11 @@ long imap_auth (MAILSTREAM *stream,NETMBX *mb,char *tmp,char *usr)
 				/* build command */
       sprintf (tmp,"%s AUTHENTICATE %s",tag,at->name);
       if (imap_soutr (stream,tmp)) {
+				/* hide client authentication responses */
+	if (!(at->flags & AU_SECURE)) LOCAL->sensitive = T;
 	ok = (*at->client) (imap_challenge,imap_response,"imap",mb,stream,
 			    &trial,usr);
+	LOCAL->sensitive = NIL;	/* unhide */
 				/* get response */
 	if (!(reply = &LOCAL->reply)->tag)
 	  reply = imap_fake (stream,tag,
@@ -939,16 +947,20 @@ long imap_login (MAILSTREAM *stream,NETMBX *mb,char *pwd,char *usr)
     do {
       pwd[0] = 0;		/* prompt user for password */
       mm_login (mb,usr,pwd,trial++);
-				/* user refused to give a password */
-      if (!pwd[0]) mm_log ("Login aborted",ERROR);
+      if (pwd[0]) {		/* send login command if have password */
+	LOCAL->sensitive = T;	/* hide this command */
 				/* send "LOGIN usr pwd" */
-      else if (imap_OK (stream,reply = imap_send (stream,"LOGIN",args)))
-	ret = LONGT;		/* success */
-      else {
-	mm_log (reply->text,WARN);
-	if (!LOCAL->referral && (trial == imap_maxlogintrials))
-	  mm_log ("Too many login failures",ERROR);
+	if (imap_OK (stream,reply = imap_send (stream,"LOGIN",args)))
+	  ret = LONGT;		/* success */
+	else {
+	  mm_log (reply->text,WARN);
+	  if (!LOCAL->referral && (trial == imap_maxlogintrials))
+	    mm_log ("Too many login failures",ERROR);
+	}
+	LOCAL->sensitive = NIL;	/* unhide */
       }
+				/* user refused to give password */
+      else mm_log ("Login aborted",ERROR);
     } while (!ret && pwd[0] && (trial < imap_maxlogintrials) &&
 	     LOCAL->netstream && !LOCAL->byeseen && !LOCAL->referral);
   }
@@ -998,7 +1010,7 @@ long imap_response (void *s,char *response,unsigned long size)
       for (t = (char *) rfc822_binary ((void *) response,size,&i),u = t,j = 0;
 	   j < i; j++) if (t[j] > ' ') *u++ = t[j];
       *u = '\0';		/* tie off string for mm_dlog() */
-      if (stream->debug) mm_dlog (t);
+      if (stream->debug) mail_dlog (t,LOCAL->sensitive);
 				/* append CRLF */
       *u++ = '\015'; *u++ = '\012';
       ret = net_sout (LOCAL->netstream,t,u - t);
@@ -2461,11 +2473,8 @@ IMAPPARSEDREPLY *imap_send_spgm (MAILSTREAM *stream,char *tag,char **s,
   char *t = "ALL";
   while (*t) *(*s)++ = *t++;	/* default initial text */
 				/* message sequences */
-  if (pgm->msgno) imap_send_sset (s,pgm->msgno);
-  if (pgm->uid) {		/* UID sequence */
-    for (t = " UID"; *t; *(*s)++ = *t++);
-    imap_send_sset (s,pgm->uid);
-  }
+  if (pgm->msgno) imap_send_sset (s,pgm->msgno,NIL);
+  if (pgm->uid) imap_send_sset (s,pgm->uid," UID");
 				/* message sizes */
   if (pgm->larger) {
     sprintf (*s," LARGER %lu",pgm->larger);
@@ -2567,18 +2576,30 @@ IMAPPARSEDREPLY *imap_send_spgm (MAILSTREAM *stream,char *tag,char **s,
  *	    search set to output
  */
 
-void imap_send_sset (char **s,SEARCHSET *set)
+void imap_send_sset (char **s,SEARCHSET *set,char *prefix)
 {
-  char c = ' ';
-  do {				/* run down search set */
-    sprintf (*s,set->last ? "%c%ld:%ld" : "%c%ld",c,set->first,set->last);
-    *s += strlen (*s);
-    c = ',';			/* if there are any more */
+  char c;
+				/* write prefix */
+  if (prefix) while (*prefix) *(*s)++ = *prefix++;
+				/* run down search list */
+  for (c = ' '; set; set = set->next, c = ',') {
+    *(*s)++ = c;		/* write delimiter and first value */
+    if (set->first != 0xffffffff) {
+      sprintf (*s,"%lu",set->first);
+      *s += strlen (*s);
+    }
+    else *(*s)++ = '*';		/* last message */
+    if (set->last) {		/* have a second value? */
+      *(*s)++ = ':';		/* write delimiter and second value */
+      if (set->last != 0xffffffff) {
+	sprintf (*s,"%lu",set->last);
+	*s += strlen (*s);
+      }
+      else *(*s)++ = '*';	/* last message */
+    }
   }
-  while (set = set->next);
 }
-
-
+
 /* IMAP send search list
  * Accepts: MAIL stream
  *	    reply tag
@@ -2630,7 +2651,7 @@ IMAPPARSEDREPLY *imap_sout (MAILSTREAM *stream,char *tag,char *base,char **s)
   IMAPPARSEDREPLY *reply;
   if (stream->debug) {		/* output debugging telemetry */
     **s = '\0';
-    mm_dlog (base);
+    mail_dlog (base,LOCAL->sensitive);
   }
   *(*s)++ = '\015';		/* append CRLF */
   *(*s)++ = '\012';
@@ -2651,10 +2672,15 @@ IMAPPARSEDREPLY *imap_sout (MAILSTREAM *stream,char *tag,char *base,char **s)
 
 long imap_soutr (MAILSTREAM *stream,char *string)
 {
-  char tmp[MAILTMPLEN];
+  long ret;
+  unsigned long i;
+  char *s;
   if (stream->debug) mm_dlog (string);
-  sprintf (tmp,"%s\015\012",string);
-  return net_soutr (LOCAL->netstream,tmp);
+  sprintf (s = (char *) fs_get ((i = strlen (string) + 2) + 1),
+	   "%s\015\012",string);
+  ret = net_sout (LOCAL->netstream,s,i);
+  fs_give ((void **) &s);
+  return ret;
 }
 
 /* IMAP get reply
@@ -3818,7 +3844,7 @@ char *imap_parse_string (MAILSTREAM *stream,char **txtptr,
   char *st;
   char *string = NIL;
   unsigned long i,j,k;
-  char c = **txtptr;		/* sniff at first character */
+  unsigned char c = **txtptr;	/* sniff at first character */
   mailgets_t mg = (mailgets_t) mail_parameters (NIL,GET_GETS,NIL);
   readprogress_t rp =
     (readprogress_t) mail_parameters (NIL,GET_READPROGRESS,NIL);
@@ -3829,14 +3855,19 @@ char *imap_parse_string (MAILSTREAM *stream,char **txtptr,
   case '"':			/* if quoted string */
     i = 0;			/* initial byte count */
 				/* search for end of string */
-    while ((c = **txtptr) != '"') {
+    for (c = **txtptr; c != '"'; ++i,c = *++*txtptr) {
       if (c == '\\') c = *++*txtptr;
       if (!c || (c & 0x80)) {	/* server bogon */
-	sprintf (LOCAL->tmp,"Invalid CHAR in quoted string: %x",(unsigned) c);
+	sprintf (LOCAL->tmp,"Invalid CHAR in quoted string: %x",
+		 (unsigned int) c);
 	mm_log (LOCAL->tmp,WARN);
+	do {			/* search for end with no further check */
+	  ++i;			/* count this character */
+	  c = *++*txtptr;	/* get next character */
+	  if (c == '\\') c = *++*txtptr;
+	} while (c != '"');	/* until find delimiter */
+	break;			/* exit loop */
       }
-      ++i;			/* bump count */
-      ++*txtptr;		/* bump pointer */
     }
     ++*txtptr;			/* bump past delimiter */
     string = (char *) fs_get ((size_t) i + 1);

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	29 August 2001
+ * Last Edited:	14 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -111,9 +111,9 @@ char *snarf (char **arg);
 char *snarf_list (char **arg);
 STRINGLIST *parse_stringlist (char **s,int *list);
 long parse_criteria (SEARCHPGM *pgm,char **arg,unsigned long maxmsg,
-		     unsigned long maxuid,unsigned long depth);
+		     unsigned long depth);
 long parse_criterion (SEARCHPGM *pgm,char **arg,unsigned long msgmsg,
-		      unsigned long maxuid,unsigned long depth);
+		      unsigned long depth);
 long crit_date (unsigned short *date,char **arg);
 long crit_date_work (unsigned short *date,char **arg);
 long crit_set (SEARCHSET **set,char **arg,unsigned long maxima);
@@ -173,7 +173,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2001.313";	/* version number of this server */
+char *version = "2001.315";	/* version number of this server */
 time_t alerttime = 0;		/* time of last alert */
 time_t sysalerttime = 0;	/* time of last system alert */
 time_t useralerttime = 0;	/* time of last user alert */
@@ -219,7 +219,7 @@ char *logwinalt = "%.80s OK %.900s, Logged in\015\012";
 char *lose = "%.80s NO %.80s failed: %.900s\015\012";
 char *altlose = "%.80s NO %.900s\015\012";
 char *losetry = "%.80s NO [TRYCREATE] %.80s failed: %.900s\015\012";
-char *misarg = "%.80s BAD Missing required argument to %.80s\015\012";
+char *misarg = "%.80s BAD Missing or invalid argument to %.80s\015\012";
 char *badarg = "%.80s BAD Argument given to %.80s when none expected\015\012";
 char *badseq = "%.80s BAD Bogus sequence in %.80s\015\012";
 char *badatt = "%.80s BAD Bogus attribute list in %.80s\015\012";
@@ -669,8 +669,7 @@ int main (int argc,char *argv[])
 	      else if (!((t = snarf (&arg)) && (cs = cpystr (t)) && arg &&
 			 *arg)) response = misarg;
 				/* parse search criteria  */
-	      else if (!parse_criteria (spg = mail_newsearchpgm (),&arg,nmsgs,
-					nmsgs ? mail_uid (stream,nmsgs) : 0,0))
+	      else if (!parse_criteria(spg = mail_newsearchpgm(),&arg,nmsgs,0))
 		response = badatt;
 	      else if (arg && *arg) response = badarg;
 	      else if (slst = mail_sort (stream,cs,spg,pgm,uid ? SE_UID:NIL)) {
@@ -698,9 +697,8 @@ int main (int argc,char *argv[])
 	  if (!(arg && (s = strtok (arg," ")) && (cs = strtok (NIL," ")) &&
 		(cs = cpystr (cs)) && (arg = strtok (NIL,"\015\012"))))
 	    response = misarg;
-	  else if (!parse_criteria (spg = mail_newsearchpgm (),&arg,nmsgs,
-				    nmsgs ? mail_uid (stream,nmsgs) : 0,0))
-	      response = badatt;/* bad thread attribute */
+	  else if (!parse_criteria (spg = mail_newsearchpgm (),&arg,nmsgs,0))
+	    response = badatt;	/* bad thread attribute */
 	  else if (arg && *arg) response = badarg;
 	  else {
 	    if (thr = mail_thread (stream,s,cs,spg,uid ? SE_UID : NIL)) {
@@ -739,8 +737,7 @@ int main (int argc,char *argv[])
 	  }
 				/* must have arguments here */
 	  if (!(arg && *arg)) response = misarg;
-	  else if (parse_criteria (pgm = mail_newsearchpgm (),&arg,nmsgs,
-				   nmsgs ? mail_uid (stream,nmsgs) : 0,0) &&
+	  else if (parse_criteria (pgm = mail_newsearchpgm (),&arg,nmsgs,0) &&
 		   !*arg) {
 	    mail_search_full (stream,charset,pgm,SE_FREE);
 	    if (response == win || response == altwin) {
@@ -1600,7 +1597,11 @@ char *parse_astring (char **arg,unsigned long *size,char *del)
    return NIL;			/* empty atom is a bogon */
   case '"':			/* hunt for trailing quote */
     for (s = t = v = *arg + 1; (c = *t++) != '"'; *v++ = c) {
-      if (c == '\\') c = *t++;	/* quote next character */
+				/* quote next character */
+      if (c == '\\') switch (c = *t++) {
+      case '"': case '\\': break;
+      default: return NIL;	/* invalid quote-next */
+      }
 				/* else must be a CHAR */
       if (!c || (c & 0x80)) return NIL;
     }
@@ -1727,17 +1728,16 @@ STRINGLIST *parse_stringlist (char **s,int *list)
  * Accepts: search program to write criteria into
  *	    pointer to argument text pointer
  *	    maximum message number
- *	    maximum UID
  *	    logical nesting depth
  * Returns: T if success, NIL if error
  */
 
 long parse_criteria (SEARCHPGM *pgm,char **arg,unsigned long maxmsg,
-		     unsigned long maxuid,unsigned long depth)
+		     unsigned long depth)
 {
   if (arg && *arg) {		/* must be an argument */
 				/* parse criteria */
-    do if (!parse_criterion (pgm,arg,maxmsg,maxuid,depth)) return NIL;
+    do if (!parse_criterion (pgm,arg,maxmsg,depth)) return NIL;
 				/* as long as a space delimiter */
     while (**arg == ' ' && (*arg)++);
 				/* failed if not end of criteria */
@@ -1750,13 +1750,12 @@ long parse_criteria (SEARCHPGM *pgm,char **arg,unsigned long maxmsg,
  * Accepts: search program to write criterion into
  *	    pointer to argument text pointer
  *	    maximum message number
- *	    maximum UID
  *	    logical nesting depth
  * Returns: T if success, NIL if error
  */
 
 long parse_criterion (SEARCHPGM *pgm,char **arg,unsigned long maxmsg,
-		      unsigned long maxuid,unsigned long depth)
+		      unsigned long depth)
 {
   unsigned long i;
   char c = NIL,*s,*t,*v,*tail,*del;
@@ -1769,7 +1768,7 @@ long parse_criterion (SEARCHPGM *pgm,char **arg,unsigned long maxmsg,
   if ((depth > 50) || !(arg && *arg));
   else if (**arg == '(') {	/* list of criteria? */
     (*arg)++;			/* yes, parse the criteria */
-    if (parse_criteria (pgm,arg,maxmsg,maxuid,depth+1) && **arg == ')') {
+    if (parse_criteria (pgm,arg,maxmsg,depth+1) && **arg == ')') {
       (*arg)++;			/* skip closing paren */
       ret = T;			/* successful parse of list */
     }
@@ -1840,7 +1839,7 @@ long parse_criterion (SEARCHPGM *pgm,char **arg,unsigned long maxmsg,
       else if (!strcmp (s+1,"OT") && c == ' ' && *++tail) {
 	for (not = &pgm->not; *not; not = &(*not)->next);
 	*not = mail_newsearchpgmlist ();
-	ret = parse_criterion ((*not)->pgm,&tail,maxmsg,maxuid,depth+1);
+	ret = parse_criterion ((*not)->pgm,&tail,maxmsg,depth+1);
       }
       break;
 
@@ -1851,9 +1850,9 @@ long parse_criterion (SEARCHPGM *pgm,char **arg,unsigned long maxmsg,
       else if (!strcmp (s+1,"R") && c == ' ') {
 	for (or = &pgm->or; *or; or = &(*or)->next);
 	*or = mail_newsearchor ();
-	ret = *++tail && parse_criterion((*or)->first,&tail,maxmsg,maxuid,
-					 depth+1) && *tail == ' ' && *++tail &&
-	    parse_criterion ((*or)->second,&tail,maxmsg,maxuid,depth+1);
+	ret = *++tail && parse_criterion((*or)->first,&tail,maxmsg,depth+1) &&
+	  *tail == ' ' && *++tail &&
+	    parse_criterion ((*or)->second,&tail,maxmsg,depth+1);
       }
       break;
     case 'R':			/* possible RECENT */
@@ -1889,7 +1888,7 @@ long parse_criterion (SEARCHPGM *pgm,char **arg,unsigned long maxmsg,
 	  *not = mail_newsearchpgmlist ();
 	  set = &((*not)->pgm->not = mail_newsearchpgmlist ())->pgm->uid;
 	}
-	ret = crit_set (set,&tail,maxuid);
+	ret = crit_set (set,&tail,0xffffffff);
       }
       else if (!strcmp (s+1,"NANSWERED")) ret = pgm->unanswered = T;
       else if (!strcmp (s+1,"NDELETED")) ret = pgm->undeleted = T;
@@ -2007,7 +2006,7 @@ long crit_set (SEARCHSET **set,char **arg,unsigned long maxima)
   case ':':			/* sequence range */
     if (*++(*arg) == '*') {	/* maxnum? */
       (*arg)++;			/* skip past that number */
-      (*set)->last -= maxima;
+      (*set)->last = maxima;
     }
     else if (crit_number (&i,arg) && i) {
       if (i < (*set)->first) {	/* backwards range */

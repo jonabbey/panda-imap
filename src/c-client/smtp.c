@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	29 August 2001
+ * Last Edited:	12 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -133,15 +133,6 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
 			       net_host (netstream) : mb.host);
 	stream->debug = (mb.dbgflag || (options & OP_DEBUG)) ? T : NIL;
 	if (options & SOP_SECURE) mb.secflag = T;
-	if (options &(SOP_DSN | SOP_DSN_NOTIFY_FAILURE | SOP_DSN_NOTIFY_DELAY |
-		      SOP_DSN_NOTIFY_SUCCESS | SOP_DSN_RETURN_FULL)) {
-	  ESMTP.dsn.want = T;
-	  if (options & SOP_DSN_NOTIFY_FAILURE) ESMTP.dsn.notify.failure = T;
-	  if (options & SOP_DSN_NOTIFY_DELAY) ESMTP.dsn.notify.delay = T;
-	  if (options & SOP_DSN_NOTIFY_SUCCESS) ESMTP.dsn.notify.success = T;
-	  if (options & SOP_DSN_RETURN_FULL) ESMTP.dsn.full = T;
-	}
-	if (options & SOP_8BITMIME) ESMTP.eightbit.want = T;
 				/* get name of local host to use */
 	s = compare_cstring ("localhost",mb.host) ?
 	  net_localhost (netstream) : "localhost";
@@ -216,6 +207,17 @@ SENDSTREAM *smtp_open_full (NETDRIVER *dv,char **hostlist,char *service,
       }
     }
   } while (!stream && *++hostlist);
+  if (stream) {			/* set stream options if have a stream */
+    if (options &(SOP_DSN | SOP_DSN_NOTIFY_FAILURE | SOP_DSN_NOTIFY_DELAY |
+		  SOP_DSN_NOTIFY_SUCCESS | SOP_DSN_RETURN_FULL)) {
+      ESMTP.dsn.want = T;
+      if (options & SOP_DSN_NOTIFY_FAILURE) ESMTP.dsn.notify.failure = T;
+      if (options & SOP_DSN_NOTIFY_DELAY) ESMTP.dsn.notify.delay = T;
+      if (options & SOP_DSN_NOTIFY_SUCCESS) ESMTP.dsn.notify.success = T;
+      if (options & SOP_DSN_RETURN_FULL) ESMTP.dsn.full = T;
+    }
+    if (options & SOP_8BITMIME) ESMTP.eightbit.want = T;
+  }
   return stream;
 }
 
@@ -245,17 +247,21 @@ long smtp_auth (SENDSTREAM *stream,NETMBX *mb,char *tmp)
     tmp[0] = '\0';		/* empty buffer */
     if (stream->netstream) do {
       if (tmp[0]) mm_log (tmp,WARN);
-      if (smtp_send (stream,"AUTH",at->name) &&
-	  (*at->client) (smtp_challenge,smtp_response,"smtp",mb,stream,&trial,
-			 usr)) {
-	if (stream->replycode == SMTPAUTHED) return LONGT;
-	if (!trial) {		/* if main program requested cancellation */
-	  mm_log ("SMTP Authentication cancelled",ERROR);
-	  return NIL;
+      if (smtp_send (stream,"AUTH",at->name)) {
+				/* hide client authentication responses */
+	if (!(at->flags & AU_SECURE)) stream->sensitive = T;
+	if ((*at->client) (smtp_challenge,smtp_response,"smtp",mb,stream,
+			   &trial,usr)) {
+	  if (stream->replycode == SMTPAUTHED) return LONGT;
+				/* if main program requested cancellation */
+	  if (!trial) mm_log ("SMTP Authentication cancelled",ERROR);
 	}
+	stream->sensitive = NIL;/* unhide */
       }
-      lsterr = cpystr (stream->reply);
-      sprintf (tmp,"Retrying %s authentication after %s",at->name,lsterr);
+      if (trial) {		/* only if not aborting */
+	lsterr = cpystr (stream->reply);
+	sprintf (tmp,"Retrying %s authentication after %s",at->name,lsterr);
+      }
     } while (stream->netstream && trial && (trial < smtp_maxlogintrials));
   }
   if (lsterr) {			/* previous authenticator failed? */
@@ -316,9 +322,11 @@ long smtp_response (void *s,char *response,unsigned long size)
 SENDSTREAM *smtp_close (SENDSTREAM *stream)
 {
   if (stream) {			/* send "QUIT" */
-    smtp_send (stream,"QUIT",NIL);
-				/* do close actions */
-    if (stream->netstream) net_close (stream->netstream);
+    if (stream->netstream) {	/* do close actions if have netstream */
+      smtp_send (stream,"QUIT",NIL);
+      net_close (stream->netstream);
+    }
+				/* clean up */
     if (stream->host) fs_give ((void **) &stream->host);
     if (stream->reply) fs_give ((void **) &stream->reply);
     fs_give ((void **) &stream);/* flush the stream */
@@ -495,7 +503,7 @@ long smtp_send (SENDSTREAM *stream,char *command,char *args)
 				/* build the complete command */
   if (args) sprintf (s,"%s %s",command,args);
   else strcpy (s,command);
-  if (stream->debug) mm_dlog (s);
+  if (stream->debug) mail_dlog (s,stream->sensitive);
   strcat (s,"\015\012");
 				/* send the command */
   if (!net_soutr (stream->netstream,s))

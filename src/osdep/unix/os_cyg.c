@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	5 March 2001
+ * Last Edited:	6 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -46,6 +46,27 @@ extern int errno;		/* just in case */
 #include "tcp_unix.c"
 #include "gr_wait.c"
 #include "tz_nul.c"
-#undef flock
-#include "flcksafe.c"
+#include "flocksim.c"
 #include "gethstid.c"
+
+
+/* Kludge to satisfy test_nfs() */
+
+int ustat (int dev,struct ustat *ubuf)
+{
+  ubuf->f_tinode = 10569;	/* random number */
+  return 0;
+}
+
+
+/* Emulator for geteuid() call
+ * Returns: effective UID
+ */
+
+#undef geteuid
+
+uid_t Geteuid (void)
+{
+  uid_t ret = geteuid ();
+  return (ret == SYSTEMUID) ? 0 : ret;
+}

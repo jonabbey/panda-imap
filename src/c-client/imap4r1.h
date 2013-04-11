@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 October 1988
- * Last Edited:	14 August 2001
+ * Last Edited:	14 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -77,8 +77,13 @@ typedef struct imap_local {
   unsigned int byeseen : 1;	/* saw a BYE response */
 				/* don't do LOGIN command */
   unsigned int logindisabled : 1;
-  unsigned int gotcapability : 1;
 				/* got implicit capabilities */
+  unsigned int gotcapability : 1;
+  unsigned int sensitive : 1;	/* sensitive data in progress */
+  unsigned int tlsflag : 1;	/* TLS session */
+  unsigned int notlsflag : 1;	/* TLS not used in session */
+  unsigned int sslflag : 1;	/* SSL session */
+  unsigned int novalidate : 1;	/* certificate not validated */
   long authflags;		/* required flags for authenticators */
   unsigned long sortsize;	/* sort return data size */
   unsigned long *sortdata;	/* sort return data */
@@ -253,7 +258,7 @@ IMAPPARSEDREPLY *imap_send_literal (MAILSTREAM *stream,char *tag,char **s,
 				    STRING *st);
 IMAPPARSEDREPLY *imap_send_spgm (MAILSTREAM *stream,char *tag,char **s,
 				 SEARCHPGM *pgm);
-void imap_send_sset (char **s,SEARCHSET *set);
+void imap_send_sset (char **s,SEARCHSET *set,char *prefix);
 IMAPPARSEDREPLY *imap_send_slist (MAILSTREAM *stream,char *tag,char **s,
 				  char *name,STRINGLIST *list);
 void imap_send_sdate (char **s,char *name,unsigned short date);

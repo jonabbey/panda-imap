@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	2 July 2001
+# Last Edited:	22 October 2001
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 2001 University of Washington.
@@ -74,6 +74,7 @@
 # lnx	Linux with traditional passwords and crypt() in the C library
 #	 (see lnp, sl4, sl5, and slx)
 # lnp	Linux with Pluggable Authentication Modules (PAM)
+# lrh	RedHat Linux 7.2
 # lyn	LynxOS
 # mct	MachTen
 # mnt	Atari ST Mint (not MacMint)
@@ -221,12 +222,8 @@ EXTRALDFLAGS=
 
 # Special make flags (e.g. to override make environment variables)
 
-#SPECIALS=
 EXTRASPECIALS=
-# *** TEMPORARY FOR PINE BUILD ***
-GSSDIR=/usr/local
-SPECIALS=GSSDIR=$(GSSDIR)
-# *** TEMPORARY FOR PINE BUILD ***
+SPECIALS=
 
 
 # Normal commands
@@ -256,13 +253,16 @@ BUILD=$(MAKE) build EXTRACFLAGS='$(EXTRACFLAGS)'\
 
 # Make the IMAP Toolkit
 
-all:	c-client rebuild bundled
+all:	SPECIALS c-client rebuild bundled
 
 c-client:
 	@echo Not processed yet.  In a first-time build, you must specify
 	@echo the system type so that the sources are properly processed.
 	@false
 
+
+SPECIALS:
+	echo $(SPECIALS) > SPECIALS
 
 # Note on SCO you may have to set LN to "ln".
 
@@ -276,6 +276,13 @@ a32 a41 aix bs3 bsf bsi bso cyg d-g d54 do4 drs epx gas gh9 ghp ghs go5 gsc gsg 
 aos art asv aux bsd cvx dpx dyn isc pyr s40 sv4 ult vul vu2: ua
 	$(BUILD) BUILDTYPE=$@
 
+# Knotheads moved Kerberos and SSL locations on these platforms
+
+lrh:	an
+	$(BUILD) BUILDTYPE=lnp \
+	SPECIALS="GSSDIR=/usr/kerberos SSLDIR=/usr/share/ssl SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib"
+
+
 # Linux shadow password support doesn't build on traditional systems, but most
 # Linux systems are shadow these days.
 
@@ -283,13 +290,13 @@ lnx:	lnxnul an
 	$(BUILD) BUILDTYPE=$@
 
 lnxnul:
-	@sh -c '(test $(PASSWDTYPE) = nul) || make lnxok'
+	@$(SH) -c '(test $(PASSWDTYPE) = nul) || make lnxok'
 
 lnxok:
 	@echo You are building for traditional Linux.  Most modern Linux
 	@echo systems require that you build using make slx.  Do you want
 	@echo to continue this build?  Type y or n please:
-	@sh -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
+	@$(SH) -c 'read x; case "$$x" in y) exit 0;; *) exit 1;; esac'
 	@echo OK, I will remember that you really want to build for
 	@echo traditional Linux.  You will not see this message again.
 	@echo If you discover that you can not log in to the POP and IMAP
@@ -299,7 +306,7 @@ lnxok:
 	@echo % make slx
 	@echo If slx does not work, try sl4 or sl5.  Be sure to do a
 	@echo make clean between each try!
-	@touch lnxok
+	@$(TOUCH) lnxok
 
 
 # SUN-OS makes you load libdl by hand...
@@ -371,7 +378,8 @@ build:	OSTYPE rebuild rebuildclean bundled
 
 OSTYPE:
 	@echo Building c-client for $(BUILDTYPE)...
-	echo $(SPECIALS) $(EXTRASPECIALS) > c-client/SPECIALS
+	@$(TOUCH) SPECIALS
+	echo `$(CAT) SPECIALS` $(EXTRASPECIALS) > c-client/SPECIALS
 	$(CD) c-client;$(MAKE) $(BUILDTYPE) EXTRACFLAGS='$(EXTRACFLAGS)'\
 	 EXTRALDFLAGS='$(EXTRALDFLAGS)'\
 	 EXTRADRIVERS='$(EXTRADRIVERS)'\
@@ -382,14 +390,14 @@ OSTYPE:
 	$(TOUCH) rebuild
 
 rebuild:
-	@sh -c '(test $(BUILDTYPE) = rebuild -o $(BUILDTYPE) = `$(CAT) OSTYPE`) || (echo Already built for `$(CAT) OSTYPE` -- you must do \"make clean\" first && exit 1)'
+	@$(SH) -c '(test $(BUILDTYPE) = rebuild -o $(BUILDTYPE) = `$(CAT) OSTYPE`) || (echo Already built for `$(CAT) OSTYPE` -- you must do \"make clean\" first && exit 1)'
 	@echo Rebuilding c-client for `$(CAT) OSTYPE`...
-	$(TOUCH) c-client/SPECIALS
+	@$(TOUCH) SPECIALS
 	$(CD) c-client;$(MAKE) all CC=`$(CAT) CCTYPE` \
 	 CFLAGS="`$(CAT) CFLAGS`" `$(CAT) SPECIALS`
 
 rebuildclean:
-	sh -c '$(RM) rebuild || true'
+	$(SH) -c '$(RM) rebuild || true'
 
 bundled:
 	@echo Building bundled tools...
@@ -399,7 +407,7 @@ bundled:
 
 clean:
 	@echo Removing old processed sources and binaries...
-	sh -c '$(RM) an ua OSTYPE c-client mtest imapd ipopd || true'
+	$(SH) -c '$(RM) an ua OSTYPE SPECIALS c-client mtest imapd ipopd || true'
 	$(CD) tools;$(MAKE) clean
 
 

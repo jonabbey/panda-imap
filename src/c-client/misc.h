@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	30 March 2001
+ * Last Edited:	16 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -90,7 +90,7 @@ long search (unsigned char *base,long basec,unsigned char *pat,long patc);
 HASHTAB *hash_create (size_t size);
 void hash_destroy (HASHTAB **hashtab);
 void hash_reset (HASHTAB *hashtab);
-size_t hash_index (HASHTAB *hashtab,char *key);
+unsigned long hash_index (HASHTAB *hashtab,char *key);
 void **hash_lookup (HASHTAB *hashtab,char *key);
 HASHENT *hash_add (HASHTAB *hashtab,char *key,void *data,long extra);
 void **hash_lookup_and_add (HASHTAB *hashtab,char *key,void *data,long extra);

@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	2 July 2001
+# Last Edited:	6 November 2001
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 2001 University of Washington.
@@ -243,7 +243,7 @@ cvx:	# Convex
 
 cyg:	# Cygwin
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \
-	SIGTYPE=psx CRXTYPE=nfs \
+	SIGTYPE=psx CHECKPW=cyg LOGINPW=cyg CRXTYPE=nfs \
 	SPOOLDIR=/var \
 	ACTIVEFILE=/usr/local/news/lib/active \
 	RSHPATH=/usr/bin/rsh \
@@ -493,7 +493,7 @@ nto:	# QNX Neutrino RTP
 	 SPOOLDIR=/var/spool \
 	 ACTIVEFILE=/var/lib/news/active \
 	 RSHPATH=/usr/bin/rsh \
-	 BASECFLAGS="-g -O -DNFSKLUDGE"
+	 BASECFLAGS="-g -O"
 
 nxt:	# NEXTSTEP
 	$(BUILD) `$(CAT) SPECIALS` OS=$@ \

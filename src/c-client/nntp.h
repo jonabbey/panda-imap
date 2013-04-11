@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	30 May 2001
+ * Last Edited:	6 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -45,6 +45,10 @@
 typedef struct nntp_local {
   SENDSTREAM *nntpstream;	/* NNTP stream for I/O */
   unsigned int dirty : 1;	/* disk copy of .newsrc needs updating */
+  unsigned int tlsflag : 1;	/* TLS session */
+  unsigned int notlsflag : 1;	/* TLS not used in session */
+  unsigned int sslflag : 1;	/* SSL session */
+  unsigned int novalidate : 1;	/* certificate not validated */
   char *name;			/* remote newsgroup name */
   char *user;			/* mailbox user */
   char *newsrc;			/* newsrc file */

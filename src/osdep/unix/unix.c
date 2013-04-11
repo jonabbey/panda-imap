@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	14 August 2001
+ * Last Edited:	2 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -460,7 +460,7 @@ char *unix_header (MAILSTREAM *stream,unsigned long msgno,
 		   unsigned long *length,long flags)
 {
   MESSAGECACHE *elt;
-  char *s;
+  char *s,*t,*tl;
   *length = 0;			/* default to empty */
   if (flags & FT_UID) return "";/* UID call "impossible" */
   elt = mail_elt (stream,msgno);/* get cache */
@@ -499,13 +499,10 @@ char *unix_header (MAILSTREAM *stream,unsigned long msgno,
 				/* got text, tie off string */
     LOCAL->buf[*length = elt->private.msg.header.text.size] = '\0';
 				/* squeeze out CRs (in case from PC) */
-    if (s = strchr (LOCAL->buf,'\r')) {
-      char *t,*tl;
-      for (t = s,tl = LOCAL->buf + *length; t <= tl; t++)
-	if ((*t != '\r') || (t[1] != '\n')) *s++ = *t;
+    for (s = t = LOCAL->buf,tl = LOCAL->buf + *length; t <= tl; t++)
+      if ((*t != '\r') || (t[1] != '\n')) *s++ = *t;
 				/* adjust length */
-      LOCAL->buf[*length = s - LOCAL->buf - 1] = '\0';
-    }
+    LOCAL->buf[*length = s - LOCAL->buf - 1] = '\0';
   }
   else {			/* need to make a CRLF version */
     read (LOCAL->fd,s = (char *) fs_get (elt->private.msg.header.text.size+1),
@@ -559,7 +556,7 @@ char *unix_text_work (MAILSTREAM *stream,MESSAGECACHE *elt,
 {
   FDDATA d;
   STRING bs;
-  char *s,tmp[CHUNK];
+  char *s,*t,*tl,tmp[CHUNK];
 				/* go to text position */
   lseek (LOCAL->fd,elt->private.special.offset +
 	 elt->private.msg.text.offset,L_SET);
@@ -574,13 +571,10 @@ char *unix_text_work (MAILSTREAM *stream,MESSAGECACHE *elt,
 				/* got text, tie off string */
     LOCAL->buf[*length = elt->private.msg.text.text.size] = '\0';
 				/* squeeze out CRs (in case from PC) */
-    if (s = strchr (LOCAL->buf,'\r')) {
-      char *t,*tl;
-      for (t = s,tl = LOCAL->buf + *length; t <= tl; t++)
-	if ((*t != '\r') || (t[1] != '\n')) *s++ = *t;
+    for (s = t = LOCAL->buf,tl = LOCAL->buf + *length; t <= tl; t++)
+      if ((*t != '\r') || (t[1] != '\n')) *s++ = *t;
 				/* adjust length */
-      *length = s - LOCAL->buf - 1;
-    }
+    LOCAL->buf[*length = s - LOCAL->buf - 1] = '\0';
   }
 
   else {			/* need to make a CRLF version */
@@ -631,6 +625,7 @@ long unix_ping (MAILSTREAM *stream)
 {
   DOTLOCK lock;
   struct stat sbuf;
+  long reparse;
 				/* big no-op if not readwrite */
   if (LOCAL && (LOCAL->ld >= 0) && !stream->lock) {
     if (stream->rdonly) {	/* does he want to give up readwrite? */
@@ -641,12 +636,15 @@ long unix_ping (MAILSTREAM *stream)
       LOCAL->ld = -1;		/* no more readwrite lock fd */
       unlink (LOCAL->lname);	/* delete the readwrite lock file */
     }
-    else {			/* get current mailbox size */
-      if (LOCAL->fd >= 0) fstat (LOCAL->fd,&sbuf);
-      else stat (stream->mailbox,&sbuf);
+    else {			/* see if need to reparse */
+      if (!(reparse = (long) mail_parameters (NIL,GET_NETFSSTATBUG,NIL))) {
+				/* get current mailbox size */
+	if (LOCAL->fd >= 0) fstat (LOCAL->fd,&sbuf);
+	else stat (stream->mailbox,&sbuf);
+	reparse = (sbuf.st_size != LOCAL->filesize);
+      }
 				/* parse if mailbox changed */
-      if ((sbuf.st_size != LOCAL->filesize) &&
-	  unix_parse (stream,&lock,LOCK_SH)) {
+      if (reparse && unix_parse (stream,&lock,LOCK_SH)) {
 				/* unlock mailbox */
 	unix_unlock (LOCAL->fd,stream,&lock);
 	mail_unlock (stream);	/* and stream */

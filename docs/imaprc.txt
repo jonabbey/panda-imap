@@ -1,5 +1,5 @@
 		       .imaprc secrets revealed!
-		      Mark Crispin, March 14, 2001
+		      Mark Crispin, October 17, 2001
 
 The following information describes the format of the /etc/c-client.cf
 and ~/.imaprc file.  The Columbia MM ~/.mminit file is also read by
@@ -68,16 +68,16 @@ because the files do something for testing, but the real capability for
 configurability is put in the program instead.  Are you getting the
 feeling that you shouldn't be messing with these files yet?
 
-The very first line of the file MUST be the exact string "I accept the
-risk for IMAP toolkit 4.1."  This ensures that you have checked the
-file for correctness against this version of the IMAP toolkit.  This
-enable string will change without notice in future versions, and the
-new string may or may not be accurately described in an updated
-version of this file.  So any time you install software that uses the
-IMAP toolkit, you need to check the new version against these files
-(if you have insisted upon creating them in spite of all warnings).
-If two pieces of software use different versions of the IMAP toolkit
-with incompatible requirements, one of them won't work.  Re-read the
+The very first line of the file MUST start with the exact string "I
+accept the risk".  This ensures that you have checked the file for
+correctness against this version of the IMAP toolkit.  This enable
+string may change without notice in future versions, and the new
+string may or may not be accurately described in an updated version of
+this file.  So any time you install software that uses the IMAP
+toolkit, you need to check the new version against these files (if you
+have insisted upon creating them in spite of all warnings).  If two
+pieces of software use different versions of the IMAP toolkit with
+incompatible requirements, one of them won't work.  Re-read the
 warning above about why you should not use these files.
 
 Subsequent lines are read from the file one at a time.  Case does not
@@ -555,3 +555,26 @@ matter.  Unrecognized commands are ignored.
     zero.
 
    The default is non-zero (use name from PTR record for SASL).
+
+38) set network-filesystem-stat-bug <number>
+   By default, traditional UNIX mailbox files are only closed and reopened
+    at checkpoint and expunge time.  This ensures that, prior to rewriting
+    the file, that any cached stat() data from a network filesystem is
+    updated with current data.
+
+   Very old versions of NFS, and reputedly also AFS, can get into a state
+    in which the cached stat() data stays out-of-date, even across a
+    close and reopen of the file.
+
+   If network-filesystem-stat-bug is set non-zero, then the mailbox file
+    is closed and reopened at ping time as a workaround for this bug in
+    these network filesystems.  This means that in imapd, the mailbox
+    file is closed and reopened for every IMAP command.  This is obviously
+    something that should be avoided unless absolutely necessary.
+
+   NFS and AFS are terrible ways to distribute mail.  You use use IMAP
+    servers with a local disk instead.
+
+   The default is zero (only close/reopen at checkpoint and expunge time).
+
+   Setting this option is a great way to ruin your system's performance.

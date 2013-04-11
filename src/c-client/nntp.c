@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 February 1992
- * Last Edited:	29 August 2001
+ * Last Edited:	17 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -39,7 +39,7 @@ DRIVER nntpdriver = {
   DR_LOWMEM |
 #endif
 				/* driver flags */
-  DR_NEWS|DR_READONLY|DR_NOFAST|DR_NAMESPACE|DR_CRLF|DR_RECYCLE,
+  DR_NEWS|DR_READONLY|DR_NOFAST|DR_NAMESPACE|DR_CRLF|DR_RECYCLE|DR_XPOINT,
   (DRIVER *) NIL,		/* next driver */
   nntp_valid,			/* mailbox is valid for us */
   nntp_parameters,		/* manipulate parameters */
@@ -433,9 +433,13 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
 				/* note mailbox anme */
   mbx = (*mb.mailbox == '#') ? mb.mailbox+6 : mb.mailbox;
   if (LOCAL) {			/* recycle stream */
-    nstream = LOCAL->nntpstream;
+    nstream = LOCAL->nntpstream;/* remember NNTP protocol stream */
     sprintf (tmp,"Reusing connection to %s",net_host (nstream->netstream));
     if (!stream->silent) mm_log (tmp,(long) NIL);
+    if (LOCAL->tlsflag) mb.tlsflag = T;
+    if (LOCAL->notlsflag) mb.notlsflag = T;
+    if (LOCAL->sslflag) mb.sslflag = T;
+    if (LOCAL->novalidate) mb.novalidate = T;
     LOCAL->nntpstream = NIL;	/* keep nntp_mclose() from punting it */
     nntp_mclose (stream,NIL);	/* do close action */
     stream->dtb = &nntpdriver;	/* reattach this driver */
@@ -452,11 +456,12 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     if (mb.notlsflag) strcat (tmp,"/notls");
     if (mb.sslflag) strcat (tmp,"/ssl");
     if (mb.novalidate) strcat (tmp,"/novalidate-cert");
+    if (stream->secure) strcat (tmp,"/secure");
     if (mb.user[0]) sprintf (tmp + strlen (tmp),"/user=\"%s\"",mb.user);
     hostlist[1] = NIL;
-    nstream = nntp_open (hostlist,OP_READONLY+(stream->debug ? OP_DEBUG:NIL));
+    if (!(nstream = nntp_open (hostlist,OP_READONLY +
+			       (stream->debug ? OP_DEBUG : NIL)))) return NIL;
   }
-  if (!nstream) return NIL;	/* didn't get an NNTP session */
 
 				/* always zero messages if halfopen */
   if (stream->halfopen) i = j = k = nmsgs = 0;
@@ -472,8 +477,13 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
     nntp_close (nstream);	/* punt stream */
     return NIL;
   }
-				/* newsgroup open, instantiate local data */
+				/* instantiate local data */
   stream->local = memset (fs_get (sizeof (NNTPLOCAL)),0,sizeof (NNTPLOCAL));
+				/* save state for future recycling */
+  if (mb.tlsflag) LOCAL->tlsflag = T;
+  if (mb.notlsflag) LOCAL->notlsflag = T;
+  if (mb.sslflag) LOCAL->sslflag = T;
+  if (mb.novalidate) LOCAL->novalidate = T;
   LOCAL->nntpstream = nstream;
   LOCAL->name = cpystr (mbx);	/* copy newsgroup name */
   if (stream->mulnewsrc) {	/* want to use multiple .newsrc files? */
@@ -492,9 +502,11 @@ MAILSTREAM *nntp_mopen (MAILSTREAM *stream)
   sprintf (tmp,"{%s:%lu/nntp",(int) mail_parameters (NIL,GET_TRUSTDNS,NIL) ?
 	   net_host (nstream->netstream) : mb.host,
 	   net_port (nstream->netstream));
-  if (mb.tlsflag) strcat (tmp,"/tls");
-  if (mb.sslflag) strcat (tmp,"/ssl");
-  if (mb.novalidate) strcat (tmp,"/novalidate-cert");
+  if (LOCAL->tlsflag) strcat (tmp,"/tls");
+  if (LOCAL->notlsflag) strcat (tmp,"/notls");
+  if (LOCAL->sslflag) strcat (tmp,"/ssl");
+  if (LOCAL->novalidate) strcat (tmp,"/novalidate-cert");
+  if (stream->secure) strcat (tmp,"/secure");
   if (LOCAL->user) sprintf (tmp + strlen (tmp),"/user=\"%s\"",LOCAL->user);
   if (stream->halfopen) strcat (tmp,"}<no_mailbox>");
   else sprintf (tmp + strlen (tmp),"}#news.%s",mbx);
@@ -767,6 +779,7 @@ char *nntp_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
   char tmp[MAILTMPLEN];
   MESSAGECACHE *elt;
   FILE *f;
+  *size = 0;
   if ((flags & FT_UID) && !(msgno = mail_msgno (stream,msgno))) return "";
 				/* have header text? */
   if (!(elt = mail_elt (stream,msgno))->private.msg.header.text.data) {
@@ -1505,7 +1518,7 @@ long nntp_send_work (SENDSTREAM *stream,char *command,char *args)
   else {			/* build the complete command */
     if (args) sprintf (s,"%s %s",command,args);
     else strcpy (s,command);
-    if (stream->debug) mm_dlog (s);
+    if (stream->debug) mail_dlog (s,stream->sensitive);
     strcat (s,"\015\012");
 				/* send the command */
     ret = net_soutr (stream->netstream,s) ? nntp_reply (stream) :
@@ -1560,10 +1573,11 @@ long nntp_send_auth_work (SENDSTREAM *stream,NETMBX *mb,char *pwd)
       ret = LONGT;		/* guess no password was needed */
       break;
     case NNTPWANTPASS:		/* wants password */
-      if (nntp_send_work (stream,"AUTHINFO PASS",pwd) == NNTPAUTHED) {
+      stream->sensitive = T;	/* hide this command */
+      if (nntp_send_work (stream,"AUTHINFO PASS",pwd) == NNTPAUTHED)
 	ret = LONGT;		/* password OK */
-	break;
-      }
+      stream->sensitive = NIL;	/* unhide */
+      if (ret) break;		/* OK if successful */
     default:			/* authentication failed */
       mm_log (stream->reply,WARN);
       if (trial == nntp_maxlogintrials)

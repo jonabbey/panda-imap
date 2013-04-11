@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	30 May 2001
+ * Last Edited:	5 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -51,6 +51,7 @@ typedef struct pop3_local {
 				/* supported authenticators */
     unsigned int sasl : MAXAUTHENTICATORS;
   } cap;
+  unsigned int sensitive : 1;	/* sensitive data in progress */
 } POP3LOCAL;
 
 

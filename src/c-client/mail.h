@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	27 August 2001
+ * Last Edited:	13 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -106,6 +106,10 @@
 #define SET_FREEELTSPAREP (long) 144
 #define GET_SSLSTART (long) 145
 #define SET_SSLSTART (long) 146
+#define GET_DEBUGSENSITIVE (long) 147
+#define SET_DEBUGSENSITIVE (long) 148
+#define GET_TCPDEBUG (long) 149
+#define SET_TCPDEBUG (long) 150
 
 	/* 2xx: environment */
 #define GET_USERNAME (long) 201
@@ -265,6 +269,8 @@
 #define SET_TRUSTDNS (long) 557
 #define GET_SASLUSESPTRNAME (long) 558
 #define SET_SASLUSESPTRNAME (long) 559
+#define GET_NETFSSTATBUG (long) 560
+#define SET_NETFSSTATBUG (long) 561
 
 /* Driver flags */
 
@@ -280,6 +286,7 @@
 #define DR_CRLF (long) 512	/* driver internal form uses CRLF newlines */
 #define DR_NOSTICKY (long) 1024	/* driver does not support sticky UIDs */
 #define DR_RECYCLE (long) 2048	/* driver does stream recycling */
+#define DR_XPOINT (long) 4096	/* needs to be checkpointed when recycling */
 
 
 /* Cache management function codes */
@@ -401,6 +408,7 @@
 #define ERROR (long) 2		/* mm_log error type */
 #define PARSE (long) 3		/* mm_log parse error type */
 #define BYE (long) 4		/* mm_notify stream dying */
+#define TCPDEBUG (long) 5	/* mm_log TCP debug babble */
 
 
 /* Bits from mail_parse_flags().  Don't change these, since the header format
@@ -504,6 +512,7 @@ typedef struct net_mailbox {
   unsigned int tlsflag : 1;	/* TLS flag */
   unsigned int notlsflag : 1;	/* do not do TLS flag */
   unsigned int readonlyflag : 1;/* want readonly */
+  unsigned int norsh : 1;	/* don't use rsh/ssh */
 } NETMBX;
 
 /* Item in an address list */
@@ -893,7 +902,8 @@ QUOTALIST {
 typedef struct mail_stream {
   DRIVER *dtb;			/* dispatch table for this driver */
   void *local;			/* pointer to driver local data */
-  char *mailbox;		/* mailbox name */
+  char *mailbox;		/* mailbox name (canonicalized) */
+  char *original_mailbox;	/* mailbox name (non-canonicalized) */
   unsigned short use;		/* stream use count */
   unsigned short sequence;	/* stream sequence */
   unsigned int inbox : 1;	/* stream open on an INBOX */
@@ -1018,6 +1028,7 @@ typedef struct send_stream {
   char *reply;			/* last reply string */
   long replycode;		/* last reply code */
   unsigned int debug : 1;	/* stream debug flag */
+  unsigned int sensitive : 1;	/* sensitive data in progress */
   union {			/* protocol specific */
     struct {			/* SMTP specific */
       unsigned int ok : 1;	/* supports ESMTP */
@@ -1438,6 +1449,7 @@ void mail_lock (MAILSTREAM *stream);
 void mail_unlock (MAILSTREAM *stream);
 void mail_debug (MAILSTREAM *stream);
 void mail_nodebug (MAILSTREAM *stream);
+void mail_dlog (char *string,long flag);
 long mail_match_lines (STRINGLIST *lines,STRINGLIST *msglines,long flags);
 unsigned long mail_filter (char *text,unsigned long len,STRINGLIST *lines,
 			   long flags);

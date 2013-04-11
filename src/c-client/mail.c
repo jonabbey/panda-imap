@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	29 August 2001
+ * Last Edited:	13 October 2001
  *
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -96,6 +96,7 @@ static int notimezones = NIL;	/* write timezones in "From " header */
 static int trustdns = T;	/* do DNS canonicalization */
 static int saslusesptrname = T;	/* SASL uses name from DNS PTR lookup */
 				/* trustdns also must be set */
+static int debugsensitive = NIL;/* debug telemetry includes sensitive data */
 
 /* Default mail cache handler
  * Accepts: pointer to cache handle
@@ -279,22 +280,31 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
   switch ((int) function) {
   case SET_THREADERS:
     fatal ("SET_THREADERS not permitted");
-  case GET_THREADERS:
+  case GET_THREADERS:		/* use stream dtb instead of global */
     ret = (stream && stream->dtb) ?
+				/* KLUDGE ALERT: note stream passed as value */
       (*stream->dtb->parameters) (function,stream) : (void *) &mailthreadlist;
     break;
   case SET_NAMESPACE:
     fatal ("SET_NAMESPACE not permitted");
-  case GET_NAMESPACE:
+  case GET_NAMESPACE:		/* use stream dtb instead of environment */
     ret = (stream && stream->dtb) ?
+				/* KLUDGE ALERT: note stream passed as value */
       (*stream->dtb->parameters) (function,stream) :
-	env_parameters (function,stream);
+	env_parameters (function,value);
+    break;
+  case SET_NEWSRC:		/* use stream dtb instead of environment */
+  case GET_NEWSRC:
+    ret = (stream && stream->dtb) ?
+      (*stream->dtb->parameters) (function,value) :
+	env_parameters (function,value);
     break;
   case SET_DRIVERS:
     fatal ("SET_DRIVERS not permitted");
-  case GET_DRIVERS:
+  case GET_DRIVERS:		/* always return global */
     ret = (void *) maildrivers;
     break;
+
   case SET_DRIVER:
     fatal ("SET_DRIVER not permitted");
   case GET_DRIVER:
@@ -441,6 +451,11 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
   case GET_SASLUSESPTRNAME:
     ret = (void *) (saslusesptrname ? VOIDT : NIL);
     break;
+  case SET_DEBUGSENSITIVE:
+    debugsensitive = (value ? T : NIL);
+  case GET_DEBUGSENSITIVE:
+    ret = (void *) (debugsensitive ? VOIDT : NIL);
+    break;
 
   case SET_ACL:
     mailaclresults = (getacl_t) value;
@@ -469,11 +484,11 @@ void *mail_parameters (MAILSTREAM *stream,long function,void *value)
     break;
   default:
     if (r = smtp_parameters (function,value)) ret = r;
-    else if (r = env_parameters (function,value)) ret = r;
-    else if (r = tcp_parameters (function,value)) ret = r;
-				/* if have stream, do for its driver only */
-    else if (stream && stream->dtb) 
-      ret = (*stream->dtb->parameters) (function,value);
+    if (r = env_parameters (function,value)) ret = r;
+    if (r = tcp_parameters (function,value)) ret = r;
+    if (stream && stream->dtb) {/* if have stream, do for its driver only */
+      if (r = (*stream->dtb->parameters) (function,value)) ret = r;
+    }
 				/* else do all drivers */
     else for (d = maildrivers; d; d = d->next)
       if (r = (d->parameters) (function,value)) ret = r;
@@ -601,6 +616,7 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
 	else if (!compare_cstring (s,"debug")) mb->dbgflag = T;
 	else if (!compare_cstring (s,"readonly")) mb->readonlyflag = T;
 	else if (!compare_cstring (s,"secure")) mb->secflag = T;
+	else if (!compare_cstring (s,"norsh")) mb->norsh = T;
 	else if (!compare_cstring (s,"tls") && !mb->notlsflag) mb->tlsflag = T;
 	else if (!compare_cstring (s,"notls") && !mb->tlsflag)
 	  mb->notlsflag = T;
@@ -636,6 +652,8 @@ long mail_valid_net_parse (char *name,NETMBX *mb)
   if (!*mb->mailbox) strcpy (mb->mailbox,"INBOX");
 				/* default service name */
   if (!*mb->service) strcpy (mb->service,"imap");
+				/* /norsh only valid if imap */
+  if (mb->norsh && strcmp (mb->service,"imap")) return NIL;
   return T;
 }
 
@@ -912,7 +930,8 @@ long mail_status (MAILSTREAM *stream,char *mbx,long flags)
   DRIVER *dtb = mail_valid (stream,mbx,"get status of mailbox");
   if (!dtb) return NIL;		/* only if valid */
   if (stream && ((dtb != stream->dtb) ||
-		 ((dtb->flags & DR_LOCAL) && strcmp (mbx,stream->mailbox))))
+		 ((dtb->flags & DR_LOCAL) && strcmp (mbx,stream->mailbox) &&
+		  strcmp (mbx,stream->original_mailbox))))
     stream = NIL;		/* stream not suitable */
   return SAFE_STATUS (dtb,stream,mbx,flags);
 }
@@ -992,8 +1011,12 @@ MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
 				/* yes, recycleable stream? */
       if ((stream->dtb == d) && (d->flags & DR_RECYCLE) &&
 	  mail_usable_network_stream (stream,name)) {
+				/* checkpoint if needed */
+	if (d->flags & DR_XPOINT) mail_check (stream);
 	mail_free_cache(stream);/* yes, clean up stream */
 	if (stream->mailbox) fs_give ((void **) &stream->mailbox);
+	if (stream->original_mailbox)
+	  fs_give ((void **) &stream->original_mailbox);
 				/* flush user flags */
 	for (i = 0; i < NUSERFLAGS; i++)
 	  if (stream->user_flags[i]) fs_give ((void **)&stream->user_flags[i]);
@@ -1014,7 +1037,7 @@ MAILSTREAM *mail_open (MAILSTREAM *stream,char *name,long options)
 				       sizeof (MAILSTREAM)),(long) 0,CH_INIT);
     stream->dtb = d;		/* set dispatch */
 				/* set mailbox name */
-    stream->mailbox = cpystr (name);
+    stream->mailbox = cpystr (stream->original_mailbox = cpystr (name));
 				/* initialize stream flags */
     stream->inbox = stream->lock = NIL;
     stream->debug = (options & OP_DEBUG) ? T : NIL;
@@ -1050,6 +1073,8 @@ MAILSTREAM *mail_close_full (MAILSTREAM *stream,long options)
 				/* do the driver's close action */
     if (stream->dtb) (*stream->dtb->close) (stream,options);
     if (stream->mailbox) fs_give ((void **) &stream->mailbox);
+    if (stream->original_mailbox)
+      fs_give ((void **) &stream->original_mailbox);
     stream->sequence++;		/* invalidate sequence */
 				/* flush user flags */
     for (i = 0; i < NUSERFLAGS; i++)
@@ -2732,6 +2757,17 @@ void mail_debug (MAILSTREAM *stream)
 void mail_nodebug (MAILSTREAM *stream)
 {
   stream->debug = NIL;		/* turn off debugging telemetry */
+}
+
+
+/* Mail log to debugging telemetry
+ * Accepts: message
+ *	    flag that data is "sensitive"
+ */
+
+void mail_dlog (char *string,long flag)
+{
+  mm_dlog ((debugsensitive || !flag) ? string : "<suppressed>");
 }
 
 /* Mail parse UID sequence

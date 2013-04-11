@@ -1,6 +1,6 @@
 		       Mailbox Name Conventions
 			     Mark Crispin
-			   28 February 2001
+			   28 September 2001
 
 
 Please refer to the file drivers.txt for related information.
@@ -90,11 +90,15 @@ where:
 			equivalent to /service=imap
   "/pop3"		equivalent to /service=pop3
   "/nntp"		equivalent to /service=nntp
+  "/norsh"		do not use rsh or ssh to establish a preauthenticated
+			 IMAP session
   "/ssl"		use the Secure Socket Layer to encrypt the session
-  "/validate-cert"	validate certificates from SSL server (this is the
+  "/validate-cert"	validate certificates from TLS/SSL server (this is the
 			 default behavior)
-  "/novalidate-cert"	do not validate certificates from SSL server, needed
-			 if server uses self-signed certificates
+  "/novalidate-cert"	do not validate certificates from TLS/SSL server,
+			 needed if server uses self-signed certificates
+  "/tls"		force use of start-TLS to encrypt the session, and
+			 reject connection to servers that do not support it
   "/notls"		do not do start-TLS to encrypt the session, even
 			 with servers that support it
   "/readonly"		request read-only mailbox open (IMAP only; ignored

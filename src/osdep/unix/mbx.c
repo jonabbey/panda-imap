@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	11 April 2001
+ * Last Edited:	9 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -18,6 +18,13 @@
  * CPYRIGHT, included with this Distribution.
  */
 
+
+/*				FILE TIME SEMANTICS
+ *
+ * The atime is the last read time of the file.
+ * The mtime is the last flags update time of the file.
+ * The ctime is the last write time of the file.
+ */
 
 #include <stdio.h>
 #include <ctype.h>
@@ -563,14 +570,18 @@ long mbx_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 
 void mbx_flag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
 {
+  time_t tp[2];
   struct stat sbuf;
   if (!stream->rdonly) {	/* make sure the update takes */
     fsync (LOCAL->fd);
     fstat (LOCAL->fd,&sbuf);	/* get current write time */
-    LOCAL->filetime = sbuf.st_mtime;
+    tp[1] = LOCAL->filetime = sbuf.st_mtime;
+				/* update header */
+    if ((LOCAL->ffuserflag < NUSERFLAGS) &&
+	stream->user_flags[LOCAL->ffuserflag]) mbx_update_header (stream);
+    tp[0] = time (0);		/* make sure read comes after all that */
+    utime (stream->mailbox,tp);
   }
-  if ((LOCAL->ffuserflag < NUSERFLAGS)&&stream->user_flags[LOCAL->ffuserflag])
-    mbx_update_header (stream);	/* update header */
 }
 
 
@@ -627,11 +638,6 @@ long mbx_ping (MAILSTREAM *stream)
 	r = mbx_parse (stream);	/* parse snarfed messages */
       }
       unlockfd (ld,lock);	/* release shared parse/append permission */
-    }
-    else if ((sbuf.st_ctime > sbuf.st_atime)||(sbuf.st_ctime > sbuf.st_mtime)){
-      time_t tp[2];		/* whack the times if necessary */
-      LOCAL->filetime = tp[0] = tp[1] = time (0);
-      utime (stream->mailbox,tp);
     }
     if (r && LOCAL->fullcheck) {/* full check requested? */
 				/* no more full check or pending expunge */
@@ -852,7 +858,9 @@ long mbx_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     if (!stream->rdonly) {	/* make sure the update takes */
       fsync (LOCAL->fd);
       fstat (LOCAL->fd,&sbuf);	/* get current write time */
-      LOCAL->filetime = sbuf.st_mtime;
+      tp[1] = LOCAL->filetime = sbuf.st_mtime;
+      tp[0] = time (0);		/* make sure atime remains greater */
+      utime (stream->mailbox,tp);
     }
   }
   return ret;
@@ -999,6 +1007,8 @@ long mbx_parse (MAILSTREAM *stream)
   unsigned long nmsgs = stream->nmsgs;
   unsigned long recent = stream->recent;
   unsigned long lastuid = 0;
+  short dirty = NIL;
+  short added = NIL;
   short silent = stream->silent;
   fstat (LOCAL->fd,&sbuf);	/* get status */
   if (sbuf.st_size < curpos) {	/* sanity check */
@@ -1105,16 +1115,21 @@ long mbx_parse (MAILSTREAM *stream)
 		 m,nmsgs+1);
       MM_LOG (tmp,WARN);
       m = 0;			/* lose this UID */
-				/* restart UID validity and last UID */
+      dirty = T;		/* restart UID validity and last UID */
       stream->uid_validity = time (0);
       stream->uid_last = lastuid;
     }
 
     t[12] = '\0';		/* parse system flags */
-    if ((k = strtoul (t+8,NIL,16)) & fEXPUNGED)
-				/* expunged message, update last UID */
-      lastuid = m ? m : ++stream->uid_last;
+    if ((k = strtoul (t+8,NIL,16)) & fEXPUNGED) {
+      if (m) lastuid = m;	/* expunge message, update last UID seen */
+      else {			/* no UID assigned? */
+	lastuid = ++stream->uid_last;
+	dirty = T;
+      }
+    }
     else {			/* not expunged, swell the cache */
+      added = T;		/* note that a new message was added */
       mail_exists (stream,++nmsgs);
 				/* instantiate an elt for this message */
       (elt = mail_elt (stream,nmsgs))->valid = T;
@@ -1145,6 +1160,7 @@ long mbx_parse (MAILSTREAM *stream)
       if (!(elt->private.uid = m)) {
 	elt->recent = T;	/* no, mark as recent */
 	++recent;		/* count up a new recent message */
+	dirty = T;		/* and must rewrite header */
 				/* assign new UID */
 	elt->private.uid = ++stream->uid_last;
 	mbx_update_status (stream,elt->msgno,NIL);
@@ -1155,13 +1171,20 @@ long mbx_parse (MAILSTREAM *stream)
     curpos += i + j;		/* update position */
   }
 
-				/* update header */
-  if (!stream->rdonly) mbx_update_header (stream);
-  fsync (LOCAL->fd);		/* make sure all the UID updates take */
+  if (dirty && !stream->rdonly){/* update header */
+    mbx_update_header (stream);
+    fsync (LOCAL->fd);		/* make sure all the UID updates take */
+  }
 				/* update parsed file size and time */
   LOCAL->filesize = sbuf.st_size;
   fstat (LOCAL->fd,&sbuf);	/* get status again to ensure time is right */
   LOCAL->filetime = sbuf.st_mtime;
+  if (added) {			/* make sure atime updated */
+    time_t tp[2];
+    tp[0] = time (0);
+    tp[1] = LOCAL->filetime;
+    utime (stream->mailbox,tp);
+  }
   stream->silent = silent;	/* can pass up events now */
   mail_exists (stream,nmsgs);	/* notify upper level of new mailbox size */
   mail_recent (stream,recent);	/* and of change in recent messages */
@@ -1271,9 +1294,10 @@ void mbx_update_header (MAILSTREAM *stream)
 
 void mbx_update_status (MAILSTREAM *stream,unsigned long msgno,long flags)
 {
-  MESSAGECACHE *elt = mail_elt (stream,msgno);
+  time_t tp[2];
   struct stat sbuf;
   int expflag;
+  MESSAGECACHE *elt = mail_elt (stream,msgno);
 				/* readonly */
   if (stream->rdonly || !elt->valid) mbx_read_flags (stream,elt);
   else {			/* readwrite */
@@ -1308,7 +1332,9 @@ void mbx_update_status (MAILSTREAM *stream,unsigned long msgno,long flags)
     if (flags & mus_SYNC) {	/* sync if requested */
       fsync (LOCAL->fd);
       fstat (LOCAL->fd,&sbuf);	/* get new write time */
-      LOCAL->filetime = sbuf.st_mtime;
+      tp[1] = LOCAL->filetime = sbuf.st_mtime;
+      tp[0] = time (0);		/* make sure read is later */
+      utime (stream->mailbox,tp);
     }
   }
 }
@@ -1402,6 +1428,7 @@ unsigned long mbx_hdrpos (MAILSTREAM *stream,unsigned long msgno,
 unsigned long mbx_rewrite (MAILSTREAM *stream,unsigned long *reclaimed,
 			   long flags)
 {
+  time_t tp[2];
   struct stat sbuf;
   off_t pos,ppos;
   int ld;
@@ -1510,7 +1537,9 @@ unsigned long mbx_rewrite (MAILSTREAM *stream,unsigned long *reclaimed,
     fsync (LOCAL->fd);		/* force disk update */
   }
   fstat (LOCAL->fd,&sbuf);	/* get new write time */
-  LOCAL->filetime = sbuf.st_mtime;
+  tp[1] = LOCAL->filetime = sbuf.st_mtime;
+  tp[0] = time (0);		/* reset atime to now */
+  utime (stream->mailbox,tp);
 				/* notify upper level of new mailbox size */
   mail_exists (stream,stream->nmsgs);
   mail_recent (stream,recent);

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	9 April 2001
+ * Last Edited:	26 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -532,6 +532,8 @@ long dummy_ping (MAILSTREAM *stream)
 				/* swap the streams */
     memcpy (stream,test,sizeof (MAILSTREAM));
     fs_give ((void **) &test);	/* flush test now that copied */
+				/* make sure application knows */
+    mail_exists (stream,stream->recent = stream->nmsgs);
   }
   return T;
 }

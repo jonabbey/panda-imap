@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 January 1998
- * Last Edited:	8 August 2001
+ * Last Edited:	28 September 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -33,7 +33,7 @@ AUTHENTICATOR auth_gss = {
   "GSSAPI",			/* authenticator name */
   auth_gssapi_valid,		/* check if valid */
   auth_gssapi_client,		/* client method */
-  auth_gssapi_server,		/* server method */
+  NIL,				/* initially no server method */
   NIL				/* next authenticator */
 };
 
@@ -44,8 +44,6 @@ AUTHENTICATOR auth_gss = {
 #define AUTH_GSSAPI_C_MAXSIZE 8192
 
 #define SERVER_LOG(x,y) syslog (LOG_ALERT,x,y)
-
-extern char *krb5_defkeyname;	/* sneaky way to get this name */
 
 /* Check if GSSAPI valid on this system
  * Returns: T if valid, NIL otherwise
@@ -53,18 +51,29 @@ extern char *krb5_defkeyname;	/* sneaky way to get this name */
 
 long auth_gssapi_valid (void)
 {
-  char *s,tmp[MAILTMPLEN];
+  char tmp[MAILTMPLEN];
   OM_uint32 smn;
   gss_buffer_desc buf;
   gss_name_t name;
-  struct stat sbuf;
+  krb5_context ctx;
+  krb5_keytab kt;
+  krb5_kt_cursor csr;
   sprintf (tmp,"host@%s",mylocalhost ());
   buf.length = strlen (buf.value = tmp) + 1;
 				/* see if can build a name */
   if (gss_import_name (&smn,&buf,gss_nt_service_name,&name) != GSS_S_COMPLETE)
     return NIL;			/* failed */
-  if ((s = strchr (krb5_defkeyname,':')) && stat (++s,&sbuf))
-    auth_gss.server = NIL;	/* can't do server if no keytab */
+				/* make a context */
+  if (!krb5_init_context (&ctx)) {
+				/* get default keytab */
+    if (!krb5_kt_default (ctx,&kt)) {
+				/* can do server if have good keytab */
+      if (!krb5_kt_start_seq_get (ctx,kt,&csr))
+	auth_gss.server = auth_gssapi_server;
+      krb5_kt_close (ctx,kt);	/* finished with keytab */
+    }
+    krb5_free_context (ctx);	/* finished with context */
+  }
   gss_release_name (&smn,&name);/* finished with name */
   return LONGT;
 }

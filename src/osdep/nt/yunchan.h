@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	14 September 1996
- * Last Edited:	24 October 2000
+ * Last Edited:	9 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -58,6 +58,8 @@
 #define LOG_NDELAY	0x08	/* don't delay open */
 #define LOG_NOWAIT	0x10	/* if forking to log on console, don't wait() */
 
+#define tmpfile create_tempfile
+#define fclose close_file
 #define fsync _commit
 #define ftruncate chsize
 #define gethostid clock
@@ -71,3 +73,5 @@ void syslog (int priority,const char *message,...);
 unsigned long unix_crlfcpy (char **dst,unsigned long *dstl,char *src,
 			    unsigned long srcl);
 unsigned long unix_crlflen (STRING *s);
+FILE *create_tempfile (void);
+int close_file (FILE *stream);

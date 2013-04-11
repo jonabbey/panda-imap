@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	27 August 2001
+ * Last Edited:	17 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -412,14 +412,9 @@ long pop3_capa (MAILSTREAM *stream,long flags)
 				/* in case they add something after USER */
 	if ((strlen (s) > 4) && (s[4] == ' ')) s[4] = '\0';
       }
-				/* infinite expiration */
-      if (!compare_cstring (args,"NEVER")) LOCAL->cap.expire = 65535;
-      else {			/* in case they add something after USER */
-	if ((strlen (s) > 4) && (s[4] == ' ')) s[4] = '\0';
-				/* get delay time */
-	LOCAL->cap.expire = (s && !compare_cstring (s,"USER")) ?
-	  -atoi (args) : atoi (args);
-      }
+      LOCAL->cap.expire =	/* get expiration time */
+	(!compare_cstring (args,"NEVER")) ? 65535 :
+	  ((s && !compare_cstring (s,"USER")) ? -atoi (args) : atoi (args));
     }
     else if (!compare_cstring (t,"LOGIN-DELAY") && args) {
       LOCAL->cap.logindelay = T;/* note that it is present */
@@ -528,12 +523,16 @@ long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *pwd,char *usr)
 	  mm_log (pwd,WARN);
 	  fs_give ((void **) &t);
 	}
-	if (pop3_send (stream,"AUTH",at->name) &&
-	    (*at->client) (pop3_challenge,pop3_response,"pop",mb,stream,&trial,
-			   usr) && LOCAL->response) {
-	  if (*LOCAL->response == '+') ret = LONGT;
+	if (pop3_send (stream,"AUTH",at->name)) {
+				/* hide client authentication responses */
+	  if (!(at->flags & AU_SECURE)) LOCAL->sensitive = T;
+	  if ((*at->client) (pop3_challenge,pop3_response,"pop",mb,stream,
+			     &trial,usr) && LOCAL->response) {
+	    if (*LOCAL->response == '+') ret = LONGT;
 				/* if main program requested cancellation */
-	  else if (!trial) mm_log ("POP3 Authentication cancelled",ERROR);
+	    else if (!trial) mm_log ("POP3 Authentication cancelled",ERROR);
+	  }
+	  LOCAL->sensitive=NIL;	/* unhide */
 	}
 				/* remember response if error and no cancel */
 	if (!ret && trial) t = cpystr (LOCAL->reply);
@@ -557,16 +556,20 @@ long pop3_auth (MAILSTREAM *stream,NETMBX *mb,char *pwd,char *usr)
     do {
       pwd[0] = 0;		/* prompt user for password */
       mm_login (mb,usr,pwd,trial++);
-				/* user refused to give a password */
-      if (!pwd[0]) mm_log ("Login aborted",ERROR);
-				/* send login sequence */
-      else if (pop3_send (stream,"USER",usr) && pop3_send (stream,"PASS",pwd))
-	ret = LONGT;		/* success */
-      else {
-	mm_log (LOCAL->reply,WARN);
-	if (trial == pop3_maxlogintrials)
-	  mm_log ("Too many login failures",ERROR);
+      if (pwd[0]) {		/* send login sequence if have password */
+	if (pop3_send (stream,"USER",usr)) {
+	  LOCAL->sensitive = T;	/* hide this command */
+	  if (pop3_send (stream,"PASS",pwd)) ret = LONGT;
+	  LOCAL->sensitive=NIL;	/* unhide */
+	}
+	if (!ret) {		/* failure */
+	  mm_log (LOCAL->reply,WARN);
+	  if (trial == pop3_maxlogintrials)
+	    mm_log ("Too many login failures",ERROR);
+	}
       }
+				/* user refused to give password */
+      else mm_log ("Login aborted",ERROR);
     } while (!ret && pwd[0] && (trial < pop3_maxlogintrials) &&
 	     LOCAL->netstream);
   }
@@ -608,7 +611,7 @@ long pop3_response (void *s,char *response,unsigned long size)
       for (t = (char *) rfc822_binary ((void *) response,size,&i),u = t,j = 0;
 	   j < i; j++) if (t[j] > ' ') *u++ = t[j];
       *u = '\0';		/* tie off string for mm_dlog() */
-      if (stream->debug) mm_dlog (t);
+      if (stream->debug) mail_dlog (t,LOCAL->sensitive);
 				/* append CRLF */
       *u++ = '\015'; *u++ = '\012'; *u = '\0';
       ret = net_sout (LOCAL->netstream,t,u - t);
@@ -709,7 +712,8 @@ char *pop3_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *size,
 		   long flags)
 {
   MESSAGECACHE *elt;
-  if ((flags & FT_UID) && !(msgno = mail_msgno (stream,msgno))) return NIL;
+  *size = 0;			/* initially no header size */
+  if ((flags & FT_UID) && !(msgno = mail_msgno (stream,msgno))) return "";
 				/* have header text? */
   if (!(elt = mail_elt (stream,msgno))->private.msg.header.text.data) {
     elt->private.msg.header.text.size = pop3_cache (stream,elt);
@@ -886,7 +890,7 @@ long pop3_send (MAILSTREAM *stream,char *command,char *args)
   else {			/* build the complete command */
     if (args) sprintf (s,"%s %s",command,args);
     else strcpy (s,command);
-    if (stream->debug) mm_dlog (s);
+    if (stream->debug) mail_dlog (s,LOCAL->sensitive);
     strcat (s,"\015\012");
 				/* send the command */
     ret = net_soutr (LOCAL->netstream,s) ? pop3_reply (stream) :

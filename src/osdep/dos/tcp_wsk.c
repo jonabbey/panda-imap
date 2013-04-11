@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	14 August 2001
+ * Last Edited:	26 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -34,6 +34,7 @@ static tcptimeout_t tmoh = NIL;	/* TCP timeout handler routine */
 static long ttmo_read = 0;	/* TCP timeouts, in seconds */
 static long ttmo_write = 0;
 static long allowreversedns = T;/* allow reverse DNS lookup */
+static long tcpdebug = NIL;	/* extra TCP debugging telemetry */
 
 /* TCP/IP manipulate parameters
  * Accepts: function code
@@ -59,6 +60,16 @@ void *tcp_parameters (long function,void *value)
     ttmo_write = (long) value;
   case GET_WRITETIMEOUT:
     ret = (void *) ttmo_write;
+    break;
+  case SET_ALLOWREVERSEDNS:
+    allowreversedns = (long) value;
+  case GET_ALLOWREVERSEDNS:
+    ret = (void *) allowreversedns;
+    break;
+  case SET_TCPDEBUG:
+    tcpdebug = (long) value;
+  case GET_TCPDEBUG:
+    ret = (void *) tcpdebug;
     break;
   }
   return ret;
@@ -109,26 +120,31 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     else hostname = cpystr (host);
   }
   else {			/* lookup host name */
-    if (bn) (*bn) (BLOCK_DNSLOOKUP,NIL);
+    if (tcpdebug) {
+      sprintf (tmp,"DNS resolution %.80s",host);
+      mm_log (tmp,TCPDEBUG);
+    }
+    (*bn) (BLOCK_DNSLOOKUP,NIL);
     if ((he = gethostbyname (lcase (strcpy (tmp,host))))) {
-      if (bn) (*bn) (BLOCK_NONE,NIL);
+      (*bn) (BLOCK_NONE,NIL);
 				/* copy host name */
       hostname = cpystr (he->h_name);
 				/* copy host addresses */
       memcpy (&sin.sin_addr,he->h_addr,he->h_length);
     }
     else {
-      if (bn) (*bn) (BLOCK_NONE,NIL);
+      (*bn) (BLOCK_NONE,NIL);
       sprintf (tmp,"Host not found (#%d): %s",WSAGetLastError(),host);
       mm_log (tmp,ERROR);
       return NIL;
     }
+    if (tcpdebug) mm_log ("DNS resolution done",TCPDEBUG);
   }
 
 				/* copy port number in network format */
   if (!(sin.sin_port = htons ((u_short) port)))
     fatal ("Bad port argument to tcp_open");
-  if (bn) (*bn) (BLOCK_TCPOPEN,NIL);
+  (*bn) (BLOCK_TCPOPEN,NIL);
 				/* get a TCP stream */
   if ((sock = socket (sin.sin_family,SOCK_STREAM,0)) == INVALID_SOCKET) {
     sprintf (tmp,"Unable to create TCP socket (%d)",WSAGetLastError());
@@ -159,7 +175,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     fs_give ((void **) &hostname);
     return (TCPSTREAM *) tcp_abort (&sock);
   }
-  if (bn) (*bn) (BLOCK_NONE,NIL);
+  (*bn) (BLOCK_NONE,NIL);
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
 				 sizeof (TCPSTREAM));
@@ -168,6 +184,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 				/* init socket */
   stream->tcpsi = stream->tcpso = sock;
   stream->ictr = 0;		/* init input counter */
+  if (tcpdebug) mm_log ("Stream open and ready for read",TCPDEBUG);
   return stream;		/* return success */
 }
   
@@ -257,9 +274,10 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
     struct timeval tmo;
     time_t tc,t = time (0);
     blocknotify_t bn=(blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
-    if (bn) (*bn) (BLOCK_TCPREAD,NIL);
+    (*bn) (BLOCK_TCPREAD,NIL);
     while (size > 0) {		/* until request satisfied */
       time_t tl = time (0);
+      if (tcpdebug) mm_log ("Reading TCP buffer",TCPDEBUG);
       FD_ZERO (&fds);		/* initialize selection vector */
       FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
       tmo.tv_sec = ttmo_read;
@@ -288,10 +306,11 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 	default:
 	  s += i;		/* point at new place to write */
 	  size -= i;		/* reduce byte count */
+	  if (tcpdebug) mm_log ("Successfully read TCP buffer",TCPDEBUG);
 	}
       }
     }
-    if (bn) (*bn) (BLOCK_NONE,NIL);
+    (*bn) (BLOCK_NONE,NIL);
   }
   *s = '\0';			/* tie off string */
   return T;
@@ -311,11 +330,12 @@ long tcp_getdata (TCPSTREAM *stream)
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcpsi == INVALID_SOCKET) return NIL;
-  if (bn) (*bn) (BLOCK_TCPREAD,NIL);
+  (*bn) (BLOCK_TCPREAD,NIL);
   tmo.tv_sec = ttmo_read;
   tmo.tv_usec = 0;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     time_t tl = time (0);
+    if (tcpdebug) mm_log ("Reading TCP data",TCPDEBUG);
     FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
 				/* block and read */
     switch ((stream->tcpsi == stream->tcpso) ?
@@ -342,10 +362,11 @@ long tcp_getdata (TCPSTREAM *stream)
 	stream->ictr = i;	/* set new byte count */
 				/* point at TCP buffer */
 	stream->iptr = stream->ibuf;
+	if (tcpdebug) mm_log ("Successfully read TCP data",TCPDEBUG);
       }
     }
   }
-  if (bn) (*bn) (BLOCK_NONE,NIL);
+  (*bn) (BLOCK_NONE,NIL);
   return T;
 }
 
@@ -379,9 +400,10 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
   tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcpso == INVALID_SOCKET) return NIL;
-  if (bn) (*bn) (BLOCK_TCPWRITE,NIL);
+  (*bn) (BLOCK_TCPWRITE,NIL);
   while (size > 0) {		/* until request satisfied */
     time_t tl = time (0);
+    if (tcpdebug) mm_log ("Writing to TCP",TCPDEBUG);
     FD_SET (stream->tcpso,&fds);/* set bit in selection vector */
 				/* block and write */
     switch ((stream->tcpsi == stream->tcpso) ?
@@ -402,10 +424,11 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 		  (errno == EINTR));
       if (i == SOCKET_ERROR) return tcp_abort (&stream->tcpsi);
       size -= i;		/* count this size */
+      if (tcpdebug) mm_log ("successfully wrote to TCP",TCPDEBUG);
       string += i;
     }
   }
-  if (bn) (*bn) (BLOCK_NONE,NIL);
+  (*bn) (BLOCK_NONE,NIL);
   return T;			/* all done */
 }
 
@@ -434,7 +457,7 @@ long tcp_abort (SOCKET *sock)
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
 				/* something to close? */
   if (sock && *sock != INVALID_SOCKET) {
-    if (bn) (*bn) (BLOCK_TCPCLOSE,NIL);
+    (*bn) (BLOCK_TCPCLOSE,NIL);
     closesocket (*sock);	/* WinSock socket close */
     *sock = INVALID_SOCKET;
 				/* no more open streams? */
@@ -444,7 +467,7 @@ long tcp_abort (SOCKET *sock)
       WSACleanup ();		/* free up resources until needed */
     }
   }
-  if (bn) (*bn) (BLOCK_NONE,NIL);
+  (*bn) (BLOCK_NONE,NIL);
   return NIL;
 }
 
@@ -577,10 +600,15 @@ char *tcp_canonical (char *name)
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
 				/* look like domain literal? */
   if (name[0] == '[' && name[strlen (name) - 1] == ']') return name;
-  if (bn) (*bn) (BLOCK_DNSLOOKUP,NIL);
+  (*bn) (BLOCK_DNSLOOKUP,NIL);
+  if (tcpdebug) {
+    sprintf (host,"DNS canonicalization %.80s",name);
+    mm_log (host,TCPDEBUG);
+  }
 				/* note that NT requires lowercase! */
   ret = (he = gethostbyname (lcase (strcpy (host,name)))) ? he->h_name : name;
-  if (bn) (*bn) (BLOCK_NONE,NIL);
+  (*bn) (BLOCK_NONE,NIL);
+  if (tcpdebug) mm_log ("DNS canonicalization done",TCPDEBUG);
   return ret;
 }
 
@@ -597,7 +625,11 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
   if (allowreversedns) {
     struct hostent *he;
     blocknotify_t bn = (blocknotify_t)mail_parameters(NIL,GET_BLOCKNOTIFY,NIL);
-    if (bn) (*bn) (BLOCK_DNSLOOKUP,NIL);
+    if (tcpdebug) {
+      sprintf (tmp,"Reverse DNS resolution [%s]",inet_ntoa (sin->sin_addr));
+      mm_log (tmp,TCPDEBUG);
+    }
+    (*bn) (BLOCK_DNSLOOKUP,NIL);
 				/* translate address to name */
     if (!(he = gethostbyaddr ((char *) &sin->sin_addr,
 			      sizeof (struct in_addr),sin->sin_family)) ||
@@ -606,7 +638,8 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
     else if (flag) sprintf (s = tmp,"%s [%s]",he->h_name,
 			    inet_ntoa (sin->sin_addr));
     else s = he->h_name;
-    if (bn) (*bn) (BLOCK_NONE,NIL);
+    (*bn) (BLOCK_NONE,NIL);
+    if (tcpdebug) mm_log ("Reverse DNS resolution done",TCPDEBUG);
   }
   else sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
   return cpystr (s);
@@ -634,6 +667,7 @@ char *mylocalhost (void)
     sin.sin_family = AF_INET;	/* family is always Internet */
     sin.sin_addr.s_addr = inet_addr ("127.0.0.1");
     sin.sin_port = htons ((u_short) 7);
+    if (tcpdebug) mm_log ("DNS lookup of local name",TCPDEBUG);
     if (allowreversedns &&
 	((sock = socket (sin.sin_family,SOCK_DGRAM,0)) != INVALID_SOCKET) &&
 	(getsockname (sock,(struct sockaddr *) &stmp,&sinlen)!= SOCKET_ERROR)&&
@@ -643,6 +677,7 @@ char *mylocalhost (void)
 	tcp_name_valid (he->h_name)) s = he->h_name;
     else if (gethostname (tmp,MAILTMPLEN-1) == SOCKET_ERROR) s = "random-pc";
     else s = (he = gethostbyname (tmp)) ? he->h_name : tmp;
+    if (tcpdebug) mm_log ("DNS lookup of local name done",TCPDEBUG);
     myLocalHost = cpystr (s);	/* canonicalize it */
 				/* leave wsa_initted to save work later */
     if (sock != INVALID_SOCKET) closesocket (sock);

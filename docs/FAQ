@@ -1,23 +1,32 @@
 		   IMAP TOOLKIT FREQUENTLY ASKED QUESTIONS
-			Last Updated: 11 July 2001
+			Last Updated: 13 November 2001
 
 GENERAL/SOFTWARE FEATURE QUESTIONS:
 
-Q: Is this software Y2K compliant?
-A: Please read the files Y2K and calendar.txt.
+Q: Can I set up a POP or IMAP server on UNIX/Linux/OSF/etc.?
+A: Yes.  Refer to the UNIX specific notes in files CONFIG and BUILD.
 
 
-Q: How can I use a C++ compiler with this software to build my own application?
-A: If you are building an application using the c-client library, use the
-    new c-client.h file instead of including the other include files.  I
-    think that c-client.h should define away all the troublesome names that
-    conflict with C++.
+Q: I am currently using qpopper as my POP3 server on UNIX.  Do I need to
+    replace it with ipop3d in order to run imapd?
+A: Not necessarily.
+   Although ipop3d interoperates with imapd better than qpopper, imapd and
+    qpopper will work together.  The few qpopper/imapd interoperability
+    issues mostly affect users who use both IMAP and POP3 clients; those
+    users would probably be better served if their POP3 server is ipop3d.
+   If you are happy with qpopper and just want to add imapd, you should do
+    that, and defer a decision on changing qpopper to ipop3d.  That way,
+    you can get comfortable with imapd's performance, without changing
+    anything for your qpopper users.
+   Many sites have subsequently decided to change from qpopper to ipop3d
+    in order to get better POP3/IMAP interoperability.  If you need to do
+    this, you'll know.
 
 
-Q: Can I set up a POP or IMAP server on Windows 2000, NT, Me, 98, or 95?
+Q: Can I set up a POP or IMAP server on Windows XP, 2000, NT, Me, 98, or 95?
 A: Yes.  Refer to the NT specific notes in files CONFIG and BUILD.  Also,
     you *must* set up CRAM-MD5 authentication, as described in md5.txt.
-    There is no file access control on Windows 9x or Me, so you probably will
+   There is no file access control on Windows 9x or Me, so you probably will
     have to do modifications to env_unix.c to prevent people from hacking
     others' mail.
    Note, however, that the server is not plug and play the way it is for
@@ -35,7 +44,9 @@ A: You have a TOPS-20 system?  Cool.
    If IMAP2 (RFC 1176) is good enough for you, you can use MAPSER which
     is about the ultimate gonzo pure TOPS-20 extended addressing assembly
     language program.  Maybe someone will hack it to do IMAP4rev1 some day.
-   Or you can port the IMAP server from this IMAP toolkit to it.  All
+   I don't know if anyone wrote a POP3 server for TOPS-20.  There definitely
+    was a POP2 server once upon a time.
+   Or you can port the POP and IMAP server from this IMAP toolkit to it.  All
     that you need for a first stab is to port the MTX driver.  That'll
     probably be just a couple of hours of hacking.
 
@@ -204,122 +215,64 @@ A: There is no support for qmail or the maildir format in our distribution,
 
 Q: Is there support for the Cyrus mailbox format?
 A: No.
+
+
+Q: Is this software Y2K compliant?
+A: Please read the files Y2K and calendar.txt.
 
-"WHY DID YOU DO THIS STRANGE THING?" QUESTIONS:
+WHAT DO I NEED TO BUILD THIS SOFTWARE?
 
-Q: Why don't you use GNU autoconfig / automake / autoblurdybloop?
-A: Autoconfig et al are not available on all the platforms where the IMAP
-    toolkit is supported; and do not work correctly on some of the platforms
-    where they do exist.  Furthermore, these programs add another layer of
-    complexity to an already complex process.
+Q: What do I need to build this software with SSL on UNIX?
+A: You need to build and install OpenSSL first.
 
 
-Q: Why is the IMAP server connected to the home directory by default?
-A: The IMAP server has no way of knowing what you might call "mail" as
-    opposed to "some other file"; in fact, you can use IMAP to access any
-    file.
-   The IMAP server also doesn't know whether your preferred subdirectory
-    for mailbox files is "mail/", ".mail/", "Mail/", "Mailboxes/", or any
-    of a zillion other possibilities.  If one such name were chosen, it
-    would undoubtably anger the partisans of all the other names.
-   It is possible to modify the software so that the default connected
-    directory is someplace else.  Please read the file CONFIG for
-    discussion of this and other issues.
+Q: What do I need to build this software with Kerberos V on UNIX?
+A: You need to build and install MIT Kerberos first.
 
 
-Q: I have a Windows system.  Why isn't the server plug and play for me?
-A: There is no standard for how mail is stored on NT; nor a single standard
-    SMTP server.  So there's no default by which to make assumptions.  As
-    the software is set up, it assumes that the each user has an NT login
-    account and private home directory, and that mail is stored on that
-    home directory as files in one of the popular UNIX formats.  It also
-    assumes that there is some tool equivalent to inetd on UNIX that does
-    the TCP/IP listening and server startup.
-   Basically, unless you're an email software hacker, you probably want
-    to look elsewhere if you want IMAP/POP servers for Windows.
+Q: What do I need to use a C++ compiler with this software to build my own
+    application?
+A: If you are building an application using the c-client library, use the
+    new c-client.h file instead of including the other include files.  I
+    think that c-client.h should define away all the troublesome names that
+    conflict with C++.
 
 
-Q: I looked at the UNIX SSL code and saw that you have the SSL data payload
-    size set to 8192 bytes.  SSL allows 16K; why aren't you using the full
-    size?
-A: This is to avoid an interoperability problem with PC IMAP clients that use
-    Microsoft's SChannel.DLL (SSPI) for SSL support.  SChannel has a bug that
-    makes it think that the maximum SSL data payload size is 16379 bytes -- 5
-    bytes too small.  Thus, we have to make sure that we never transmit full
-    sized SSL packets.
-   The reason for using 8K (as opposed to, say, 16379 bytes, or 15K, or...) is
-    that it corresponds with the TCP buffer size that the software uses
-    elsewhere for input; there's a slight performance benefit to having the
-    two sizes correspond or at least be a multiple of each other.  Also, it
-    keeps the size as a power of two, which might be significant on some
-    platforms.
-   There wasn't a significant difference that I could measure between 8K and
-    15K.  Hopefully, Microsoft will fix the bug so that eventually we'll be
-    able to use 16K buffers.
+Q: What do I need to build this software on Windows?
+A: You need Microsoft Visual C++ 6.0 (which you can buy from any computer
+    store) along with the Windows 2000 Platform SDK (which you can download
+    from Microsoft's web site).
 
 
-Q: Why is an mh format INBOX called #mhinbox instead of just INBOX?
-A: Buy me a beer and I'll tell you the whole story.
+Q: What do I need to build this software on DOS?
+A: It's been several years since the last attempt was made to do this.  At
+    the time, we used Microsoft C.
 
 
-Q: Why don't you support the maildir format?
-A: It is technically difficult to support maildir in IMAP while maintaining
-    acceptable performance, robustness, following the requirements of the IMAP
-    protocol specification, and following the requirements of maildir.
-   No one has succeeded in accomplishing all four together.  I've looked at
-    the various maildir drivers offered as patches, and they all have these
-    problems.  The problem is exacerbated because this implementation supports
-    multiple formats; consequently this implementation can't make any
-    performance shortcuts by assuming that all the world is maildir.
-   I do not believe that I can do a better job than the maildir fan community
-    has done with their maildir drivers.  Similarly, if the maildir fan
-    community provides the maildir driver, they take on the responsibility for
-    answering maildir-specific support questions.  This is as it should be, and
-    that is why maildir support is left to the maildir fan community.
+Q: Can't I use Borland C to build this software on the PC?
+A: Not that we know of.
 
 
-Q: Why don't you support the Cyrus format?
-A: There's no point to doing so.  An implementation which supports multiple
-    formats will never do as well as one which is optimized to support one
-    single format.
-   If you want to use Cyrus mailbox format, you should use the Cyrus
-    server, which is the native implementation of that format and is
-    specifically optimized for that format.  That's also why Cyrus doesn't
-    implement any other format.
+Q: What do I need to build this software on the Mac?
+A: It has been several years since the last attempt was made to do this.  At
+    the time, we used Symmantec THINK C; but today you'll need a C compiler
+    which allows segments to be more than 32K.
 
 
-Q: Why are you so fussy about the date/time format in the internal "From "
-    line in traditional UNIX mailbox files?  My other mail program just
-    considers every line that starts with "From " to be the start of the
-    message.
-A: You just answered your own question.  If any line that starts with "From "
-    is treated as the start of a message, then every message text line which
-    starts with "From " has to be quoted (typically by prefixing a ">"
-    character).  People complain about this -- "why did a > get stuck in my
-    message?"
-   So, good mail reading software only considers a line to be a "From " line
-    if it follows the actual specification for a "From " line.  This means,
-    among other things, that the day of week is fixed-format: "May 14", but
-    "May  7" (note the extra space) as opposed to "May 7".  ctime() format
-    for the date is the most common, although POSIX also allows a numeric
-    timezone after the year.  For compatibility with ancient software, the
-    seconds are optional, the timezone may appear before the year, the old
-    3-letter timezones are also permitted, and "remote from xxx" may appear
-    after the whole thing.
-   Unfortunately, some software written by novices use other formats.  The
-    most common error is to have a variable-width day of month, perhaps in
-    the erroneous belief that RFC 2822 (or RFC 822) defines the format of the
-    date/time in the "From " line (it doesn't; no RFC describes internal
-    formats).  I've seen a few other goofs, such as a single-digit second,
-    but these are less common.
-   If you are writing your own software that writes mailbox files, and you
-    really aren't all that savvy with all the ins and outs and ancient history,
-    you should seriously consider using the c-client library (e.g. routine
-    mail_append()) instead of doing the file writes yourself.  If you must do
-    it yourself, use ctime(), as in:
-	fprintf (mbx,"From %s@%h %s",user,host,ctime (time (0)));
-    rather than try to figure out a good format yourself.  ctime() is the most
-    traditional format and nobody will flame you for using it.
+Q: What do I need to build this software on VAX/VMS?
+A: You need the VMS C compiler, and either the Multinet or Netlib TCP.
+
+
+Q: What do I need to build this software on TOPS-20?
+A: You need the kcc C compiler.  Ask around.
+
+
+Q: What do I need to build this software on Amiga or OS/2?
+A: I don't know.
+
+
+Q: What do I need to build this software on Windows CE?
+A: This port is incomplete.  Someone needs to finish it.
 
 BUILD AND CONFIGURATION QUESTIONS:
 
@@ -350,8 +303,9 @@ A: imap-2001 supports SSL and TLS client functionality on UNIX and 32-bit
    UNIX SSL build requires that a third-party software package, OpenSSL, be
     installed on the system first.  Read imap-2001/docs/SSLBUILD for more
     information.
-   SSL is supported via undocumented Microsoft interfaces in Windows 9x,
-    Windows Millenium, and NT4; and via standard interfaces in Windows 2000.
+   SSL is supported via undocumented Microsoft interfaces in Windows 9x
+    and NT4; and via standard interfaces in Windows 2000, Windows Millenium,
+    and Windows XP.
    
 
 Q: How do I build/install OpenSSL?
@@ -500,6 +454,7 @@ Q: Why do I get compiler warning messages such as
      Function argument assignment between types "void*" and "void(*)(int)"
       is not allowed.
      Pointers are not assignment-compatible.
+     Argument #5 is not the correct type.
     during the build?
 A: You can safely ignore these messages.
    All known systems have no problem with casting a function pointer to/from
@@ -518,7 +473,8 @@ A: You can safely ignore these messages.
 Q: Why do I get linker warning messages such as:
      mtest.c:515: the `gets' function is dangerous and should not be used.
     during the build?  Isn't this a security bug?
-A: Certain linkers, most notably on Linux, give this warning message.  It
+A: You can safely ignore this message.
+   Certain linkers, most notably on Linux, give this warning message.  It
     is indeed true that the traditional gets() function is not a safe one.
    However, the mtest program is only a demonstration program, a model of
     a very basic application program using c-client.  It is not something
@@ -536,9 +492,25 @@ A: Certain linkers, most notably on Linux, give this warning message.  It
    By the way, if you need a more advanced example of c-client programming
     than mtest (and you probably will), I recommend that you look at the
     source code for imapd and Pine.
-   If you see a "function is dangerous and should not be used" warning
-    message in the build of any other program than mtest, please let me
-    know.
+
+
+Q: Why do I get linker warning messages such as:
+     auth_ssl.c:92: the `tmpnam' function is dangerous and should not be used.
+    during the build?  Isn't this a security bug?
+A: You can safely ignore this message.
+   Certain linkers, most notably on Linux, give this warning message, based
+    upon two known issues with tmpnam():
+    1) there can be a buffer overflow if an inadequate buffer is allocated.
+    2) there can be a timing race caused by certain incautious usage of the
+       return value.
+   Neither of these issues applies in the particular use that is made of
+    tmpnam().  More importantly, the tmpnam() call is never executed on
+    Linux systems.
+
+
+Q: OK, suppose I see a warning message about a function being "dangerous and
+    should not be used" for something other than this gets() or tmpnam() call?
+A: Please let me know the details and I will investigate.
 
 OPERATIONAL QUESTIONS:
 
@@ -742,6 +714,208 @@ A: Yes.  Shared mailboxes won't work otherwise.  Also, you get into
     user on UNIX.  It's usually not difficult to determine the culprit.
    Before worrying about deliberate mischief, worry first about things
     happening by accident!
+
+"WHY DID YOU DO THIS STRANGE THING?" QUESTIONS:
+
+Q: Why don't you use GNU autoconfig / automake / autoblurdybloop?
+A: Autoconfig et al are not available on all the platforms where the IMAP
+    toolkit is supported; and do not work correctly on some of the platforms
+    where they do exist.  Furthermore, these programs add another layer of
+    complexity to an already complex process.
+
+
+Q: Why is the IMAP server connected to the home directory by default?
+A: The IMAP server has no way of knowing what you might call "mail" as
+    opposed to "some other file"; in fact, you can use IMAP to access any
+    file.
+   The IMAP server also doesn't know whether your preferred subdirectory
+    for mailbox files is "mail/", ".mail/", "Mail/", "Mailboxes/", or any
+    of a zillion other possibilities.  If one such name were chosen, it
+    would undoubtably anger the partisans of all the other names.
+   It is possible to modify the software so that the default connected
+    directory is someplace else.  Please read the file CONFIG for
+    discussion of this and other issues.
+
+
+Q: I have a Windows system.  Why isn't the server plug and play for me?
+A: There is no standard for how mail is stored on NT; nor a single standard
+    SMTP server.  So there's no default by which to make assumptions.  As
+    the software is set up, it assumes that the each user has an NT login
+    account and private home directory, and that mail is stored on that
+    home directory as files in one of the popular UNIX formats.  It also
+    assumes that there is some tool equivalent to inetd on UNIX that does
+    the TCP/IP listening and server startup.
+   Basically, unless you're an email software hacker, you probably want
+    to look elsewhere if you want IMAP/POP servers for Windows.
+
+
+Q: I looked at the UNIX SSL code and saw that you have the SSL data payload
+    size set to 8192 bytes.  SSL allows 16K; why aren't you using the full
+    size?
+A: This is to avoid an interoperability problem with:
+     1) PC IMAP clients that use Microsoft's SChannel.DLL (SSPI) for SSL
+        support
+     2) Microsoft Exchange server (which also uses SChannel).
+   SChannel has a bug that makes it think that the maximum SSL data payload
+    size is 16379 bytes -- 5 bytes too small.  Thus, we have to make sure that
+    we never transmit full sized SSL packets.
+   The reason for using 8K (as opposed to, say, 16379 bytes, or 15K, or...) is
+    that it corresponds with the TCP buffer size that the software uses
+    elsewhere for input; there's a slight performance benefit to having the
+    two sizes correspond or at least be a multiple of each other.  Also, it
+    keeps the size as a power of two, which might be significant on some
+    platforms.
+   There wasn't a significant difference that I could measure between 8K and
+    15K.
+   Microsoft has developed a hotfix for this bug.  Look up MSKB article number
+    300562.  Contrary to the article text which implies that this is a Pine
+    issue, this bug also affect Microsoft Exchange server with *any* UNIX based
+    client that transmits full-sized SSL payloads.
+
+
+Q: Why is an mh format INBOX called #mhinbox instead of just INBOX?
+A: Buy me a beer and I'll tell you the whole story.
+
+
+Q: Why don't you support the maildir format?
+A: It is technically difficult to support maildir in IMAP while maintaining
+    acceptable performance, robustness, following the requirements of the IMAP
+    protocol specification, and following the requirements of maildir.
+   No one has succeeded in accomplishing all four together.  I've looked at
+    the various maildir drivers offered as patches, and they all have these
+    problems.  The problem is exacerbated because this implementation supports
+    multiple formats; consequently this implementation can't make any
+    performance shortcuts by assuming that all the world is maildir.
+   I do not believe that I can do a better job than the maildir fan community
+    has done with their maildir drivers.  Similarly, if the maildir fan
+    community provides the maildir driver, they take on the responsibility for
+    answering maildir-specific support questions.  This is as it should be, and
+    that is why maildir support is left to the maildir fan community.
+
+
+Q: Why don't you support the Cyrus format?
+A: There's no point to doing so.  An implementation which supports multiple
+    formats will never do as well as one which is optimized to support one
+    single format.
+   If you want to use Cyrus mailbox format, you should use the Cyrus
+    server, which is the native implementation of that format and is
+    specifically optimized for that format.  That's also why Cyrus doesn't
+    implement any other format.
+
+
+Q: Why is it creating extra forks on my SVR4 system?
+A: This is because your system only has fcntl() style locking and not flock()
+    style locking.  fcntl() locking has a design flaw that causes a close()
+    to release any locks made by that process on the file opened on that
+    file descriptor, even if the lock was made on a different file descriptor.
+   This design flaw causes unexpected loss of lock, and consequent mailbox
+    corruption.  The workaround is to do certain "dangerous operations" in
+    another fork, thus avoiding doing a close() in the vulnerable fork.
+   The best way to solve this problem is to upgrade your SVR4 (Solaris, AIX,
+    HP-UX, SGI) system to a more advanced operating system, such as Linux,
+    BSD, or OSF/1.  These more advanced operating systems have fcntl() locking
+    for compatibility with SVR4, but also have flock() locking.
+   Beware of certain SVR4 systems, such as AIX, which have an "flock()"
+    function in their C library that is just a jacket that does an fcntl()
+    lock.  This is not a true flock(), and has the same design flaw as fcntl().
+
+
+Q: Why are you so fussy about the date/time format in the internal "From "
+    line in traditional UNIX mailbox files?  My other mail program just
+    considers every line that starts with "From " to be the start of the
+    message.
+A: You just answered your own question.  If any line that starts with "From "
+    is treated as the start of a message, then every message text line which
+    starts with "From " has to be quoted (typically by prefixing a ">"
+    character).  People complain about this -- "why did a > get stuck in my
+    message?"
+   So, good mail reading software only considers a line to be a "From " line
+    if it follows the actual specification for a "From " line.  This means,
+    among other things, that the day of week is fixed-format: "May 14", but
+    "May  7" (note the extra space) as opposed to "May 7".  ctime() format
+    for the date is the most common, although POSIX also allows a numeric
+    timezone after the year.  For compatibility with ancient software, the
+    seconds are optional, the timezone may appear before the year, the old
+    3-letter timezones are also permitted, and "remote from xxx" may appear
+    after the whole thing.
+   Unfortunately, some software written by novices use other formats.  The
+    most common error is to have a variable-width day of month, perhaps in
+    the erroneous belief that RFC 2822 (or RFC 822) defines the format of the
+    date/time in the "From " line (it doesn't; no RFC describes internal
+    formats).  I've seen a few other goofs, such as a single-digit second,
+    but these are less common.
+   If you are writing your own software that writes mailbox files, and you
+    really aren't all that savvy with all the ins and outs and ancient history,
+    you should seriously consider using the c-client library (e.g. routine
+    mail_append()) instead of doing the file writes yourself.  If you must do
+    it yourself, use ctime(), as in:
+	fprintf (mbx,"From %s@%h %s",user,host,ctime (time (0)));
+    rather than try to figure out a good format yourself.  ctime() is the most
+    traditional format and nobody will flame you for using it.
+
+
+Q: Why is traditional UNIX format the default format?
+A: Compatibility with the past 30 or so years of UNIX history.  This server is
+    the only one that completely interoperates with legacy UNIX mail tools.
+
+
+Q: Why aren't "dual-use" mailboxes the default?
+A: Compatibility with the past 30 or so years of UNIX history, not to mention
+    compatibility with user expectations when using shell tools.
+
+
+Q: Why do you use ucbcc to build on Solaris?
+A: It is a long and disgusting story about why cc is set to ucbcc.  You need
+    to invoke the C compiler so that it links with the SVR4 libraries and not
+    the BSD libraries, otherwise readdir() will return the wrong information.
+   Of all the names in the most common path, ucbcc is the only name to be found
+    (on /usr/ccs/bin) that points to a suitable compiler.  cc is likely to be
+    /usr/ucb/cc which is absolutely not the compiler that you want.  The real
+    SVR4 cc is probably something like /opt/SUNWspro/bin/cc which is rarely in
+    anyone's path by default.
+   ucbcc is probably a link to acc, e.g. /opt/SUNWspro/SC4.0/bin/acc, and is
+    the UCB C compiler using the SVR4 libraries.
+   If ucbcc isn't on your system, then punt on the SUN C compiler and use gcc
+    instead (the gso port instead of the sol port).
+   If, in spite of all the above warnings, you choose to change "ucbcc" to
+    "cc", you will probably find that the -O2 needs to be changed to -O.  If
+    you don't get any error messages with -O2, that's a pretty good indicator
+    that you goofed and are running the compiler that will link with the BSD
+    libraries.
+   To recap:
+   1) The sol port is designed to be built using the UCB compiler using the
+      SVR4 libraries.  This compiler is "ucbcc", which is lunk to acc.  You
+      use -O2 as one of the CFLAGS.
+   2) If you build the sol port with the UCB compiler using the BSD libraries,
+      you will get no error messages but you will get bad binaries (the most
+      obvious symptom is dropping the first two characters return filenames
+      from the imapd LIST command.  This compiler also uses -O2, and is very
+      often what the user gets from "cc".  BEWARE!!!
+   3) If you build the sol port with the real SVR4 compiler, which is often
+      hidden away or unavailable on many systems, then you will get errors
+      from -O2 and you need to change that to -O.  But you will get a good
+      binary.  However, you should try it with -O2 first, to make sure that
+      you got this compiler and not the UCB compiler using BSD libraries.
+
+
+Q: Why care about some old system with BSD libraries?  cc is the right thing
+    on my Solaris system!
+A: Because there still are sites that use such systems.  On those systems, the
+    assumption that "cc" does the right thing will lead to corrupt binaries
+    with no error message or other warning that anything is amiss.
+
+
+Q: Why do you insist upon writing .lock files in the spool directory?
+A: Compatibility with the past 30 years of UNIX software which deals with the
+    spool directory, especially software which delivers mail.  Otherwise, it
+    is possible to lose mail.
+
+
+Q: Why should I care about compatibility with the past?
+A: This is one of those questions in which the answer never convinces those
+    who ask it.  Somehow, everybody who ever asks this question ends up
+    answering it for themselves as they get older, with the very answer that
+    they rejected years earlier.
 
 PROBLEMS AND ANNOYANCES:
 
@@ -972,6 +1146,9 @@ A: The mbx-format mailbox is corrupted and needs to be repaired.
    Some people have developed automated scripts, but if you're comfortable
     using emacs it's pretty easy to fix it manually.  DON'T USE vi OR ANY
     OTHER EDITOR UNLESS YOU ARE CERTAIN THAT EDITOR CAN HANDLE BINARY!!!
+   If you are not comfortable with emacs, or if the file is too large to read
+    with emacs, see the "step-by-step" technique later on for another way of
+    doing it.
    After the word "at" in the error message is the byte position it got to
     when it got unhappy with the file, e.g. if you see:
      Unable to parse internal header at 43921: ne bombastic blurdybloop
@@ -1005,6 +1182,38 @@ A: The mbx-format mailbox is corrupted and needs to be repaired.
    scripts because I prefer the flexibility of manual repair.  Repair scripts
    will make the problem go away but may not always do the smartest/best
    salvage of the user's data.
+  Here is a step-by-step technique for fixing corrupt mbx files that's a bit
+   cruder than the procedure outlined above, but works for any size file.  In
+   this example, we will suppose that the corrupt file is INBOX, the error
+   message is "Unable to find CRLF at 132551754", and the size of the INBOX
+   file is 132867870 bytes.
+    (1) Rename the INBOX file to some other name, such as INBOX.bad.
+    (2) Copy the first 132,551,754 bytes of INBOX.bad to another file, such
+        as INBOX.new.
+    (3) Extract the trailing 316,116 bytes (132867870-132551754) of INBOX.bad
+        into another file, such as INBOX.tail.
+    (4) You no longer need INBOX.bad.  Delete it.
+   In other words, use the number from the "Unable to find CRLF at" as the
+   point to split INBOX into two new files, INBOX.new and INBOX.tail.
+    (5) Verify that you can open INBOX.new in IMAP or Pine.
+    (6) The last message of INBOX.new is probably corrupted.  Copy it to
+        another file, such as badmsg.1, then delete and expunge that last
+        message from INBOX.new
+    (7) Locate the first occurance of text in INBOX.tail which looks like an
+        internal header, as described above.  Remove all the text which occurs
+        prior to that point, and place it into another file, such as badmsg.2.
+        Note that in the case of a single digit date, there is a leading space
+        which must not be removed (e.g. " 6-Nov-2001" not "6-Nov-2001").
+    (8) Append INBOX.tail to INBOX.new.
+    (9) You no longer need INBOX.tail.  Delete it.
+    (10) Verify that you can open INBOX.new in IMAP or Pine.
+   You are now ready to reinstall INBOX.new as INBOX.  If you haven't
+    received any new messages while repairing INBOX, just rename INBOX.new to
+    INBOX.  Otherwise, be sure to copy the new messages from INBOX to
+    INBOX.new before doing the rename.
+   You now have INBOX, badmsg.1 and badmsg.2.  There may be some useful data
+    in the two badmsg files that you might want to try salvaging; otherwise
+    you can delete the badmsg files.
 
 
 Q: What does the syslog message:
@@ -1392,8 +1601,10 @@ A: Yes.
    The less said about Entourage the better.
 
 
-Q: But wait!  PC Pine hangs with SSL connections to certain servers (not the
-    UW server).  That's a c-client library problem and hence your fault, right?
+Q: But wait!  PC Pine (or other PC program build with c-client) crashes with
+    the message
+     incomplete SecBuffer exceeds maximum buffer size
+    when I use SSL connections.  This is a bug in c-client, right?
 A: No, sigh.  It's Microsoft's.  It's a bug in the Microsoft SChannel.DLL,
     which implements SSL.  Microsoft admits it (albeit with "it's not fully
     RFC compliant").  The problem is that SChannel indicates that the maximum
@@ -1409,6 +1620,14 @@ A: No, sigh.  It's Microsoft's.  It's a bug in the Microsoft SChannel.DLL,
    This problem most recently showed up with the CommunigatePro IMAP server.
     They have an update which trims down their maximum contiguous data to less
     than 16K, in order to work around the problem.
+   This problem has also shown up with the Exchange IMAP server with UNIX
+    clients (including Pine built with an older version of c-client) which
+    sends full-sized 16K SSL packets.  Modern c-client works around the
+    problem by trimming down its maximum outgoing SSL packet size to 8K.
+   Microsoft has developed a hotfix for this bug.  Look up MSKB article number
+    300562.  Contrary to the article text which implies that this is a Pine
+    issue, this bug also affect Microsoft Exchange server with *any* UNIX based
+    client that transmits full-sized SSL payloads.
 
 WHERE TO GO FOR ADDITIONAL INFORMATION:
 

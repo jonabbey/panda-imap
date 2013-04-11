@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	16 August 2001
+ * Last Edited:	26 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -279,9 +279,8 @@ void dummy_list_work (MAILSTREAM *stream,char *dir,char *pat,char *contents,
 		  ((tmp[3] == 'O') || (tmp[3] == 'o')) &&
 		  ((tmp[4] == 'X') || (tmp[4] == 'x')) && !tmp[5]))
 	      dummy_listed (stream,'/',tmp,LATT_NOINFERIORS +
-			    ((sbuf.st_size && (sbuf.st_atime<=sbuf.st_ctime)) ?
-			     ((sbuf.st_atime<sbuf.st_ctime) ? LATT_MARKED : 0)
-			     : LATT_UNMARKED),contents);
+			    ((sbuf.st_size && (sbuf.st_atime < sbuf.st_ctime))?
+			     LATT_MARKED : LATT_UNMARKED),contents);
 	    break;
 	  }
 	}
@@ -544,6 +543,8 @@ long dummy_ping (MAILSTREAM *stream)
 				/* swap the streams */
     memcpy (stream,test,sizeof (MAILSTREAM));
     fs_give ((void **) &test);	/* flush test now that copied */
+				/* make sure application knows */
+    mail_exists (stream,stream->recent = stream->nmsgs);
   }
   return T;
 }

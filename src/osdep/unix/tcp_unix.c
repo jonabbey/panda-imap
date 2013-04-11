@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 August 2001
+ * Last Edited:	26 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -31,6 +31,7 @@ static long sshtimeout = 15;	/* ssh timeout */
 static char *sshcommand = NIL;	/* ssh command */
 static char *sshpath = NIL;	/* ssh path */
 static long allowreversedns = T;/* allow reverse DNS lookup */
+static long tcpdebug = NIL;	/* extra TCP debugging telemetry */
 
 extern long maxposint;		/* get this from write.c */
 
@@ -76,6 +77,11 @@ void *tcp_parameters (long function,void *value)
     allowreversedns = (long) value;
   case GET_ALLOWREVERSEDNS:
     ret = (void *) allowreversedns;
+    break;
+  case SET_TCPDEBUG:
+    tcpdebug = (long) value;
+  case GET_TCPDEBUG:
+    ret = (void *) tcpdebug;
     break;
 
   case SET_RSHTIMEOUT:
@@ -126,7 +132,8 @@ void *tcp_parameters (long function,void *value)
 TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
 {
   TCPSTREAM *stream = NIL;
-  int i,sock;
+  int i;
+  int sock = -1;
   int ctr = 0;
   int silent = (port & NET_SILENT) ? T : NIL;
   int *ctrp = &ctr;
@@ -167,6 +174,10 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   }
 
   else {			/* lookup host name */
+    if (tcpdebug) {
+      sprintf (tmp,"DNS resolution %.80s",host);
+      mm_log (tmp,TCPDEBUG);
+    }
     (*bn) (BLOCK_DNSLOOKUP,NIL);/* quell alarms */
     data = (*bn) (BLOCK_SENSITIVE,NIL);
     if (he = gethostbyname (lcase (strcpy (hostname,host)))) {
@@ -195,9 +206,8 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
       (*bn) (BLOCK_NONSENSITIVE,data);
       (*bn) (BLOCK_NONE,NIL);
       sprintf (tmp,"No such host as %.80s",host);
-      mm_log (tmp,ERROR);
-      return NIL;
     }
+    if (tcpdebug) mm_log ("DNS resolution done",TCPDEBUG);
   }
   if (sock >= 0)  {		/* won */
     stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
@@ -209,6 +219,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     if (stream->ictr = ctr) *(stream->iptr = stream->ibuf) = tmp[0];
 				/* copy official host name */
     stream->host = cpystr (hostname);
+    if (tcpdebug) mm_log ("Stream open and ready for read",TCPDEBUG);
   }
   else if (!silent) mm_log (tmp,ERROR);
   return stream;		/* return success */
@@ -344,8 +355,13 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   else {			/* note that Unix requires lowercase! */
     (*bn) (BLOCK_DNSLOOKUP,NIL);
     data = (*bn) (BLOCK_SENSITIVE,NIL);
+    if (tcpdebug) {
+      sprintf (tmp,"DNS canonicalization for rsh/ssh %.80s",host);
+      mm_log (tmp,TCPDEBUG);
+    }
     if (he = gethostbyname (lcase (strcpy (host,mb->host))))
       strcpy (host,he->h_name);
+    if (tcpdebug) mm_log ("DNS canonicalization for rsh/ssh done",TCPDEBUG);
     (*bn) (BLOCK_NONSENSITIVE,data);
     (*bn) (BLOCK_NONE,NIL);
   }
@@ -355,6 +371,12 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
 	     mb->user[0] ? mb->user : myusername (),service + 1);
   else sprintf (tmp,rshcommand,rshpath,host,
 		mb->user[0] ? mb->user : myusername (),service);
+  if (tcpdebug) {
+    char msg[MAILTMPLEN];
+    sprintf (msg,"Trying %.100s",tmp);
+    mm_log (msg,TCPDEBUG);
+  }
+				/* parse command into argv */
   for (i = 1,path = argv[0] = strtok (tmp," ");
        (i < MAXARGV) && (argv[i] = strtok (NIL," ")); i++);
   argv[i] = NIL;		/* make sure argv tied off */
@@ -502,6 +524,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
       time_t tl = time (0);
       time_t now = tl;
       int ti = ttmo_read ? now + ttmo_read : 0;
+      if (tcpdebug) mm_log ("Reading TCP buffer",TCPDEBUG);
       tmo.tv_usec = 0;
       FD_ZERO (&fds);		/* initialize selection vector */
       FD_ZERO (&efds);		/* handle errors too */
@@ -520,6 +543,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 	if (i < 1) return tcp_abort (stream);
 	s += i;			/* point at new place to write */
 	size -= i;		/* reduce byte count */
+	if (tcpdebug) mm_log ("Successfully read TCP buffer",TCPDEBUG);
       }
       else if (i || !tmoh || !(*tmoh) (now - t,now - tl))
 	return tcp_abort (stream);
@@ -548,6 +572,7 @@ long tcp_getdata (TCPSTREAM *stream)
     time_t tl = time (0);	/* start of request */
     time_t now = tl;
     int ti = ttmo_read ? now + ttmo_read : 0;
+    if (tcpdebug) mm_log ("Reading TCP data",TCPDEBUG);
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
     FD_ZERO (&efds);		/* handle errors too */
@@ -566,6 +591,7 @@ long tcp_getdata (TCPSTREAM *stream)
       if (i < 1) return tcp_abort (stream);
       stream->iptr = stream->ibuf;/* point at TCP buffer */
       stream->ictr = i;		/* set new byte count */
+      if (tcpdebug) mm_log ("Successfully read TCP data",TCPDEBUG);
     }
     else if (i || !tmoh || !(*tmoh) (now - t,now - tl))
       return tcp_abort (stream);/* error or timeout no-continue */
@@ -606,6 +632,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
     time_t tl = time (0);	/* start of request */
     time_t now = tl;
     int ti = ttmo_write ? now + ttmo_write : 0;
+    if (tcpdebug) mm_log ("Writing to TCP",TCPDEBUG);
     tmo.tv_usec = 0;
     FD_ZERO (&fds);		/* initialize selection vector */
     FD_ZERO (&efds);		/* handle errors too */
@@ -623,6 +650,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
       if (i < 0) return tcp_abort (stream);
       size -= i;		/* how much we sent */
       string += i;
+      if (tcpdebug) mm_log ("successfully wrote to TCP",TCPDEBUG);
     }
     else if (i || !tmoh || !(*tmoh) (now - t,now - tl))
       return tcp_abort (stream);/* error or timeout no-continue */
@@ -793,10 +821,15 @@ char *tcp_canonical (char *name)
   if (name[0] == '[' && name[strlen (name) - 1] == ']') return name;
   (*bn) (BLOCK_DNSLOOKUP,NIL);	/* quell alarms */
   data = (*bn) (BLOCK_SENSITIVE,NIL);
+  if (tcpdebug) {
+    sprintf (host,"DNS canonicalization %.80s",name);
+    mm_log (host,TCPDEBUG);
+  }
 				/* note that Unix requires lowercase! */
   ret = (he = gethostbyname (lcase (strcpy (host,name)))) ? he->h_name : name;
   (*bn) (BLOCK_NONSENSITIVE,data);
   (*bn) (BLOCK_NONE,NIL);	/* alarms OK now */
+  if (tcpdebug) mm_log ("DNS canonicalization done",TCPDEBUG);
   return ret;
 }
 
@@ -814,6 +847,10 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
     struct hostent *he;
     blocknotify_t bn = (blocknotify_t)mail_parameters(NIL,GET_BLOCKNOTIFY,NIL);
     void *data;
+    if (tcpdebug) {
+      sprintf (tmp,"Reverse DNS resolution [%s]",inet_ntoa (sin->sin_addr));
+      mm_log (tmp,TCPDEBUG);
+    }
     (*bn) (BLOCK_DNSLOOKUP,NIL); /* quell alarms */
     data = (*bn) (BLOCK_SENSITIVE,NIL);
 				/* translate address to name */
@@ -826,6 +863,7 @@ char *tcp_name (struct sockaddr_in *sin,long flag)
     else s = he->h_name;
     (*bn) (BLOCK_NONSENSITIVE,data);
     (*bn) (BLOCK_NONE,NIL);	/* alarms OK now */
+    if (tcpdebug) mm_log ("Reverse DNS resolution done",TCPDEBUG);
   }
   else sprintf (s = tmp,"[%s]",inet_ntoa (sin->sin_addr));
   return cpystr (s);

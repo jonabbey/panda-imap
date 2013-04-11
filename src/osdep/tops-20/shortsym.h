@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1995
- * Last Edited:	15 June 2001
+ * Last Edited:	5 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -173,6 +173,7 @@
 #define mail_date m_date
 #define mail_debug m_dbug
 #define mail_delete m_del
+#define mail_dlog m_dlog
 #define mail_elt m_elt
 #define mail_exists m_exst
 #define mail_expunge m_expn

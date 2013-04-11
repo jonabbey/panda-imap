@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	29 March 2001
+# Last Edited:	28 September 2001
 #
 # The IMAP toolkit provided in this Distribution is
 # Copyright 2001 University of Washington.
@@ -37,8 +37,6 @@ osdep.h: os_nt.h
 	copy os_nt.h osdep.h
 	drivers $(DEFAULTDRIVER) $(EXTRADRIVERS) $(DRIVERS) dummy
 	echo ssl_onceonlyinit (); >> linkage.c
-	echo void setkrbdefkey (void); >> linkage.h
-	echo setkrbdefkey (); >> linkage.c
 	mkauths $(EXTRAAUTHENTICATORS) $(AUTHENTICATORS)
 
 mail.obj: mail.h misc.h osdep.h mail.c
@@ -85,17 +83,15 @@ dummynt.obj: mail.h dummy.h misc.h osdep.h dummynt.c
 
 pseudo.obj: pseudo.h
 
-krbdefky.c: mail.h misc.h osdep.h
-
 $(CCLIENTLIB): mail.obj misc.obj fdstring.obj flstring.obj netmsg.obj \
 	newsrc.obj rfc822.obj smanager.obj utf8.obj \
-	imap4r1.obj nntp.obj pop3.obj smtp.obj os_ntk.obj krbdefky.obj \
+	imap4r1.obj nntp.obj pop3.obj smtp.obj os_ntk.obj \
 	mbxnt.obj mtxnt.obj tenexnt.obj unixnt.obj dummynt.obj pseudo.obj
 	if exist $(CCLIENTLIB) del $(CCLIENTLIB)
 	LIB /NOLOGO /OUT:cclient.lib \
 	mail.obj misc.obj fdstring.obj flstring.obj netmsg.obj \
 	newsrc.obj rfc822.obj smanager.obj utf8.obj \
-	imap4r1.obj nntp.obj pop3.obj smtp.obj os_ntk.obj krbdefky.obj \
+	imap4r1.obj nntp.obj pop3.obj smtp.obj os_ntk.obj \
 	mbxnt.obj mtxnt.obj tenexnt.obj unixnt.obj dummynt.obj pseudo.obj
 
 clean:

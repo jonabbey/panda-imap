@@ -10,10 +10,10 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 March 2000
- * Last Edited:	24 October 2000
+ * Last Edited:	28 September 2001
  * 
  * The IMAP toolkit provided in this Distribution is
- * Copyright 2000 University of Washington.
+ * Copyright 2001 University of Washington.
  * The full text of our legal notices is contained in the file called
  * CPYRIGHT, included with this Distribution.
  */
@@ -31,4 +31,29 @@
 
 /* Minor status codes */
 
+#define KRB5_CC_NOMEM (-1765328186L)
 #define KRB5_FCC_NOFILE (-1765328189L)
+#define KRB5_KT_NOTFOUND (-1765328203L)
+
+
+/* Error codes */
+
+typedef long krb5_error_code;
+
+
+/* Structures */
+
+struct krb5_dummy;
+typedef struct krb5_dummy *krb5_context;
+typedef struct krb5_dummy *krb5_keytab;
+typedef struct krb5_dummy *krb5_kt_cursor;
+
+
+/* Kerberos prototypes */
+
+krb5_error_code krb5_init_context (krb5_context *ctx);
+void krb5_free_context (krb5_context ctx);
+krb5_error_code krb5_kt_default (krb5_context ctx,krb5_keytab *kt);
+void krb5_kt_close (krb5_context ctx,krb5_keytab kt);
+krb5_error_code krb5_kt_start_seq_get (krb5_context ctx,krb5_keytab kt,
+				       krb5_kt_cursor *csr);

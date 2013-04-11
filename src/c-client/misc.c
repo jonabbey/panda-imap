@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 July 1988
- * Last Edited:	8 May 2001
+ * Last Edited:	16 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -292,16 +292,12 @@ void hash_reset (HASHTAB *hashtab)
  * Returns: index
  */
 
-size_t hash_index (HASHTAB *hashtab,char *key)
+unsigned long hash_index (HASHTAB *hashtab,char *key)
 {
-  size_t ret = 0;
-  unsigned int i;
+  unsigned long i,ret;
 				/* polynomial of letters of the word */
-  while (i = (unsigned int) *key++) {
-    ret *= HASHMULT;		/* multiply by some strange constant */
-    ret += i;			/* add character to result */
-  }
-  return ret % hashtab->size;
+  for (ret = 0; i = (unsigned int) *key++; ret += i) ret *= HASHMULT;
+  return ret % (unsigned long) hashtab->size;
 }
 
 
@@ -330,7 +326,7 @@ void **hash_lookup (HASHTAB *hashtab,char *key)
 
 HASHENT *hash_add (HASHTAB *hashtab,char *key,void *data,long extra)
 {
-  size_t i = hash_index (hashtab,key);
+  unsigned long i = hash_index (hashtab,key);
   size_t j = sizeof (HASHENT) + (extra * sizeof (void *));
   HASHENT *ret = (HASHENT *) memset (fs_get (j),0,j);
   ret->next = hashtab->table[i];/* insert as new head in this index */
@@ -351,7 +347,7 @@ HASHENT *hash_add (HASHTAB *hashtab,char *key,void *data,long extra)
 void **hash_lookup_and_add (HASHTAB *hashtab,char *key,void *data,long extra)
 {
   HASHENT *ret;
-  size_t i = hash_index (hashtab,key);
+  unsigned long i = hash_index (hashtab,key);
   size_t j = sizeof (HASHENT) + (extra * sizeof (void *));
   for (ret = hashtab->table[i]; ret; ret = ret->next)
     if (!strcmp (key,ret->name)) return ret->data;

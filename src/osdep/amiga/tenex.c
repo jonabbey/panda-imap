@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	11 April 2001
+ * Last Edited:	9 October 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -18,6 +18,13 @@
  * CPYRIGHT, included with this Distribution.
  */
 
+
+/*				FILE TIME SEMANTICS
+ *
+ * The atime is the last read time of the file.
+ * The mtime is the last flags update time of the file.
+ * The ctime is the last write time of the file.
+ */
 
 #include <stdio.h>
 #include <ctype.h>
@@ -541,11 +548,14 @@ long tenex_text (MAILSTREAM *stream,unsigned long msgno,STRING *bs,long flags)
 
 void tenex_flag (MAILSTREAM *stream,char *sequence,char *flag,long flags)
 {
+  time_t tp[2];
   struct stat sbuf;
   if (!stream->rdonly) {	/* make sure the update takes */
     fsync (LOCAL->fd);
     fstat (LOCAL->fd,&sbuf);	/* get current write time */
-    LOCAL->filetime = sbuf.st_mtime;
+    tp[1] = LOCAL->filetime = sbuf.st_mtime;
+    tp[0] = time (0);		/* make sure read comes after all that */
+    utime (stream->mailbox,tp);
   }
 }
 
@@ -609,12 +619,6 @@ long tenex_ping (MAILSTREAM *stream)
 	  r = (tenex_parse (stream)) ? T : NIL;
 	  unlockfd (ld,lock);	/* release shared parse/append permission */
 	}
-      }
-      else if ((sbuf.st_ctime > sbuf.st_atime) ||
-	       (sbuf.st_ctime > sbuf.st_mtime)) {
-	time_t tp[2];		/* whack the times if necessary */
-	LOCAL->filetime = tp[0] = tp[1] = time (0);
-	utime (stream->mailbox,tp);
       }
     }
   }
@@ -709,6 +713,7 @@ void tenex_snarf (MAILSTREAM *stream)
 
 void tenex_expunge (MAILSTREAM *stream)
 {
+  time_t tp[2];
   struct stat sbuf;
   off_t pos = 0;
   int ld;
@@ -805,7 +810,9 @@ void tenex_expunge (MAILSTREAM *stream)
   else MM_LOG ("No messages deleted, so no update needed",(long) NIL);
   fsync (LOCAL->fd);		/* force disk update */
   fstat (LOCAL->fd,&sbuf);	/* get new write time */
-  LOCAL->filetime = sbuf.st_mtime;
+  tp[1] = LOCAL->filetime = sbuf.st_mtime;
+  tp[0] = time (0);		/* reset atime to now */
+  utime (stream->mailbox,tp);
   MM_NOCRITICAL (stream);	/* release critical */
 				/* notify upper level of new mailbox size */
   mail_exists (stream,stream->nmsgs);
@@ -905,7 +912,9 @@ long tenex_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
     if (!stream->rdonly) {	/* make sure the update takes */
       fsync (LOCAL->fd);
       fstat (LOCAL->fd,&sbuf);	/* get current write time */
-      LOCAL->filetime = sbuf.st_mtime;
+      tp[1] = LOCAL->filetime = sbuf.st_mtime;
+      tp[0] = time (0);		/* make sure atime remains greater */
+      utime (stream->mailbox,tp);
     }
   }
   return ret;
@@ -1078,6 +1087,7 @@ long tenex_parse (MAILSTREAM *stream)
   long curpos = LOCAL->filesize;
   long nmsgs = stream->nmsgs;
   long recent = stream->recent;
+  short added = NIL;
   short silent = stream->silent;
   fstat (LOCAL->fd,&sbuf);	/* get status */
   if (sbuf.st_size < curpos) {	/* sanity check */
@@ -1118,6 +1128,7 @@ long tenex_parse (MAILSTREAM *stream)
     }
     *s++ = '\0'; *t++ = '\0';	/* tie off fields */
 
+    added = T;			/* note that a new message was added */
 				/* swell the cache */
     mail_exists (stream,++nmsgs);
 				/* instantiate an elt for this message */
@@ -1178,6 +1189,12 @@ long tenex_parse (MAILSTREAM *stream)
   LOCAL->filesize = sbuf.st_size;
   fstat (LOCAL->fd,&sbuf);	/* get status again to ensure time is right */
   LOCAL->filetime = sbuf.st_mtime;
+  if (added) {			/* make sure atime updated */
+    time_t tp[2];
+    tp[0] = time (0);
+    tp[1] = LOCAL->filetime;
+    utime (stream->mailbox,tp);
+  }
   stream->silent = silent;	/* can pass up events now */
   mail_exists (stream,nmsgs);	/* notify upper level of new mailbox size */
   mail_recent (stream,recent);	/* and of change in recent messages */
@@ -1251,8 +1268,9 @@ void tenex_read_flags (MAILSTREAM *stream,MESSAGECACHE *elt)
 
 void tenex_update_status (MAILSTREAM *stream,unsigned long msgno,long syncflag)
 {
-  MESSAGECACHE *elt = mail_elt (stream,msgno);
+  time_t tp[2];
   struct stat sbuf;
+  MESSAGECACHE *elt = mail_elt (stream,msgno);
   unsigned long j,k = 0;
 				/* readonly */
   if (stream->rdonly || !elt->valid) tenex_read_flags (stream,elt);
@@ -1273,7 +1291,9 @@ void tenex_update_status (MAILSTREAM *stream,unsigned long msgno,long syncflag)
     if (syncflag) {		/* sync if requested */
       fsync (LOCAL->fd);
       fstat (LOCAL->fd,&sbuf);	/* get new write time */
-      LOCAL->filetime = sbuf.st_mtime;
+      tp[1] = LOCAL->filetime = sbuf.st_mtime;
+      tp[0] = time (0);		/* make sure read is later */
+      utime (stream->mailbox,tp);
     }
   }
 }

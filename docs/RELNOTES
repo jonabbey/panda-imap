@@ -1,3 +1,39 @@
+Updated: 2 November 2001
+
+imap-2001a is a maintenance release, consisting primarily of bugfixes
+including some critical bugfixes to crash and denial of service problems.
+Programs written for imap-2001 will build with this version without
+modification.
+
+The following new facilities have also been added:
+
+The new /norsh switch in mailbox names provides a more intuitive way of
+disabling rsh-IMAP than the existing :143 or setting the rsh-timeout to 0.
+
+Passwords are no longer returned in mm_dlog() callbacks unless the
+application sets the SET_DEBUGSENSITIVE parameter.
+
+The SET_NETFSSTATBUG parameter allows an application to force the
+traditional UNIX mailbox driver to close and reopen the mailbox at ping
+time.  This is EXTREMELY inefficient, and should only be used to access
+files stored on AFS and old NFS systems.
+
+The ISO 8859 and Windows conversion tables have been updated to comply
+with Unicode 3.1, and the KOI8-R table has been verified as compliant with
+Unicode 3.1.
+
+The SPECIALS mechanism for passing parameters to the lowest level Makefile
+has been updated to be more general.  See the next item for why you might
+care.
+
+New lrh port to build on Red Hat Linux 7.2, with pre-set definitions for
+the places where Red Hat has placed Kerberos and SSL.  It's actually just
+the lnp port with SPECIALS defined accordingly.  You may want to use it as
+a model if your system needs such definitions.  Note that SPECIALS is
+primarily for IMAP toolkit (and Pine) purposes, and that user settings
+should use EXTRASPECIALS instead.
+
+
 Updated: 22 June 2001
 
 imap-2001 is a major release.  Programs written for imap-2000 will probably

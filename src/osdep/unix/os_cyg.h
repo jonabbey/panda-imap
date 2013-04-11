@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	5 March 2001
+ * Last Edited:	6 November 2001
  * 
  * The IMAP toolkit provided in this Distribution is
  * Copyright 2001 University of Washington.
@@ -28,17 +28,24 @@
 #include <time.h>
 #include <sys/time.h>
 
+#define direct dirent
+
+
+struct ustat {
+  int f_tinode;			/* all we care about */
+};
+
+int ustat (int dev,struct ustat *ubuf);
+
+/* Cygwin gets this wrong */
+
+#define SYSTEMUID 18		/* Cygwin returns this for SYSTEM */
+#define geteuid Geteuid
+uid_t Geteuid (void);
+
 #include "env_unix.h"
 #include "fs.h"
 #include "ftl.h"
 #include "nl.h"
 #include "tcp.h"
-
-#define direct dirent
-
-#define LOCK_SH 1
-#define LOCK_EX 2
-#define LOCK_NB 4
-#define LOCK_UN 8
-
-#define flock safe_flock
+#include "flocksim.h"
