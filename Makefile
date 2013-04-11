@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		7 December 1989
-# Last Edited:	30 November 2006
+# Last Edited:	14 December 2006
 
 
 # Normal command to build IMAP toolkit:
@@ -318,10 +318,14 @@ aos art asv aux bsd cvx dpx dyn isc pyr sv4 ult vul vu2: ua
 
 # Knotheads moved Kerberos and SSL locations on these platforms
 
-bsf bso:	an
+bsf:	an
 	$(BUILD) BUILDTYPE=$@ \
 	PASSWDTYPE=pam \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl/certs SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock PAMLDFLAGS=-lpam"
+
+bso:	an
+	$(BUILD) BUILDTYPE=$@ \
+	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/etc/ssl SSLKEYS=/etc/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib LOCKPGM=/usr/sbin/mlock"
 
 cyg:	an
 	$(BUILD) BUILDTYPE=cyg \

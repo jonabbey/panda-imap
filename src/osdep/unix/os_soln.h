@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	3 October 2006
+ * Last Edited:	20 December 2006
  */
 
 #include <string.h>
@@ -43,6 +43,7 @@
 /* Many versions of SysV get this wrong */
 
 #define setpgrp(a,b) Setpgrp(a,b)
+int Setpgrp (int pid,int gid);
 
 
 /* Different names, equivalent things in BSD and SysV */

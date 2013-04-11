@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 March 2006
- * Last Edited:	28 November 2006
+ * Last Edited:	18 January 2007
  */
 
 
@@ -247,10 +247,15 @@ long mix_isvalid (char *name,char *meta)
   char dir[MAILTMPLEN];
   struct stat sbuf;
 				/* validate name as directory */
-  return (!(errno = ((strlen (name) > NETMAXMBX) ? ENAMETOOLONG : NIL)) &&
-	  *mix_dir (dir,name) && mix_file (meta,dir,MIXMETA) &&
-	  !stat (dir,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR) &&
-	  !stat (meta,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFREG));
+  if (!(errno = ((strlen (name) > NETMAXMBX) ? ENAMETOOLONG : NIL)) &&
+      *mix_dir (dir,name) && mix_file (meta,dir,MIXMETA) &&
+      !stat (dir,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR)) {
+				/* name is directory; is it mix? */
+    if (!stat (meta,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFREG))
+      return LONGT;
+    else errno = NIL;		/* directory but not mix */
+  }
+  return NIL;
 }
 
 /* MIX manipulate driver parameters
@@ -464,7 +469,7 @@ long mix_delete (MAILSTREAM *stream,char *mailbox)
   char *s,tmp[MAILTMPLEN];
   if (!mix_isvalid (mailbox,tmp))
     sprintf (tmp,"Can't delete mailbox %.80s: no such mailbox",mailbox);
-  else if (((fd = open (tmp,O_RDONLY,NIL)) < 0) || flock (fd,LOCK_EX|LOCK_NB))
+  else if (((fd = open (tmp,O_RDWR,NIL)) < 0) || flock (fd,LOCK_EX|LOCK_NB))
     sprintf (tmp,"Can't lock mailbox for delete: %.80s",mailbox);
 				/* delete metadata */
   else if (unlink (tmp)) sprintf (tmp,"Can't delete mailbox %.80s index: %80s",
@@ -509,7 +514,7 @@ long mix_rename (MAILSTREAM *stream,char *old,char *newname)
   int fd = -1;
   if (!mix_isvalid (old,tmp))
     sprintf (tmp,"Can't rename mailbox %.80s: no such mailbox",old);
-  else if (((fd = open (tmp,O_RDONLY,NIL)) < 0) || flock (fd,LOCK_EX|LOCK_NB))
+  else if (((fd = open (tmp,O_RDWR,NIL)) < 0) || flock (fd,LOCK_EX|LOCK_NB))
     sprintf (tmp,"Can't lock mailbox for rename: %.80s",old);
   else if (mix_dirfmttest ((s = strrchr (newname,'/')) ? s + 1 : newname))
     sprintf (tmp,"Can't rename to mailbox %.80s: invalid MIX-format name",
@@ -1340,7 +1345,7 @@ long mix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   FILE *idxf = NIL;
   FILE *msgf = NIL;
   FILE *statf = NIL;
-  if (!ret) switch (errno) {		/* make sure valid mailbox */
+  if (!ret) switch (errno) {	/* make sure valid mailbox */
   case NIL:			/* no error in stat() */
     if (pc) return (*pc) (stream,sequence,mailbox,options);
     sprintf (tmp,"Not a MIX-format mailbox: %.80s",mailbox);
@@ -1638,14 +1643,11 @@ long mix_append_msg (MAILSTREAM *stream,FILE *f,char *flags,MESSAGECACHE *delt,
 	   elt->rfc822_size);
 				/* offset to header from  internal header */
   elt->private.msg.header.offset = ftell (f) - elt->private.special.offset;
-				/* copy message */
-  for (i = 1, cs = 0; i <= elt->rfc822_size; ++i) {
+  for (cs = 0; SIZE (msg); ) {	/* copy message */
     if (elt->private.msg.header.text.size) {
-      if (msg->cursize) {	/* blat entire chunk if have it */
+      if (msg->cursize)		/* blat entire chunk if have it */
 	for (j = msg->cursize; j; j -= k)
 	  if (!(k = fwrite (msg->curpos,1,j,f))) return NIL;
-	i += msg->cursize;	/* advance to next chunk */
-      }
       SETPOS (msg,GETPOS (msg) + msg->cursize);
     }
     else {			/* still searching for delimiter */
@@ -1662,7 +1664,8 @@ long mix_append_msg (MAILSTREAM *stream,FILE *f,char *flags,MESSAGECACHE *delt,
 	cs = (c == '\015') ? 3 : 0;
 	break;
       case 3:			/* previous CRLFCR, done if LF */
-	if (c == '\012') elt->private.msg.header.text.size = i;
+	if (c == '\012') elt->private.msg.header.text.size =
+			   elt->rfc822_size - SIZE (msg);
 	cs = 0;			/* reset mechanism */
 	break;
       }

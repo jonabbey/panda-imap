@@ -23,9 +23,11 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 2001
- * Last Edited:	30 August 2006
+ * Last Edited:	20 December 2006
  */
 
+
+#include "dummy.h"		/* get scan_contents() prototype */
 
 #define flock flocksim		/* use ours instead of theirs */
 

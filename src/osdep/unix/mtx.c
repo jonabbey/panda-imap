@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	19 September 2006
+ * Last Edited:	20 December 2006
  */
 
 
@@ -284,7 +284,7 @@ long mtx_rename (MAILSTREAM *stream,char *old,char *newname)
   char c,*s,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN];
   int fd,ld;
   struct stat sbuf;
-  if (!mbx_file (file,old) ||
+  if (!mtx_file (file,old) ||
       (newname && (!((s = mailboxfile (tmp,newname)) && *s) ||
 		   ((s = strrchr (tmp,'/')) && !s[1])))) {
     sprintf (tmp,newname ?
@@ -513,7 +513,7 @@ char *mtx_header (MAILSTREAM *stream,unsigned long msgno,unsigned long *length,
   LOCAL->buf[*length] = '\0';	/* tie off string */
 				/* slurp the data */
   read (LOCAL->fd,LOCAL->buf,*length);
-  return LOCAL->buf;
+  return (char *) LOCAL->buf;
 }
 
 /* MTX mail fetch message text (body only)

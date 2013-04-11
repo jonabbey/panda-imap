@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 February 1994
- * Last Edited:	4 December 2006
+ * Last Edited:	18 December 2006
  */
 
 
@@ -37,7 +37,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "2006d.6";	/* program version */
+char *version = "2006e.6";	/* program version */
 int debugp = NIL;		/* flag saying debug */
 int verbosep = NIL;		/* flag saying verbose */
 int rwcopyp = NIL;		/* flag saying readwrite copy (for POP) */

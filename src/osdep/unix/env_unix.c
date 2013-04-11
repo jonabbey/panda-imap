@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 December 2006
+ * Last Edited:	16 January 2007
  */
 
 #include <grp.h>
@@ -75,9 +75,10 @@ static char *newsSpool = NIL;	/* news spool */
 static char *blackBoxDir = NIL;	/* black box directory name */
 				/* black box default home directory */
 static char *blackBoxDefaultHome = NIL;
+static char *sslCApath = NIL;	/* non-standard CA path */
 static short anonymous = NIL;	/* is anonymous */
 static short blackBox = NIL;	/* is a black box */
-static short closedBox = NIL;	/* is a closed box */
+static short closedBox = NIL;	/* is a closed box (uses chroot() jail) */
 static short restrictBox = NIL;	/* is a restricted box */
 static short has_no_life = NIL;	/* is a cretin with no life */
 static short hideDotFiles = NIL;/* hide files whose names start with . */
@@ -91,8 +92,6 @@ static short no822tztext = NIL;	/* disable RFC [2]822 timezone text */
 				/* client principals include service name */
 static short kerb_cp_svr_name = NIL;
 static long locktimeout = 5;	/* default lock timeout in minutes */
-				/* shared lock mode - do not change */
-static long shlock_mode = S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH;
 				/* default prototypes */
 static MAILSTREAM *createProto = NIL;
 static MAILSTREAM *appendProto = NIL;
@@ -114,7 +113,39 @@ static long list_max_level = 20;/* maximum level of list recursion */
 				/* facility for syslog */
 static int syslog_facility = LOG_MAIL;
 
+/* Directory used for shared locks.  MUST be the same for all users of the
+ * system, and MUST be protected 1777.  /var/tmp may be preferable on some
+ * systems.
+ */
+
+static const char *tmpdir = "/tmp";
+
+/* Do not change shlock_mode.  Doing so can cause mailbox corruption and
+ * denial of service.  It also defeats the entire purpose of the shared
+ * lock mechanism.  The right way to avoid shared locks is to set up a
+ * closed box (see the closedBox setting).
+ */
+
+				/* shared lock mode */
+static const int shlock_mode = S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH;
+
+
+/* It is STRONGLY recommended that you do not change dotlock_mode.  Doing so
+ * can cause denial of service with old dot-lock files left lying around.
+ * However, since dot-locks are only used with traditional UNIX and MMDF
+ * formats which are not normally shared, it is much less harmful to tamper
+ * with this than with shlock_mode.
+ */
+
+				/* dot-lock mode */
+static long dotlock_mode = S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH;
+
 /* File/directory access and protection policies */
+
+/* Unlike shlock_mode, the ????_protection modes are intended to be fully
+ * customizable according to site policy.  The values here are recommended
+ * settings, based upon the documented purposes of the namespaces.
+ */
 
 	/* user space - only owner can read/write */
 static char *myMailboxDir = NIL;/* user space directory name */
@@ -149,18 +180,26 @@ static long shared_protection = S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP;
 				/* default shared directory protection */
 static long shared_dir_protection =
   S_IRUSR|S_IWUSR|S_IXUSR|S_IRGRP|S_IWGRP|S_IXGRP;
+
+/* OS bug workarounds - should be avoided at all cost */
 
-/* OS bug workarounds */
 
-static short fcntlhangbug = NIL;/* flock() emulator using fcntl() is a no-op.
-				 * Don't do this unless you really have to.
-				 * There is code in place to avoid statd/lockd
-				 * hangs so setting this should be unnececessary.
-				 */
+/* Don't set fcntlhangbug unless you really have to, since it risks mailbox
+ * corruption.  The flocksim.c mechanism is designed to detect NFS access
+ * and no-op in that cases only, so this flag should be unnecessary.
+ */
+
+static short fcntlhangbug = NIL;/* flock() emulator using fcntl() is a no-op */
+
+
+/* Don't set netfsstatbug unless you really have to, since it dramatically
+ * slows down traditional UNIX and MMDF mailbox performance.
+ */
+
 static short netfsstatbug = NIL;/* compensate for broken stat() on network
-				 * filesystems (AFS and old NFS).  Don't do
-				 * this unless you really have to!
+				 * filesystems (AFS and old NFS)
 				 */
+
 
 /* Note: setting disableLockWarning means that you assert that the
  * so-modified copy of this software will NEVER be used:
@@ -179,9 +218,8 @@ static short netfsstatbug = NIL;/* compensate for broken stat() on network
  */
 				/* disable warning if can't make .lock file */
 static short disableLockWarning = NIL;
-
 
-/* UNIX namespaces */
+/* UNIX Namespaces */
 
 				/* personal mh namespace */
 static NAMESPACE nsmhf = {"#mh/",'/',NIL,NIL};
@@ -204,6 +242,8 @@ static NAMESPACE nsshared = {"#shared/",'/',NIL,&nsftp};
 static NAMESPACE nsworld = {"/",'/',NIL,&nsshared};
 				/* only shared and public namespaces */
 static NAMESPACE nslimited = {"#shared/",'/',NIL,&nspublic};
+
+
 
 #include "write.c"		/* include safe writing routines */
 #include "crexcl.c"		/* include exclusive create */
@@ -294,6 +334,13 @@ void *env_parameters (long function,void *value)
   case GET_SYSINBOX:
     ret = (void *) sysInbox;
     break;
+  case SET_SSLCAPATH:		/* this can be set null */
+    if (sslCApath) fs_give ((void **) &sslCApath);
+    sslCApath = value ? cpystr ((char *) value) : value;
+    break;
+  case GET_SSLCAPATH:
+    ret = (void *) sslCApath;
+    break;
   case SET_LISTMAXLEVEL:
     list_max_level = (long) value;
   case GET_LISTMAXLEVEL:
@@ -311,9 +358,9 @@ void *env_parameters (long function,void *value)
     ret = (void *) dir_protection;
     break;
   case SET_LOCKPROTECTION:
-    shlock_mode = (long) value;
+    dotlock_mode = (long) value;
   case GET_LOCKPROTECTION:
-    ret = (void *) shlock_mode;
+    ret = (void *) dotlock_mode;
     break;
   case SET_FTPPROTECTION:
     ftp_protection = (long) value;
@@ -1089,7 +1136,7 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
       i = 0;
       break;
     case T:			/* success, make sure others can break lock */
-      chmod (base->lock,(int) shlock_mode);
+      chmod (base->lock,(int) dotlock_mode);
       return LONGT;
     }
   } while (i--);		/* until out of retries */
@@ -1103,11 +1150,11 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
     mask = umask (0);		/* want our lock protection */
     unlink (base->lock);	/* try to remove the old file */
 				/* seize the lock */
-    if ((i = open (base->lock,O_WRONLY|O_CREAT,(int) shlock_mode)) >= 0) {
+    if ((i = open (base->lock,O_WRONLY|O_CREAT,(int) dotlock_mode)) >= 0) {
       close (i);		/* don't need descriptor any more */
       sprintf (tmp,"Mailbox %.80s lock overridden",file);
       MM_LOG (tmp,NIL);
-      chmod (base->lock,(int) shlock_mode);
+      chmod (base->lock,(int) dotlock_mode);
       umask (mask);		/* restore old umask */
       return LONGT;
     }
@@ -1119,8 +1166,12 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
     MM_CRITICAL (NIL);		/* go critical */
 				/* make command pipes */
     if (!closedBox && !stat (LOCKPGM,&sb) && (pipe (pi) >= 0)) {
-      if (pipe (po) >= 0) {
-	if (!(j = fork ())) {	/* make inferior process */
+				/* if input pipes usable create output pipes */
+      if ((pi[0] < FD_SETSIZE) && (pi[1] < FD_SETSIZE) && (pipe (po) >= 0)) {
+				/* make sure output pipes are usable */
+	if ((po[0] >= FD_SETSIZE) || (po[1] >= FD_SETSIZE));
+				/* all is good, make inferior process */
+	else if (!(j = fork ())) {
 	  if (!fork ()) {	/* make grandchild so it's inherited by init */
 	    long cf;		/* don't change caller vars in case vfork() */
 	    char *argv[4],arg[20];
@@ -1254,7 +1305,7 @@ int lock_work (char *lock,void *sb,int op,long *pid)
   int mask = umask (0);
   if (pid) *pid = 0;		/* initialize return PID */
 				/* make temporary lock file name */
-  sprintf (lock,"%s/.%lx.%lx",closedBox ? "" : "/tmp",
+  sprintf (lock,"%s/.%lx.%lx",closedBox ? "" : tmpdir,
 	   (unsigned long) sbuf->st_dev,(unsigned long) sbuf->st_ino);
   while (T) {			/* until get a good lock */
     do switch ((int) chk_notsymlink (lock,&lsb)) {
@@ -1275,10 +1326,13 @@ int lock_work (char *lock,void *sb,int op,long *pid)
       syslog (LOG_INFO,"Mailbox lock file %s open failure: %s",lock,
 	      strerror (errno));
       if (!closedBox) {		/* more explicit snarl for bad configuration */
-	if (stat ("/tmp",&lsb))
-	  syslog (LOG_CRIT,"SYSTEM ERROR: no /tmp: %s",strerror (errno));
-	else if ((lsb.st_mode & 01777) != 01777)
-	  MM_LOG ("Can't lock for write: /tmp must have 1777 protection",WARN);
+	if (stat (tmpdir,&lsb))
+	  syslog (LOG_CRIT,"SYSTEM ERROR: no %s: %s",tmpdir,strerror (errno));
+	else if ((lsb.st_mode & 01777) != 01777) {
+	  sprintf (tmp,"Can't lock for write: %.80s must have 1777 protection",
+		   tmpdir);
+	  MM_LOG (tmp,WARN);
+	}
       }
       umask (mask);		/* restore old mask */
       return -1;		/* fail: can't open lock file */
@@ -1305,8 +1359,7 @@ int lock_work (char *lock,void *sb,int op,long *pid)
 	(lsb.st_ino == fsb.st_ino) && (fsb.st_nlink == 1)) break;
     close (fd);			/* lock not right, drop fd and try again */
   }
-				/* make sure mode OK (don't use fchmod()) */
-  chmod (lock,(int) shlock_mode);
+  chmod (lock,shlock_mode);	/* make sure mode OK (don't use fchmod()) */
   umask (mask);			/* restore old mask */
   return fd;			/* success */
 }
@@ -1615,7 +1668,7 @@ void dorc (char *file,long flag)
 	else if (!compare_cstring (s,"set directory-protection"))
 	  dir_protection = atol (k);
 	else if (!compare_cstring (s,"set lock-protection"))
-	  shlock_mode = atol (k);
+	  dotlock_mode = atol (k);
 	else if (!compare_cstring (s,"set ftp-protection"))
 	  ftp_protection = atol (k);
 	else if (!compare_cstring (s,"set public-protection"))
@@ -1655,6 +1708,13 @@ void dorc (char *file,long flag)
 	    blackBoxDefaultHome = cpystr (k);
 	  else if (!compare_cstring (s,"set anonymous-home-directory") &&
 		   !anonymousHome) anonymousHome = cpystr (k);
+				/* It's tempting to allow setting the CA path
+				 * in a user init.  However, that opens up a
+				 * vector of attack big enough to drive a
+				 * truck through...  Resist the temptation.
+				 */
+	  else if (!compare_cstring (s,"set CA-certificate-path"))
+	    sslCApath = cpystr (k);
 	  else if (!compare_cstring (s,"set disable-plaintext"))
 	    disablePlaintext = atoi (k);
 	  else if (!compare_cstring (s,"set allowed-login-attempts"))

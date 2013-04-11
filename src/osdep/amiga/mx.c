@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 May 1996
- * Last Edited:	22 October 2006
+ * Last Edited:	20 December 2006
  */
 
 
@@ -170,18 +170,21 @@ DRIVER *mx_valid (char *name)
 /* MX mail test for valid mailbox
  * Accepts: mailbox name
  *	    temporary buffer to use
- * Returns: T if valid, NIL otherwise
+ * Returns: T if valid, NIL otherwise with errno holding dir stat error
  */
 
 int mx_isvalid (char *name,char *tmp)
 {
   struct stat sbuf;
   errno = NIL;			/* zap error */
-				/* validate name as directory */
-  return ((strlen (name) <= NETMAXMBX) && *mx_file (tmp,name) &&
-	  !stat (tmp,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR) &&
-	  !stat (MXINDEX (tmp,name),&sbuf) &&
-	  ((sbuf.st_mode & S_IFMT) == S_IFREG));
+  if ((strlen (name) <= NETMAXMBX) && *mx_file (tmp,name) &&
+      !stat (tmp,&sbuf) && ((sbuf.st_mode & S_IFMT) == S_IFDIR)) {
+				/* name is directory; is it mx? */
+    if (!stat (MXINDEX (tmp,name),&sbuf) &&
+	((sbuf.st_mode & S_IFMT) == S_IFREG)) return T;
+    errno = NIL;		/* directory but not mx */
+  }
+  return NIL;
 }
 
 
@@ -597,7 +600,7 @@ char *mx_fast_work (MAILSTREAM *stream,MESSAGECACHE *elt)
     elt->zhours = 0; elt->zminutes = 0; elt->zoccident = 0;
     elt->rfc822_size = sbuf.st_size;
   }
-  return LOCAL->buf;		/* return file name */
+  return (char *) LOCAL->buf;	/* return file name */
 }
 
 /* MX mail fetch message header

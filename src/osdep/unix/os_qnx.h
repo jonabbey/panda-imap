@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 September 1993
- * Last Edited:	30 August 2006
+ * Last Edited:	20 December 2006
  */
 
 #include <stdlib.h>
@@ -59,5 +59,4 @@ typedef int (*compar_t) (void *d1,void *d2);
 long gethostid(void);
 struct direct *Readdir (DIR *dirp);
 
-extern char *crypt (const char *pw, const char *salt);
 extern long random (void);

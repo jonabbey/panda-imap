@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	30 November 2006
+ * Last Edited:	20 December 2006
  */
 
 
@@ -719,7 +719,7 @@ long unix_ping (MAILSTREAM *stream)
       }
 				/* parse if mailbox changed */
       if ((LOCAL->ddirty || (sbuf.st_size != LOCAL->filesize)) &&
-	  unix_parse (stream,lock,LOCK_SH)) {
+	  unix_parse (stream,lock,LOCK_EX)) {
 				/* force checkpoint if double-dirty */
 	if (LOCAL->ddirty) unix_rewrite (stream,NIL,lock,NIL);
 				/* unlock mailbox */

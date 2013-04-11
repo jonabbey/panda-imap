@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	30 August 2006
+ * Last Edited:	9 January 2007
  */
 
 static tcptimeout_t tmoh = NIL;	/* TCP timeout handler routine */
@@ -103,6 +103,16 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     fs_give ((void **) &host);
     return NIL;
   }
+#if 0
+  /* needed? */
+  else if (sock >= FD_SETSIZE) {/* unselectable sockets are useless */
+    sprintf (tmp,"Unable to create selectable TCP socket (%d >= %d)",
+	     sock,FD_SETSIZE);
+    close (sock);
+    errno = ENOBUFS;		/* just in case */
+    return NIL;
+  }
+#endif
 				/* open connection */
   if (connect (sock,(struct sockaddr *) &sin,sizeof (sin)) < 0) {
     switch (errno) {		/* analyze error */

@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	9 January 2007
  */
 
 #undef write			/* don't use redefined write() */
@@ -211,6 +211,14 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,int *ctr,char *hst,
   if ((sock = socket (sin->sin_family,SOCK_STREAM,pt ? pt->p_proto : 0)) < 0) {
     sprintf (tmp,"Unable to create TCP socket: %s",strerror (errno));
     (*bn) (BLOCK_NONSENSITIVE,data);
+    return -1;
+  }
+  else if (sock >= FD_SETSIZE) {/* unselectable sockets are useless */
+    sprintf (tmp,"Unable to create selectable TCP socket (%d >= %d)",
+	     sock,FD_SETSIZE);
+    (*bn) (BLOCK_NONSENSITIVE,data);
+    close (sock);
+    errno = EMFILE;
     return -1;
   }
   flgs = fcntl (sock,F_GETFL,0);/* get current socket flags */

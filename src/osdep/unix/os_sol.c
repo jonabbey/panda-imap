@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	7 December 2006
+ * Last Edited:	20 December 2006
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
@@ -40,6 +40,7 @@
 #include <errno.h>
 #include <pwd.h>
 #include <shadow.h>
+#include <crypt.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include "misc.h"
@@ -58,6 +59,7 @@ extern char *sys_errlist[];
 #include "nl_unix.c"
 #define fork vfork
 #include "env_unix.c"
+#include "getspnam.c"
 #include "tcp_unix.c"
 #include "gr_waitp.c"
 #include "flocksim.c"

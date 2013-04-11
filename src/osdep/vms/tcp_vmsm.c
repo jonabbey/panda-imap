@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	2 August 1994
- * Last Edited:	30 August 2006
+ * Last Edited:	9 January 2007
  */
 
 			
@@ -130,6 +130,17 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     mm_log (tmp,ERROR);
     return NIL;
   }
+#if 0
+  /* Maybe this test is necessary.  It depends upon how VMS implements
+   * fd_set.  UNIX-style fd_set needs it; Windows-style does not.
+   */
+  else if (sock >= FD_SETSIZE) {/* unselectable sockets are useless */
+    sprintf (tmp,"Unable to create selectable TCP socket (%d >= %d)",
+	     sock,FD_SETSIZE);
+    close (sock);
+    return NIL;
+  }
+#endif
 				/* open connection */
   if (connect (sock,(struct sockaddr *)&sin,sizeof (sin)) < 0) {
     sprintf (tmp,"Can't connect to %.80s,%d: %s",hostname,port,

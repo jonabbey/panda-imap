@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	13 November 2006
+ * Last Edited:	18 December 2006
  */
 
 
@@ -205,8 +205,8 @@ int mh_isvalid (char *name,char *tmp,long synonly)
   }
 				/* see if non-NS name within mh hierarchy */
   else if ((name[0] != '#') && (s = mh_path (tmp)) && (i = strlen (s)) &&
-	   (t = mailboxfile (tmp,name)) && !strncmp (t,s,i) && (tmp[i] == '/') &&
-	   tmp[i+1]) {
+	   (t = mailboxfile (tmp,name)) && !strncmp (t,s,i) &&
+	   (tmp[i] == '/') && tmp[i+1]) {
     sprintf (altname,"#mh%.900s",tmp+i);
 				/* can't do synonly here! */
     ret = mh_isvalid (altname,tmp,NIL);

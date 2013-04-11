@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1993
- * Last Edited:	30 August 2006
+ * Last Edited:	20 December 2006
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
@@ -45,6 +45,8 @@ extern int errno;		/* just in case */
 #include "misc.h"
 
 #define DIR_SIZE(d) d->d_reclen
+
+extern char *crypt (const char *pw, const char *salt);
 
 #include "fs_unix.c"
 #include "ftl_unix.c"

@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 September 2006
+ * Last Edited:	20 December 2006
  */
 
 #include <stdlib.h>
@@ -42,6 +42,8 @@
 /* SCO gets this wrong */
 
 #define setpgrp Setpgrp
+int Setpgrp (int pid,int gid);
+
 #define rename Rename
 
 

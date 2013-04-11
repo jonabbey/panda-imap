@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	6 December 2006
+ * Last Edited:	18 January 2007
  *
  * This original version of this file is
  * Copyright 1988 Stanford University
@@ -197,7 +197,7 @@ long imap_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long options);
 long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
 long imap_append_referral (char *mailbox,char *tmp,append_t af,void *data,
 			   char *flags,char *date,STRING *message,
-			   APPENDDATA *map);
+			   APPENDDATA *map,long options);
 IMAPPARSEDREPLY *imap_append_single (MAILSTREAM *stream,char *mailbox,
 				     char *flags,char *date,STRING *message);
 
@@ -741,7 +741,7 @@ long imap_status (MAILSTREAM *stream,char *mbx,long flags)
 	      mail_parameters (stream,GET_IMAPREFERRAL,NIL)) &&
 	     LOCAL->referral &&
 	     (mbx = (*ir) (stream,LOCAL->referral,REFSTATUS)))
-      ret = imap_status (NIL,mbx,flags);
+      ret = imap_status (NIL,mbx,flags | (stream->debug ? SA_DEBUG : NIL));
   }
 
 				/* IMAP2 way */
@@ -2445,7 +2445,7 @@ long imap_copy (MAILSTREAM *stream,char *sequence,char *mailbox,long flags)
 				/* failed, do referral action if any */
   else if (ir && pc && LOCAL->referral && mail_sequence (stream,sequence) &&
 	   (s = (*ir) (stream,LOCAL->referral,REFCOPY)))
-    ret = (*pc) (stream,sequence,s,flags);
+    ret = (*pc) (stream,sequence,s,flags | (stream->debug ? CP_DEBUG : NIL));
 				/* otherwise issue error message */
   else mm_log (reply->text,ERROR);
   return ret;
@@ -2466,6 +2466,7 @@ long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   IMAPPARSEDREPLY *reply = NIL;
   APPENDDATA map;
   char tmp[MAILTMPLEN];
+  long debug = stream ? stream->debug : NIL;
   long ret = NIL;
   imapreferral_t ir =
     (imapreferral_t) mail_parameters (stream,GET_IMAPREFERRAL,NIL);
@@ -2473,7 +2474,8 @@ long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
   if (mail_valid_net (mailbox,&imapdriver,NIL,tmp)) {
 				/* create a stream if given one no good */
     if ((stream && LOCAL && LOCAL->netstream) ||
-	(stream =  mail_open (NIL,mailbox,OP_HALFOPEN|OP_SILENT))) {
+	(stream = mail_open (NIL,mailbox,OP_HALFOPEN|OP_SILENT |
+			     (debug ? OP_DEBUG : NIL)))) {
 				/* note mailbox in case APPENDUID */
       LOCAL->appendmailbox = mailbox;
 				/* use multi-append? */
@@ -2503,7 +2505,7 @@ long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
       if (st != stream) stream = mail_close (stream);
       if (mailbox)		/* chase referral if any */
 	ret = imap_append_referral (mailbox,tmp,af,data,map.flags,map.date,
-				    map.message,&map);
+				    map.message,&map,debug);
     }
     else mm_log ("Can't access server for append",ERROR);
   }
@@ -2518,12 +2520,13 @@ long imap_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
  *	    flags from previous attempt
  *	    date from previous attempt
  *	    message stringstruct from previous attempt
+ *	    options (currently non-zero to set OP_DEBUG)
  * Returns: T if append successful, else NIL
  */
 
 long imap_append_referral (char *mailbox,char *tmp,append_t af,void *data,
 			   char *flags,char *date,STRING *message,
-			   APPENDDATA *map)
+			   APPENDDATA *map,long options)
 {
   MAILSTREAM *stream;
   IMAPARG *args[3],ambx,amap;
@@ -2533,7 +2536,8 @@ long imap_append_referral (char *mailbox,char *tmp,append_t af,void *data,
 				/* barf if bad mailbox */
   while (mailbox && mail_valid_net (mailbox,&imapdriver,NIL,tmp)) {
 				/* create a stream if given one no good */
-    if (!(stream = mail_open (NIL,mailbox,OP_HALFOPEN|OP_SILENT))) {
+    if (!(stream = mail_open (NIL,mailbox,OP_HALFOPEN|OP_SILENT |
+			      (options ? OP_DEBUG : NIL)))) {
       sprintf (tmp,"Can't access referral server: %.80s",mailbox);
       mm_log (tmp,ERROR);
       return NIL;
@@ -4873,7 +4877,7 @@ unsigned char *imap_parse_string (MAILSTREAM *stream,unsigned char **txtptr,
 	mm_notify (stream,"Unterminated quoted string",WARN);
 	stream->unhealthy = T;
 	if (len) *len = 0;	/* punt, since may be at end of string */
-	return string;
+	return NIL;
       }
     }
     ++*txtptr;			/* bump past delimiter */
@@ -4946,7 +4950,7 @@ unsigned char *imap_parse_string (MAILSTREAM *stream,unsigned char **txtptr,
     if (len) *len = 0;
     break;
   }
-  return string;
+  return (unsigned char *) string;
 }
 
 /* Register text in IMAP cache

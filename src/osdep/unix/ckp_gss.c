@@ -40,6 +40,9 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
   krb5_context ctx;
   krb5_timestamp now;
   krb5_principal service;
+  krb5_ccache ccache;
+  krb5_error_code code;
+  krb5_preauthtype preauth[2] = {KRB5_PADATA_ENC_TIMESTAMP,0};
   krb5_creds *crd = (krb5_creds *) memset (fs_get (sizeof (krb5_creds)),0,
 						   sizeof (krb5_creds));
   struct passwd *ret = NIL;
@@ -71,8 +74,11 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
 				   0)) {
 				/* expire in 3 minutes */
       crd->times.endtime = now + (3 * 60);
-      if (!krb5_get_in_tkt_with_password (ctx,NIL,NIL,NIL,NIL,pass,0,crd,0) &&
-	  !krb5_verify_init_creds (ctx,crd,service,0,0,0))
+      if (krb5_cc_resolve (ctx,"MEMORY:pwk",&ccache) ||
+          krb5_cc_initialize (ctx,ccache,crd->client)) ccache = 0;
+      if (!krb5_get_in_tkt_with_password (ctx,NIL,NIL,NIL,preauth,pass,ccache,
+					  crd,0) &&
+	  !krb5_verify_init_creds (ctx,crd,service,0,ccache ? &ccache : 0,0))
 	ret = pw;
       krb5_free_creds (ctx,crd);/* flush creds and service principal */
       krb5_free_principal (ctx,service);

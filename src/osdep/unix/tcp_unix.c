@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	7 December 2006
+ * Last Edited:	9 January 2007
  */
 
 #include "ip_unix.c"
@@ -250,8 +250,16 @@ int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
     sprintf (tmp,"Unable to create TCP socket: %s",strerror (errno));
     (*bn) (BLOCK_NONSENSITIVE,data);
   }
-  else {
-				/* get current socket flags */
+  else if (sock >= FD_SETSIZE) {/* unselectable sockets are useless */
+    sprintf (tmp,"Unable to create selectable TCP socket (%d >= %d)",
+	     sock,FD_SETSIZE);
+    (*bn) (BLOCK_NONSENSITIVE,data);
+    close (sock);
+    sock = -1;
+    errno = EMFILE;
+  }
+
+  else {			/* get current socket flags */
     flgs = fcntl (sock,F_GETFL,0);
 				/* set non-blocking if want open timeout */
     if (ctr) fcntl (sock,F_SETFL,flgs | FNDELAY);
@@ -271,7 +279,6 @@ int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
       close (sock);		/* flush socket */
       sock = -1;
     }
-
     if ((sock >= 0) && ctr) {	/* want open timeout? */
       now = time (0);		/* open timeout */
       ti = ttmo_open ? now + ttmo_open : 0;
@@ -369,14 +376,17 @@ TCPSTREAM *tcp_aopen (NETMBX *mb,char *service,char *usrbuf)
   argv[i] = NIL;		/* make sure argv tied off */
 				/* make command pipes */
   if (pipe (pipei) < 0) return NIL;
-  if (pipe (pipeo) < 0) {
+  if ((pipei[0] >= FD_SETSIZE) || (pipei[1] >= FD_SETSIZE) ||
+      (pipe (pipeo) < 0)) {
     close (pipei[0]); close (pipei[1]);
     return NIL;
   }
   (*bn) (BLOCK_TCPOPEN,NIL);	/* quell alarm up here for NeXT */
-  if ((i = fork ()) < 0) {	/* make inferior process */
+  if ((pipeo[0] >= FD_SETSIZE) || (pipeo[1] >= FD_SETSIZE) ||
+      ((i = fork ()) < 0)) {	/* make inferior process */
     close (pipei[0]); close (pipei[1]);
     close (pipeo[0]); close (pipeo[1]);
+    (*bn) (BLOCK_NONE,NIL);
     return NIL;
   }
   if (!i) {			/* if child */

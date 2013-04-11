@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	13 November 2006
+ * Last Edited:	20 December 2006
  */
 
 
@@ -786,7 +786,7 @@ char *mmdf_header (MAILSTREAM *stream,unsigned long msgno,
     fs_give ((void **) &s);	/* free readin buffer */
   }
   *length = mail_filter (LOCAL->buf,*length,mmdf_hlines,FT_NOT);
-  return LOCAL->buf;		/* return processed copy */
+  return (char *) LOCAL->buf;	/* return processed copy */
 }
 
 /* MMDF mail fetch message text
@@ -847,7 +847,7 @@ char *mmdf_text_work (MAILSTREAM *stream,MESSAGECACHE *elt,
       if ((*t != '\r') || (t[1] != '\n')) *s++ = *t;
 				/* adjust length */
     LOCAL->buf[*length = s - LOCAL->buf - 1] = '\0';
-    return LOCAL->buf;
+    return (char *) LOCAL->buf;
   }
 
 				/* have it cached already? */
@@ -930,7 +930,7 @@ long mmdf_ping (MAILSTREAM *stream)
 	reparse = (sbuf.st_size != LOCAL->filesize);
       }
 				/* parse if mailbox changed */
-      if ((LOCAL->ddirty || reparse) && mmdf_parse (stream,&lock,LOCK_SH)) {
+      if ((LOCAL->ddirty || reparse) && mmdf_parse (stream,&lock,LOCK_EX)) {
 				/* force checkpoint if double-dirty */
 	if (LOCAL->ddirty) mmdf_rewrite (stream,NIL,&lock,NIL);
 				/* unlock mailbox */

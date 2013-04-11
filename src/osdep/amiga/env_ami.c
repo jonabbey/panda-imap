@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	9 January 2007
  */
 
 #include <grp.h>
@@ -915,30 +915,41 @@ long dotlock_lock (char *file,DOTLOCK *base,int fd)
   case EACCES:			/* protection failure? */
 				/* make command pipes */
     if (!stat (LOCKPGM,&sb) && (pipe (pi) >= 0)) {
-      if (pipe (po) >= 0) {
-	if (!(j = fork ())) {	/* make inferior process */
+				/* if input pipes usable create output pipes */
+      if ((pi[0] < FD_SETSIZE) && (pi[1] < FD_SETSIZE) && (pipe (po) >= 0)) {
+				/* make sure output pipes are usable */
+	if ((po[0] >= FD_SETSIZE) || (po[1] >= FD_SETSIZE));
+				/* all is good, make inferior process */
+	else if (!(j = fork ())) {
 	  if (!fork ()) {	/* make grandchild so it's inherited by init */
-	    char *argv[4];
+	    long cf;		/* don't change caller vars in case vfork() */
+	    char *argv[4],arg[20];
 				/* prepare argument vector */
-	    sprintf (tmp,"%d",fd);
-	    argv[0] = LOCKPGM; argv[1] = tmp;
+	    sprintf (arg,"%d",fd);
+	    argv[0] = LOCKPGM; argv[1] = arg;
 	    argv[2] = file; argv[3] = NIL;
 				/* set parent's I/O to my O/I */
 	    dup2 (pi[1],1); dup2 (pi[1],2); dup2 (po[0],0);
 				/* close all unnecessary descriptors */
-	    for (j = max (20,max (max (pi[0],pi[1]),max(po[0],po[1])));
-		 j >= 3; --j) if (j != fd) close (j);
+	    for (cf = max (20,max (max (pi[0],pi[1]),max(po[0],po[1])));
+		 cf >= 3; --cf) if (cf != fd) close (cf);
 				/* be our own process group */
 	    setpgrp (0,getpid ());
 				/* now run it */
-	    execv (argv[0],argv);
+	    _exit (execv (argv[0],argv));
 	  }
 	  _exit (1);		/* child is done */
 	}
-	else if (j > 0) {	/* reap child; grandchild now owned by init */
-	  grim_pid_reap (j,NIL);
+	else if (j > 0) {	/* parent process */
+	  fd_set rfd;
+	  struct timeval tmo;
+	  FD_ZERO (&rfd);
+	  FD_SET (pi[0],&rfd);
+	  tmo.tv_sec = locktimeout * 60;
+	  grim_pid_reap (j,NIL);/* reap child; grandchild now owned by init */
 				/* read response from locking program */
-	  if ((read (pi[0],tmp,1) == 1) && (tmp[0] == '+')) {
+	  if (select (pi[0]+1,&rfd,0,0,&tmo) &&
+	      (read (pi[0],tmp,1) == 1) && (tmp[0] == '+')) {
 				/* success, record pipes */
 	    base->pipei = pi[0]; base->pipeo = po[1];
 				/* close child's side of the pipes */

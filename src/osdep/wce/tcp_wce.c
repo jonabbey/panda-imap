@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	30 August 2006
+ * Last Edited:	18 December 2007
  */
 
 
@@ -33,7 +33,8 @@
 
 int tcp_socket_open (struct sockaddr_in *sin,char *tmp,char *hst,
 		     unsigned long port);
-long tcp_abort (SOCKET *sock);
+long tcp_abort (TCPSTREAM *stream);
+long tcp_close_socket (SOCKET *sock);
 char *tcp_name (struct sockaddr_in *sin,long flag);
 char *tcp_name_valid (char *s);
 
@@ -159,7 +160,8 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
       sin.sin_family = he->h_addrtype;
 				/* copy host name */
       strcpy (hostname,he->h_name);
-      wsa_sock_open++;		/* prevent tcp_abort() from freeing in loop */
+      wsa_sock_open++;		/* prevent tcp_close_socket() from freeing in
+				   loop */
       for (i = 0; (sock == INVALID_SOCKET) && (s = he->h_addr_list[i]); i++) {
 	if (i && !silent) mm_log (tmp,WARN);
 	memcpy (&sin.sin_addr,s,he->h_length);
@@ -172,7 +174,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   }
   if (sock == INVALID_SOCKET) {	/* error? */
     if (!silent) mm_log (tmp,ERROR);
-    tcp_abort (&sock);		/* do possible cleanup action */
+    tcp_close_socket (&sock);	/* do possible cleanup action */
   }
   else {			/* got a socket, create TCP/IP stream */
     stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
@@ -231,7 +233,7 @@ int tcp_socket_open (struct sockaddr_in *sin,char *tmp,char *hst,
     }
     sprintf (tmp,"Can't connect to %.80s,%ld: %s (%d)",hst,port,s,
 	     WSAGetLastError ());
-    tcp_abort (&sock);		/* flush socket */
+    tcp_close_socket (&sock);	/* flush socket */
     sock = INVALID_SOCKET;
   }
   return sock;			/* return the socket */
@@ -336,12 +338,12 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 	      select (stream->tcpsi+1,&fds,0,0,
 		      ttmo_read ? &tmo : (struct timeval *) 0) : 1) {
       case SOCKET_ERROR:		/* error */
-	if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcpsi);
+	if (WSAGetLastError () != WSAEINTR) return tcp_abort (stream);
 	break;
       case 0:			/* timeout */
 	tc = time (0);
 	if (tmoh && ((*tmoh) (tc - t,tc - tl))) break;
-	return tcp_abort (&stream->tcpsi);
+	return tcp_abort (stream);
       default:
 	if (stream->tcpsi == stream->tcpso)
 	  while (((i = recv (stream->tcpsi,s,(int) min (maxposint,size),0)) ==
@@ -351,7 +353,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 	switch (i) {
 	case SOCKET_ERROR:	/* error */
 	case 0:			/* no data read */
-	  return tcp_abort (&stream->tcpsi);
+	  return tcp_abort (stream);
 	default:
 	  s += i;		/* point at new place to write */
 	  size -= i;		/* reduce byte count */
@@ -391,12 +393,12 @@ long tcp_getdata (TCPSTREAM *stream)
 	    select (stream->tcpsi+1,&fds,0,0,
 		    ttmo_read ? &tmo : (struct timeval *) 0) : 1) {
     case SOCKET_ERROR:		/* error */
-      if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcpsi);
+      if (WSAGetLastError () != WSAEINTR) return tcp_abort (stream);
       break;
     case 0:			/* timeout */
       tc = time (0);
       if (tmoh && ((*tmoh) (tc - t,tc - tl))) break;
-      return tcp_abort (&stream->tcpsi);
+      return tcp_abort (stream);
     default:
       if (stream->tcpsi == stream->tcpso)
 	while (((i = recv (stream->tcpsi,stream->ibuf,BUFLEN,0)) ==
@@ -406,7 +408,7 @@ long tcp_getdata (TCPSTREAM *stream)
       switch (i) {
       case SOCKET_ERROR:	/* error */
       case 0:			/* no data read */
-	return tcp_abort (&stream->tcpsi);
+	return tcp_abort (stream);
       default:
 	stream->ictr = i;	/* set new byte count */
 				/* point at TCP buffer */
@@ -459,12 +461,12 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 	    select (stream->tcpso+1,NULL,&fds,NULL,
 		    tmo.tv_sec ? &tmo : (struct timeval *) 0) : 1) {
     case SOCKET_ERROR:		/* error */
-      if (WSAGetLastError () != WSAEINTR) return tcp_abort (&stream->tcpsi);
+      if (WSAGetLastError () != WSAEINTR) return tcp_abort (stream);
       break;
     case 0:			/* timeout */
       tc = time (0);
       if (tmoh && ((*tmoh) (tc - t,tc - tl))) break;
-      return tcp_abort (&stream->tcpsi);
+      return tcp_abort (stream);
     default:
       if (stream->tcpsi == stream->tcpso)
 	while (((i = send (stream->tcpso,string,
@@ -473,7 +475,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
       else while (((i = write (stream->tcpso,string,
 			       min (size,TCPMAXSEND))) < 0) &&
 		  (errno == EINTR));
-      if (i == SOCKET_ERROR) return tcp_abort (&stream->tcpsi);
+      if (i == SOCKET_ERROR) return tcp_abort (stream);
       size -= i;		/* count this size */
       if (tcpdebug) mm_log ("successfully wrote to TCP",TCPDEBUG);
       string += i;
@@ -490,7 +492,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 
 void tcp_close (TCPSTREAM *stream)
 {
-  tcp_abort (&stream->tcpsi);	/* nuke the socket */
+  tcp_abort (stream);		/* nuke the sockets */
 				/* flush host names */
   if (stream->host) fs_give ((void **) &stream->host);
   if (stream->remotehost) fs_give ((void **) &stream->remotehost);
@@ -499,12 +501,25 @@ void tcp_close (TCPSTREAM *stream)
 }
 
 
+/* TCP/IP abort sockets
+ * Accepts: TCP/IP stream
+ * Returns: NIL, always
+ */
+
+long tcp_abort (TCPSTREAM *stream)
+{
+  if (stream->tcpsi != stream->tcpso) tcp_close_socket (&stream->tcpso);
+  else stream->tcpso = INVALID_SOCKET;
+  return tcp_close_socket (&stream->tcpsi);
+}
+
+
 /* TCP/IP abort stream
  * Accepts: WinSock socket
  * Returns: NIL, always
  */
 
-long tcp_abort (SOCKET *sock)
+long tcp_close_socket (SOCKET *sock)
 {
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
 				/* something to close? */

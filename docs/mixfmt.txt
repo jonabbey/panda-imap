@@ -11,7 +11,7 @@
  * ========================================================================
  */
 
-Last update: 17 August 2006
+Last update: 18 December 2006
 
 INTRODUCTION
 
@@ -76,7 +76,7 @@ is the payload.
 	Key	Payload
 	---	-------
 	 S	<hex8>			;; update sequence
-	 :	<uid>:<date>:<size>:<hsiz>:<file>:<pos>:
+	 :	<uid>:<date>:<size>:<file>:<pos>:<isiz>:<hsiz>
 	 				;; per-message record
 
 The per-message records contain the following data:

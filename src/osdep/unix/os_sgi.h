@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	20 December 2006
  */
 
 #include <stdlib.h>
@@ -41,6 +41,7 @@
 /* Many versions of SysV get this wrong */
 
 #define setpgrp(a,b) Setpgrp(a,b)
+int Setpgrp (int pid,int gid);
 
 
 #define direct dirent

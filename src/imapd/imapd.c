@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	27 November 2006
+ * Last Edited:	18 January 2007
  */
 
 /* Parameter files */
@@ -104,7 +104,7 @@ typedef struct msg_data {
   unsigned long msgno;		/* message number */
   char *flags;			/* current flags */
   char *date;			/* current date */
-  STRING *message;		/* strintstruct of message */
+  STRING *message;		/* stringstruct of message */
 } MSGDATA;
 
 /* Function prototypes */
@@ -203,7 +203,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2006d.376";	/* version number of this server */
+char *version = "2006e.378";	/* version number of this server */
 char *logout = "Logout";	/* syslogreason for logout */
 char *goodbye = NIL;		/* bye reason */
 time_t alerttime = 0;		/* time of last alert */
@@ -243,6 +243,7 @@ struct {
 } litplus;
 int litsp = 0;			/* literal stack pointer */
 char *litstk[LITSTKLEN];	/* stack to hold literals */
+unsigned long uidvalidity = 0;	/* last reported UID validity */
 unsigned long lastuid = 0;	/* last fetched uid */
 char *lastid = NIL;		/* last fetched body id for this message */
 char *lastsel = NIL;		/* last selected mailbox name */
@@ -634,7 +635,8 @@ int main (int argc,char *argv[])
 				/* no arguments */
 	  if (arg) response = badarg;
 	  else {
-	    lastuid = 0;	/* no last uid */
+				/* no last uid */
+	    uidvalidity = lastuid = 0;
 	    if (lastsel) fs_give ((void **) &lastsel);
 	    if (lastid) fs_give ((void **) &lastid);
 	    if (lastst.data) fs_give ((void **) &lastst.data);
@@ -802,7 +804,8 @@ int main (int argc,char *argv[])
 	    f = (anonymous ? OP_ANONYMOUS + OP_READONLY : NIL) |
 	      ((*cmd == 'S') ? NIL : OP_READONLY);
 	    curdriver = NIL;	/* no drivers known */
-	    lastuid = 0;	/* no last uid */
+				/* no last uid */
+	    uidvalidity = lastuid = 0;
 	    if (lastid) fs_give ((void **) &lastid);
 	    if (lastst.data) fs_give ((void **) &lastst.data);
 				/* force update */
@@ -1391,6 +1394,20 @@ void ping_mailbox (unsigned long uid)
       PSOUT (" RECENT\015\012");
     }
     existsquelled = NIL;	/* don't do this until asked again */
+    if (stream->uid_validity && (stream->uid_validity != uidvalidity)) {
+      PSOUT ("* OK [UIDVALIDITY ");
+      pnum (stream->uid_validity);
+      PSOUT ("] UID validity status\015\012* OK [UIDNEXT ");
+      pnum (stream->uid_last + 1);
+      PSOUT ("] Predicted next UID\015\012");
+      if (stream->uid_nosticky) {
+	PSOUT ("* NO [UIDNOTSTICKY] Non-permanent unique identifiers: ");
+	PSOUT (stream->mailbox);
+	CRLF;
+      }
+      uidvalidity = stream->uid_validity;
+    }
+
 				/* don't bother if driver changed */
     if (curdriver == stream->dtb) {
       for (i = 1; i <= nmsgs; i++) if (mail_elt (stream,i)->spare2) {
@@ -1405,18 +1422,7 @@ void ping_mailbox (unsigned long uid)
 	PSOUT (")\015\012");
       }
     }
-
     else {			/* driver changed */
-      PSOUT ("* OK [UIDVALIDITY ");
-      pnum (stream->uid_validity);
-      PSOUT ("] UID validity status\015\012* OK [UIDNEXT ");
-      pnum (stream->uid_last + 1);
-      PSOUT ("] Predicted next UID\015\012");
-      if (stream->uid_nosticky) {
-	PSOUT ("* NO [UIDNOTSTICKY] Non-permanent unique identifiers: ");
-	PSOUT (stream->mailbox);
-	CRLF;
-      }
       new_flags (stream);	/* send mailbox flags */
       if (curdriver) {		/* note readonly/write if possible change */
 	PSOUT ("* OK [READ-");
@@ -3664,7 +3670,8 @@ char *imap_responder (void *challenge,unsigned long clen,unsigned long *rlen)
     PFLUSH ();			/* dump output buffer */
 				/* slurp response buffer */
     slurp ((char *) resp,RESPBUFLEN);
-    if (!(t = (unsigned char *) strchr ((char *) resp,'\012'))) return flush ();
+    if (!(t = (unsigned char *) strchr ((char *) resp,'\012')))
+      return (char *) flush ();
     if (t[-1] == '\015') --t;	/* remove CR */
     *t = '\0';			/* tie off buffer */
     if (resp[0] == '*') {
@@ -3697,6 +3704,7 @@ long proxycopy (MAILSTREAM *stream,char *sequence,char *mailbox,long options)
   md.msgno = 0;
   md.flags = md.date = NIL;
   md.message = &st;
+  /* Currently ignores CP_MOVE and CP_DEBUG */
   if (!((options & CP_UID) ?	/* validate sequence */
 	mail_uid_sequence (stream,sequence) : mail_sequence (stream,sequence)))
     return NIL;

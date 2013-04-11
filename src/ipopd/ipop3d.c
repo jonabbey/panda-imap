@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	27 November 2006
+ * Last Edited:	18 December 2006
  */
 
 /* Parameter files */
@@ -65,7 +65,7 @@ extern int errno;		/* just in case */
 
 /* Global storage */
 
-char *version = "2006d.96";	/* server version */
+char *version = "2006e.96";	/* server version */
 short state = AUTHORIZATION;	/* server state */
 short critical = NIL;		/* non-zero if in critical code */
 MAILSTREAM *stream = NIL;	/* mailbox stream */

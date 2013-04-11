@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited: 3 December 2006
+ * Last Edited: 9 January 2007
  */
 
 #include "ip_nt.c"
@@ -35,7 +35,8 @@
 
 int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
 		     char *tmp,char *hst);
-long tcp_abort (SOCKET *sock);
+long tcp_abort (TCPSTREAM *stream);
+long tcp_close_socket (SOCKET *sock);
 char *tcp_name (struct sockaddr *sadr,long flag);
 char *tcp_name_valid (char *s);
 
@@ -162,7 +163,8 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
     (*bn) (BLOCK_NONE,NIL);
     if (s) {			/* DNS resolution won? */
       if (tcpdebug) mm_log ("DNS resolution done",TCPDEBUG);
-      wsa_sock_open++;		/* prevent tcp_abort() from freeing in loop */
+      wsa_sock_open++;		/* prevent tcp_close_socket() from freeing in
+				   loop */
       do {
 	(*bn) (BLOCK_TCPOPEN,NIL);
 	if (((sock = tcp_socket_open (family,s,adrlen,(unsigned short) port,
@@ -176,7 +178,7 @@ TCPSTREAM *tcp_open (char *host,char *service,unsigned long port)
   }
   if (sock == INVALID_SOCKET) {	/* do possible cleanup action */
     if (!silent) mm_log (tmp,ERROR);
-    tcp_abort (&sock);	
+    tcp_close_socket (&sock);	
   }
   else {			/* got a socket, create TCP/IP stream */
     stream = (TCPSTREAM *) memset (fs_get (sizeof (TCPSTREAM)),0,
@@ -221,6 +223,13 @@ int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
       INVALID_SOCKET)
     sprintf (tmp,"Unable to create TCP socket (%d)",WSAGetLastError ());
   else {
+    /* On Windows, FD_SETSIZE is the number of descriptors which can be
+     * held in an fd_set, as opposed to the maximum descriptor value on UNIX.
+     * Similarly, an fd_set in Windows is a vector of descriptor values, as
+     * opposed to a bitmask of set fds on UNIX.  Thus, an fd_set can hold up
+     * to FD_SETSIZE values which can be larger than FD_SETSIZE, and the test
+     * that is used on UNIX is unnecessary here.
+     */
     wsa_sock_open++;		/* count this socket as open */
 				/* set socket nonblocking */
     if (ttmo_open) WSAEventSelect (sock,event = WSACreateEvent (),FD_CONNECT);
@@ -271,7 +280,7 @@ int tcp_socket_open (int family,void *adr,size_t adrlen,unsigned short port,
     if (event) WSACloseEvent (event);
     if (s) {			/* got an error? */
       sprintf (tmp,"Can't connect to %.80s,%ld: %.80s",hst,port,s);
-      tcp_abort (&sock);	/* flush socket */
+      tcp_close_socket (&sock);	/* flush socket */
       sock = INVALID_SOCKET;
     }
   }
@@ -399,7 +408,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 	  if (tmoh && (*tmoh) ((long) (now - t),(long) (now - tl))) continue;
 				/* otherwise punt */
 	  if (tcpdebug) mm_log ("TCP buffer read timeout",TCPDEBUG);
-	  return tcp_abort (&stream->tcpsi);
+	  return tcp_abort (stream);
 	}
       }
       if (i <= 0) {		/* error seen? */
@@ -409,7 +418,7 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *s)
 	  else s = "TCP buffer read end of file";
 	  mm_log (s,TCPDEBUG);
 	}
-	return tcp_abort (&stream->tcpsi);
+	return tcp_abort (stream);
       }
       s += i;			/* point at new place to write */
       size -= i;		/* reduce byte count */
@@ -467,7 +476,7 @@ long tcp_getdata (TCPSTREAM *stream)
 	if (tmoh && (*tmoh) ((long) (now - t),(long) (now - tl))) continue;
 				/* otherwise punt */
 	if (tcpdebug) mm_log ("TCP data read timeout",TCPDEBUG);
-	return tcp_abort (&stream->tcpsi);
+	return tcp_abort (stream);
       }
     }
     if (i <= 0) {		/* error seen? */
@@ -477,7 +486,7 @@ long tcp_getdata (TCPSTREAM *stream)
 	else s = "TCP data read end of file";
 	mm_log (tmp,TCPDEBUG);
       }
-      return tcp_abort (&stream->tcpsi);
+      return tcp_abort (stream);
     }
     stream->iptr = stream->ibuf;/* point at TCP buffer */
     stream->ictr = i;		/* set new byte count */
@@ -551,7 +560,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 	if (tmoh && (*tmoh) ((long) (now - t),(long) (now - tl))) continue;
 				/* otherwise punt */
 	if (tcpdebug) mm_log ("TCP write timeout",TCPDEBUG);
-	return tcp_abort (&stream->tcpsi);
+	return tcp_abort (stream);
       }
     }
     if (i <= 0) {		/* error seen? */
@@ -560,7 +569,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 	sprintf (tmp,"TCP write I/O error %d",errno);
 	mm_log (tmp,TCPDEBUG);
       }
-      return tcp_abort (&stream->tcpsi);
+      return tcp_abort (stream);
     }
     string += i;		/* how much we sent */
     size -= i;			/* count this size */
@@ -576,7 +585,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 
 void tcp_close (TCPSTREAM *stream)
 {
-  tcp_abort (&stream->tcpsi);	/* nuke the socket */
+  tcp_abort (stream);		/* nuke the sockets */
 				/* flush host names */
   if (stream->host) fs_give ((void **) &stream->host);
   if (stream->remotehost) fs_give ((void **) &stream->remotehost);
@@ -585,12 +594,25 @@ void tcp_close (TCPSTREAM *stream)
 }
 
 
+/* TCP/IP abort sockets
+ * Accepts: TCP/IP stream
+ * Returns: NIL, always
+ */
+
+long tcp_abort (TCPSTREAM *stream)
+{
+  if (stream->tcpsi != stream->tcpso) tcp_close_socket (&stream->tcpso);
+  else stream->tcpso = INVALID_SOCKET;
+  return tcp_close_socket (&stream->tcpsi);
+}
+
+
 /* TCP/IP abort stream
  * Accepts: WinSock socket
  * Returns: NIL, always
  */
 
-long tcp_abort (SOCKET *sock)
+long tcp_close_socket (SOCKET *sock)
 {
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
 				/* something to close? */

@@ -21,7 +21,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	5 November 2006
+# Last Edited:	20 December 2006
 
 
 # Command line build parameters
@@ -935,7 +935,7 @@ ip_unix.c:
 	@false
 
 os_sol.h:
-	sh -c '(strings /lib/libc.a | grep getpassphrase > /dev/null) && $(LN) os_soln.h os_sol.h || $(LN) os_solo.h os_sol.h'
+	sh -c 'if [ -f /lib/libc.a ]; then (strings /lib/libc.a | grep getpassphrase > /dev/null) && $(LN) os_soln.h os_sol.h || $(LN) os_solo.h os_sol.h ; else $(LN) os_soln.h os_sol.h ; fi'
 
 
 # Once-only environment setup

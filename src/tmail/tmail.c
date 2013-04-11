@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 April 1993
- * Last Edited:	4 December 2006
+ * Last Edited:	22 December 2006
  */
 
 #include <stdio.h>
@@ -41,7 +41,7 @@ extern int errno;		/* just in case */
 
 /* Globals */
 
-char *version = "2006d.15";	/* tmail release version */
+char *version = "2006e.16";	/* tmail release version */
 int debug = NIL;		/* debugging (don't fork) */
 int trycreate = NIL;		/* flag saying gotta create before appending */
 int critical = NIL;		/* flag saying in critical code */
@@ -263,14 +263,11 @@ int deliver (FILE *f,unsigned long msglen,char *user)
     return fail ("absurd folder name",EX_NOUSER);
 				/* big security hole if this is allowed */
   if (!(duid = pwd->pw_uid)) return fail ("mail to root prohibited",EX_NOUSER);
-  if (duid != euid) {		/* avoid obnoxious initgroups() msg if self */
-    setgid (pwd->pw_gid);	/* initialize groups */
-    initgroups (user,pwd->pw_gid);
-    if (setuid (duid)) {	/* log in as that user */
-      sprintf (tmp,"unable to log in UID %ld from UID %ld",
-	       (long) duid,(long) euid);
-      return fail (tmp,EX_NOUSER);
-    }
+				/* log in as user if different than euid */
+  if ((duid != euid) && !loginpw (pwd,1,&user)) {
+    sprintf (tmp,"unable to log in UID %ld from UID %ld",
+	     (long) duid,(long) euid);
+    return fail (tmp,EX_NOUSER);
   }
 				/* can't use pwd after this point */
   env_init (pwd->pw_name,pwd->pw_dir);

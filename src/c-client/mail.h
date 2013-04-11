@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	30 August 2006
+ * Last Edited:	19 January 2007
  */
 
 /* Build parameters */
@@ -171,6 +171,8 @@
 #define SET_LOGOUTDATA (long) 228
 #define GET_EXTERNALAUTHID (long) 229
 #define SET_EXTERNALAUTHID (long) 230
+#define GET_SSLCAPATH (long) 231
+#define SET_SSLCAPATH (long) 232
 
 	/* 3xx: TCP/IP */
 #define GET_OPENTIMEOUT (long) 300
@@ -462,6 +464,8 @@
 
 #define CP_UID (long) 0x1	/* argument is a UID sequence */
 #define CP_MOVE (long) 0x2	/* delete from source after copying */
+				/* set debug in any created stream */
+#define CP_DEBUG (long) 0x20000000
 
 /* Search/sort/thread options */
 
@@ -489,6 +493,8 @@
 #define SA_UIDNEXT (long) 0x8	/* next UID to be assigned */
 				/* UID validity value */
 #define SA_UIDVALIDITY (long) 0x10
+				/* set OP_DEBUG on any created stream */
+#define SA_DEBUG (long) 0x10000000
 				/* use multiple newsrcs */
 #define SA_MULNEWSRC (long) 0x20000000
 

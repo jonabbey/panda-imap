@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2006 University of Washington
+ * Copyright 1988-2007 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 September 1998
- * Last Edited:	30 August 2006
+ * Last Edited:	9 January 2007
  */
 
 #define crypt ssl_private_crypt
@@ -226,8 +226,11 @@ static char *ssl_start_work (SSLSTREAM *stream,char *host,unsigned long flags)
   if (flags & NET_NOVALIDATECERT)
     SSL_CTX_set_verify (stream->context,SSL_VERIFY_NONE,NIL);
   else SSL_CTX_set_verify (stream->context,SSL_VERIFY_PEER,ssl_open_verify);
-				/* set default paths to CAs */
+				/* set default paths to CAs... */
   SSL_CTX_set_default_verify_paths (stream->context);
+				/* ...unless a non-standard path desired */
+  if (s = (char *) mail_parameters (NIL,GET_SSLCAPATH,NIL))
+    SSL_CTX_load_verify_locations (stream->context,NIL,s);
 				/* want to send client certificate? */
   if (scc && (s = (*scc) ()) && (sl = strlen (s))) {
     if (cert = PEM_read_bio_X509 (bio = BIO_new_mem_buf (s,sl),NIL,NIL,NIL)) {
@@ -452,6 +455,8 @@ long ssl_getdata (SSLSTREAM *stream)
   time_t t = time (0);
   blocknotify_t bn = (blocknotify_t) mail_parameters (NIL,GET_BLOCKNOTIFY,NIL);
   if (!stream->con || ((sock = SSL_get_fd (stream->con)) < 0)) return NIL;
+				/* tcp_unix should have prevented this */
+  if (sock >= FD_SETSIZE) fatal ("unselectable socket in ssl_getdata()");
   (*bn) (BLOCK_TCPREAD,NIL);
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     time_t tl = time (0);	/* start of request */
@@ -770,6 +775,8 @@ long ssl_server_input_wait (long seconds)
 				/* input available in buffer */
   if (((stream = sslstdio->sslstream)->ictr > 0) ||
       !stream->con || ((sock = SSL_get_fd (stream->con)) < 0)) return LONGT;
+				/* sock ought to be 0 always */
+  if (sock >= FD_SETSIZE) fatal ("unselectable socket in ssl_getdata()");
 				/* input available from SSL */
   if (SSL_pending (stream->con) &&
       ((i = SSL_read (stream->con,stream->ibuf,SSLBUFLEN)) > 0)) {
