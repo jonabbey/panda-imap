@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	15 September 2006
+ * Last Edited:	3 October 2006
  */
 
 #include <string.h>
@@ -62,6 +62,7 @@
 #define random lrand48
 
 #define scandir Scandir
+#define alphasort Alphasort
 
 #define getpass getpassphrase
 

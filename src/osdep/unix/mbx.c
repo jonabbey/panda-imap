@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	19 September 2006
+ * Last Edited:	26 September 2006
  */
 
 
@@ -1394,7 +1394,7 @@ long mbx_parse (MAILSTREAM *stream)
 	++recent;		/* count up a new recent message */
 	dirty = T;		/* and must rewrite header */
 				/* assign new UID */
-	elt->private.uid = ++stream->uid_last;
+	if (!elt->private.uid) elt->private.uid = ++stream->uid_last;
 	mbx_update_status (stream,elt->msgno,NIL);
       }
 				/* update last parsed UID */

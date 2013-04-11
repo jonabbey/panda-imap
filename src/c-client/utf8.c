@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 June 1997
- * Last Edited:	21 September 2006
+ * Last Edited:	27 September 2006
  */
 
 
@@ -583,8 +583,8 @@ unsigned short *utf8_rmap_cs (const CHARSET *cs)
 unsigned short *utf8_rmap_gen (const CHARSET *cs,unsigned short *oldmap)
 {
   unsigned short u,*tab,*rmap;
-  unsigned int i,ku,ten;
-  struct utf8_eucparam *param;
+  unsigned int i,m,ku,ten;
+  struct utf8_eucparam *param,*p2;
   switch (cs->type) {		/* is a character set? */
   case CT_ASCII:		/* 7-bit ASCII no table */
   case CT_1BYTE0:		/* 1 byte no table */
@@ -636,17 +636,22 @@ unsigned short *utf8_rmap_gen (const CHARSET *cs,unsigned short *oldmap)
 	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten);
       break;
     case CT_DBYTE2:		/* 2 byte ASCII + utf8_eucparam plane1/2 */
-      for (param = (struct utf8_eucparam *) cs->tab,
-	     tab = (unsigned short *) param->tab, ku = 0;
-	   ku < param->max_ku; ku++)
+      param = (struct utf8_eucparam *) cs->tab;
+      p2 = param + 1;		/* plane 2 parameters */
+				/* only ten parameters should differ */
+      if ((param->base_ku != p2->base_ku) || (param->max_ku != p2->max_ku))
+	fatal ("ku definition error for CT_DBYTE2 charset");
+				/* total codepoints in each ku */
+      m = param->max_ten + p2->max_ten;
+      tab = (unsigned short *) param->tab;
+      for (ku = 0; ku < param->max_ku; ku++) {
 	for (ten = 0; ten < param->max_ten; ten++)
-	  if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
+	  if ((u = tab[(ku * m) + ten]) != UBOGON)
 	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten);
-      param++;
-      for (ku = 0; ku < param->max_ku; ku++)
-	for (ten = 0; ten < param->max_ten; ten++)
-	  if ((u = tab[(ku * param->max_ten) + ten]) != UBOGON)
-	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + param->base_ten);
+	for (ten = 0; ten < p2->max_ten; ten++)
+	  if ((u = tab[(ku * m) + param->max_ten + ten]) != UBOGON)
+	    rmap[u] = ((ku + param->base_ku) << 8) + (ten + p2->base_ten);
+      }
       break;
     case CT_SJIS:		/* 2 byte Shift-JIS */
       for (ku = 0; ku < MAX_JIS0208_KU; ku++)
@@ -739,8 +744,11 @@ long utf8_rmaptext (SIZEDTEXT *text,unsigned short *rmap,SIZEDTEXT *ret,
       *t++ = I2CS_94_JIS_ROMAN;
     }
     *t++ = NIL;			/* tie off returned data */
+    return LONGT;		/* return success */
   }
-  return LONGT;			/* return success */
+  ret->data = NIL;
+  ret->size = 0;
+  return NIL;			/* failure */
 }
 
 /* Calculate size of convertsion of UTF-8 sized text to charset using rmap
@@ -839,7 +847,7 @@ long ucs4_rmaplen (unsigned long *ucs4,unsigned long len,unsigned short *rmap,
 /* Stuff buffer with UCS-4 string converted to other CS via rmap
  * Accepts: destination buffer
  *	    source UCS-4 character(s)
- *	    numver of UCS-4 characters
+ *	    number of UCS-4 characters
  *	    conversion rmap
  *	    substitute character if not in rmap, else NIL to return failure
  * Returns: T, always

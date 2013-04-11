@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 March 2006
- * Last Edited:	19 September 2006
+ * Last Edited:	29 September 2006
  */
 
 
@@ -153,6 +153,7 @@ int mix_select (struct direct *name);
 int mix_msgfsort (const void *d1,const void *d2);
 long mix_addset (SEARCHSET **set,unsigned long start,unsigned long size);
 long mix_burp (MAILSTREAM *stream,MIXBURP *burp,unsigned long *reclaimed);
+long mix_burp_check (SEARCHSET *set,size_t size,char *file);
 long mix_copy (MAILSTREAM *stream,char *sequence,char *mailbox,
 	       long options);
 long mix_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data);
@@ -1169,7 +1170,6 @@ long mix_addset (SEARCHSET **set,unsigned long start,unsigned long size)
  */
 
 static char *staterr = "Error in stat of mix message file %.80s: %.80s";
-static char *shortmsg = "Unexpected short mix message file %.80s %ld < %ld";
 static char *truncerr = "Error truncating mix message file %.80s: %.80s";
 
 long mix_burp (MAILSTREAM *stream,MIXBURP *burp,unsigned long *reclaimed)
@@ -1188,27 +1188,24 @@ long mix_burp (MAILSTREAM *stream,MIXBURP *burp,unsigned long *reclaimed)
   mix_file_data (LOCAL->buf,LOCAL->dir,burp->fileno);
 				/* need to burp at start or multiple ranges? */
   if (!burp->set.first && !burp->set.next) {
-				/* no, single range at start of file */
+				/* easy case, single range at start of file */
     if (stat (LOCAL->buf,&sbuf)) {
       sprintf (LOCAL->buf,staterr,burp->name,strerror (errno));
       MM_LOG (LOCAL->buf,ERROR);
     }
-				/* and if matches range then no burp needed! */
-    else if (burp->set.last == sbuf.st_size) ret = LONGT;
-				/* sanity check */
-    else if (burp->set.last > sbuf.st_size) {
-      sprintf (LOCAL->buf,shortmsg,burp->name,sbuf.st_size,burp->set.last);
-      MM_LOG (LOCAL->buf,ERROR);
-    }
+				/* is this range sane? */
+    else if (mix_burp_check (&burp->set,sbuf.st_size,LOCAL->buf)) {
+				/* if matches range then no burp needed! */
+      if (burp->set.last == sbuf.st_size) ret = LONGT;
 				/* just need to remove cruft at end */
-    else if (ret = !truncate (LOCAL->buf,burp->set.last))
-      *reclaimed += sbuf.st_size - burp->set.last;
-    else {
-      sprintf (LOCAL->buf,truncerr,burp->name,strerror (errno));
-      MM_LOG (LOCAL->buf,ERROR);
+      else if (ret = !truncate (LOCAL->buf,burp->set.last))
+	*reclaimed += sbuf.st_size - burp->set.last;
+      else {
+	sprintf (LOCAL->buf,truncerr,burp->name,strerror (errno));
+	MM_LOG (LOCAL->buf,ERROR);
+      }
     }
   }
-
 				/* have to do more work, get the file */
   else if (((fd = open (LOCAL->buf,O_RDWR,NIL)) < 0) ||
 	   !(f = fdopen (fd,"r+b"))) {
@@ -1222,13 +1219,10 @@ long mix_burp (MAILSTREAM *stream,MIXBURP *burp,unsigned long *reclaimed)
     MM_LOG (LOCAL->buf,ERROR);
     fclose (f);
   }
-				/* sanity check */
-  else if (burp->set.last > sbuf.st_size) {
-    sprintf (LOCAL->buf,shortmsg,burp->name,sbuf.st_size,burp->set.last);
-    MM_LOG (LOCAL->buf,ERROR);
-    fclose (f);
-  }
-  else {			/* make sure each range starts with token */
+
+				/* only if sane */
+  else if (mix_burp_check (&burp->set,sbuf.st_size,LOCAL->buf)) {
+				/* make sure each range starts with token */
     for (set = &burp->set; set; set = set->next)
       if (fseek (f,set->first,SEEK_SET) ||
 	  (fread (LOCAL->buf,1,MSGTSZ,f) != MSGTSZ) ||
@@ -1239,7 +1233,6 @@ long mix_burp (MAILSTREAM *stream,MIXBURP *burp,unsigned long *reclaimed)
 	fclose (f);
 	return NIL;		/* burp fails for this file */
       }
-
 				/* burp out each old message */
     for (set = &burp->set, wpos = 0; set; set = set->next) {
 				/* move down this range */
@@ -1270,6 +1263,7 @@ long mix_burp (MAILSTREAM *stream,MIXBURP *burp,unsigned long *reclaimed)
 	rpos += wsize; wpos += wsize;
       }
     }
+
     while (fflush (f)) {	/* failure also not an option here... */
       MM_NOTIFY (stream,strerror (errno),WARN);
       MM_DISKERROR (stream,errno,T);
@@ -1290,6 +1284,26 @@ long mix_burp (MAILSTREAM *stream,MIXBURP *burp,unsigned long *reclaimed)
     if (rpos != wpos) fatal ("burp size consistency check!");
   }
   return ret;
+}
+
+
+/* MIX burp sanity check to make sure not burping off end of file
+ * Accepts: burp set
+ *	    file size
+ *	    file name
+ * Returns: T if sane, NIL if insane
+ */
+
+long mix_burp_check (SEARCHSET *set,size_t size,char *file)
+{
+  do if (set->last > size) {	/* sanity check */
+    char tmp[MAILTMPLEN];
+    sprintf (tmp,"Unexpected short mix message file %.80s %ld < %ld",
+	     file,size,set->last);
+    MM_LOG (tmp,ERROR);
+    return NIL;			/* don't burp this file at all */
+  } while (set = set->next);
+  return LONGT;
 }
 
 /* MIX mail copy message(s)

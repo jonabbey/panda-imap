@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 November 1990
- * Last Edited:	18 September 2006
+ * Last Edited:	29 September 2006
  */
 
 /* Parameter files */
@@ -124,7 +124,7 @@ void trmint (void);
 void slurp (char *s,int n);
 void inliteral (char *s,unsigned long n);
 unsigned char *flush (void);
-void inerror (char *reason);
+void ioerror (FILE *f,char *reason);
 unsigned char *parse_astring (unsigned char **arg,unsigned long *i,
 			      unsigned char *del);
 unsigned char *snarf (unsigned char **arg);
@@ -202,7 +202,7 @@ char *lasterror (void);
 
 /* Global storage */
 
-char *version = "2006a.369";	/* version number of this server */
+char *version = "2006b.373";	/* version number of this server */
 char *logout = "Logout";	/* syslogreason for logout */
 char *goodbye = NIL;		/* bye reason */
 time_t alerttime = 0;		/* time of last alert */
@@ -254,6 +254,8 @@ SEARCHSET *caset = NIL;		/* COPYUID/APPENDUID destination set */
 /* Response texts which appear in multiple places */
 
 char *win = "%.80s OK ";
+char *rowin = "%.80s OK [READ-ONLY] %.80s completed\015\012";
+char *rwwin = "%.80s OK [READ-WRITE] %.80s completed\015\012";
 char *lose = "%.80s NO ";
 char *logwin = "%.80s OK [";
 char *losetry = "%.80s NO [TRYCREATE] %.80s failed: %.900s\015\012";
@@ -846,9 +848,7 @@ int main (int argc,char *argv[])
 	      else lastsel = cpystr (compare_cstring (s,"INBOX") ?
 				     (char *) s : "INBOX");
 				/* note readonly/readwrite */
-	      response = stream->rdonly ?
-		"%.80s OK [READ-ONLY] %.80s completed\015\012" :
-		  "%.80s OK [READ-WRITE] %.80s completed\015\012";
+	      response = stream->rdonly ? rowin : rwwin;
 	      if (anonymous)
 		syslog (LOG_INFO,"Anonymous select of %.80s host=%.80s",
 			stream->mailbox,tcp_clienthost ());
@@ -1216,7 +1216,7 @@ int main (int argc,char *argv[])
 	clearerr (stdin);	/* clear stdin errors */
 				/* read literal and discard it */
 	while (i = (litplus.size > MAILTMPLEN) ? MAILTMPLEN : litplus.size) {
-	  if (!PSINR (tmp,i)) inerror ("discarding unread literal");
+	  if (!PSINR (tmp,i)) ioerror (stdin,"discarding unread literal");
 	  litplus.size -= i;
 	}
 	alarm (0);		/* stop timeout */
@@ -1291,6 +1291,14 @@ int main (int argc,char *argv[])
 	CRLF;
       }
       else {			/* normal response */
+	if ((response == rowin) || (response == rwwin)) {
+	  if (lstwrn) {		/* output most recent warning */
+	    PSOUT ("* NO ");
+	    PSOUT (lstwrn);
+	    CRLF;
+	    fs_give ((void **) &lstwrn);
+	  }
+	}
 	sprintf (tmp,response,tag,cmd,lasterror ());
 	PSOUT (tmp);		/* output response */
       }
@@ -1645,7 +1653,7 @@ void slurp (char *s,int n)
 				/* get a command under timeout */
   alarm ((state != LOGIN) ? TIMEOUT : LOGINTIMEOUT);
   clearerr (stdin);		/* clear stdin errors */
-  if (!PSIN (s,n)) inerror ("reading line");
+  if (!PSIN (s,n)) ioerror (stdin,"reading line");
   alarm (0);			/* make sure timeout disabled */
 }
 
@@ -1668,7 +1676,7 @@ void inliteral (char *s,unsigned long n)
 				/* get data under timeout */
   alarm ((state != LOGIN) ? TIMEOUT : LOGINTIMEOUT);
   clearerr (stdin);		/* clear stdin errors */
-  if (!PSINR (s,n)) inerror ("reading literal");
+  if (!PSINR (s,n)) ioerror (stdin,"reading literal");
   s[n] = '\0';			/* write trailing NUL */
   alarm (0);			/* stop timeout */
 }
@@ -1682,21 +1690,22 @@ unsigned char *flush (void)
   int c;
   alarm ((state != LOGIN) ? TIMEOUT : LOGINTIMEOUT);
   clearerr (stdin);		/* clear stdin errors */
-  while ((c = PBIN ()) != '\012') if (c == EOF) inerror ("flushing line");
+  while ((c = PBIN ()) != '\012') if (c == EOF)ioerror (stdin,"flushing line");
   response = "%.80s BAD Command line too long\015\012";
   alarm (0);			/* make sure timeout disabled */
   return NIL;
 }
 
 
-/* Report input error and die
- * Accepts: reason (what caller was doing)
+/* Report command stream error and die
+ * Accepts: stdin or stdout (whichever got the error)
+ *	    reason (what caller was doing)
  */
 
-void inerror (char *reason)
+void ioerror (FILE *f,char *reason)
 {
   char msg[MAILTMPLEN];
-  char *e = ferror (stdin) ? strerror (errno) : "Unexpected client disconnect";
+  char *e = ferror (f) ? strerror (errno) : "Unexpected client disconnect";
   alarm (0);			/* disable all interrupts */
   server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
   sprintf (logout = msg,"%.80s, while %.80s",e,reason);
@@ -2644,17 +2653,7 @@ void fetch_body_part_binary (unsigned long i,void *args)
 	else {			/* write binary output */
 	  sprintf (tmp + strlen (tmp),"{%lu}\015\012",st.size);
 	  PSOUT (tmp);
-	  if (PSOUTR (&st) == EOF) {
-	    char msg[MAILTMPLEN];
-	    alarm (0);		/* disable all interrupts */
-	    server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-	    if (state == OPEN) stream = mail_close (stream);
-	    sprintf (logout = msg,"%.80s, while writing binary",
-		     strerror (errno));
-	    if (state == OPEN) stream = mail_close (stream);
-	    sayonara (1);
-
-	  }
+	  if (PSOUTR (&st) == EOF) ioerror (stdout,"writing binary");
 	}
       }
       else {
@@ -3268,15 +3267,16 @@ void psizedliteral (SIZEDTEXT *s,STRING *st)
 void psizedstring (SIZEDTEXT *s,STRING *st)
 {
   unsigned char c;
-  unsigned long i = 0;
-				/* if text, check if must use literal */
-  if (s->data) while (i < s->size) {
-    c = s->data[i++];
-    if (!(c & 0xe0) || (c & 0x80) || (c == '"') || (c == '\\')) break;
+  unsigned long i;
+		
+  if (s->data) {		/* if text, check if must use literal */
+    for (i = 0; ((i < s->size) && ((c = s->data[i]) & 0xe0) &&
+		 !(c & 0x80) && (c != '"') && (c != '\\')); ++i);
+				/* must use literal if not all QUOTED-CHAR */
+    if (i < s->size) psizedliteral (s,st);
+    else psizedquoted (s);
   }
-				/* must use literal if didn't scan it all */
-  if (i < s->size) psizedliteral (s,st);
-  else psizedquoted (s);
+  else psizedliteral (s,st);
 }
 
 
@@ -3389,17 +3389,12 @@ void pbodypartstring (unsigned long msgno,char *id,SIZEDTEXT *st,STRING *bs,
 
 void ptext (SIZEDTEXT *txt,STRING *st)
 {
-  unsigned char c,*s,tmp[MAILTMPLEN];
+  unsigned char c,*s;
   unsigned long i = txt->size;
   if (s = txt->data) while (i && ((PBOUT ((c = *s++) ? c : 0x80) != EOF))) --i;
   else if (st) while (i && (PBOUT ((c = SNX (st)) ? c : 0x80) != EOF)) --i;
-  if (i) {			/* failed to complete? */
-    alarm (0);			/* disable all interrupts */
-    server_init (NIL,NIL,NIL,SIG_IGN,SIG_IGN,SIG_IGN,SIG_IGN);
-    sprintf (logout = tmp,"%.80s, while writing text",strerror (errno));
-    if (state == OPEN) stream = mail_close (stream);
-    sayonara (1);
-  }
+			/* failed to complete? */
+  if (i) ioerror (stdout,"writing text");
 }
 
 /* Print thread

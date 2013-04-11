@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	30 August 2006
+ * Last Edited:	26 September 2006
  */
 
 /* Check password
@@ -59,7 +59,7 @@ struct passwd *checkpw (struct passwd *pw,char *pass,int argc,char *argv[])
 	 * to have separate client principals for different services, but many
 	 * other sites vehemently object...
 	 */
-	!krb5_parse_name (ctx,kerb_cp_svr_name ? cltnam : pw->-pw_name,
+	!krb5_parse_name (ctx,kerb_cp_svr_name ? cltnam : pw->pw_name,
 			  &crd->client) &&
 	!krb5_parse_name (ctx,svrnam,&service) &&
 	!krb5_build_principal_ext (ctx,&crd->server,

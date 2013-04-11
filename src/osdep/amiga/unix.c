@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	21 September 2006
+ * Last Edited:	6 October 2006
  */
 
 
@@ -72,6 +72,8 @@ typedef struct unix_local {
   SIZEDTEXT text;		/* current text */
   unsigned long textlen;	/* current text length */
   char *line;			/* returned line */
+  char *linebuf;		/* line readin buffer */
+  unsigned long linebuflen;	/* current line readin buffer length */
 } UNIXLOCAL;
 
 
@@ -464,6 +466,8 @@ MAILSTREAM *unix_open (MAILSTREAM *stream)
   LOCAL->buflen = CHUNKSIZE - 1;
   LOCAL->text.data = (unsigned char *) fs_get (CHUNKSIZE);
   LOCAL->text.size = CHUNKSIZE - 1;
+  LOCAL->linebuf = (char *) fs_get (CHUNKSIZE);
+  LOCAL->linebuflen = CHUNKSIZE - 1;
   stream->sequence++;		/* bump sequence number */
 
 				/* make lock for read/write access */
@@ -1298,6 +1302,7 @@ void unix_abort (MAILSTREAM *stream)
 				/* free local text buffers */
     if (LOCAL->buf) fs_give ((void **) &LOCAL->buf);
     if (LOCAL->text.data) fs_give ((void **) &LOCAL->text.data);
+    if (LOCAL->linebuf) fs_give ((void **) &LOCAL->linebuf);
     if (LOCAL->line) fs_give ((void **) &LOCAL->line);
 				/* nuke the local data */
     fs_give ((void **) &stream->local);
@@ -1329,15 +1334,15 @@ int unix_lock (char *file,int flags,int mode,DOTLOCK *lock,int op)
     if (dotlock_lock (file,lock,fd)) {
       close (fd);		/* get fresh fd in case of timing race */
       if ((fd = open (file,flags,mode)) >= 0) flock (fd,op);
-      else dotlock_unlock (lock); /* open failed, free the dotlock */
+				/* open failed, free the dotlock */
+      else dotlock_unlock (lock);
     }
     else flock (fd,op);		/* paranoid way failed, just flock() it */
   }
   (*bn) (BLOCK_NONE,NIL);
   return fd;
 }
-
-
+
 /* UNIX unlock and close mailbox
  * Accepts: file descriptor
  *	    (optional) mailbox stream to check atime/mtime
@@ -1811,8 +1816,6 @@ char *unix_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size)
 {
   unsigned long i,j,k,m;
   char *s,*t,*te;
-  char *tmp = (char *) fs_get (CHUNKSIZE);
-  unsigned long tmplen = CHUNKSIZE;
   char *ret = "";
 				/* flush old buffer */
   if (LOCAL->line) fs_give ((void **) &LOCAL->line);
@@ -1832,11 +1835,13 @@ char *unix_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size)
     while ((s < t) && (*s != '\n')) ++s;
 				/* difficult case if line spans buffer */
     if ((i = s - bs->curpos) == bs->cursize) {
-      if (i > tmplen) {		/* have space in tmp buffer? */
-	fs_give ((void **) &tmp);
-	tmp = (char *) fs_get (tmplen = i);
+				/* have space in line buffer? */
+      if (i > LOCAL->linebuflen) {
+	fs_give ((void **) &LOCAL->linebuf);
+	LOCAL->linebuf = (char *) fs_get (LOCAL->linebuflen = i);
       }
-      memcpy (tmp,bs->curpos,i);/* remember what we have so far */
+				/* remember what we have so far */
+      memcpy (LOCAL->linebuf,bs->curpos,i);
 				/* load next buffer */
       SETPOS (bs,k = GETPOS (bs) + i);
 				/* end of fast scan */
@@ -1849,6 +1854,7 @@ char *unix_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size)
 	--s;			/* back up */
 	break;			/* exit loop */
       }
+
 				/* final character-at-a-time scan */
       while ((s < t) && (*s != '\n')) ++s;
 				/* huge line? */
@@ -1858,10 +1864,10 @@ char *unix_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size)
 	for (m = SIZE (bs); m && (SNX (bs) != '\n'); --m,++j);
 	SETPOS (bs,k);		/* go back to where it started */
       }
-
 				/* got size of data, make buffer for return */
       ret = LOCAL->line = (char *) fs_get (i + j + 2);
-      memcpy (ret,tmp,i);	/* copy first chunk */
+				/* copy first chunk */
+      memcpy (ret,LOCAL->linebuf,i);
       while (j) {		/* copy remainder */
 	if (!bs->cursize) SETPOS (bs,GETPOS (bs));
 	memcpy (ret + i,bs->curpos,k = min (j,bs->cursize));
@@ -1883,7 +1889,6 @@ char *unix_mbxline (MAILSTREAM *stream,STRING *bs,unsigned long *size)
     *size = i;			/* return that to user */
   }
   else *size = 0;		/* end of data, return empty */
-  fs_give ((void **) &tmp);
   return ret;
 }
 
