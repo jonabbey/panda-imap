@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	19 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -44,11 +44,12 @@
 #include <sys/types.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
 #include <sys/dir.h>
+#include <syslog.h>
 
 #define direct dirent
 
 extern char *strerror ();
-extern char *memmove ();
+extern void *memmove ();
 
 #include "env_unix.h"
 #include "fs.h"

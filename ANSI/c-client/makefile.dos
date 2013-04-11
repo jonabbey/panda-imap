@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	26 June 1994
+# Last Edited:	3 July 1994
 #
 # Copyright 1994 by the University of Washington
 #
@@ -33,7 +33,7 @@
 
 OS = dnv
 EXTRADRIVERS = 
-DRIVERS = imap nntp tenexdos dawz dummy
+DRIVERS = imap nntp bezrkdos tenexdos dawz dummy
 DEFAULTDRIVER = dawz
 CFLAGS= -AL
 CC = cl
@@ -58,6 +58,8 @@ dawz.obj: mail.h dawz.h misc.h osdep.h dawz.c
 
 tenexdos.obj: mail.h tenexdos.h misc.h osdep.h tenexdos.c
 
+bezrkdos.obj: mail.h bezrkdos.h misc.h osdep.h bezrkdos.c
+
 nntpcdos.obj: mail.h nntpcdos.h misc.h osdep.h nntpcdos.c
 
 dummydos.obj: mail.h dummy.h misc.h osdep.h dummydos.c
@@ -75,11 +77,11 @@ sm_dos.obj: mail.h misc.h sm_dos.c
 os_$(OS).obj: mail.h osdep.h env_dos.h fs.h ftl.h nl.h tcp.h \
 	os_$(OS).c fs_dos.c ftl_dos.c nl_dos.c env_dos.c
 
-cclient.lib: mail.obj imap2.obj dawz.obj tenexdos.obj nntpcdos.obj \
-	dummydos.obj smtp.obj nntp.obj misc.obj rfc822.obj sm_dos.obj \
-	os_$(OS).obj
+cclient.lib: mail.obj imap2.obj dawz.obj tenexdos.obj bezrkdos.obj \
+	nntpcdos.obj dummydos.obj smtp.obj nntp.obj misc.obj rfc822.obj \
+	sm_dos.obj os_$(OS).obj
 	erase cclient.lib
-	lib cclient +mail+imap2+dawz+tenexdos+nntpcdos+dummydos+smtp+nntp+misc+rfc822+sm_dos+os_$(OS);
+	lib cclient +mail+imap2+dawz+tenexdos+bezrkdos+nntpcdos+dummydos+smtp+nntp+misc+rfc822+sm_dos+os_$(OS);
 
 mtest.exe: cclient.lib mtest.obj
 	mtest$(OS)

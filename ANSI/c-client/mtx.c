@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 May 1990
- * Last Edited:	30 May 1994
+ * Last Edited:	6 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -36,7 +36,6 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
 #include "mail.h"
@@ -118,12 +117,6 @@ int mtx_isvalid (char *name,char *tmp)
   char *s,file[MAILTMPLEN];
   struct stat sbuf;
   time_t tp[2];
-  struct hostent *host_name;
-  if (!lhostn) {		/* have local host yet? */
-    gethostname(tmp,MAILTMPLEN);/* get local host name */
-    lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
-		     host_name->h_name : tmp);
-  }
   errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
@@ -473,7 +466,8 @@ ENVELOPE *mtx_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
     text[textsize] = '\0';	/* make sure tied off */
     INIT (&bs,mail_string,(void *) text,textsize);
 				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,hdr,hdrsize,&bs,lhostn,LOCAL->buf);
+    rfc822_parse_msg (env,body ? b : NIL,hdr,hdrsize,&bs,mylocalhost (),
+		      LOCAL->buf);
     fs_give ((void **) &text);
     fs_give ((void **) &hdr);
   }
@@ -1084,7 +1078,7 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 {
   struct stat sbuf;
   int fd,ld;
-  char *s,*t,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN];
+  char *s,tmp[MAILTMPLEN],file[MAILTMPLEN],lock[MAILTMPLEN];
   time_t tp[2];
   MESSAGECACHE elt;
   long i;
@@ -1139,18 +1133,12 @@ long mtx_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
   lseek (fd,sbuf.st_size,L_SET);/* move to end of file */
-				/* write preseved date */
-  if (date) mail_date (t = tmp,&elt);
-  else {
-    rfc822_date (tmp);		/* get current date in RFC822 format */
-				/* handle 1-digit date */
-    t = tmp[7] == ' ' ? tmp+5 : tmp+4;
-    t[2] = t[6] = '-';		/* convert date string to IMAP format */
-  }
+  if (date) mail_date(tmp,&elt);/* write preseved date */
+  else internal_date (tmp);	/* get current date in IMAP format */
 				/* add remainder of header */
-  sprintf (t+26,",%ld;%010lo%02o\015\012",size,uf,f);
+  sprintf (tmp+26,",%ld;%010lo%02o\015\012",size,uf,f);
 				/* write header */
-  if ((write (fd,t,strlen (t)) < 0) || ((write (fd,s,size)) < 0)) {
+  if ((write (fd,tmp,strlen (tmp)) < 0) || ((write (fd,s,size)) < 0)) {
     sprintf (tmp,"Message append failed: %s",strerror (errno));
     mm_log (tmp,ERROR);
     ftruncate (fd,sbuf.st_size);
@@ -1315,7 +1303,7 @@ long mtx_parse (MAILSTREAM *stream)
 {
   struct stat sbuf;
   MESSAGECACHE *elt = NIL;
-  char c,*s,*t;
+  char c,*s,*t,*x;
   char tmp[MAILTMPLEN];
   unsigned long i,j,msiz;
   long curpos = LOCAL->filesize;
@@ -1323,16 +1311,25 @@ long mtx_parse (MAILSTREAM *stream)
   long recent = stream->recent;
   fstat (LOCAL->fd,&sbuf);	/* get status */
   if (sbuf.st_size < curpos) {	/* sanity check */
-    mm_log ("Mailbox shrank!",ERROR);
+    sprintf (tmp,"Mailbox shrank from %ld to %ld!",curpos,sbuf.st_size);
+    mm_log (tmp,ERROR);
     mtx_close (stream);
     return NIL;
   }
   while (sbuf.st_size - curpos){/* while there is stuff to parse */
 				/* get to that position in the file */
     lseek (LOCAL->fd,curpos,L_SET);
-    if (!((read (LOCAL->fd,tmp,64) > 0)
-	  && (s = strchr (tmp,'\015')) && (s[1] == '\012'))) {
-      sprintf (tmp,"Unable to read internal header line at %ld",curpos);
+    if ((i = read (LOCAL->fd,tmp,64)) <= 0) {
+      sprintf (tmp,"Unable to read internal header at %ld, size = %ld: %s",
+	       curpos,sbuf.st_size,i ? strerror (errno) : "no data read");
+      mm_log (tmp,ERROR);
+      mtx_close (stream);
+      return NIL;
+    }
+    tmp[i] = '\0';		/* tie off buffer just in case */
+    if (!((s = strchr (tmp,'\015')) && (s[1] == '\012'))) {
+      sprintf (tmp,"Unable to find end of line at %ld in %ld bytes: %s",
+	       curpos,i,tmp);
       mm_log (tmp,ERROR);
       mtx_close (stream);
       return NIL;
@@ -1340,7 +1337,7 @@ long mtx_parse (MAILSTREAM *stream)
     *s = '\0';			/* tie off header line */
     i = (s + 2) - tmp;		/* note start of text offset */
     if (!((s = strchr (tmp,',')) && (t = strchr (s+1,';')))) {
-      sprintf (tmp,"Unable to parse internal header line at %ld",curpos);
+      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,tmp);
       mm_log (tmp,ERROR);
       mtx_close (stream);
       return NIL;
@@ -1352,13 +1349,13 @@ long mtx_parse (MAILSTREAM *stream)
     elt->data2 = i << 24;	/* as well as offset from header of message */
 				/* parse the header components */
     if (!(mail_parse_date (elt,tmp) &&
-	  (elt->rfc822_size = msiz = strtol (s,&s,10)) && (!(s && *s)) &&
+	  (elt->rfc822_size = msiz = strtol (x = s,&s,10)) && (!(s && *s)) &&
 	  isdigit (t[0]) && isdigit (t[1]) && isdigit (t[2]) &&
 	  isdigit (t[3]) && isdigit (t[4]) && isdigit (t[5]) &&
 	  isdigit (t[6]) && isdigit (t[7]) && isdigit (t[8]) &&
 	  isdigit (t[9]) && isdigit (t[10]) && isdigit (t[11]) && !t[12])) {
-      sprintf (tmp,"Unable to parse internal header line components at %ld",
-	       curpos);
+      sprintf (tmp,"Unable to parse internal header elements at %ld: %s,%s;%s",
+	       curpos,tmp,x,t);
       mm_log (tmp,ERROR);
       mtx_close (stream);
       return NIL;
@@ -1412,6 +1409,7 @@ long mtx_copy_messages (MAILSTREAM *stream,char *mailbox)
   time_t tp[2];
   MESSAGECACHE *elt;
   unsigned long i,j,k;
+  long ret = LONGT;
   int fd,ld;
   char file[MAILTMPLEN],lock[MAILTMPLEN];
 				/* make sure valid mailbox */
@@ -1446,34 +1444,23 @@ long mtx_copy_messages (MAILSTREAM *stream,char *mailbox)
   lseek (fd,sbuf.st_size,L_SET);/* move to end of file */
 
 				/* for each requested message */
-  for (i = 1; i <= stream->nmsgs; i++) 
+  for (i = 1; ret && (i <= stream->nmsgs); i++) 
     if ((elt = mail_elt (stream,i))->sequence) {
-      lseek (LOCAL->fd,mtx_header (stream,i,&k),L_SET);
-      j = 0;			/* mark first time through */
+      lseek (LOCAL->fd,elt->data1,L_SET);
+				/* number of bytes to copy */
+      k = (elt->data2 >> 24) + mtx_size (stream,i);
       do {			/* read from source position */
-	if (j) {		/* get another message chunk */
-	  k = min (j,LOCAL->buflen);
-	  read (LOCAL->fd,LOCAL->buf,(unsigned int) k);
-	}
-	else {			/* first time through */
-				/* make a header */
-	  mail_date (LOCAL->buf,elt);
-	  sprintf(LOCAL->buf + strlen (LOCAL->buf),",%ld;000000000000\015\012",
-		   j = mtx_size (stream,i));
-				/* add size of header string */
-	  j += (k = strlen (LOCAL->buf));
-	}
-	if (write (fd,LOCAL->buf,(unsigned int) k) < 0) {
+	j = min (k,LOCAL->buflen);
+	read (LOCAL->fd,LOCAL->buf,(unsigned int) j);
+	if (write (fd,LOCAL->buf,(unsigned int) j) < 0) {
 	  sprintf (LOCAL->buf,"Unable to write message: %s",strerror (errno));
 	  mm_log (LOCAL->buf,ERROR);
 	  ftruncate (fd,sbuf.st_size);
-				/* release exclusive parse/append permission */
-	  mtx_unlock (ld,lock);
-	  close (fd);		/* punt */
-	  mm_nocritical (stream);
-	  return NIL;
+	  j = k;
+	  ret = NIL;		/* note error */
+	  break;
 	}
-      } while (j -= k);		/* until done */
+      } while (k -= j);		/* until done */
     }
   fsync (fd);			/* force out the update */
   tp[0] = sbuf.st_atime;	/* preserve atime and mtime */
@@ -1482,7 +1469,7 @@ long mtx_copy_messages (MAILSTREAM *stream,char *mailbox)
   mtx_unlock (ld,lock);		/* release exclusive parse/append permission */
   close (fd);			/* close the file */
   mm_nocritical (stream);	/* release critical */
-  return LONGT;
+  return ret;
 }
 
 /* Mtx get cache element with status updating from file
@@ -1812,8 +1799,8 @@ search_t mtx_search_string (search_t f,char **d,long *n)
       *n = strtol (c+1,&c,10);	/* get its length */
       if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
 	  *n > strlen (*d = c)) return NIL;
-      c[*n] = '\255';		/* write new delimiter */
-      strtok (c,"\255");	/* reset the strtok mechanism */
+      c[*n] = DELIM;		/* write new delimiter */
+      strtok (c,DELMS);		/* reset the strtok mechanism */
       break;
     default:			/* atomic string */
       *n = strlen (*d = strtok (c," "));

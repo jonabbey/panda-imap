@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	29 May 1994
+ * Last Edited:	26 June 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -51,6 +51,7 @@
 
 short TCPdriver = 0;		/* MacTCP's reference number */
 short resolveropen = 0;		/* TCP's resolver open */
+static char *myLocalHost = NIL;	/* local host name */
 
 
 #include "env_mac.c"
@@ -58,8 +59,7 @@ short resolveropen = 0;		/* TCP's resolver open */
 #include "ftl_mac.c"
 #include "nl_mac.c"
 #include "tcp_mac.c"
-
-
+
 /* This is here instead of env_mac.c so the Mint port doesn't get confused */
 
 /* Determine default prototype stream to user
@@ -70,4 +70,14 @@ MAILSTREAM *default_proto ()
 {
   extern MAILSTREAM dummyproto;
   return &dummyproto;		/* return default driver's prototype */
+}
+
+
+/* Return my local host name
+ * Returns: my local host name
+ */
+
+char *mylocalhost (void)
+{
+  return myLocalHost ? myLocalHost : "random-mac";
 }

@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	9 May 1994
+ * Last Edited:	7 August 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,6 +44,7 @@
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <fcntl.h>
+#include <syslog.h>
 
 
 /* Different names between BSD and SVR4 */
@@ -99,6 +100,7 @@ struct passwd *getpwnam ();
 unsigned long gethostid ();
 void *memmove ();
 char *strstr ();
+char *strerror ();
 DIR *opendir ();
 int closedir ();
 struct direct *readdir ();

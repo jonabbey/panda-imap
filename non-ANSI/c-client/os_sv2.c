@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	18 June 1994
+ * Last Edited:	31 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -41,12 +41,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <errno.h>
 extern int errno;
 #include <pwd.h>
 #include <grp.h>
-#include <syslog.h>
 #include <sys/file.h>
 #include <sys/socket.h>
 #include <time.h>
@@ -61,9 +61,9 @@ extern int sys_nerr;
 extern char *sys_errlist[];
 void *malloc ();
 void *realloc ();
-char *strerror();
 void syslog ();
 struct group *getgrent ();
+char *getenv ();
 
 #define toint(c)	((c)-'0')
 #define isodigit(c)	(((unsigned)(c)>=060)&((unsigned)(c)<=067))
@@ -103,30 +103,7 @@ typedef	struct fd_set {
 #include "strstr.c"
 #include "strerror.c"
 #include "ingroups.c"
-
-
-/* Write current time in RFC 822 format
- * Accepts: destination string
- */
-
-char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
-void rfc822_date (date)
-	char *date;
-{
-  int zone;
-  struct tm *t;
-  time_t time_sec = time (0);
-  tzset ();			/* initialize timezone/daylight variables */
-  t = localtime (&time_sec);	/* convert to individual items */
-				/* get timezone value */
-  zone = - (t->tm_isdst ? timezone-3600 : timezone) / 60;
-				/* and output it */
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+02d%02d (%s)",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-	   tzname[t->tm_isdst ? 1 : 0]);
-}
+#include "tz_sv4.c"
 
 /* Emulator for BSD gethostid() call
  * Returns: unique identifier for this machine

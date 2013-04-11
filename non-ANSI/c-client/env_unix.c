@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	9 June 1994
+ * Last Edited:	4 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -35,12 +35,122 @@
 
 
 static char *myUserName = NIL;	/* user name */
+char *myLocalHost = NIL;	/* local host name */
 static char *myHomeDir = NIL;	/* home directory name */
 static char *sysInbox = NIL;	/* system inbox name */
-static long blackBox = NIL;	/* is a black box */
-static rconce = NIL;		/* configuration parameters */
+static char *blackBoxDir = NIL;	/* black box directory name */
+static int blackBox = NIL;	/* is a black box */
 static MAILSTREAM *defaultProto = NIL;
 static char *userFlags[NUSERFLAGS] = {NIL};
+
+/* Write current time
+ * Accepts: destination string
+ *	    optional format of day-of-week prefix
+ *	    format of date and time
+ *	    flag whether to append symbolic timezone
+ */
+
+static void do_date (date,prefix,fmt,suffix)
+	char *date;
+	char *prefix;
+	char *fmt;
+	int suffix;
+{
+  time_t tn = time (0);
+  struct tm *t = gmtime (&tn);
+  int zone = t->tm_hour * 60 + t->tm_min;
+  int julian = t->tm_yday;
+  t = localtime (&tn);		/* get local time now */
+				/* minus UTC minutes since midnight */
+  zone = t->tm_hour * 60 + t->tm_min - zone;
+  /* julian can be one of:
+   *  36x  local time is December 31, UTC is January 1, offset -24 hours
+   *    1  local time is 1 day ahead of UTC, offset +24 hours
+   *    0  local time is same day as UTC, no offset
+   *   -1  local time is 1 day behind UTC, offset -24 hours
+   * -36x  local time is January 1, UTC is December 31, offset +24 hours
+   */
+  if (julian = t->tm_yday -julian)
+    zone += ((julian < 0) == (abs (julian) == 1)) ? -24*60 : 24*60;
+  if (prefix) {			/* want day of week? */
+    sprintf (date,prefix,days[t->tm_wday]);
+    date += strlen (date);	/* make next sprintf append */
+  }
+				/* output the date */
+  sprintf (date,fmt,t->tm_mday,months[t->tm_mon],t->tm_year+1900,
+	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60);
+				/* append timezone suffix if desired */
+  if (suffix) rfc822_timezone (date,(void *) t);
+}
+
+
+/* Write current time in RFC 822 format
+ * Accepts: destination string
+ */
+
+void rfc822_date (date)
+	char *date;
+{
+  do_date (date,"%s, ","%d %s %d %02d:%02d:%02d %+03d%02d",T);
+}
+
+
+/* Write current time in internal format
+ * Accepts: destination string
+ */
+
+void internal_date (date)
+	char *date;
+{
+  do_date (date,NIL,"%02d-%s-%d %02d:%02d:%02d %+03d%02d",NIL);
+}
+
+/* Initialize environment
+ * Accepts: user name
+ *	    home directory name
+ * Returns: T, always
+ */
+
+long env_init (user,home)
+	char *user;
+	char *home;
+{
+  extern MAILSTREAM STDPROTO;
+  struct stat sbuf;
+  char tmp[MAILTMPLEN];
+  struct hostent *host_name;
+  if (myUserName) fatal ("env_init called twice!");
+  myUserName = cpystr (user);	/* remember user name */
+  myHomeDir = cpystr (home);	/* and home directory */
+  sprintf (tmp,MAILFILE,myUserName);
+  sysInbox = cpystr (tmp);	/* system inbox is from mail spool */
+  dorc ("/etc/imapd.conf");	/* do systemwide */
+  if (blackBoxDir) {		/* build black box directory name */
+    sprintf (tmp,"%s/%s",blackBoxDir,myUserName);
+				/* if black box if exists and directory */
+    if (blackBox = (!stat (tmp,&sbuf)) && (sbuf.st_mode & S_IFDIR)) {
+				/* flush standard values */
+      fs_give ((void **) &myHomeDir);
+      fs_give ((void **) &sysInbox);
+      myHomeDir = cpystr (tmp);	/* set black box values in their place */
+      sysInbox = cpystr (strcat (tmp,"/INBOX"));
+    }
+  }
+  else blackBoxDir = "";	/* make sure user rc files don't try this */
+				/* do user rc files */
+  dorc (strcat (strcpy (tmp,myhomedir ()),"/.mminit"));
+  dorc (strcat (strcpy (tmp,myhomedir ()),"/.imaprc"));
+  if (!myLocalHost) {		/* have local host yet? */
+    gethostname(tmp,MAILTMPLEN);/* get local host name */
+    myLocalHost = cpystr ((host_name = gethostbyname (tmp)) ?
+			  host_name->h_name : tmp);
+  }
+				/* force default prototype to be set */
+  if (!defaultProto) defaultProto = &STDPROTO;
+				/* re-do open action to get flags */
+  (*defaultProto->dtb->open) (NIL);
+  return T;
+}
 
 /* Return my user name
  * Returns: my user name
@@ -48,32 +158,27 @@ static char *userFlags[NUSERFLAGS] = {NIL};
 
 char *myusername ()
 {
-  extern MAILSTREAM STDPROTO;
-  struct passwd *pw;
-  struct stat sbuf;
-  char tmp[MAILTMPLEN];
   if (!myUserName) {		/* get user name if don't have it yet */
-    myUserName = cpystr ((pw = getpwuid (geteuid ()))->pw_name);
-				/* build mail spool name */
-    sprintf (tmp,MAILFILE,myUserName);
-				/* is mail spool a directory? */
-    if ((!stat (tmp,&sbuf)) && (sbuf.st_mode & S_IFDIR)) {
-      myHomeDir = cpystr (tmp);	/* yes, it is the home directory then */
-      sysInbox = cpystr (strcat (tmp,"/INBOX"));
-      blackBox = T;		/* black box system */
-    }
-    else {			/* ordinary system */
-      myHomeDir = cpystr (pw->pw_dir);
-      sysInbox = cpystr (tmp);
-    }
-  }
-  if (!rconce++) {		/* done the rc file already? */
-    dorc (strcat (strcpy (tmp,myhomedir ()),"/.imaprc"));
-    dorc (strcat (strcpy (tmp,myhomedir ()),"/.mminit"));
-    dorc ("/etc/imapd.conf");
-    if (!defaultProto) defaultProto = &STDPROTO;
+    char *name = (char *) getlogin ();
+    char *dir = getenv ("HOME");
+    struct passwd *pw;
+    if (((name && *name) && (pw = getpwnam (name)) &&
+	 (pw->pw_uid == geteuid ())) || (pw = getpwuid (geteuid ())))
+      env_init (pw->pw_name,(dir && *dir) ? dir : pw->pw_dir);
+    else fatal ("Unable to look up user in passwd file");
   }
   return myUserName;
+}
+
+
+/* Return my local host name
+ * Returns: my local host name
+ */
+
+char *mylocalhost ()
+{
+  if (!myLocalHost) myusername ();
+  return myLocalHost;
 }
 
 
@@ -120,13 +225,14 @@ char *mailboxfile (dst,name)
     sprintf (dst,"%s/%s",pw->pw_dir,name + 1);
     break;
   case '/':			/* absolute file path */
-    strcpy (dst,(blackBox && strncmp (name,sysInbox,strlen (myHomeDir) + 1)) ?
-	    "" : name);
+    if (!(blackBox && strncmp (name,sysInbox,strlen (myHomeDir) + 1)))
+      strcpy (dst,name);
     break;
   case '.':			/* these names may be private */
     if ((name[1] != '.') || !blackBox) sprintf (dst,"%s/%s",dir,name);
     break;
   case '~':			/* home directory */
+    if (blackBox) break;	/* don't permit this for now */
     if (name[1] != '/') {	/* if not want my own home directory */
       strcpy (tmp,name + 1);	/* copy user name */
       if (name = strchr (tmp,'/')) *name++ = '\0';
@@ -219,6 +325,7 @@ void dorc (file)
 			    ((*d->open) (NIL)) : &STDPROTO;
 	else if (!strcmp (k,"system-standard")) defaultProto = &STDPROTO;
 	else {			/* see if a driver name */
+	  if (!maildrivers) fatal ("dorc called before linkage!");
 	  for (d = maildrivers; d && strcmp (d->name,k); d = d->next);
 	  if (d) defaultProto = (*d->open) (NIL);
 	  else {		/* duh... */
@@ -231,6 +338,7 @@ void dorc (file)
 	k = strtok (k,", ");	/* yes, get first keyword */
 				/* copy keyword list */
 	for (i = 0; k && i < NUSERFLAGS; ++i) {
+	  if (userFlags[i]) fs_give ((void **) &userFlags[i]);
 	  userFlags[i] = cpystr (k);
 	  k = strtok (NIL,", ");
 	}
@@ -238,6 +346,15 @@ void dorc (file)
       else if (!strcmp (s,"set from-widget"))
 	mail_parameters (NIL,SET_FROMWIDGET,strcmp (lcase (k),"header-only") ?
 			 (void *) T : NIL);
+      else if (!strcmp (s,"set black-box-directory")) {
+	if (blackBoxDir)	/* users aren't allowed to do this */
+	  mm_log ("Can't set black-box-directory in user init",ERROR);
+	else blackBoxDir = cpystr (k);
+      }
+      else if (!strcmp (s,"set local-host")) {
+	fs_give ((void **) &myLocalHost);
+	myLocalHost = cpystr (k);
+      }
     }
     s = t;			/* try next line */
   }

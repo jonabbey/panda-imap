@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	9 May 1991
- * Last Edited:	29 May 1994
+ * Last Edited:	20 July 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -146,6 +146,7 @@ void *dummy_parameters (function,value)
     value = (void *) lock_protection;
     break;
   default:
+    value = NIL;		/* error case */
     break;
   }
   return value;

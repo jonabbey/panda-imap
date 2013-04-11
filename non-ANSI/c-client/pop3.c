@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	6 June 1994
- * Last Edited:	10 June 1994
+ * Last Edited:	15 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -125,10 +125,10 @@ void *pop3_parameters (function,value)
   case GET_MAXLOGINTRIALS:
     value = (void *) pop3_maxlogintrials;
     break;
-  case SET_PORT:
+  case SET_POP3PORT:
     pop3_port = (long) value;
     break;
-  case GET_PORT:
+  case GET_POP3PORT:
     value = (void *) pop3_port;
     break;
   case SET_LOGINFULLNAME:
@@ -138,6 +138,7 @@ void *pop3_parameters (function,value)
     value = (void *) pop3_loginfullname;
     break;
   default:
+    value = NIL;		/* error case */
     break;
   }
   return value;
@@ -338,7 +339,6 @@ MAILSTREAM *pop3_open (stream)
   }
   else {			/* got connection */
     mm_log (LOCAL->reply,NIL);	/* give greeting */
-    if (!lhostn) lhostn = cpystr (tcp_localhost (LOCAL->tcpstream));
 				/* only so many tries to login */
     for (i = 0; i < pop3_maxlogintrials; ++i) {
       *pwd = 0;			/* get password */
@@ -473,7 +473,8 @@ ENVELOPE *pop3_fetchstructure (stream,msgno,body)
     elt->rfc822_size = strlen (h) + strlen (t);
     INIT (&bs,mail_string,(void *) t,strlen (t));
 				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,lhostn,LOCAL->buf);
+    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,
+		      tcp_localhost (LOCAL->tcpstream),LOCAL->buf);
 				/* parse date */
     if (*env && (*env)->date) mail_parse_date (elt,(*env)->date);
     if (!elt->month) mail_parse_date (elt,"01-JAN-1969 00:00:00 GMT");
@@ -871,7 +872,7 @@ long pop3_append (stream,mailbox,flags,date,message)
 	char *mailbox;
 	char *flags;
 	char *date;
-	STRING *message;
+	 		  STRING *message;
 {
   mm_log ("Append not valid for POP3",ERROR);
   return NIL;
@@ -1384,8 +1385,8 @@ search_t pop3_search_string (f,d,n)
       *n = strtol (c+1,&c,10);	/* get its length */
       if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
 	  *n > strlen (*d = c)) return NIL;
-      c[*n] = '\255';		/* write new delimiter */
-      strtok (c,"\255");	/* reset the strtok mechanism */
+      c[*n] = DELIM;		/* write new delimiter */
+      strtok (c,DELMS);		/* reset the strtok mechanism */
       break;
     default:			/* atomic string */
       *n = strlen (*d = strtok (c," "));

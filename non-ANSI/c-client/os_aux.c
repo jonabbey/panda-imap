@@ -9,7 +9,7 @@
  *		Seattle, WA  98195
  *
  * Date:	11 May 1989
- * Last Edited:	4 May 1994
+ * Last Edited:	30 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -42,10 +42,10 @@
 #include <time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <errno.h>
 #include <pwd.h>
-#include <syslog.h>
 #include "misc.h"
 
 extern char *sys_errlist[];
@@ -60,28 +60,4 @@ extern int sys_nerr;
 #include "gr_wait.c"
 #include "strerror.c"
 #include "memmove.c"
-
-/* Write current time in RFC 822 format
- * Accepts: destination string
- */
-
-char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
-void rfc822_date (date)
-	char *date;
-{
-  int zone;
-  char *zonename;
-  struct tm *t;
-  struct timeval tv;
-  struct timezone tz;
-
-  gettimeofday (&tv,&tz);	/* get time and timezone poop */
-  t = localtime (&tv.tv_sec);	/* convert to individual items */
-				/* use this for older systems */
-  zone = (t->tm_isdst ? 60 : 0) -tz.tz_minuteswest;
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-	   tzname[t->tm_isdst ? 1 : 0]);
-}
+#include "tz_sv4.c"

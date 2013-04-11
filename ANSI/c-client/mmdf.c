@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 May 1993
- * Last Edited:	17 June 1994
+ * Last Edited:	6 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -35,7 +35,6 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
 #include <signal.h>
@@ -120,12 +119,6 @@ int mmdf_isvalid (char *name,char *tmp)
   char *s = tmp,*t,file[MAILTMPLEN];
   struct stat sbuf;
   time_t tp[2];
-  struct hostent *host_name;
-  if (!lhostn) {		/* have local host yet? */
-    gethostname(tmp,MAILTMPLEN);/* get local host name */
-    lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
-		     host_name->h_name : tmp);
-  }
   errno = EINVAL;		/* assume invalid argument */
 				/* must be non-empty file */
   if ((*name != '{') && !((*name == '*') && (name[1] == '{')) &&
@@ -370,10 +363,12 @@ MAILSTREAM *mmdf_open (MAILSTREAM *stream)
   if (!stream->readonly) while (retry) {
 				/* get a new file handle each time */
     if ((fd = open (LOCAL->lname,O_RDWR|O_CREAT,
-		    (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) < 0)
+		    (int) mail_parameters (NIL,GET_LOCKPROTECTION,NIL))) < 0) {
       mm_log ("Can't open mailbox lock, access is readonly",WARN);
+      retry = 0;		/* give up */
+    }
 				/* can get the lock? */
-    if (flock (fd,LOCK_EX|LOCK_NB)) {
+    else if (flock (fd,LOCK_EX|LOCK_NB)) {
       if (retry-- == KODRETRY) {/* no, first time through? */
 				/* yes, get other process' PID */
 	if (!fstat (fd,&sbuf) && (i = min (sbuf.st_size,MAILTMPLEN)) &&
@@ -518,8 +513,8 @@ ENVELOPE *mmdf_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
     }
     INIT (&bs,mail_string,(void *) m->body,m->bodysize);
 				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,m->header,m->headersize,&bs,lhostn,
-		      LOCAL->buf);
+    rfc822_parse_msg (env,body ? b : NIL,m->header,m->headersize,&bs,
+		      mylocalhost (),LOCAL->buf);
   }
   if (body) *body = *b;		/* return the body */
   return *env;			/* return the envelope */
@@ -961,7 +956,7 @@ long mmdf_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   }
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
-  sprintf (buf,"%sFrom %s@%s ",mmdfhdr,myusername (),lhostn);
+  sprintf (buf,"%sFrom %s@%s ",mmdfhdr,myusername (),mylocalhost ());
 				/* write the date given */
   if (date) mail_cdate (buf + strlen (buf),&elt);
   else strcat (buf,ctime (&t));	/* otherwise write the time now */
@@ -1490,6 +1485,8 @@ char *mmdf_eom (char *som,char *sod,long i)
     unsigned long wd;
     char ch[9];
   } wdtest;
+				/* never search if not enough bytes */
+  if (i < MMDFHDRLEN) return NIL;
   strcpy (wdtest.ch,"AAAA1234");/* constant for word testing */
 				/* move back *two* lines */
   while ((s > som) && *s-- != '\n');
@@ -2018,8 +2015,8 @@ search_t mmdf_search_string (search_t f,char **d,long *n)
       *n = strtol (c+1,&c,10);	/* get its length */
       if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
 	  *n > strlen (*d = c)) return NIL;
-      c[*n] = '\255';		/* write new delimiter */
-      strtok (c,"\255");	/* reset the strtok mechanism */
+      c[*n] = DELIM;		/* write new delimiter */
+      strtok (c,DELMS);		/* reset the strtok mechanism */
       break;
     default:			/* atomic string */
       *n = strlen (*d = strtok (c," "));

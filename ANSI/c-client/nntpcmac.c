@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 December 1993
- * Last Edited:	10 June 1994
+ * Last Edited:	6 September 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -536,7 +536,7 @@ ENVELOPE *nntp_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
     elt->rfc822_size = strlen (h) + strlen (t);
     INIT (&bs,mail_string,(void *) t,strlen (t));
 				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,lhostn,LOCAL->buf);
+    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,BADHOST,LOCAL->buf);
 				/* parse date */
     if (*env && (*env)->date) mail_parse_date (elt,(*env)->date);
     if (!elt->month) mail_parse_date (elt,"01-JAN-1969 00:00:00 GMT");
@@ -973,28 +973,28 @@ char *nntp_read_sdb (FILE **f)
 {
   int i;
   char *s,*t,tmp[MAILTMPLEN];
-  if (!*f) {			/* first time through? */
-    NEWSRC (tmp);		/* yes, make name of newsrc file and open */
-    if (!(*f = fopen (tmp,"r"))) {
-      char msg[MAILTMPLEN];
-      sprintf (msg,"No news state found, will create %s",tmp);
-      mm_log (msg,WARN);
-      return NIL;
-    }
+				/* if first time, open newsrc file */
+  if (!(*f || (*f = fopen (NEWSRC (tmp),"r")))) {
+    FILE *ff = fopen (NEWSRC (tmp),"a");
+    char msg[MAILTMPLEN];
+    sprintf (msg,"No news state found, will create %s",tmp);
+    mm_log (msg,WARN);
+    if (ff) fclose (ff);
+    return NIL;
   }
 				/* read a line from the file */
   if (fgets (tmp,MAILTMPLEN,*f)) {
     i = strlen (tmp);		/* how many characters we got */
     if (tmp[i - 1] == '\n') {	/* got a complete line? */
       tmp[i - 1] = '\0';	/* yes, tie off the line */
-      s = cpystr (tmp);		/* make return string */
+      return cpystr (tmp);	/* return string */
     }
-    else {			/* ugh, have to build from fragments */
-      t = nntp_read_sdb (f);	/* recuse to get remainder */
+				/* ugh, have to build from fragments */
+    else if (t = nntp_read_sdb (f)) {
       sprintf (s = (char *) fs_get (i + strlen (t) + 1),"%s%s",tmp,t);
       fs_give ((void **) &t);	/* discard fragment */
+      return s;			/* return the string we made */
     }
-    return s;			/* return the string we made */
   }
   fclose (*f);			/* end of file, close file */
   *f = NIL;			/* make sure caller knows */
@@ -1012,13 +1012,13 @@ long nntp_update_sdb (char *name,char *data)
   int i = strlen (name);
   char c,*s,tmp[MAILTMPLEN],new[MAILTMPLEN];
   FILE *f = NIL,*of,*nf;
-  OLDNEWSRC (tmp);		/* make name of old newsrc file */
-  if (!(of = fopen (tmp,"w"))) {/* open old newsrc */
+				/* open old newsrc */
+  if (!(of = fopen (OLDNEWSRC (tmp),"w"))) {
     mm_log ("Can't create backup of news state",ERROR);
     return NIL;
   }
-  NEWNEWSRC (new);		/* make name of new newsrc file */
-  if (!(nf = fopen (new,"w"))) {/* open new newsrc */
+				/* open new newsrc */
+  if (!(nf = fopen (NEWNEWSRC (new),"w"))) {
     mm_log ("Can't create new news state",ERROR);
     fclose (of);
     return NIL;
@@ -1034,17 +1034,17 @@ long nntp_update_sdb (char *name,char *data)
 	  sprintf (tmp,"Already subscribed to newsgroup %s",name);
 	  mm_log (tmp,WARN);
 	}
-	data = s + i;		/* preserve old read state */
+	data = s + i + 1;	/* preserve old read state */
 	break;
       case '!':			/* unsubscription request? */
 	if (c == ':') c = '!';	/* unsubscribe if subscribed */
-	data = s + i;		/* preserve old read state */
+	data = s + i + 1;	/* preserve old read state */
 	break;
       default:			/* update read state */
 	break;
       }
 				/* write the new entry */
-      fprintf (nf,"%s%c %s\n",name,c,data);
+      fprintf (nf,"%s%c%s\n",name,c,data);
       data = NIL;		/* request satisfied */
     }
     else fprintf (nf,"%s\n",s);	/* not the entry we want, write to new file */
@@ -1064,8 +1064,7 @@ long nntp_update_sdb (char *name,char *data)
   }
   fclose (nf);			/* close new file */
   fclose (of);			/* close backup file */
-  NEWSRC (tmp);			/* make name of current file */
-  unlink (tmp);			/* remove the current file */
+  unlink (NEWSRC (tmp));	/* remove the current file */
   if (rename (new,tmp)) {	/* rename new database to current */
     mm_log ("Can't update news state",ERROR);
     return NIL;
@@ -1370,8 +1369,8 @@ search_t nntp_search_string (search_t f,char **d,long *n)
       *n = strtol (c+1,&c,10);	/* get its length */
       if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
 	  *n > strlen (*d = c)) return NIL;
-      c[*n] = '\255';		/* write new delimiter */
-      strtok (c,"\255");	/* reset the strtok mechanism */
+      c[*n] = DELIM;		/* write new delimiter */
+      strtok (c,DELMS);		/* reset the strtok mechanism */
       break;
     default:			/* atomic string */
       *n = strlen (*d = strtok (c," "));

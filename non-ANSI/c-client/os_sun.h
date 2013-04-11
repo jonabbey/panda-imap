@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	12 November 1993
+ * Last Edited:	19 August 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -44,6 +44,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <syslog.h>
 
 #define strstr Strstr		/* override system definition */
 
@@ -53,6 +54,6 @@
 #include "nl.h"
 #include "tcp.h"
 
-char *memmove  ();
+void *memmove  ();
 char *Strstr  ();
 char *strerror  ();

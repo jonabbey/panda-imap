@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	18 June 1994
+ * Last Edited:	30 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -41,11 +41,11 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 extern int h_errno;		/* not defined in netdb.h */
 #include <ctype.h>
 #include <errno.h>
-#include <syslog.h>
 #include <utime.h>
 #include "misc.h"
 #define SecureWare              /* protected subsystem */
@@ -66,32 +66,8 @@ extern char *crypt();
 #include "memmove2.c"
 #include "flock.c"
 #include "scandir.c"
+#include "tz_sv4.c"
 
-/* Write current time in RFC 822 format
- * Accepts: destination string
- */
-
-char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
-void rfc822_date (char *date)
-{
-  int zone,dstflag;
-  struct tm *t;
-  struct timeval tv;
-  struct timezone tz;
-  tzset ();			/* get timezone from TZ environment stuff */
-  gettimeofday (&tv,&tz);	/* get time and timezone poop */
-  t = localtime (&tv.tv_sec);	/* convert to individual items */
-  dstflag = daylight ? t->tm_isdst : 0;
-  zone = (dstflag * 60) - timezone/60;
-				/* and output it */
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+02d%02d (%s)",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-	   tzname[dstflag]);
-}
-
-
 /* Server log in
  * Accepts: user name string
  *	    password string

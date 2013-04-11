@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 September 1993
- * Last Edited:	11 November 1993
+ * Last Edited:	14 August 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -34,9 +34,9 @@
  */
 
 
-#define MAILFILE "/usr/spool/mail/%s"
+#define MAILFILE "/var/spool/mail/%s"
 #define ACTIVEFILE "/usr/lib/news/active"
-#define NEWSSPOOL "/usr/spool/news"
+#define NEWSSPOOL "/var/spool/news"
 #define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 #define NFSKLUDGE
 
@@ -45,6 +45,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/dir.h>
+#include <syslog.h>
 
 
 /* The definition for this in Linux's sys/types.h is wrong */
@@ -54,8 +55,6 @@ struct iovec {
   size_t iov_len;		/* length in bytes */
 };
 
-
-#define gethostid clock		/* non in the Linux C library?? */
 
 #include "env_unix.h"
 #include "fs.h"

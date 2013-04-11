@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	31 May 1994
+ * Last Edited:	30 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -44,12 +44,12 @@
 #include <sys/stropts.h>
 #include <sys/poll.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <regexpr.h>
 #include <errno.h>
 #include <pwd.h>
 #include <shadow.h>
-#include <syslog.h>
 #include <sys/file.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -74,31 +74,7 @@ extern char *sys_errlist[];
 #include "flock.c"
 #include "gettime.c"
 #include "scandir.c"
-
-/* Write current time in RFC 822 format
- * Accepts: destination string
- */
-
-char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
-void rfc822_date (date)
-	char *date;
-{
-  int zone,dstnow;
-  struct tm *t;
-  time_t time_sec = time (0);
-  tzset ();			/* initialize timezone/daylight variables */
-  t = localtime (&time_sec);	/* convert to individual items */
-				/* see if it is DST now */
-  dstnow = daylight && t->tm_isdst;
-				/* get timezone value */
-  zone = - (dstnow ? altzone : timezone) / 60;
-				/* and output it */
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-	   tzname[dstnow]);
-}
+#include "tz_sv4.c"
 
 /* Emulator for BSD gethostid() call
  * Returns: unique identifier for this machine

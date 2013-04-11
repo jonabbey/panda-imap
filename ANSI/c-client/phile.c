@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 August 1993
- * Last Edited:	29 May 1994
+ * Last Edited:	30 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -35,7 +35,6 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
 #include <signal.h>
@@ -116,12 +115,6 @@ int phile_isvalid (char *name,char *tmp)
   int i,fd,ti,zn;
   struct stat sbuf;
   char *s = tmp,*t;
-  struct hostent *host_name;
-  if (!lhostn) {		/* have local host yet? */
-    gethostname(tmp,MAILTMPLEN);/* get local host name */
-    lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
-		     host_name->h_name : tmp);
-  }
 				/* INBOX is never accepted */
   return (strcmp (ucase (strcpy (tmp,name)),"INBOX") &&
 	  (*name != '{') && !((*name == '*') && (name[1] == '{')) &&
@@ -285,7 +278,6 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
   struct passwd *pw;
   struct stat sbuf;
   struct tm *t;
-  extern char *days[];
   MESSAGECACHE *elt;
 				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &phileproto;
@@ -333,7 +325,7 @@ MAILSTREAM *phile_open (MAILSTREAM *stream)
   if (pw = getpwuid (sbuf.st_uid)) strcpy (tmp,pw->pw_name);
   else sprintf (tmp,"User-Number-%ld",(long) sbuf.st_uid);
   LOCAL->env->from->mailbox = cpystr (tmp);
-  LOCAL->env->from->host = cpystr (lhostn);
+  LOCAL->env->from->host = cpystr (mylocalhost ());
 				/* set subject to be mailbox name */
   LOCAL->env->subject = cpystr (stream->mailbox);
 				/* slurp the data */
@@ -1039,8 +1031,8 @@ search_t phile_search_string (search_t f,char **d,long *n)
       *n = strtol (c+1,&c,10);	/* get its length */
       if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
 	  *n > strlen (*d = c)) return NIL;
-      c[*n] = '\255';		/* write new delimiter */
-      strtok (c,"\255");	/* reset the strtok mechanism */
+      c[*n] = DELIM;		/* write new delimiter */
+      strtok (c,DELMS);		/* reset the strtok mechanism */
       break;
     default:			/* atomic string */
       *n = strlen (*d = strtok (c," "));

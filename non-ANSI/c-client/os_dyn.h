@@ -10,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	12 November 1993
+ * Last Edited:	19 August 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -43,6 +43,7 @@
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <syslog.h>
 
 typedef unsigned long size_t;
 
@@ -50,7 +51,7 @@ extern char *strtok ();
 extern char *strstr ();
 extern char *strpbrk ();
 extern char *strerror ();
-extern char *memmove ();
+extern void *memmove ();
 extern char *memset ();
 extern long strtol ();
 extern void *malloc ();

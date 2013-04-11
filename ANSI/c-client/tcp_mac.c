@@ -1,5 +1,5 @@
 /*
- * Program:	Operating-system dependent routines -- Macintosh version
+ * Program:	Macintosh TCP/IP routines
  *
  * Author:	Mark Crispin
  *		6158 Lariat Loop NE
@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	29 May 1994
+ * Last Edited:	26 June 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -154,7 +154,7 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
     fatal ("Can't create TCP stream");
   				/* open TCP connection */
   stream->pb.csCode = TCPActiveOpen;
-  openpb->ulpTimeoutValue = 30;	/* time out after 30 seconds */
+  openpb->ulpTimeoutValue = (int) mail_parameters (NIL,GET_OPENTIMEOUT,NIL);
   openpb->ulpTimeoutAction = T;
   openpb->validityFlags = timeoutValue|timeoutAction;
 				/* remote host (should try all) */
@@ -195,6 +195,7 @@ TCPSTREAM *tcp_open (char *host,char *service,long port)
   l = openpb->localHost & 0xff;
   sprintf (tmp,"[%ld.%ld.%ld.%ld]",i,j,k,l);
   stream->localhost = cpystr (tmp);
+  if (!myLocalHost) myLocalHost = cpystr (tmp);
   return stream;
 }
 
@@ -301,18 +302,21 @@ long tcp_getbuffer (TCPSTREAM *stream,unsigned long size,char *buffer)
 
 long tcp_getdata (TCPSTREAM *stream)
 {
+  time_t t = time (0);
   struct TCPReceivePB *receivepb = &stream->pb.csParam.receive;
   struct TCPAbortPB *abortpb = &stream->pb.csParam.abort;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     stream->pb.csCode = TCPRcv;	/* receive TCP data */
-				/* wait forever */
-    receivepb->commandTimeoutValue = 0;
+    receivepb->commandTimeoutValue =
+      (int) mail_parameters (NIL,GET_READTIMEOUT,NIL);
     receivepb->rcvBuff = stream->ibuf;
     receivepb->rcvBuffLen = BUFLEN;
     receivepb->secondTimeStamp = 0;
     receivepb->userDataPtr = NIL;
     PBControlAsync ((ParmBlkPtr) &stream->pb);
     while (stream->pb.ioResult == inProgress && wait ());
+    if ((stream->pb.ioResult == commandTimeout) && tcptimeout &&
+	((*tcptimeout) (time (0) - t))) continue;
     if (stream->pb.ioResult) {	/* punt if got an error */
     				/* nuke connection */
       stream->pb.csCode = TCPAbort;
@@ -360,8 +364,7 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
     size -= wds.length;		/* this many words will be output */
     string += wds.length;
     stream->pb.csCode = TCPSend;/* send TCP data */
-				/* wait a maximum of 60 seconds */
-    sendpb->ulpTimeoutValue = 60;
+    sendpb->ulpTimeoutValue = (int) mail_parameters (NIL,GET_WRITETIMEOUT,NIL);
     sendpb->ulpTimeoutAction = 0;
     sendpb->validityFlags = timeoutValue|timeoutAction;
     sendpb->pushFlag = T;	/* send the data now */
@@ -390,7 +393,7 @@ void tcp_close (TCPSTREAM *stream)
   struct TCPClosePB *closepb = &stream->pb.csParam.close;
   struct TCPCreatePB *createpb = &stream->pb.csParam.create;
   stream->pb.csCode = TCPClose;	/* close TCP stream */
-  closepb->ulpTimeoutValue = 15;/* wait a maximum of 15 seconds */
+  closepb->ulpTimeoutValue = (int) mail_parameters (NIL,GET_CLOSETIMEOUT,NIL);
   closepb->ulpTimeoutAction = 0;
   closepb->validityFlags = timeoutValue|timeoutAction;
   closepb->userDataPtr = NIL;

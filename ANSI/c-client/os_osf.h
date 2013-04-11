@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	11 July 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -46,6 +46,7 @@
 #include <dirent.h>
 #include <time.h>		/* for struct tm */
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <syslog.h>
 
 #define direct dirent
 

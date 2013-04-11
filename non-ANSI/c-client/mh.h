@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	17 March 1994
+ * Last Edited:	14 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -55,6 +55,7 @@ typedef struct mh_local {
   char *buf;			/* temporary buffer */
   char *hdr;			/* current header */
   unsigned long buflen;		/* current size of temporary buffer */
+  time_t scantime;		/* last time directory scanned */
 } MHLOCAL;
 
 

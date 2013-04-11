@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 June 1994
- * Last Edited:	12 June 1994
+ * Last Edited:	4 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -114,11 +114,11 @@ long tenexdos_isvalid (char *name)
   int fd;
   char *s,tmp[MAILTMPLEN];
   struct stat sbuf;
-  errno = NIL;			/* zap error */
+  errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
   if (*name != '{' && mailboxfile (tmp,name) && (stat (tmp,&sbuf) == 0)) {
-				/* allow empty file */
-    if (sbuf.st_size == 0) return LONGT;
+    errno = NIL;		/* disallow empty file */
+    if (sbuf.st_size == 0) return NIL;
     if ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0 && read (fd,tmp,64) >= 0){
       close (fd);		/* close the file */
       if ((s = strchr (tmp,'\012')) && s[-1] != '\015') {
@@ -152,7 +152,7 @@ void *tenexdos_parameters (long function,void *value)
 
 void tenexdos_find (MAILSTREAM *stream,char *pat)
 {
-  if (stream) dummy_find (stream,pat);
+  if (stream) dummy_find (NIL,pat);
 }
 
 
@@ -174,7 +174,7 @@ void tenexdos_find_bboards (MAILSTREAM *stream,char *pat)
 
 void tenexdos_find_all (MAILSTREAM *stream,char *pat)
 {
-  if (stream) dummy_find_all (stream,pat);
+  if (stream) dummy_find_all (NIL,pat);
 }
 
 /* Tenexdos mail subscribe to mailbox
@@ -303,8 +303,6 @@ MAILSTREAM *tenexdos_open (MAILSTREAM *stream)
     mm_log (tmp,ERROR);
     return NIL;
   }
-				/* hokey default for local host */
-  if (!lhostn) lhostn = cpystr ("localhost");
   stream->local = fs_get (sizeof (TENEXDOSLOCAL));
 				/* canonicalize the stream mailbox name */
   fs_give ((void **) &stream->mailbox);
@@ -388,7 +386,7 @@ void tenexdos_string_init (STRING *s,void *data,unsigned long size)
   s->chunksize = (unsigned long) DOSCHUNKLEN;
   s->offset = 0;		/* initial position */
 				/* and size of data */
-  s->cursize = min ((long) DOSCHUNKLEN,size);
+  s->cursize = min (s->chunksize,size);
 				/* move to that position in the file */
   lseek (d->fd,d->pos,SEEK_SET);
   read (d->fd,s->chunk,(unsigned int) s->cursize);
@@ -418,7 +416,7 @@ void tenexdos_string_setpos (STRING *s,unsigned long i)
   s->offset = i;		/* set new offset */
   s->curpos = s->chunk;		/* reset position */
 				/* set size of data */
-  if (s->cursize = s->size > s->offset ? min ((long) DOSCHUNKLEN,SIZE (s)):0) {
+  if (s->cursize = s->size > s->offset ? min (s->chunksize,SIZE (s)) : 0) {
 				/* move to that position in the file */
     lseek ((int) s->data,s->data1 + s->offset,SEEK_SET);
     read ((int) s->data,s->curpos,(unsigned int) s->cursize);
@@ -445,7 +443,7 @@ ENVELOPE *tenexdos_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
   TENEXDOSDATA d;
   unsigned long hdrsize;
   unsigned long hdrpos = tenexdos_header (stream,msgno,&hdrsize);
-  unsigned long textsize = mail_elt (stream,msgno)->rfc822_size - hdrsize;
+  unsigned long textsize = body ? tenexdos_size (stream,msgno) - hdrsize : 0;
 				/* limit header size */
   if (hdrsize > MAXHDR) hdrsize = MAXHDR;
   if (stream->scache) {		/* short cache */
@@ -478,7 +476,7 @@ ENVELOPE *tenexdos_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
       d.pos = hdrpos + hdrsize;
       INIT (&bs,tenexdos_string,(void *) &d,textsize);
 				/* parse envelope and body */
-      rfc822_parse_msg (env,body ? b : NIL,hdr,hdrsize,&bs,lhostn,tmp);
+      rfc822_parse_msg (env,body ? b : NIL,hdr,hdrsize,&bs,mylocalhost (),tmp);
     }
     fs_give ((void **) &tmp);
     fs_give ((void **) &hdr);
@@ -500,9 +498,7 @@ char *tenexdos_fetchheader (MAILSTREAM *stream,long msgno)
 				/* set default gets routine */
   if (!mailgets) mailgets = mm_gets;
   if (stream->text) fs_give ((void **) &stream->text);
-				/* get to header position */
-  lseek (LOCAL->fd,hdrpos,SEEK_SET);
-  return stream->text = (*mailgets) (tenexdos_read,stream,hdrsize);
+  return stream->text = tenexdos_slurp (stream,hdrpos,&hdrsize);
 }
 
 
@@ -516,7 +512,7 @@ char *tenexdos_fetchtext (MAILSTREAM *stream,long msgno)
 {
   unsigned long hdrsize;
   unsigned long hdrpos = tenexdos_header (stream,msgno,&hdrsize);
-  unsigned long textsize = mail_elt (stream,msgno)->rfc822_size - hdrsize;
+  unsigned long textsize = tenexdos_size (stream,msgno) - hdrsize;
 				/* set default gets routine */
   if (!mailgets) mailgets = mm_gets;
   if (stream->text) fs_give ((void **) &stream->text);
@@ -524,9 +520,7 @@ char *tenexdos_fetchtext (MAILSTREAM *stream,long msgno)
   mail_elt (stream,msgno)->seen = T;
 				/* recalculate status */
   tenexdos_update_status (stream,msgno);
-				/* get to text position */
-  lseek (LOCAL->fd,hdrpos + hdrsize,SEEK_SET);
-  return stream->text = (*mailgets) (tenexdos_read,stream,textsize);
+  return stream->text = tenexdos_slurp (stream,hdrpos + hdrsize,&textsize);
 }
 
 /* Tenexdos fetch message body as a structure
@@ -578,10 +572,42 @@ char *tenexdos_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
   if ((!b) || b->type == TYPEMULTIPART) return NIL;
   elt->seen = T;		/* mark message as seen */
   tenexdos_update_status (stream,m);/* recalculate status */
-  lseek (LOCAL->fd,hdrpos + base + offset,SEEK_SET);
-  return stream->text = (*mailgets) (tenexdos_read,stream,*len=b->size.bytes);
+  *len = b->size.bytes;		/* number of bytes from file */
+  return stream->text = tenexdos_slurp (stream,hdrpos + base + offset,len);
 }
 
+/* Tenexdos mail slurp
+ * Accepts: MAIL stream
+ *	    file position
+ *	    pointer to number of file bytes to read
+ * Returns: buffer address, actual number of bytes written
+ */
+
+char *tenexdos_slurp (MAILSTREAM *stream,unsigned long pos,
+		      unsigned long *count)
+{
+  unsigned long cnt = *count;
+  int i,j;
+  char tmp[MAILTMPLEN];
+  lseek(LOCAL->fd,pos,SEEK_SET);/* get to desired position */
+  LOCAL->ch = '\0';		/* initialize CR mechanism */
+  while (cnt) {			/* until checked all bytes */
+				/* number of bytes this chunk */
+    cnt -= (i = (int) min (cnt,(unsigned long) MAILTMPLEN));
+				/* read a chunk */
+    if (read (LOCAL->fd,tmp,i) != i) return NIL;
+    for (j = 0; j < i; j++) {	/* count bytes in chunk */
+				/* if see bare LF, count next as CR */
+      if ((tmp[j] == '\012') && (LOCAL->ch != '\015')) ++*count;
+      LOCAL->ch = tmp[j];
+    }
+  }
+  lseek(LOCAL->fd,pos,SEEK_SET);/* get to desired position */
+  LOCAL->ch = '\0';		/* initialize CR mechanism */
+  return (*mailgets) (tenexdos_read,stream,*count);
+}
+
+
 /* Tenexdos mail read
  * Accepts: MAIL stream
  *	    number of bytes to read
@@ -591,7 +617,22 @@ char *tenexdos_fetchbody (MAILSTREAM *stream,long m,char *s,unsigned long *len)
 
 long tenexdos_read (MAILSTREAM *stream,unsigned long count,char *buffer)
 {
-  return read (LOCAL->fd,buffer,(unsigned int) count) ? T : NIL;
+  char tmp[MAILTMPLEN];
+  int i,j;
+  while (count) {		/* until no more bytes to do */
+				/* read a chunk */
+    if ((i = read (LOCAL->fd,tmp,(int) min (count,(unsigned long) MAILTMPLEN)))
+	< 0) return NIL;
+				/* for each byte in chunk (or filled) */
+    for (j = 0; count && (j < i); count--) {
+				/* if see LF, insert CR unless already there */
+      if ((tmp[j] == '\012') && (LOCAL->ch != '\015')) LOCAL->ch = '\015';
+      else LOCAL->ch = tmp[j++];/* regular character */
+      *buffer++ = LOCAL->ch;	/* poop in buffer */
+    }
+    if (i -= j) lseek (LOCAL->fd,-((long) i),SEEK_CUR);
+  }
+  return T;
 }
 
 /* Tenexdos locate header for a message
@@ -611,16 +652,17 @@ unsigned long tenexdos_header (MAILSTREAM *stream,long msgno,
   char tmp[MAILTMPLEN];
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   long pos = elt->data1 + (elt->data2 >> 24);
+  long msiz = tenexdos_size (stream,msgno);
 				/* is size known? */
   if (!(*size = (elt->data2 & (unsigned long) 0xffffff))) {
 				/* get to header position */
     lseek (LOCAL->fd,pos,SEEK_SET);
 				/* search message for CRLF CRLF */
-    for (siz = 0; siz < elt->rfc822_size; siz++) {
+    for (siz = 0; siz < msiz; siz++) {
 				/* read another buffer as necessary */
       if (--i <= 0)		/* buffer empty? */
 	if (read (LOCAL->fd,s = tmp,
-		   i = min (elt->rfc822_size - siz,(long) MAILTMPLEN)) < 0)
+		  i = min (msiz-siz,(unsigned long) MAILTMPLEN)) < 0)
 	  return pos;		/* I/O error? */
 				/* two newline sequence? */
       if ((c == '\012') && (*s == '\012')) {
@@ -842,13 +884,13 @@ void tenexdos_expunge (MAILSTREAM *stream)
     if ((elt = mail_elt (stream,i))->deleted) {
       if (elt->recent) --recent;/* if recent, note one less recent message */
 				/* number of bytes to delete */
-      delta += (elt->data2 >> 24) + elt->rfc822_size;
+      delta += (elt->data2 >> 24) + tenexdos_size (stream,i);
       mail_expunged (stream,i);	/* notify upper levels */
       n++;			/* count up one more deleted message */
     }
     else if (i++ && delta) {	/* preserved message */
       j = elt->data1;		/* j is byte to copy, k is number of bytes */
-      k = (elt->data2 >> 24) + elt->rfc822_size;
+      k = (elt->data2 >> 24) + tenexdos_size (stream,i);
       do {			/* read from source position */
 	m = min (k,(unsigned long) MAILTMPLEN);
 	lseek (LOCAL->fd,j,SEEK_SET);
@@ -923,12 +965,10 @@ long tenexdos_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 {
   struct stat sbuf;
   int fd,zone;
-  char tmp[MAILTMPLEN];
+  char c,tmp[MAILTMPLEN];
   MESSAGECACHE elt;
-  time_t ti;
-  struct tm *t;
-  long i;
-  long size = SIZE (message);
+  long i = SIZE (message);
+  long size;
   short f = tenexdos_getflags (stream,flags);
   if (date) {			/* want to preserve date? */
 				/* yes, parse date into an elt */
@@ -937,8 +977,8 @@ long tenexdos_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
       return NIL;
     }
   }
-  tzset ();			/* initialize timezone stuff */
-  if (!tenexdos_isvalid (mailbox)) {/* make sure valid mailbox */
+				/* make sure valid mailbox */
+  if (!tenexdos_isvalid (mailbox) && errno) {
     if (errno == ENOENT)
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
 		 (long) NIL);
@@ -957,14 +997,12 @@ long tenexdos_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
     return NIL;
   }
   mm_critical (stream);		/* go critical */
+				/* calculate data size w/o CR's */
+  while (i--) if ((c = SNX (message)) != '\015') size++;
+  SETPOS (message,(long) 0);	/* back to start */
   fstat (fd,&sbuf);		/* get current file size */
-  ti = time (0);		/* get time now */
-  t = localtime (&ti);		/* output local time */
-  zone = -(((int)timezone)/ 60);/* get timezone from TZ environment stuff */
   if (date) mail_date(tmp,&elt);/* use date if given */
-  else sprintf (tmp,"%2d-%s-%d %02d:%02d:%02d %+03d%02d",
-		t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-		t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60);
+  else internal_date (tmp);	/* else use time now */
 				/* add remainder of header */
   sprintf (tmp + strlen (tmp),",%ld;0000000000%02o\012",size,f);
 
@@ -975,16 +1013,15 @@ long tenexdos_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
     chsize (fd,sbuf.st_size);
   }  
   else while (size) {		/* while there is more data to write */
-    if (write (fd,message->curpos,i = min (size,message->cursize)) < 0) {
+    for (i = 0; (i < MAILTMPLEN) && SIZE (message); )
+      if ((c = SNX (message)) != '\015') tmp[i++] = c;
+    if (write (fd,tmp,i) < 0) {	/* write another buffer's worth */
       sprintf (tmp,"Message append failed: %s",strerror (errno));
       mm_log (tmp,ERROR);
       chsize (fd,sbuf.st_size);
       break;
     }
     size -= i;			/* note that we wrote out this much */
-    message->curpos += i;
-    message->cursize -= i;
-    (message->dtb->next) (message);
   }
   close (fd);			/* close the file */
   mm_nocritical (stream);	/* release critical */
@@ -1003,6 +1040,20 @@ void tenexdos_gc (MAILSTREAM *stream,long gcflags)
 }
 
 /* Internal routines */
+
+
+/* Tenex mail return internal message size in bytes
+ * Accepts: MAIL stream
+ *	    message #
+ * Returns: internal size of message
+ */
+
+unsigned long tenexdos_size (MAILSTREAM *stream,long m)
+{
+  MESSAGECACHE *elt = mail_elt (stream,m);
+  return ((m < stream->nmsgs) ? mail_elt (stream,m+1)->data1 : LOCAL->filesize)
+    - (elt->data1 + (elt->data2 >> 24));
+}
 
 
 /* Return bad file name error message
@@ -1087,31 +1138,43 @@ long tenexdos_parse (MAILSTREAM *stream)
 {
   struct stat sbuf;
   MESSAGECACHE *elt = NIL;
-  char c,*s,*t;
+  char c,*s,*t,*x;
   char tmp[MAILTMPLEN];
-  long i;
+  int j;
+  long i,msiz;
   long curpos = LOCAL->filesize;
   long nmsgs = stream->nmsgs;
   long recent = stream->recent;
   fstat (LOCAL->fd,&sbuf);	/* get status */
   if (sbuf.st_size < curpos) {	/* sanity check */
-    mm_log ("Mailbox shrank!",ERROR);
+    sprintf (tmp,"Mailbox shrank from %ld to %ld!",curpos,sbuf.st_size);
+    mm_log (tmp,ERROR);
     tenexdos_close (stream);
     return NIL;
   }
-				/* while there is stuff to parse */
-  while (i = sbuf.st_size - curpos) {
+  while (sbuf.st_size - curpos){/* while there is stuff to parse */
 				/* get to that position in the file */
-    lseek (LOCAL->fd,curpos,SEEK_SET);
-    if (!((read (LOCAL->fd,tmp,64) > 0) && (s = strchr (tmp,'\012')))) {
-      mm_log ("Unable to read internal header line",ERROR);
+    lseek (LOCAL->fd,curpos,L_SET);
+    if ((i = read (LOCAL->fd,tmp,64)) <= 0) {
+      sprintf (tmp,"Unable to read internal header at %ld, size = %ld: %s",
+	       curpos,sbuf.st_size,i ? strerror (errno) : "no data read");
+      mm_log (tmp,ERROR);
+      tenexdos_close (stream);
+      return NIL;
+    }
+    tmp[i] = '\0';		/* tie off buffer just in case */
+    if (!(s = strchr (tmp,'\012'))) {
+      sprintf (tmp,"Unable to find end of line at %ld in %ld bytes, text: %s",
+	       curpos,i,tmp);
+      mm_log (tmp,ERROR);
       tenexdos_close (stream);
       return NIL;
     }
     *s = '\0';			/* tie off header line */
     i = (s + 1) - tmp;		/* note start of text offset */
     if (!((s = strchr (tmp,',')) && (t = strchr (s+1,';')))) {
-      mm_log ("Unable to parse internal header line",ERROR);
+      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,tmp);
+      mm_log (tmp,ERROR);
       tenexdos_close (stream);
       return NIL;
     }
@@ -1122,26 +1185,36 @@ long tenexdos_parse (MAILSTREAM *stream)
     elt->data2 = i << 24;	/* as well as offset from header of message */
 				/* parse the header components */
     if (!(mail_parse_date (elt,tmp) &&
-	  (elt->rfc822_size = strtol (s,&s,10)) && (!(s && *s)) &&
+	  (elt->rfc822_size = msiz = strtol (x = s,&s,10)) && (!(s && *s)) &&
 	  isdigit (t[0]) && isdigit (t[1]) && isdigit (t[2]) &&
 	  isdigit (t[3]) && isdigit (t[4]) && isdigit (t[5]) &&
 	  isdigit (t[6]) && isdigit (t[7]) && isdigit (t[8]) &&
 	  isdigit (t[9]) && isdigit (t[10]) && isdigit (t[11]) && !t[12])) {
-      mm_log ("Unable to parse internal header line components",ERROR);
+      sprintf (tmp,"Unable to parse internal header elements at %ld: %s,%s;%s",
+	       curpos,tmp,x,t);
       tenexdos_close (stream);
       return NIL;
     }
-				/* update current position to next header */
-    curpos += i + elt->rfc822_size;
+
+				/* start at first message byte */
+    lseek (LOCAL->fd,curpos + i,SEEK_SET);
+				/* make sure didn't run off end of file */
+    if ((curpos += (msiz + i)) > sbuf.st_size) {
+      mm_log ("Last message runs past end of file",ERROR);
+      tenexdos_close (stream);
+      return NIL;
+    }
 				/* calculate system flags */
     if ((i = ((t[10]-'0') * 8) + t[11]-'0') & fSEEN) elt->seen = T;
     if (i & fDELETED) elt->deleted = T;
     if (i & fFLAGGED) elt->flagged = T;
     if (i & fANSWERED) elt->answered = T;
-    if (curpos > sbuf.st_size) {
-      mm_log ("Last message runs past end of file",ERROR);
-      tenexdos_close (stream);
-      return NIL;
+    for (i = msiz; i;) {	/* for all bytes of the message */
+				/* read a buffer's worth */
+      read (LOCAL->fd,tmp,j = (int) min (i,(unsigned long) MAILTMPLEN));
+      i -= j;			/* account for having read that much */
+				/* now count the CRLFs */
+      while (j) if (tmp[--j] == '\n') elt->rfc822_size++;
     }
   }
 				/* update parsed file size */
@@ -1164,8 +1237,10 @@ long tenexdos_copy_messages (MAILSTREAM *stream,char *mailbox)
   struct stat sbuf;
   MESSAGECACHE *elt;
   unsigned long i,j,k;
+  long ret = LONGT;
   int fd;
-  if (!tenexdos_isvalid (mailbox)) {/* make sure valid mailbox */
+				/* make sure valid mailbox */
+  if (!tenexdos_isvalid (mailbox) && errno) {
     if (errno == ENOENT)
       mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
 		 (long) NIL);
@@ -1186,36 +1261,27 @@ long tenexdos_copy_messages (MAILSTREAM *stream,char *mailbox)
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
 				/* for each requested message */
-  for (i = 1; i <= stream->nmsgs; i++)
+  for (i = 1; ret && (i <= stream->nmsgs); i++) 
     if ((elt = mail_elt (stream,i))->sequence) {
-      lseek (LOCAL->fd,tenexdos_header (stream,i,&k),SEEK_SET);
-      j = 0;			/* mark first time through */
+      lseek (LOCAL->fd,elt->data1,SEEK_SET);
+				/* number of bytes to copy */
+      k = (elt->data2 >> 24) + tenexdos_size (stream,i);
       do {			/* read from source position */
-	if (j) {		/* get another message chunk */
-	  k = min (j,(unsigned long) MAILTMPLEN);
-	  read (LOCAL->fd,tmp,(unsigned int) k);
-	}
-	else {			/* first time through */
-	  mail_date (tmp,elt);	/* make a header */
-	  sprintf (tmp + strlen (tmp),",%d;000000000000\012",
-		   elt->rfc822_size);
-	  k = strlen (tmp);	/* size of header string */
-				/* amount of data to write subsequently */
-	  j = elt->rfc822_size + k;
-	}
-	if (write (fd,tmp,(unsigned int) k) < 0) {
+	j = min (k,(long) MAILTMPLEN);
+	read (LOCAL->fd,tmp,(unsigned int) j);
+	if (write (fd,tmp,(unsigned int) j) < 0) {
 	  sprintf (tmp,"Unable to write message: %s",strerror (errno));
 	  mm_log (tmp,ERROR);
 	  chsize (fd,sbuf.st_size);
-	  close (fd);		/* punt */
-	  mm_nocritical (stream);
-	  return NIL;
+	  j = k;
+	  ret = NIL;		/* note error */
+	  break;
 	}
-      } while (j -= k);		/* until done */
+      } while (k -= j);		/* until done */
     }
   close (fd);			/* close the file */
   mm_nocritical (stream);	/* release critical */
-  return T;
+  return ret;
 }
 
 /* Tenexdos update status string
@@ -1351,11 +1417,28 @@ char tenexdos_search_since (MAILSTREAM *stream,long msgno,char *d,long n)
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   return (char) (((elt->year << 9) + (elt->month << 5) + elt->day) >= n);
 }
-
+
+#define BUFLEN 4*MAILTMPLEN
 
 char tenexdos_search_body (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  return NIL;			/* need code here */
+  char tmp[BUFLEN];
+  unsigned long bufsize,hdrsize;
+  unsigned long curpos = tenexdos_header (stream,msgno,&hdrsize);
+  unsigned long textsize = mail_elt (stream,msgno)->rfc822_size - hdrsize;
+				/* get to header position */
+  lseek (LOCAL->fd,curpos += hdrsize,SEEK_SET);
+  while (textsize) {
+    bufsize = min (textsize,(unsigned long) BUFLEN);
+    read (LOCAL->fd,tmp,(unsigned int) bufsize);
+    if (search (tmp,bufsize,d,n)) return T;
+				/* backtrack by pattern size if not at end */
+    if (bufsize != textsize) bufsize -= n;
+    textsize -= bufsize;	/* this many bytes handled */
+    curpos += bufsize;		/* advance to that point */
+    lseek (LOCAL->fd,curpos,SEEK_SET);
+  }
+  return NIL;			/* not found */
 }
 
 
@@ -1368,7 +1451,23 @@ char tenexdos_search_subject (MAILSTREAM *stream,long msgno,char *d,long n)
 
 char tenexdos_search_text (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  return NIL;			/* need code here */
+  char tmp[BUFLEN];
+  unsigned long bufsize,hdrsize;
+  unsigned long curpos = tenexdos_header (stream,msgno,&hdrsize);
+  unsigned long textsize = mail_elt (stream,msgno)->rfc822_size;
+				/* get to header position */
+  lseek (LOCAL->fd,curpos,SEEK_SET);
+  while (textsize) {
+    bufsize = min (textsize,(unsigned long) BUFLEN);
+    read (LOCAL->fd,tmp,(unsigned int) bufsize);
+    if (search (tmp,bufsize,d,n)) return T;
+				/* backtrack by pattern size if not at end */
+    if (bufsize != textsize) bufsize -= n;
+    textsize -= bufsize;	/* this many bytes handled */
+    curpos += bufsize;		/* advance to that point */
+    lseek (LOCAL->fd,curpos,SEEK_SET);
+  }
+  return NIL;			/* not found */
 }
 
 char tenexdos_search_bcc (MAILSTREAM *stream,long msgno,char *d,long n)
@@ -1466,8 +1565,8 @@ search_t tenexdos_search_string (search_t f,char **d,long *n)
       *n = strtol (c+1,&c,10);	/* get its length */
       if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
 	  *n > strlen (*d = c)) return NIL;
-      c[*n] = '\255';		/* write new delimiter */
-      strtok (c,"\255");	/* reset the strtok mechanism */
+      c[*n] = DELIM;		/* write new delimiter */
+      strtok (c,DELMS);		/* reset the strtok mechanism */
       break;
     default:			/* atomic string */
       *n = strlen (*d = strtok (c," "));

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	23 June 1994
+ * Last Edited:	20 July 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -52,6 +52,7 @@ TCPSTREAM *tcp_open (host,service,port)
   struct hostent *host_name;
   char hostname[MAILTMPLEN];
   char tmp[MAILTMPLEN];
+  struct protoent *pt = getprotobyname ("ip");
   struct servent *sv = service ? getservbyname (service,"tcp") : NIL;
   if (s = strchr (host,':')) {	/* port number specified? */
     *s++ = '\0';		/* yes, tie off port */
@@ -101,7 +102,7 @@ TCPSTREAM *tcp_open (host,service,port)
     }
   }
 				/* get a TCP stream */
-  if ((sock = socket (sin.sin_family,SOCK_STREAM,0)) < 0) {
+  if ((sock = socket (sin.sin_family,SOCK_STREAM,pt ? pt->p_proto : 0)) < 0) {
     sprintf (tmp,"Unable to create TCP socket: %s",strerror (errno));
     mm_log (tmp,ERROR);
     return NIL;
@@ -223,9 +224,9 @@ char *tcp_getline (stream)
 				/* copy partial string from buffer */
   memcpy ((ret = stp = (char *) fs_get (n)),st,n);
 				/* get more data from the net */
-  if (!tcp_getdata (stream)) return NIL;
+  if (!tcp_getdata (stream)) fs_give ((void **) &ret);
 				/* special case of newline broken by buffer */
-  if ((c == '\015') && (*stream->iptr == '\012')) {
+  else if ((c == '\015') && (*stream->iptr == '\012')) {
     stream->iptr++;		/* eat the line feed */
     stream->ictr--;
     ret[n - 1] = '\0';		/* tie off string with null */
@@ -280,6 +281,10 @@ long tcp_getdata (stream)
 {
   int i;
   fd_set fds,efds;
+  struct timeval tmo;
+  time_t t = time (0);
+  tmo.tv_sec = (long) mail_parameters (NIL,GET_READTIMEOUT,NIL);
+  tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
   FD_ZERO (&efds);		/* handle errors too */
   if (stream->tcpsi < 0) return NIL;
@@ -287,14 +292,18 @@ long tcp_getdata (stream)
     FD_SET (stream->tcpsi,&fds);/* set bit in selection vector */
     FD_SET(stream->tcpsi,&efds);/* set bit in error selection vector */
     errno = NIL;		/* block and read */
-    while (((i = select (stream->tcpsi+1,&fds,0,&efds,0)) < 0) &&
-	   (errno == EINTR));
+    while (((i = select (stream->tcpsi+1,&fds,0,&efds,tmo.tv_sec ? &tmo:0))<0)
+	   && (errno == EINTR));
+    if (!i) {			/* timeout? */
+      if (tcptimeout && ((*tcptimeout) (time (0) - t))) continue;
+      else return tcp_abort (stream);
+    }
     if (i < 0) return tcp_abort (stream);
     while (((i = read (stream->tcpsi,stream->ibuf,BUFLEN)) < 0) &&
 	   (errno == EINTR));
     if (i < 1) return tcp_abort (stream);
-    stream->ictr = i;		/* set new byte count */
     stream->iptr = stream->ibuf;/* point at TCP buffer */
+    stream->ictr = i;		/* set new byte count */
   }
   return T;
 }
@@ -327,13 +336,21 @@ long tcp_sout (stream,string,size)
 {
   int i;
   fd_set fds;
+  struct timeval tmo;
+  time_t t = time (0);
+  tmo.tv_sec = (long) mail_parameters (NIL,GET_WRITETIMEOUT,NIL);
+  tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcpso < 0) return NIL;
   while (size > 0) {		/* until request satisfied */
     FD_SET (stream->tcpso,&fds);/* set bit in selection vector */
-    errno = NIL;		/* block and wrtie */
-    while (((i = select (stream->tcpso+1,0,&fds,0,0)) < 0) &&
-	   (errno == EINTR));
+    errno = NIL;		/* block and write */
+    while (((i = select (stream->tcpso+1,0,&fds,0,tmo.tv_sec ? &tmo : 0)) < 0)
+	   && (errno == EINTR));
+    if (!i) {			/* timeout? */
+      if (tcptimeout && ((*tcptimeout) (time (0) - t))) continue;
+      else return tcp_abort (stream);
+    }
     if (i < 0) return tcp_abort (stream);
     while (((i = write (stream->tcpso,string,size)) < 0) &&
 	   (errno == EINTR));
@@ -402,4 +419,22 @@ char *tcp_localhost (stream)
 	TCPSTREAM *stream;
 {
   return stream->localhost;	/* return local host name */
+}
+
+/* TCP/IP get server host name
+ * Accepts: pointer to destination
+ * Returns: string pointer if got results, else NIL
+ */
+
+char *tcp_clienthost (dst)
+	char *dst;
+{
+  struct hostent *hn;
+  struct sockaddr_in from;
+  int fromlen = sizeof (from);
+  if (getpeername (0,(struct sockaddr *) &from,&fromlen)) return "UNKNOWN";
+  strcpy (dst,(hn = gethostbyaddr ((char *) &from.sin_addr,
+				   sizeof (struct in_addr),from.sin_family)) ?
+	  hn->h_name : inet_ntoa (from.sin_addr));
+  return dst;
 }

@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	26 January 1992
- * Last Edited:	29 May 1994
+ * Last Edited:	4 September 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -29,8 +29,9 @@
  *
  */
 
-/* Write current time in RFC 822 format
+/* Write current time
  * Accepts: destination string
+ *	    format of date and time
  *
  * This depends upon the ReadLocation() call in System 7 and the
  * user properly setting his location/timezone in the Map control
@@ -39,7 +40,7 @@
  * don't know how it's supposed to work.
  */
 
-void rfc822_date (char *string)
+static void do_date (char *date,char *fmt)
 {
   long tz,tzm;
   time_t ti = time (0);
@@ -52,19 +53,29 @@ void rfc822_date (char *string)
   tz /= 60;			/* get timezone in minutes */
   tzm = tz % 60;		/* get minutes from the hour */
 				/* output time */
-  strftime (string,MAILTMPLEN,"%a, %d %b %Y %H:%M:%S ",t);
+  strftime (date,MAILTMPLEN,fmt,t);
 				/* now output time zone */
-  sprintf (string += strlen (string),"%+03ld%02ld",
-	   tz/60,tzm >= 0 ? tzm : -tzm);
+  sprintf (date += strlen (date),"%+03ld%02ld",tz/60,tzm >= 0 ? tzm : -tzm);
 }
 
 
-/* Return random number
+/* Write current time in RFC 822 format
+ * Accepts: destination string
  */
 
-long random ()
+void rfc822_date (char *date)
 {
-  return (long) rand () << 16 + rand ();
+  do_date (date,"%a, %d %b %Y %H:%M:%S ");
+}
+
+
+/* Write current time in internal format
+ * Accepts: destination string
+ */
+
+void internal_date (char *date)
+{
+  do_date (date,"%2d-%b-%Y %H:%M:%S ");
 }
 
 /* Block until event satisfied
@@ -119,4 +130,12 @@ long wait ()
     break;
   }
   return T;			/* try wait test again */
+}
+
+/* Return random number
+ */
+
+long random ()
+{
+  return (long) rand () << 16 + rand ();
 }

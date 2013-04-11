@@ -10,7 +10,7 @@
  *		Internet: MikeS@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	24 May 1994
+ * Last Edited:	6 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -40,8 +40,6 @@
 #include <windows.h>
 #define _INC_WINDOWS
 #include <winsock.h>
-
-#define RECEIVE_TIMEOUT 30	/* seconds */
 
 
 /* TCP I/O stream (must be before osdep.h is included) */
@@ -240,9 +238,9 @@ char *tcp_getline (TCPSTREAM *stream)
 				/* copy partial string from buffer */
   memcpy ((ret = stp = (char *) fs_get (n)),st,n);
 				/* get more data from the net */
-  if (!tcp_getdata (stream)) return NIL;
+  if (!tcp_getdata (stream)) fs_give ((void **) &ret);
 				/* special case of newline broken by buffer */
-  if ((c == '\015') && (*stream->iptr == '\012')) {
+  else if ((c == '\015') && (*stream->iptr == '\012')) {
     stream->iptr++;		/* eat the line feed */
     stream->ictr--;
     ret[n - 1] = '\0';		/* tie off string with null */
@@ -295,19 +293,26 @@ long tcp_getdata (TCPSTREAM *stream)
   struct timeval timeout;
   int i;
   fd_set fds;
+  time_t t = time (0);
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcps == INVALID_SOCKET) return NIL;
-  timeout.tv_sec = RECEIVE_TIMEOUT;
+  timeout.tv_sec = (long) mail_parameters (NIL,(long) GET_READTIMEOUT,NIL);
   timeout.tv_usec = 0;
   while (stream->ictr < 1) {	/* if nothing in the buffer */
     FD_SET (stream->tcps,&fds);	/* set bit in selection vector */
 				/* block and read */
-    while (((i = select (stream->tcps+1,&fds,0,0,&timeout))== SOCKET_ERROR) &&
-	   (WSAGetLastError() == WSAEINTR));
-    if (i == SOCKET_ERROR) return tcp_abort(&stream->tcps);
-    if (i == 0)		/* Timeout! */
-	    return tcp_abort(&stream->tcps);
-    
+    i = select (stream->tcps+1,&fds,0,0,
+		timeout.tv_sec ? &timeout : (struct timeval *)0);
+    if (i == SOCKET_ERROR){
+	if(WSAGetLastError() == WSAEINTR) continue;
+	else return tcp_abort(&stream->tcps);
+    }
+				/* timeout? */
+    else if (i == 0){
+      if (tcptimeout && ((*tcptimeout) (time (0) - t))) continue;
+      else return tcp_abort (&stream->tcps);
+    }
+
     /*
      * recv() replaces read() because SOCKET def's changed and not
      * guaranteed to fly with read().  [see WinSock API doc, sect 2.6.5.1]
@@ -315,6 +320,10 @@ long tcp_getdata (TCPSTREAM *stream)
     while (((i = recv (stream->tcps,stream->ibuf,BUFLEN,0)) == SOCKET_ERROR) &&
 	   (WSAGetLastError() == WSAEINTR));
     if (i == SOCKET_ERROR) return tcp_abort(&stream->tcps);
+    else if (i == 0) {		/* connection's been closed */
+      mm_log ("Connection closed by foreign host",ERROR);
+      return tcp_abort(&stream->tcps);
+    }
     stream->ictr = i;		/* set new byte count */
     stream->iptr = stream->ibuf;/* point at TCP buffer */
   }
@@ -343,15 +352,28 @@ long tcp_soutr (TCPSTREAM *stream,char *string)
 long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size)
 {
   int i;
+  struct timeval tmo;
   fd_set fds;
+  time_t t = time (0);
+  tmo.tv_sec = (long) mail_parameters (NIL,(long) GET_WRITETIMEOUT,NIL);
+  tmo.tv_usec = 0;
   FD_ZERO (&fds);		/* initialize selection vector */
   if (stream->tcps == INVALID_SOCKET) return NIL;
   while (size > 0) {		/* until request satisfied */
     FD_SET (stream->tcps,&fds);	/* set bit in selection vector */
 				/* block and write */
-    while (((i = select (stream->tcps+1,0,&fds,0,0)) == SOCKET_ERROR) &&
-	   (WSAGetLastError() == WSAEINTR));
-    if (i == SOCKET_ERROR) return tcp_abort(&stream->tcps);
+    i = select (stream->tcps+1,NULL,&fds,NULL,
+		tmo.tv_sec ? &tmo : (struct timeval *)0);
+    if(i == SOCKET_ERROR){
+	if(WSAGetLastError() == WSAEINTR) continue;
+	else return tcp_abort(&stream->tcps);
+    }
+				/* timeout? */
+    else if (i == 0){
+      if (tcptimeout && ((*tcptimeout) (time (0) - t))) continue;
+      else return tcp_abort (&stream->tcps);
+    }
+
     /*
      * send() replaces write() because SOCKET def's changed and not
      * guaranteed to fly with write().  [see WinSock API doc, sect 2.6.5.1]
@@ -418,4 +440,56 @@ char *tcp_host (TCPSTREAM *stream)
 char *tcp_localhost (TCPSTREAM *stream)
 {
   return stream->localhost;	/* return local host name */
+}
+
+
+/* Return my local host name
+ * Returns: my local host name
+ */
+
+char *mylocalhost (void)
+{
+  if(!myLocalHost){
+    char   tmp[MAILTMPLEN];
+    struct hostent *host_name;
+
+    if (!wsa_initted++) {		/* init Windows Sockets */
+      WSADATA wsock;
+      int     i;
+      if (i = (long)WSAStartup (WSA_VERSION,&wsock)) {
+	wsa_initted = 0;
+	return(NULL);		/* try again later? */
+      }
+    }
+
+    /* Winsock is rather limited.  We can only call gethostname(). */
+    if (gethostname(tmp, MAILTMPLEN-1) == SOCKET_ERROR) {
+      /*
+       * Nothing's easy.  Since winsock can't gethostid, we'll
+       * try faking it with getsocknam().  There's *got* to be
+       * a better way than this...
+       */
+      int    l = sizeof(struct sockaddr_in);
+      SOCKET sock;
+      struct sockaddr_in sin, stmp;
+      sin.sin_family      = AF_INET;	/* family is always Internet */
+      sin.sin_addr.s_addr = inet_addr("127.0.0.1");
+      sin.sin_port        = htons((u_short)7);
+
+      if ((sock = socket(sin.sin_family, SOCK_DGRAM, 0)) != INVALID_SOCKET
+	  && getsockname(sock,(struct sockaddr *)&stmp,&l) != SOCKET_ERROR
+	  && l > 0)
+	sprintf(tmp,"[%s]",inet_ntoa (stmp.sin_addr));
+      else
+	strcpy(tmp, "random-pc");
+
+      if(sock != INVALID_SOCKET)
+	closesocket(sock);	/* leave wsa_initted to save work later */
+    }
+					/* canonicalize it */
+    else if(host_name = gethostbyname (tmp))
+      sprintf(tmp,"%.*s", MAILTMPLEN-1,host_name->h_name);
+    myLocalHost = cpystr(tmp);
+  }
+  return myLocalHost;
 }

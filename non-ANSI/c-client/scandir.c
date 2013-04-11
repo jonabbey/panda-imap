@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	10 July 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -65,7 +65,7 @@ int scandir (dirname,namelist,select,compar)
     strcpy (p->d_name,d->d_name);
     if (++nitems >= nlmax) {	/* if out of space, try bigger guesstimate */
       nlmax *= 2;		/* double it */
-      fs_resize ((void **) names,nlmax * sizeof (struct direct *));
+      fs_resize ((void **) &names,nlmax * sizeof (struct direct *));
     }
     names[nitems - 1] = p;	/* store this file there */
   }

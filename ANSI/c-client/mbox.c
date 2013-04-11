@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 March 1992
- * Last Edited:	16 June 1994
+ * Last Edited:	2 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -35,7 +35,6 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
 #include "mail.h"
@@ -110,7 +109,8 @@ DRIVER *mbox_valid (char *name)
 				/* file exist? */
     if ((stat (s,&sbuf) == 0) && (fd = open (s,O_RDONLY,NIL)) >= 0) {
 				/* allow empty or valid file */
-      if ((sbuf.st_size == 0) || (read (fd,s,MAILTMPLEN-1) >= 0)) {
+      if (!sbuf.st_size) ret = &mboxdriver;
+      else if ((read (fd,s,MAILTMPLEN-1) >= 0)) {
 	VALID (s,t,ti,zn);
 	if (ti) ret = &mboxdriver;
       }

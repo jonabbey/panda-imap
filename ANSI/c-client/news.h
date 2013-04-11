@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	2 March 1994
+ * Last Edited:	9 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -96,7 +96,8 @@ long news_move (MAILSTREAM *stream,char *sequence,char *mailbox);
 long news_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		  STRING *message);
 void news_gc (MAILSTREAM *stream,long gcflags);
-char *news_read (void **sdb);
+char *news_read_sdb (FILE **f);
+long news_update_sdb (char *name,char *data);
 short news_getflags (MAILSTREAM *stream,char *flag);
 char news_search_all (MAILSTREAM *stream,long msgno,char *d,long n);
 char news_search_answered (MAILSTREAM *stream,long msgno,char *d,long n);

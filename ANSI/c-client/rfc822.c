@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	18 August 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -55,13 +55,13 @@
 
 /* Body formats constant strings, must match definitions in mail.h */
 
-const char *body_types[] = {	/* defined body type strings */
+char *body_types[TYPEMAX+1] = {
   "TEXT", "MULTIPART", "MESSAGE", "APPLICATION", "AUDIO", "IMAGE", "VIDEO",
   "X-UNKNOWN"
 };
 
 
-const char *body_encodings[] = {/* defined body encoding strings */
+char *body_encodings[ENCMAX+1] = {
   "7BIT", "8BIT", "BINARY", "BASE64", "QUOTED-PRINTABLE", "X-UNKNOWN"
 };
 
@@ -581,8 +581,8 @@ void rfc822_parse_content (BODY *body,STRING *bs,char *h,char *t)
 	break;
       }				/* calculate size of any final part */
     }
-    if (part) part->body.size.bytes = (GETPOS (bs) > part->offset) ?
-      (GETPOS (bs) - part->offset) : 0;
+    if (part) part->body.size.bytes = i + ((GETPOS (bs) > part->offset) ?
+					   (GETPOS (bs) - part->offset) : 0);
 
 				/* parse body parts */
     for (part = body->contents.part; part; part = part->next) {
@@ -670,8 +670,12 @@ void rfc822_parse_content_header (BODY *body,char *name,char *s)
       c = *name;		/* remember delimiter */
       *name = '\0';		/* tie off type */
       ucase (s);		/* search for body type */
-      for (i = 0; (i < TYPEOTHER) && strcmp (s,body_types[i]); i++);
-      body->type = i;		/* set body type */
+      for (i=0; (i<=TYPEMAX) && body_types[i] && strcmp(s,body_types[i]); i++);
+      if (i > TYPEMAX) body->type = TYPEOTHER;
+      else {			/* if empty slot, assign it to this type */
+	if (!body_types[i]) body_types[i] = cpystr (s);
+	body->type = i;		/* set body type */
+      }
       *name = c;		/* restore delimiter */
       rfc822_skipws (&name);	/* skip whitespace */
       if ((*name == '/') &&	/* subtype? */
@@ -734,8 +738,13 @@ void rfc822_parse_content_header (BODY *body,char *name,char *s)
 				/* flush out any confusing whitespace */
       if (t = strchr (ucase (s),' ')) *t = '\0';
 				/* search for body encoding */
-      for (i = 0; (i < ENCOTHER) && strcmp (s,body_encodings[i]); i++);
-      body->encoding = i;	/* set body type */
+      for (i = 0; (i <= ENCMAX) && body_encodings[i] &&
+	   strcmp (s,body_encodings[i]); i++);
+      if (i > ENCMAX) body->type = ENCOTHER;
+      else {			/* if empty slot, assign it to this type */
+	if (!body_encodings[i]) body_encodings[i] = cpystr (s);
+	body->encoding = i;	/* set body encoding */
+      }
     }
     break;
   default:			/* otherwise unknown */
@@ -1317,9 +1326,10 @@ long rfc822_output_body (BODY *body,soutr_t f,TCPSTREAM *s)
 void *rfc822_base64 (unsigned char *src,unsigned long srcl,unsigned long *len)
 {
   char c;
-  void *ret = fs_get (4 + ((srcl * 3) / 4));
+  void *ret = fs_get (*len = 4 + ((srcl * 3) / 4));
   char *d = (char *) ret;
   short e = 0;
+  memset (ret,0,*len);		/* initialize block */
   *len = 0;			/* in case we return an error */
   while (srcl--) {		/* until run out of characters */
     c = *src++;			/* simple-minded decode */

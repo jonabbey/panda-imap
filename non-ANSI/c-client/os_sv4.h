@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	9 May 1994
+ * Last Edited:	11 July 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -48,6 +48,7 @@
 #include <time.h>
 #include <sys/utime.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <syslog.h>
 
 
 /* some cretin SysV's have gettimeofday() but not the right definition!! */

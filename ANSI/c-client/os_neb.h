@@ -1,10 +1,5 @@
 /*
  * Program:	Operating-system dependent routines -- NetBSD 0.9 version
- *		Changes by Jason R. Thorpe
- *		System Administrator
- *		Oregon State University, Dept. of Computer Science
- *		Corvallis, Oregon 97331
- *		Internet: thorpej@cs.orst.edu
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -15,9 +10,9 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 December 1993
- * Last Edited: 11 December 1993
+ * Last Edited: 11 July 1994
  *
- * Copyright 1993 by the University of Washington
+ * Copyright 1994 by the University of Washington
  *
  *  Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -48,6 +43,7 @@
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <syslog.h>
 
 #include "env_unix.h"
 #include "fs.h"

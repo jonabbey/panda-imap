@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	9 May 1994
+ * Last Edited:	15 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -51,6 +51,7 @@
 #include <dirent.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
 #include <stropts.h>		/* needed in daemons */
+#include <syslog.h>
 
 
 /* Different names, equivalent things in BSD and SysV */
@@ -84,7 +85,6 @@ struct timezone {
 #include "tcp.h"
 
 long gethostid ();
-void *memmove ();
 int scandir ();
 int flock ();
 int gettimeofday ();

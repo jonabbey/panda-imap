@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	29 May 1994
+ * Last Edited:	28 June 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -119,12 +119,6 @@ typedef struct imap_local {
 
 #define imap_host imhost
 #define imap_select imsele
-#define imap_send0 imsnd0
-#define imap_send1 imsnd1
-#define imap_send2 imsnd2
-#define imap_send2f imsn2f
-#define imap_sendq1 imsnq1
-#define imap_sendq2 imsnq2
 #define imap_send imsend
 #define imap_soutr imsotr
 #define imap_reply imrepl
@@ -150,6 +144,15 @@ typedef struct imap_local {
 #define imap_parse_body impbod
 #define imap_parse_body_structure impbst
 #endif
+
+/* imap_send() helper macros */
+
+#define imap_send0(s,c) imap_send (s,c,NIL,NIL,NIL,NIL,NIL,NIL)
+#define imap_send1(s,c,a1) imap_send (s,c,NIL,a1,NIL,NIL,NIL,NIL)
+#define imap_send2(s,c,a1,a2) imap_send (s,c,NIL,a1,a2,NIL,NIL,NIL)
+#define imap_send2f(s,c,a1,a2,a3) imap_send (s,c,NIL,a1,a2,a3,NIL,NIL)
+#define imap_sendq1(s,c,a1) imap_send (s,c,a1,NIL,NIL,NIL,NIL,NIL)
+#define imap_sendq2(s,c,a1,a2) imap_send (s,c,a1,NIL,NIL,NIL,a2,NIL)
 
 /* Function prototypes */
 
@@ -189,13 +192,6 @@ void map_gc (MAILSTREAM *stream,long gcflags);
 void map_gc_body (BODY *body);
 
 char *imap_host (MAILSTREAM *stream);
-IMAPPARSEDREPLY *imap_send0 (MAILSTREAM *stream,char *cmd);
-IMAPPARSEDREPLY *imap_send1 (MAILSTREAM *stream,char *cmd,char *a1);
-IMAPPARSEDREPLY *imap_send2 (MAILSTREAM *stream,char *cmd,char *a1,char *a2);
-IMAPPARSEDREPLY *imap_send2f (MAILSTREAM *stream,char *cmd,char *a1,char *a2,
-			      char *a3);
-IMAPPARSEDREPLY *imap_sendq1 (MAILSTREAM *stream,char *cmd,char *a1);
-IMAPPARSEDREPLY *imap_sendq2 (MAILSTREAM *stream,char *cmd,char *a1,char *a2);
 IMAPPARSEDREPLY *imap_send (MAILSTREAM *stream,char *cmd,char *a1,char *a2,
 			    char *a3,char *a4,char *a5,STRING *a6);
 IMAPPARSEDREPLY *imap_soutr (MAILSTREAM *stream,char *tag,char *string);

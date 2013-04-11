@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 October 1990
- * Last Edited:	30 March 1994
+ * Last Edited:	11 July 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -40,6 +40,7 @@
 #include "osdep.h"
 #include <stdio.h>
 #include <ctype.h>
+#include <netdb.h>
 #include <pwd.h>
 #include "misc.h"
 
@@ -59,7 +60,7 @@
 
 /* Global storage */
 
-char *version = "2.3(14)";	/* server version */
+char *version = "2.3(15)";	/* server version */
 short state = LISN;		/* server state */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 long nmsgs = 0;			/* number of messages */
@@ -89,10 +90,14 @@ void main (argc,argv)
 	char *argv[];
 {
   char *s,*t;
+  struct hostent *hst;
   char cmdbuf[TMPLEN];
 #include "linkage.c"
+  openlog ("ipop2d",LOG_PID,LOG_MAIL);
+  gethostname (status,TMPLEN-1);/* get local name */
+  s = cpystr ((hst = gethostbyname (status)) ? hst->h_name : status);
   rfc822_date (cmdbuf);		/* get date/time now */
-  printf ("+ POP2 %s w/IMAP2 client %s at %s\015\012",version,
+  printf ("+ %s POP2 %s w/IMAP2 client %s at %s\015\012",s,version,
 	  "(Comments to MRC@CAC.Washington.EDU)",cmdbuf);
   fflush (stdout);		/* dump output buffer */
   state = AUTH;			/* initial server state */
@@ -138,6 +143,7 @@ void main (argc,argv)
     fflush (stdout);		/* make sure output blatted */
   }
   mail_close (stream);		/* clean up the stream */
+  syslog (LOG_INFO,"Logout from %s",tcp_clienthost (cmdbuf));
   exit (0);			/* all done */
 }
 
@@ -165,16 +171,21 @@ short c_helo (t,argc,argv)
   if (s = strchr (u,':')) {	/* want remote mailbox? */
     *s++ = '\0';		/* separate host name from user name */
     user = cpystr (s);		/* note user name */
+    syslog (LOG_INFO,"IMAP login to host=%s user=%s host=%s",u,user,
+	    tcp_clienthost (tmp));
     sprintf (tmp,"{%s}INBOX",u);/* initially remote INBOX */
     if (pwd) {			/* try to become someone harmless */
       setgid (pwd->pw_gid);	/* set group ID */
       setuid (pwd->pw_uid);	/* and user ID */
     }
   }
-  else if (server_login (user = cpystr (u),pass,NIL,argc,argv))
+  else if (server_login (user = cpystr (u),pass,NIL,argc,argv)) {
+    syslog (LOG_INFO,"Login user=%s host=%s",user,tcp_clienthost (tmp));
     strcpy (tmp,"INBOX");	/* local; attempt login, select INBOX */
+  }
   else {
     puts ("- Bad login\015");
+    syslog (LOG_INFO,"Login failure user=%s host=%s",user,tcp_clienthost(tmp));
     return DONE;
   }
   return c_fold (tmp);		/* open default mailbox */
@@ -189,7 +200,7 @@ short c_fold (t)
 	char *t;
 {
   long i,j;
-  char tmp[TMPLEN];
+  char *s,tmp[TMPLEN];
   if (!(t && *t)) {		/* make sure there's an argument */
     puts ("- Missing mailbox name\015");
     return DONE;
@@ -198,6 +209,12 @@ short c_fold (t)
   if (stream && nmsgs) mail_expunge (stream);
   nmsgs = 0;			/* no more messages */
   if (msg) fs_give ((void **) &msg);
+				/* don't permit proxy to leave IMAP */
+  if (stream && stream->mailbox && (s = strchr (stream->mailbox,'}'))) {
+    strncpy (tmp,stream->mailbox,i = (++s - stream->mailbox));
+    strcpy (tmp+i,t);		/* append mailbox to initial spec */
+    t = tmp;
+  }
 				/* open mailbox, note # of messages */
   if (j = (stream = mail_open (stream,t,NIL)) ? stream->nmsgs : 0) {
     sprintf (tmp,"1:%d",j);	/* fetch fast information for all messages */
@@ -490,6 +507,7 @@ long mm_diskerror (stream,errcode,serious)
 	long errcode;
 	long serious;
 {
+  syslog (LOG_ALERT,"Retrying after disk error %s",strerror (errcode));
   sleep (5);			/* can't do much better than this! */
   return NIL;
 }

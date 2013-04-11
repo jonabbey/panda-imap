@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	15 June 1988
- * Last Edited:	23 June 1994
+ * Last Edited:	6 September 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -133,10 +133,10 @@ void *map_parameters (function,value)
   case GET_LOOKAHEAD:
     value = (void *) map_lookahead;
     break;
-  case SET_PORT:
+  case SET_IMAPPORT:
     map_port = (long) value;
     break;
-  case GET_PORT:
+  case GET_IMAPPORT:
     value = (void *) map_port;
     break;
   case SET_PREFETCH:
@@ -158,6 +158,7 @@ void *map_parameters (function,value)
     value = (void *) map_closeonerror;
     break;
   default:
+    value = NIL;		/* error case */
     break;
   }
   return value;
@@ -503,13 +504,12 @@ MAILSTREAM *map_open (stream)
 
     if (LOCAL && LOCAL->tcpstream && !strcmp (reply->key,"OK")) {
 				/* only so many tries to login */
-      if (!lhostn) lhostn = cpystr (tcp_localhost (LOCAL->tcpstream));
       for (i = 0; i < map_maxlogintrials; ++i) {
 	*pwd = 0;		/* get password */
 				/* if caller wanted anonymous access */
 	if ((mb.anoflag || stream->anonymous) && !i) {
 	  strcpy (usrnam,"anonymous");
-	  strcpy (pwd,*lhostn ? lhostn : "foo");
+	  strcpy (pwd,tcp_localhost (LOCAL->tcpstream));
 	}
 	else mm_login (map_loginfullname ? stream->mailbox :
 		       tcp_host (LOCAL->tcpstream),usrnam,pwd,i);
@@ -982,7 +982,7 @@ long map_append (stream,mailbox,flags,date,msg)
 	char *mailbox;
 	char *flags;
 	char *date;
-	STRING *msg;
+	 		 STRING *msg;
 {
   long ret = NIL;
 				/* make sure useful stream given */
@@ -1084,106 +1084,6 @@ char *imap_host (stream)
     "<closed stream>";
 }
 
-/* Mail Access Protocol send command with no arguments
- * Accepts: MAIL stream
- *	    command
- * Returns: parsed reply
- */
-
-IMAPPARSEDREPLY *imap_send0 (stream,cmd)
-	MAILSTREAM *stream;
-	char *cmd;
-{
-  return imap_send (stream,cmd,NIL,NIL,NIL,NIL,NIL,NIL);
-}
-
-
-/* Mail Access Protocol send command with one unquoted argument
- * Accepts: MAIL stream
- *	    command
- *	    command argument
- * Returns: parsed reply
- */
-
-IMAPPARSEDREPLY *imap_send1 (stream,cmd,a1)
-	MAILSTREAM *stream;
-	char *cmd;
-	char *a1;
-{
-  return imap_send (stream,cmd,NIL,a1,NIL,NIL,NIL,NIL);
-}
-
-
-/* Mail Access Protocol send command with two unquoted arguments
- * Accepts: MAIL stream
- *	    command
- *	    first command argument
- *	    second command argument
- * Returns: parsed reply
- */
-
-IMAPPARSEDREPLY *imap_send2 (stream,cmd,a1,a2)
-	MAILSTREAM *stream;
-	char *cmd;
-	char *a1;
-	char *a2;
-{
-  return imap_send (stream,cmd,NIL,a1,a2,NIL,NIL,NIL);
-}
-
-
-/* Mail Access Protocol send command with two unquoted arguments and flags
- * Accepts: MAIL stream
- *	    command
- *	    first command argument
- *	    second command argument
- *	    flags command argument
- * Returns: parsed reply
- */
-
-IMAPPARSEDREPLY *imap_send2f (stream,cmd,a1,a2,a3)
-	MAILSTREAM *stream;
-	char *cmd;
-	char *a1;
-	char *a2;
-	char *a3;
-{
-  return imap_send (stream,cmd,NIL,a1,a2,a3,NIL,NIL);
-}
-
-/* Mail Access Protocol send command with one quoted argument
- * Accepts: MAIL stream
- *	    command
- *	    command argument
- * Returns: parsed reply
- */
-
-IMAPPARSEDREPLY *imap_sendq1 (stream,cmd,a1)
-	MAILSTREAM *stream;
-	char *cmd;
-	char *a1;
-{
-  return imap_send (stream,cmd,a1,NIL,NIL,NIL,NIL,NIL);
-}
-
-
-/* Mail Access Protocol send command with two quoted arguments
- * Accepts: MAIL stream
- *	    command
- *	    first command argument
- *	    second command argument
- * Returns: parsed reply
- */
-
-IMAPPARSEDREPLY *imap_sendq2 (stream,cmd,a1,a2)
-	MAILSTREAM *stream;
-	char *cmd;
-	char *a1;
-	char *a2;
-{
-  return imap_send (stream,cmd,a1,NIL,NIL,NIL,a2,NIL);
-}
-
 /* Mail Access Protocol send command
  * Accepts: MAIL stream
  *	    command
@@ -1201,12 +1101,12 @@ IMAPPARSEDREPLY *imap_send (stream,cmd,a1,a2,a3,a4,a5,a6)
 	char *cmd;
 	char *a1;
 	char *a2;
-	char *a3;
+	 			    char *a3;
 	char *a4;
 	char *a5;
 	STRING *a6;
 {
-  char tag[7];
+  char c,*t,*u,tag[7];
   char *s = LOCAL->tmp;
   unsigned long i;
   IMAPPARSEDREPLY *reply;
@@ -1232,19 +1132,41 @@ IMAPPARSEDREPLY *imap_send (stream,cmd,a1,a2,a3,a4,a5,a6)
     }
     else sprintf (s,strchr (a1,' ') ? " \"%s\"" : " %s",a1);
   }
+
   if (a2) {			/* only do this if second arg present */
-    s += strlen (s);		/* append second argument */
-    sprintf (s," %s",a2);	/* note this one is NEVER quoted */
+    s += strlen (s);		/* prepare to append second argument */
+    *s++ = ' ';			/* delimit with space */
+				/* embedded literal from SEARCH? */
+    while (t = strstr (a2,"}\015\012")) {
+				/* yes, copy and note its start */
+      for (u = NIL; a2 <= t; *s++ = *a2++) if (*a2 == '{') u = a2;
+      *s = '\0';		/* tie off string */
+      if (stream->debug) mm_dlog (LOCAL->tmp);
+				/* append newline */
+      *s++ = *a2++; *s++ = *a2++; *s = '\0';
+				/* get size of literal */
+      if (!(u && (i = strtol (u+1,&u,10)) && (u == t)))
+	return imap_fake (stream,tag,"Program bug: bad literal");
+				/* send the command */
+      if (reply = imap_soutr (stream,tag,LOCAL->tmp)) return reply;
+      if (strcmp ((reply = imap_reply (stream,tag))->tag,"+")) {
+	mail_unlock (stream);
+	return reply;
+      }
+				/* copy literal data */
+      for (s = LOCAL->tmp; i--; *s++ = *a2++);
+    }
+    strcpy (s,a2);		/* note this one is NEVER quoted */
   }
   if (a3) {			/* only do this if third arg present */
     s += strlen (s);		/* append third argument */
     sprintf (s," %s",a3);	/* note this one is NEVER quoted */
   }
+
   if (a4) {			/* only do this if fourth arg present */
     s += strlen (s);		/* append fourth argument */
     sprintf (s,(*a4 == '(') ? " %s" : " (%s)",a4);
   }
-
   if (a5) {			/* only do this if fifth arg present */
     s += strlen (s);		/* tally what we have so far */
     if (strpbrk (a5,"\012\015\"%{\\")) {
@@ -1409,7 +1331,7 @@ IMAPPARSEDREPLY *imap_fake (stream,tag,text)
   if (LOCAL->tcpstream) tcp_close (LOCAL->tcpstream);
   LOCAL->tcpstream = NIL;	/* farewell, dear TCP stream... */
 				/* build fake reply string */
-  sprintf (LOCAL->tmp,"%s NO [CLOSED] %s",tag,text);
+  sprintf (LOCAL->tmp,"%s NO [CLOSED] %s",tag ? tag : "*",text);
 				/* parse and return it */
   return imap_parse_reply (stream,cpystr (LOCAL->tmp));
 }
@@ -1470,12 +1392,8 @@ void imap_parse_unsolicited (stream,reply)
 				/* note if server said it was readonly */
       strncpy (LOCAL->tmp,reply->text,11);
       LOCAL->tmp[11] = '\0';	/* tie off text */
-      if (strcmp (ucase (LOCAL->tmp),"[READ-ONLY]")) s = reply->text;
-      else {
-	stream->readonly = T;	/* make readonly now */
-	s = reply->text + 12;	/* skip the cookie */
-      }
-      mm_notify (stream,s,(long) NIL);
+      if (!strcmp (ucase (LOCAL->tmp),"[READ-ONLY]")) stream->readonly = T;
+      mm_notify (stream,reply->text,(long) NIL);
     }
     else if (!strcmp (reply->key,"NO")) {
       if (!stream->silent) mm_notify (stream,reply->text,WARN);
@@ -2112,6 +2030,7 @@ void imap_parse_body_structure (stream,body,txtptr,reply)
 	char **txtptr;
 	 				IMAPPARSEDREPLY *reply;
 {
+  int i;
   char *s;
   PART *part = NIL;
   PARAMETER *param = NIL;
@@ -2147,27 +2066,13 @@ void imap_parse_body_structure (stream,body,txtptr,reply)
 				/* parse type */
       if (s = imap_parse_string (stream,txtptr,reply,(long) NIL)) {
 	ucase (s);		/* make parse easier */
-	switch (*s) {		/* dispatch based on type */
-	case 'A':		/* APPLICATION or AUDIO */
-	  if (!strcmp (s+1,"PPLICATION")) body->type = TYPEAPPLICATION;
-	  else if (!strcmp (s+1,"UDIO")) body->type = TYPEAUDIO;
-	  break;
-	case 'I':		/* IMAGE */
-	  if (!strcmp (s+1,"MAGE")) body->type = TYPEIMAGE;
-	  break;
-	case 'M':		/* MESSAGE */
-	  if (!strcmp (s+1,"ESSAGE")) body->type = TYPEMESSAGE;
-	  break;
-	case 'T':		/* TEXT */
-	  if (!strcmp (s+1,"EXT")) body->type = TYPETEXT;
-	  break;
-	case 'V':		/* VIDEO */
-	  if (!strcmp (s+1,"IDEO")) body->type = TYPEVIDEO;
-	  break;
-	default:
-	  break;
+	for (i=0;(i<=TYPEMAX) && body_types[i] && strcmp(s,body_types[i]);i++);
+	if (i <= TYPEMAX) {	/* only if found a slot */
+	  if (body_types[i]) fs_give ((void **) &s);
+				/* assign empty slot */
+	  else body_types[i] = cpystr (s);
+	  body->type = i;	/* set body type */
 	}
-	fs_give ((void **) &s);	/* flush the string */
       }
 				/* parse subtype */
       body->subtype = imap_parse_string (stream,txtptr,reply,(long) NIL);
@@ -2222,25 +2127,16 @@ void imap_parse_body_structure (stream,body,txtptr,reply)
       body->description = imap_parse_string (stream,txtptr,reply,(long) NIL);
       if (s = imap_parse_string (stream,txtptr,reply,(long) NIL)) {
 	ucase (s);		/* make parse easier */
-	switch (*s) {		/* dispatch based on encoding */
-	case '7':		/* 7BIT */
-	  if (!strcmp (s+1,"BIT")) body->encoding = ENC7BIT;
-	  break;
-	case '8':		/* 8BIT */
-	  if (!strcmp (s+1,"BIT")) body->encoding = ENC8BIT;
-	  break;
-	case 'B':		/* BASE64 or BINARY */
-	  if (!strcmp (s+1,"ASE64")) body->encoding = ENCBASE64;
-	  else if (!strcmp (s,"INARY")) body->encoding = ENCBINARY;
-	  break;
-	case 'Q':		/* QUOTED-PRINTABLE */
-	  if (!strcmp (s+1,"UOTED-PRINTABLE"))
-	    body->encoding = ENCQUOTEDPRINTABLE;
-	  break;
-	default:
-	  break;
+				/* search for body encoding */
+	for (i = 0; (i <= ENCMAX) && body_encodings[i] &&
+	     strcmp (s,body_encodings[i]); i++);
+	if (i > ENCMAX) body->type = ENCOTHER;
+	else {			/* only if found a slot */
+	  if (body_encodings[i]) fs_give ((void **) &s);
+				/* assign empty slot */
+	  else body_encodings[i] = cpystr (s);
+	  body->encoding = i;	/* set body encoding */
 	}
-	fs_give ((void **) &s);	/* flush the string */
       }
 				/* parse size of contents in bytes */
       body->size.bytes = imap_parse_number (stream,txtptr);

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	25 January 1993
- * Last Edited:	14 April 1994
+ * Last Edited:	21 April 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -35,14 +35,14 @@
 
 /* Build parameters */
 
-#define NEWSRC(t) sprintf (t,"%s\\NEWSRC",myhomedir ())
-#define NEWNEWSRC(t) sprintf (t,"%s\\NEWSRC.NEW",myhomedir ())
-#define OLDNEWSRC(t) sprintf (t,"%s\\NEWSRC.OLD",myhomedir ())
+#define NEWSRC(t) strcpy (t,(char *) mail_parameters (NIL,GET_NEWSRC,NIL))
+
 
 /* Constants */
 
 #define NNTPGOK (long) 211	/* NNTP group selection OK */
 #define NNTPGLIST (long) 215	/* NNTP group list being returned */
+#define NNTPARTICLE (long) 220	/* NNTP article text */
 #define NNTPHEAD (long) 221	/* NNTP header text */
 #define NNTPBODY (long) 222	/* NNTP body text */
 

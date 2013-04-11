@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 May 1989
- * Last Edited:	31 May 1994
+ * Last Edited:	30 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -46,12 +46,12 @@
 #include <sys/socket.h>
 #include <sys/poll.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <regexpr.h>
 #include <errno.h>
 #include <pwd.h>
 #include <shadow.h>
-#include <syslog.h>
 #include <sys/file.h>
 #include <sys/select.h>
 #include "misc.h"
@@ -68,40 +68,26 @@ extern char *sys_errlist[];
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
+#define rfc822_date RFC822_date
 #include "env_unix.c"
+#undef rfc822_date
+#define getpeername Getpeername
 #include "tcp_unix.c"
 #include "log_sv4.c"
 #include "gr_waitp.c"
-#include "memmove2.c"
 #include "flock.c"
 #include "gettime.c"
 #include "scandir.c"
+#include "tz_sv4.c"
 
-/* Write current time in RFC 822 format
- * Accepts: destination string
- */
+/* Jacket around rfc822_date() to work around PTX inetd braindamage */
 
-char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
-char may_need_server_init = T;
+static char may_need_server_init = T;
 
 void rfc822_date (date)
 	char *date;
 {
-  int zone,dstnow;
-  time_t time_sec = time (0);
-  struct tm *t;
-  tzset ();			/* initialize timezone/daylight variables */
-  t = localtime (&time_sec);
-				/* see if it is DST now */
-  dstnow = daylight && t->tm_isdst;
-				/* get timezone value */
-  zone = - (dstnow ? altzone : timezone) / 60;
-				/* and output it */
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-	   tzname[dstnow]);
+  RFC822_date (date);		/* call the real routine */
   if (may_need_server_init) {	/* maybe need to do server init cruft? */
     may_need_server_init = NIL;	/* not any more we don't */
     if (getuid () <= 0) {	/* if root, we're most likely a server */
@@ -124,4 +110,20 @@ long gethostid ()
   getmyinaddr (inet,&sin,sizeof (sin));
   close (inet);
   return sin.sin_addr.s_addr;
+}
+
+
+/* Replaced version of getpeername() that jackets into getpeerinaddr()
+ * Accepts: file descriptor
+ *	    pointer to Internet socket addr
+ *	    length
+ * Returns: zero if success, data in socket addr
+ */
+
+int Getpeername (s,name,namelen)
+	int s;
+	struct sockaddr *name;
+	int *namelen;
+{
+  return getpeerinaddr (s,(struct sockaddr_in *) name,*namelen);
 }

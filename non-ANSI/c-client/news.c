@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	29 May 1994
+ * Last Edited:	6 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -35,7 +35,6 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
 #include "mail.h"
@@ -162,20 +161,21 @@ void news_find_bboards (stream,pat)
 	MAILSTREAM *stream;
 	char *pat;
 {
+  FILE *f = NIL;
   void *s = NIL;
-  char *t,*u,tmp[MAILTMPLEN],patx[MAILTMPLEN];
+  char *t,*u,patx[MAILTMPLEN];
   struct stat sbuf;
   lcase (strcpy (patx,pat));	/* make sure compare with lower case */
 				/* make sure have a local news spool */
   if (!(stat (NEWSSPOOL,&sbuf) || stat (ACTIVEFILE,&sbuf) ||
 	(stream && stream->anonymous))) {
 				/* check all newsgroups from .newsrc */
-    while (t = news_read (&s)) if (u = strchr (t,':')) {
-      *u = '\0';		/* tie off at end of name */
-      if (pmatch (lcase (t),patx)) {
-	sprintf (tmp,"*%s",t);
-	if (news_valid (tmp)) mm_bboard (t);
+    while (t = news_read_sdb (&f)) {
+      if (u = strchr (t,':')) {	/* subscribed newsgroup? */
+	*u = '\0';		/* tie off at end of name */
+	if (pmatch (t,patx)) mm_bboard (t);
       }
+      fs_give ((void **) &t);	/* discard the line */
     }
   }
   while (t = sm_read (&s))	/* get data from subscription manager */
@@ -249,7 +249,8 @@ long news_unsubscribe (stream,mailbox)
 {
   return NIL;			/* never valid for netnews */
 }
-
+
+
 /* Netnews mail subscribe to bboard
  * Accepts: mail stream
  *	    bboard to add to subscription list
@@ -260,54 +261,10 @@ long news_subscribe_bboard (stream,mailbox)
 	MAILSTREAM *stream;
 	char *mailbox;
 {
-  int fd,fdo;
-  char *s,*txt;
-  char tmp[MAILTMPLEN];
-  struct stat sbuf;
-  long ret = NIL;
-				/* open .newsrc file */
-  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,
-		  (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) < 0) {
-    mm_log ("Can't update news state",ERROR);
-    return NIL;
-  }
-  flock (fd,LOCK_EX);		/* wait for exclusive access */
-  fstat (fd,&sbuf);		/* get size of data */
-  read (fd,1 + (txt = (char *) fs_get (sbuf.st_size + 2)),sbuf.st_size);
-  txt[0] = '\n';		/* make searches easier */
-  txt[sbuf.st_size + 1] = '\0';	/* tie off string */
-				/* make backup file */
-  strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
-  if ((fdo = open (tmp,O_WRONLY|O_CREAT,
-		   (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) >= 0) {
-    write (fdo,txt + 1,sbuf.st_size);
-    close (fdo);
-  }
-  sprintf (tmp,"\n%s:",mailbox);/* see if already subscribed */
-  if (strstr (txt,tmp)) {	/* well? */
-    sprintf (tmp,"Already subscribed to newsgroup %s",mailbox);
-    mm_log (tmp,WARN);
-  }
-  else {
-    sprintf (tmp,"\n%s!",mailbox);
-    if (s = strstr (txt,tmp)) {	/* if unsubscribed, just change one byte */
-      lseek (fd,strchr (s,'!') - (txt + 1),L_SET);
-      write (fd,":",1);		/* now subscribed */
-    }
-    else {			/* write new entry at end of file */
-      lseek (fd,sbuf.st_size,L_SET);
-      sprintf (tmp,"%s:\n",mailbox);
-      write (fd,tmp,strlen (tmp));
-    }
-    fsync (fd);			/* drop changes */
-    ret = T;
-  }
-  flock (fd,LOCK_UN);		/* release lock */
-  close (fd);			/* close off file */
-  fs_give ((void **) &txt);	/* free database */
-  return ret;
+  return news_update_sdb (mailbox,":");
 }
-
+
+
 /* Netnews mail unsubscribe to bboard
  * Accepts: mail stream
  *	    bboard to delete from subscription list
@@ -318,48 +275,7 @@ long news_unsubscribe_bboard (stream,mailbox)
 	MAILSTREAM *stream;
 	char *mailbox;
 {
-  int fd,fdo;
-  char *s,*txt;
-  char tmp[MAILTMPLEN];
-  struct stat sbuf;
-  long ret = NIL;
-				/* open .newsrc file */
-  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,
-		  (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) < 0) {
-    mm_log ("Can't update news state",ERROR);
-    return NIL;
-  }
-  flock (fd,LOCK_EX);		/* wait for exclusive access */
-  fstat (fd,&sbuf);		/* get size of data */
-  read (fd,1 + (txt = (char *) fs_get (sbuf.st_size + 2)),sbuf.st_size);
-  txt[0] = '\n';		/* make searches easier */
-  txt[sbuf.st_size + 1] = '\0';	/* tie off string */
-				/* make backup file */
-  strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
-  if ((fdo = open (tmp,O_WRONLY|O_CREAT,
-		   (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) >= 0) {
-    write (fdo,txt + 1,sbuf.st_size);
-    close (fdo);
-  }
-  sprintf (tmp,"\n%s!",mailbox);/* see if already unsubscribed */
-  if (!strstr (txt,tmp)) {	/* well? */
-    sprintf (tmp,"\n%s:",mailbox);
-    if (s = strstr (txt,tmp)) {	/* already there as subscribed? */
-      lseek (fd,strchr (s,':') - (txt + 1),L_SET);
-      write (fd,"!",1);		/* now unsubscribed */
-    }
-    else {			/* otherwise write new entry */
-      lseek (fd,sbuf.st_size,L_SET);
-      sprintf (tmp,"%s!\n",mailbox);
-      write (fd,tmp,strlen (tmp));
-    }
-    fsync (fd);			/* drop changes */
-    ret = T;
-  }
-  flock (fd,LOCK_UN);		/* release lock */
-  close (fd);			/* close off file */
-  fs_give ((void **) &txt);	/* free database */
-  return ret;
+  return news_update_sdb (mailbox,"!");
 }
 
 /* Netnews mail create mailbox
@@ -415,8 +331,7 @@ MAILSTREAM *news_open (stream)
   long i,nmsgs,j,k;
   long recent = 0,unseen = 0;
   char c = NIL,*s,*t,tmp[MAILTMPLEN];
-  void *sdb = NIL;
-  struct hostent *host_name;
+  FILE *f = NIL;
   struct direct **names;
   				/* return prototype for OP_PROTOTYPE call */
   if (!stream) return &newsproto;
@@ -428,11 +343,6 @@ MAILSTREAM *news_open (stream)
   lcase (stream->mailbox);	/* build news directory name */
   sprintf (s = tmp,"%s/%s",NEWSSPOOL,stream->mailbox + 1);
   while (s = strchr (s,'.')) *s = '/';
-  if (!lhostn) {		/* have local host yet? */
-    gethostname(tmp,MAILTMPLEN);/* get local host name */
-    lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
-			  host_name->h_name : tmp);
-  }
 				/* scan directory */
   if ((nmsgs = scandir (tmp,&names,news_select,news_numsort)) >= 0) {
     stream->local = fs_get (sizeof (NEWSLOCAL));
@@ -459,10 +369,13 @@ MAILSTREAM *news_open (stream)
 
     i = 0;			/* nothing scanned yet */
     if (!stream->anonymous) {	/* not if anonymous you don't */
-      while ((t = news_read (&sdb)) && (s = strpbrk (t,":!")) && (c = *s)) {
-	*s++ = '\0';		/* tie off newsgroup name, point to data */
-	if (strcmp (t,LOCAL->name)) s = NIL;
-	else break;		/* found it! */
+      while (t = news_read_sdb (&f)) {
+	if ((s = strpbrk (t,":!")) && (c = *s)) {
+	  *s++ = '\0';		/* tie off newsgroup name, point to data */
+	  if (strcmp (t,LOCAL->name)) s = NIL;
+	  else break;		/* found it! */
+	}
+	fs_give ((void **) &t);	/* give back this entry line */
       }
       if (s) {			/* newsgroup found? */
 	if (*s == ' ') s++;	/* skip whitespace */
@@ -488,7 +401,10 @@ MAILSTREAM *news_open (stream)
 	}
       }
       else mm_log ("No state for newsgroup found, reading as new",WARN);
-      if (t) fs_give (&sdb);	/* free up database if necessary */
+      if (t) {			/* need to free up cruft? */
+	fs_give ((void **) &t);	/* yes, give back newsrc entry */
+	fclose (f);		/* close the file */
+      }
     }
     if (unseen) {		/* report first unseen message */
       sprintf (tmp,"[UNSEEN] %ld is first unseen message",unseen);
@@ -626,7 +542,7 @@ ENVELOPE *news_fetchstructure (stream,msgno,body)
     t = LOCAL->body[msgno - 1] ? LOCAL->body[msgno - 1] : "";
     INIT (&bs,mail_string,(void *) t,strlen (t));
 				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,lhostn,LOCAL->buf);
+    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,BADHOST,LOCAL->buf);
   }
   if (body) *body = *b;		/* return the body */
   return *env;			/* return the envelope */
@@ -937,64 +853,10 @@ long news_ping (stream)
 void news_check (stream)
 	MAILSTREAM *stream;
 {
-  int fd;
-  long i,j,k;
-  char *s;
-  char tmp[MAILTMPLEN];
-  struct stat sbuf;
-  struct iovec iov[3];
-				/* never do if anonymous or no updates */
-  if (stream->anonymous || !LOCAL->dirty) return;
-  *LOCAL->buf = '\n';		/* header to make for easier searches */
-				/* open .newsrc file */
-  if ((fd = open (NEWSRC,O_RDWR|O_CREAT,
-		  (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) < 0) {
-    mm_log ("Can't update news state",ERROR);
-    return;
-  }
-  flock (fd,LOCK_EX);		/* wait for exclusive access */
-  fstat (fd,&sbuf);		/* get size of data */
-				/* ensure enough room */
-  if (sbuf.st_size >= (LOCAL->buflen + 1)) {
-				/* fs_resize does an unnecessary copy */
-    fs_give ((void **) &LOCAL->buf);
-    LOCAL->buf = (char *) fs_get ((LOCAL->buflen = sbuf.st_size + 1) + 1);
-  }
-  *LOCAL->buf = '\n';		/* slurp the silly thing in */
-  read (fd,iov[0].iov_base = LOCAL->buf + 1,iov[0].iov_len = sbuf.st_size);
-				/* tie off file */
-  LOCAL->buf[sbuf.st_size + 1] = '\0';
-				/* make backup file */
-  strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
-  if ((i = open (tmp,O_WRONLY|O_CREAT,
-		 (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) >= 0) {
-    write (i,LOCAL->buf + 1,sbuf.st_size);
-    close (i);
-  }
-				/* find as subscribed newsgroup */
-  sprintf (tmp,"\n%s:",LOCAL->name);
-  if (s = strstr (LOCAL->buf,tmp)) s += strlen (tmp);
-  else {			/* find as unsubscribed newsgroup */
-    sprintf (tmp,"\n%s!",LOCAL->name);
-    if (s = strstr (LOCAL->buf,tmp)) s += strlen (tmp);
-  }
-  iov[2].iov_base = "";		/* dummy in case no third block */
-  iov[2].iov_len = 0;
-
-  if (s) {			/* found existing, calculate prefix length */
-    iov[0].iov_len = s - (LOCAL->buf + 1);
-    if (s = strchr (s+1,'\n')) {/* find suffix */
-      iov[2].iov_base = ++s;	/* suffix base and length */
-      iov[2].iov_len = sbuf.st_size - (s - (LOCAL->buf + 1));
-    }
-    s = tmp;			/* pointer to dump sequence numbers */
-  }
-  else {			/* not found, append as unsubscribed group */
-    sprintf (tmp,"%s!",LOCAL->name);
-    s = tmp + strlen (tmp);	/* point to end of string */
-  }
-  *s++ = ' ';			/* leading space */
-  *s = '\0';			/* go through list */
+  unsigned long i,j,k;
+  char *s,tmp[MAILTMPLEN];
+  if (!LOCAL->dirty) return;	/* never do if no updates */
+  *(s = tmp) = '\0';		/* initialize list */
   for (i = 0,j = 1,k = 0; i < stream->nmsgs; ++i) {
     if (LOCAL->seen[i]) {	/* seen message? */
       k = LOCAL->number[i];	/* this is the top of the current range */
@@ -1004,25 +866,19 @@ void news_check (stream)
 				/* calculate end of range */
       if (k = LOCAL->number[i] - 1) {
 				/* dump range */
-	sprintf (s,(j == k) ? "%d," : "%d-%d,",j,k);
+	sprintf (s,(j == k) ? "%ld," : "%ld-%ld,",j,k);
 	s += strlen (s);	/* find end of string */
       }
       j = 0;			/* no more range in progress */
     }
   }
   if (j) {			/* dump trailing range */
-    sprintf (s,(j == k) ? "%d" : "%d-%d",j,k);
+    sprintf (s,(j == k) ? "%ld" : "%ld-%ld",j,k);
     s += strlen (s);		/* find end of string */
   }
   else if (s[-1] == ',') s--;	/* prepare to patch out any trailing comma */
-  *s++ = '\n';			/* trailing newline */
-  iov[1].iov_base = tmp;	/* this group text */
-  iov[1].iov_len = s - tmp;	/* length of the text */
-  lseek (fd,0,L_SET);		/* go to beginning of file */
-  writev (fd,iov,iov[2].iov_len ? 3 : 2);
-  ftruncate (fd,iov[0].iov_len + iov[1].iov_len + iov[2].iov_len);
-  flock (fd,LOCK_UN);		/* unlock the file */
-  close (fd);			/* flush .newsrc file */
+  *s++ = '\0';			/* tie off string */
+  news_update_sdb (LOCAL->name,tmp);
 }
 
 
@@ -1084,7 +940,7 @@ long news_append (stream,mailbox,flags,date,message)
 	char *mailbox;
 	char *flags;
 	char *date;
-	STRING *message;
+	 		  STRING *message;
 {
   mm_log ("Append not valid for netnews",ERROR);
   return NIL;
@@ -1112,30 +968,116 @@ void news_gc (stream,gcflags)
 /* Internal routines */
 
 
-/* Read netnews database
- * Accepts: pointer to netnews database handle (handle NIL if first time)
- * Returns: character string for netnews database or NIL if done
- * Note - uses strtok() mechanism
+/* Read NEWS database
+ * Accepts: pointer to subscription database file handle (NIL if first time)
+ * Returns: line from the file
  */
 
-char *news_read (sdb)
-	void **sdb;
+char *news_read_sdb (f)
+	FILE **f;
 {
-  int fd;
+  int i;
   char *s,*t,tmp[MAILTMPLEN];
-  struct stat sbuf;
-  if (!*sdb) {			/* first time through? */
-    if ((fd = open (NEWSRC,O_RDONLY,NIL)) < 0) return NIL;
-    fstat (fd,&sbuf);		/* get file size and read data */
-    read (fd,s = (char *) (*sdb = fs_get (sbuf.st_size + 1)),sbuf.st_size);
-    close (fd);			/* close file */
-    s[sbuf.st_size] = '\0';	/* tie off string */
-    if (t = strtok (s,"\n")) return t;
+				/* if first time, open newsrc file */
+  if (!(*f || (*f = fopen (NEWSRC,"r")))) {
+    char msg[MAILTMPLEN];
+    sprintf (msg,"No news state found, will create %s",tmp);
+    mm_log (msg,WARN);
+    if ((i = open (tmp,O_WRONLY|O_APPEND|O_CREAT,
+		   (int) mail_parameters (NIL,GET_SUBPROTECTION,NIL))) >= 0)
+      close (i);
+    return NIL;
   }
-				/* subsequent times through database */
-  else if (t = strtok (NIL,"\n")) return t;
-  fs_give (sdb);		/* free database */
+				/* read a line from the file */
+  if (fgets (tmp,MAILTMPLEN,*f)) {
+    i = strlen (tmp);		/* how many characters we got */
+    if (tmp[i - 1] == '\n') {	/* got a complete line? */
+      tmp[i - 1] = '\0';	/* yes, tie off the line */
+      return cpystr (tmp);	/* return string */
+    }
+				/* ugh, have to build from fragments */
+    else if (t = news_read_sdb (f)) {
+      sprintf (s = (char *) fs_get (i + strlen (t) + 1),"%s%s",tmp,t);
+      fs_give ((void **) &t);	/* discard fragment */
+      return s;			/* return the string we made */
+    }
+  }
+  fclose (*f);			/* end of file, close file */
+  *f = NIL;			/* make sure caller knows */
   return NIL;			/* all done */
+}
+
+/* Update NEWS database
+ * Accepts: newsgroup name
+ *	    message data
+ * Returns: T if success, NIL if failure
+ */
+
+long news_update_sdb (name,data)
+	char *name;
+	char *data;
+{
+  int i = strlen (name);
+  char c,*s,tmp[MAILTMPLEN],new[MAILTMPLEN];
+  FILE *f = NIL,*of,*nf;
+  strcat (strcpy (tmp,myhomedir ()),"/.oldnewsrc");
+  if (!(of = fopen (tmp,"w"))) {/* open old newsrc */
+    mm_log ("Can't create backup of news state",ERROR);
+    return NIL;
+  }
+  strcat (strcpy (new,myhomedir ()),"/.newnewsrc");
+  if (!(nf = fopen (new,"w"))) {/* open new newsrc */
+    mm_log ("Can't create new news state",ERROR);
+    fclose (of);
+    return NIL;
+  }
+				/* process .newsrc file */
+  while (s = news_read_sdb (&f)) {
+    fprintf (of,"%s\n",s);	/* write to backup file */
+    if (data && (!strncmp (s,name,i)) && (((c = s[i]) == ':') || (c == '!'))) {
+      switch (*data) {		/* first time we saw this entry... */
+      case ':':			/* subscription request */
+	if (c == '!') c = ':';	/* subscribe if unsubscribed */
+	else {			/* complain if already subscribed */
+	  sprintf (tmp,"Already subscribed to newsgroup %s",name);
+	  mm_log (tmp,WARN);
+	}
+	data = s + i + 1;	/* preserve old read state */
+	break;
+      case '!':			/* unsubscription request? */
+	if (c == ':') c = '!';	/* unsubscribe if subscribed */
+	data = s + i + 1;	/* preserve old read state */
+	break;
+      default:			/* update read state */
+	break;
+      }
+				/* write the new entry */
+      fprintf (nf,"%s%c%s\n",name,c,data);
+      data = NIL;		/* request satisfied */
+    }
+    else fprintf (nf,"%s\n",s);	/* not the entry we want, write to new file */
+    fs_give ((void **) &s);
+  }
+
+  if (data) switch (*data) {	/* if didn't find it, make new entry */
+  case ':':			/* subscription request */
+    fprintf (nf,"%s: \n",name);
+    break;
+  case '!':			/* unsubscription request */
+    fprintf (nf,"%s! \n",name);
+    break;
+  default:			/* update read state */
+    fprintf (nf,"%s: %s\n",name,data);
+    break;
+  }
+  fclose (nf);			/* close new file */
+  fclose (of);			/* close backup file */
+  unlink (NEWSRC);		/* remove the current file, name in tmp */
+  if (rename (new,tmp)) {	/* rename new database to current */
+    mm_log ("Can't update news state",ERROR);
+    return NIL;
+  }
+  return LONGT;			/* return success */
 }
 
 
@@ -1555,8 +1497,8 @@ search_t news_search_string (f,d,n)
       *n = strtol (c+1,&c,10);	/* get its length */
       if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
 	  *n > strlen (*d = c)) return NIL;
-      c[*n] = '\255';		/* write new delimiter */
-      strtok (c,"\255");	/* reset the strtok mechanism */
+      c[*n] = DELIM;		/* write new delimiter */
+      strtok (c,DELMS);		/* reset the strtok mechanism */
       break;
     default:			/* atomic string */
       *n = strlen (*d = strtok (c," "));

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	20 December 1989
- * Last Edited:	17 June 1994
+ * Last Edited:	28 June 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -44,7 +44,7 @@
  *
  */
 
-/* Validate line known to start with ``F''
+/* Validate line
  * Accepts: pointer to candidate string to validate as a From header
  *	    return pointer to end of date/time field
  *	    return pointer to offset from t of time (hours of ``mmm dd hh:mm'')
@@ -163,7 +163,7 @@
 
 #define KODRETRY 15		/* kiss-of-death retry in seconds */
 #define LOCKTIMEOUT 5		/* lock timeout in minutes */
-#define CHUNK 8192		/* read-in chunk size */
+#define CHUNK 32768		/* read-in chunk size */
 
 
 /* Command bits from bezerk_getflags() */

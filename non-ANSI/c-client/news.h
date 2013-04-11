@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	4 September 1991
- * Last Edited:	2 March 1994
+ * Last Edited:	9 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -95,7 +95,8 @@ long news_copy  ();
 long news_move  ();
 long news_append  ();
 void news_gc  ();
-char *news_read  ();
+char *news_read_sdb  ();
+long news_update_sdb  ();
 short news_getflags  ();
 char news_search_all  ();
 char news_search_answered  ();

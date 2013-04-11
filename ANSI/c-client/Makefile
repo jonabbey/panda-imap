@@ -9,7 +9,7 @@
 #		Internet: MRC@CAC.Washington.EDU
 #
 # Date:		11 May 1989
-# Last Edited:	21 June 1994
+# Last Edited:	30 August 1994
 #
 # Copyright 1994 by the University of Washington
 #
@@ -113,7 +113,7 @@ isc:	# Interactive
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		CFLAGS="-Xp -Dconst= $(EXTRACFLAGS)" RANLIB=true \
-		LDFLAGS="-linet -nsl_s -lgen -lx -lsec $(EXTRALDFLAGS)"
+		LDFLAGS="-linet -lnsl_s -lgen -lx -lsec $(EXTRALDFLAGS)"
 
 lnx:	# Linux
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
@@ -147,7 +147,7 @@ ptx:	# PTX
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
 		RSH=resh RSHPATH=/usr/bin/resh \
-		CFLAGS="=-Wc,-O3 -Wc,-seq $(EXTRACFLAGS)" RANLIB=true \
+		CFLAGS="-Wc,-O3 -Wc,-seq $(EXTRACFLAGS)" RANLIB=true \
 		LDFLAGS="-lseq -lsec -lsocket -linet -lnsl -lgen $(EXTRALDFLAGS)"
 
 pyr:	# Pyramid
@@ -169,7 +169,7 @@ sco:	# Santa Cruz Operation
 sgi:	# Silicon Graphics
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
-		RSHPATH=/usr/bsd/rsh CFLAGS="-g -ansi $(EXTRACFLAGS)" \
+		RSHPATH=/usr/bsd/rsh CFLAGS="-g -cckr $(EXTRACFLAGS)" \
 		RANLIB=true
 
 sol:	# Solaris
@@ -201,7 +201,7 @@ sv2:	# SVR2
 sv4:	# SVR4
 	$(MAKE) mtest OS=$@ EXTRADRIVERS="$(EXTRADRIVERS)" \
 		STDPROTO=bezerkproto \
-		RSH=resh RSHPATH=/usr/bin/resh
+		RSH=resh RSHPATH=/usr/bin/resh \
 		CFLAGS="-g -Dconst= $(EXTRACFLAGS)" RANLIB=true \
 		LDFLAGS="-lsocket -lnsl -lgen $(EXTRALDFLAGS)"
 
@@ -261,6 +261,7 @@ osdep.o: mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	gr_wait.c gr_wait4.c gr_waitp.c \
 	flock.c gettime.c ingroups.c opendir.c scandir.c \
 	memmove.c memmove2.c memset.c \
+	tz_bsd.c tz_nul.c tz_sv4.c \
 	strerror.c strpbrk.c strstr.c strtok.c strtol.c
 	$(CC) $(CFLAGS) -DSTDPROTO=$(STDPROTO) \
 	-DRSH=\"$(RSH)\" -DRSHPATH=\"$(RSHPATH)\" \
@@ -268,10 +269,10 @@ osdep.o: mail.h misc.h env.h fs.h ftl.h nl.h tcp.h \
 	$(MV) os_$(OS).o osdep.o
 
 osdep.h: os_$(OS).h linkage
+	$(RM) OSTYPE CFLAGS LDFLAGS osdep.h
 	echo $(OS) > OSTYPE
 	echo $(CFLAGS) > CFLAGS
 	echo $(LDFLAGS) > LDFLAGS
-	$(RM) osdep.h
 	$(LN) os_$(OS).h osdep.h
 
 # Driver linkage

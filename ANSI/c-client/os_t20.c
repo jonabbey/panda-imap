@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	1 August 1988
- * Last Edited:	24 May 1994
+ * Last Edited:	30 August 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -59,33 +59,10 @@ TCPSTREAM {
 #include <sys/time.h>
 #include "misc.h"
 
-#include "fs-t20.c"
+#include "env_t20.c"
+#include "fs_t20.c"
 #include "ftl_t20.c"
 #include "nl_t20.c"
-
-/* Write current time in RFC 822 format
- * Accepts: destination string
- */
-
-char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
-void rfc822_date (char *date)
-{
-  int zone;
-  char *zonename;
-  struct tm *t;
-  struct timeval tv;
-  struct timezone tz;
-  gettimeofday (&tv,&tz);	/* get time and timezone poop */
-  t = localtime (&tv.tv_sec);	/* convert to individual items */
-  zone = -tz.tz_minuteswest;	/* TOPS-20 doesn't have tm_gmtoff or tm_zone */
-  zonename = timezone (tz.tz_minuteswest,t->tm_isdst);
-				/* and output it */
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,
-	   (t->tm_isdst ? 1 : 0) + zone/60,abs (zone) % 60,zonename);
-}
 
 /* Server log in
  * Accepts: user name string

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	9 June 1994
+ * Last Edited:	30 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -41,6 +41,8 @@
 				 * other:  initial text buffer size */
 #define NUSERFLAGS 30		/* # of user flags (current servers 30 max) */
 #define BASEYEAR 1969		/* the year time began */
+				/* default for unqualified addresses */
+#define BADHOST ".MISSING-HOST-NAME."
 
 
 /* Constants */
@@ -53,6 +55,9 @@
 #define ERROR (long) 2		/* mm_log error type */
 #define PARSE (long) 3		/* mm_log parse error type */
 #define BYE (long) 4		/* mm_notify stream dying */
+
+#define DELIM '\377'		/* strtok delimiter character */
+#define DELMS "\377"		/* strtok delimiter string */
 
 /* Global and Driver Parameters */
 
@@ -60,14 +65,16 @@
 #define GET_MAXLOGINTRIALS 101
 #define SET_LOOKAHEAD 102
 #define GET_LOOKAHEAD 103
-#define SET_PORT 104
-#define GET_PORT 105
+#define SET_IMAPPORT 104
+#define GET_IMAPPORT 105
 #define SET_PREFETCH 106
 #define GET_PREFETCH 107
 #define SET_LOGINFULLNAME 108
 #define GET_LOGINFULLNAME 109
 #define SET_CLOSEONERROR 110
 #define GET_CLOSEONERROR 111
+#define SET_POP3PORT 112
+#define GET_POP3PORT 113
 #define SET_MBXPROTECTION 200	/* 2xx: used by UNIX local file drivers */
 #define GET_MBXPROTECTION 201
 #define SET_SUBPROTECTION 202
@@ -76,6 +83,18 @@
 #define GET_LOCKPROTECTION 205
 #define SET_FROMWIDGET 206
 #define GET_FROMWIDGET 207
+#define GET_OPENTIMEOUT 300	/* 3xx: used by TCP/IP routines */
+#define SET_OPENTIMEOUT 301	/* (not meaningful on UNIX) */
+#define GET_READTIMEOUT 302
+#define SET_READTIMEOUT 303
+#define GET_WRITETIMEOUT 304
+#define SET_WRITETIMEOUT 305
+#define GET_CLOSETIMEOUT 306
+#define SET_CLOSETIMEOUT 307	/* (not meaningful on UNIX) */
+#define SET_NEWSRC 400		/* 4xx: used by DOS local file drivers */
+#define GET_NEWSRC 401
+#define SET_EXTENSION 402
+#define GET_EXTENSION 403
 
 
 /* Open options */
@@ -144,7 +163,7 @@ typedef struct mail_envelope {
 /* Primary body types */
 /* If you change any of these you must also change body_types in rfc822.c */
 
-extern const char *body_types[];/* defined body type strings */
+extern char *body_types[];	/* defined body type strings */
 
 #define TYPETEXT 0		/* unformatted text */
 #define TYPEMULTIPART 1		/* multiple part */
@@ -154,14 +173,14 @@ extern const char *body_types[];/* defined body type strings */
 #define TYPEIMAGE 5		/* static image */
 #define TYPEVIDEO 6		/* video */
 #define TYPEOTHER 7		/* unknown */
+#define TYPEMAX 15		/* maximum type code */
 
 
 /* Body encodings */
 /* If you change any of these you must also change body_encodings in rfc822.c
  */
 
-				/* defined body encoding strings */
-extern const char *body_encodings[];
+extern char *body_encodings[];	/* defined body encoding strings */
 
 #define ENC7BIT 0		/* 7 bit SMTP semantic data */
 #define ENC8BIT 1		/* 8 bit SMTP semantic data */
@@ -169,6 +188,7 @@ extern const char *body_encodings[];
 #define ENCBASE64 3		/* base-64 encoded data */
 #define ENCQUOTEDPRINTABLE 4	/* human-readable 8-as-7 bit data */
 #define ENCOTHER 5		/* unknown */
+#define ENCMAX 10		/* maximum encoding code */
 
 
 /* Body contents */
@@ -450,18 +470,20 @@ typedef struct net_mailbox {
 
 /* Other symbols */
 
+extern const char *days[];	/* day name strings */
 extern const char *months[];	/* month name strings */
 
 
 /* Jacket into external interfaces */
 
-typedef long (*readfn_t) ();
-typedef char *(*mailgets_t) ();
-typedef void *(*mailcache_t) ();
+typedef long (*readfn_t)  ();
+typedef char *(*mailgets_t)  ();
+typedef void *(*mailcache_t)  ();
+typedef long (*tcptimeout_t)  ();
 
-extern char *lhostn;
 extern mailgets_t mailgets;
 extern mailcache_t mailcache;
+extern tcptimeout_t tcptimeout;
 
 #include "linkage.h"
 

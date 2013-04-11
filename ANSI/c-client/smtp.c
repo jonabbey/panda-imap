@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	27 July 1988
- * Last Edited:	26 May 1994
+ * Last Edited:	26 June 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -69,8 +69,6 @@ SMTPSTREAM *smtp_open (char **hostlist,long debug)
   else do {			/* try to open connection */
     if (tcpstream = smtp_port ? tcp_open (*hostlist,NIL,smtp_port) :
 	tcp_open (*hostlist,"smtp",SMTPTCPPORT)) {
-				/* default local host */
-      if (!lhostn) lhostn = cpystr (tcp_localhost (tcpstream));
       stream = (SMTPSTREAM *) fs_get (sizeof (SMTPSTREAM));
       stream->tcpstream = tcpstream;
       stream->debug = debug;

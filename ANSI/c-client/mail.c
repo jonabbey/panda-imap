@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	22 November 1989
- * Last Edited:	24 June 1994
+ * Last Edited:	22 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -45,10 +45,10 @@
 /* c-client global data */
 
 DRIVER *maildrivers = NIL;	/* list of mail drivers */
-char *lhostn = NIL;		/* local host name */
 mailgets_t mailgets = NIL;	/* pointer to alternate gets function */
 				/* mail cache manipulation function */
 mailcache_t mailcache = mm_cache;
+tcptimeout_t tcptimeout = NIL;	/* TCP timeout handler routine */
 
 /* Default limited get string
  * Accepts: readin function pointer
@@ -232,8 +232,7 @@ void mail_link (DRIVER *driver)
   *d = driver;			/* put driver at the end */
   driver->next = NIL;		/* this driver is the end of the list */
 }
-
-
+
 /* Mail manipulate driver parameters
  * Accepts: mail stream
  *	    function code
@@ -241,14 +240,48 @@ void mail_link (DRIVER *driver)
  * Returns: function-dependent return value
  */
 
+				/* TCP timeouts, in seconds */
+static long mail_opentimeout = 75;
+static long mail_readtimeout = 0;
+static long mail_writetimeout = 0;
+static long mail_closetimeout = 0;
+
 void *mail_parameters (MAILSTREAM *stream,long function,void *value)
 {
-  void *ret = NIL;
+  void *r,*ret = NIL;
   DRIVER *d = maildrivers;
-				/* if have a stream, do it for that stream */
-  if (stream && stream->dtb) return (*stream->dtb->parameters)(function,value);
-  else do if (ret = (d->parameters) (function,value)) return ret;
-  while (d = d->next);		/* until at the end */
+  switch ((int) function) {
+  case GET_OPENTIMEOUT:
+    ret = (void *) mail_opentimeout;
+    break;
+  case SET_OPENTIMEOUT:
+    mail_opentimeout = (long) value;
+    break;
+  case GET_READTIMEOUT:
+    ret = (void *) mail_readtimeout;
+    break;
+  case SET_READTIMEOUT:
+    mail_readtimeout = (long) value;
+    break;
+  case GET_WRITETIMEOUT:
+    ret = (void *) mail_writetimeout;
+    break;
+  case SET_WRITETIMEOUT:
+    mail_writetimeout = (long) value;
+    break;
+  case GET_CLOSETIMEOUT:
+    ret = (void *) mail_closetimeout;
+    break;
+  case SET_CLOSETIMEOUT:
+    mail_closetimeout = (long) value;
+    break;
+  default:
+    if (stream && stream->dtb)	/* if have a stream, do it for that stream */
+      return (*stream->dtb->parameters)(function,value);
+    else do if (r = (d->parameters) (function,value)) ret = r;
+    while (d = d->next);	/* until at the end */
+    break;
+  }
   return ret;
 }
 
@@ -996,6 +1029,8 @@ void mail_gc (MAILSTREAM *stream,long gcflags)
  * Returns: the character string
  */
 
+const char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+
 const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 			"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
@@ -1017,8 +1052,6 @@ char *mail_date (char *string,MESSAGECACHE *elt)
  * Returns: the character string
  */
 
-const char *cdays[] = {"Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"};
-
 char *mail_cdate (char *string,MESSAGECACHE *elt)
 {
   const char *s = (elt->month && elt->month < 13) ?
@@ -1031,7 +1064,7 @@ char *mail_cdate (char *string,MESSAGECACHE *elt)
   }
   else m = elt->month - 3;	/* March is month 0 */
   sprintf (string,"%s %s %2d %02d:%02d:%02d %4d\n",
-	   cdays[(int)(elt->day+((7+31*m)/12)+y+(y/4)+(y/400)-(y/100)) % 7],s,
+	   days[(int)(elt->day+5+((7+31*m)/12)+y+(y/4)+(y/400)-(y/100)) % 7],s,
 	   elt->day,elt->hours,elt->minutes,elt->seconds,elt->year + BASEYEAR);
   return string;
 }
@@ -1186,10 +1219,18 @@ long mail_parse_date (MESSAGECACHE *elt,char *s)
 	tn = time (0);		/* time now... */
 	t = localtime (&tn);	/* get local minutes since midnight */
 	m = t->tm_hour * 60 + t->tm_min;
+	ms = t->tm_yday;	/* note Julian day */
 	t = gmtime (&tn);	/* minus UTC minutes since midnight */
-				/* add a day if too far past */
-	if ((m -= t->tm_hour * 60 + t->tm_min) < -720) m += 1440;
-	if (m > 720) m -= 1440;	/* subtract a day if too far ahead */
+	m -= t->tm_hour * 60 + t->tm_min;
+	/* ms can be one of:
+	 *  36x  local time is December 31, UTC is January 1, offset -24 hours
+	 *    1  local time is 1 day ahead of UTC, offset +24 hours
+	 *    0  local time is same day as UTC, no offset
+	 *   -1  local time is 1 day behind UTC, offset -24 hours
+	 * -36x  local time is January 1, UTC is December 31, offset +24 hours
+	 */
+	if (ms -= t->tm_yday)	/* correct offset if different Julian day */
+	  m += ((ms < 0) == (abs (ms) == 1)) ? -24*60 : 24*60;
 	if (m < 0) {		/* occidental? */
 	  m = abs (m);		/* yup, make positive number */
 	  elt->zoccident = 1;	/* and note west of UTC */

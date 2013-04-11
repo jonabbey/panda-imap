@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	5 January 1993
- * Last Edited:	14 April 1994
+ * Last Edited:	9 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -105,6 +105,8 @@ long nntp_move  ();
 long nntp_append  ();
 void nntp_gc  ();
 
+char *nntp_read_sdb  ();
+long nntp_update_sdb  ();
 short nntp_getflags  ();
 char nntp_search_all  ();
 char nntp_search_answered  ();

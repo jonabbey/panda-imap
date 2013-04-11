@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	8 July 1988
- * Last Edited:	17 June 1994
+ * Last Edited:	4 September 1994
  *
  * Sponsorship:	The original version of this work was developed in the
  *		Symbolic Systems Resources Group of the Knowledge Systems
@@ -74,7 +74,6 @@
 #endif
 #if UNIXLIKE
 #include <pwd.h>
-#include <netdb.h>
 #endif
 #if MAC
 #include <MacTCPCommonTypes.h>
@@ -83,7 +82,7 @@
 
 char *curhst = NIL;		/* currently connected host */
 char *curusr = NIL;		/* current login user */
-char personalname[256];		/* user's personal name */
+char personalname[MAILTMPLEN];	/* user's personal name */
 
 static char *hostlist[] = {	/* SMTP server host list */
   "mailhost",
@@ -96,7 +95,7 @@ static char *newslist[] = {	/* Netnews server host list */
   NIL
 };
 
-void main  ();
+int main  ();
 void mm  ();
 void header  ();
 void display_body  ();
@@ -106,46 +105,42 @@ void smtptest  ();
 
 /* Main program - initialization */
 
-void main ()
+int main ()
 {
   MAILSTREAM *stream = NIL;
   char tmp[MAILTMPLEN];
   long debug;
+#include "linkage.c"
 #if MACOS
-  size_t *base = (size_t *) 0x000908;
+  {
+    size_t *base = (size_t *) 0x000908;
 				/* increase stack size on a Mac */
-  SetApplLimit ((Ptr) (*base - (size_t) 65535L));
+    SetApplLimit ((Ptr) (*base - (size_t) 65535L));
+  }
 #endif
 #if UNIXLIKE
-  char *name;
-  char *suffix;
-  struct passwd *pwd;
-  struct hostent *host_name;
 #ifdef __MINT__
-  mint_setup ();
+    mint_setup ();
 #endif
-  gethostname (tmp,MAILTMPLEN);	/* get local name */
-				/* get it in full form */
-  curhst = (host_name = gethostbyname (tmp)) ?
-    cpystr (host_name->h_name) : cpystr (tmp);
-				/* get user name and passwd entry */
-  if (name = (char *) getlogin ()) pwd = getpwnam (name);
-  else {
-    pwd = getpwuid (getuid ());	/* get it this way if detached, etc */
-    name = pwd->pw_name;
-  }
-  curusr = cpystr (name);	/* current user is this name */
-  strcpy (tmp,pwd->pw_gecos);	/* probably not necessay but be safe */
+  curusr = cpystr(myusername());/* current user is this name */
+  {
+    char *suffix;
+    struct passwd *pwd = getpwnam (curusr);
+    if (pwd) {
+      strcpy (tmp,pwd->pw_gecos);
 				/* dyke out the office and phone poop */
-  if (suffix = strchr (tmp,',')) suffix[0] = '\0';
-  strcpy (personalname,tmp);	/* make a permanent copy of it */
+      if (suffix = strchr (tmp,',')) suffix[0] = '\0';
+      strcpy (personalname,tmp);/* make a permanent copy of it */
+    }
+    else personalname[0] = '\0';
+  }
 #else
-  prompt ("Personal name: ",personalname);
   curusr = cpystr ("somebody");
-  curhst = cpystr ("someplace");
+  personalname[0] = '\0';
 #endif
+  curhst = cpystr (mylocalhost ());
   puts ("MTest -- C client test program");
-#include "linkage.c"
+  if (!*personalname) prompt ("Personal name: ",personalname);
 				/* user wants protocol telemetry? */
   prompt ("Debug protocol (y/n)?",tmp);
   ucase (tmp);
@@ -179,7 +174,7 @@ void mm (stream,debug)
 	MAILSTREAM *stream;
 	long debug;
 {
-  char cmd[256],cmdx[128];
+  char cmd[MAILTMPLEN],cmdx[MAILTMPLEN];
   char *arg;
   long i;
   long last = 0;
@@ -354,7 +349,7 @@ void header (stream,msgno)
 	long msgno;
 {
   unsigned long i;
-  char tmp[256];
+  char tmp[MAILTMPLEN];
   char *t;
   MESSAGECACHE *cache = mail_elt (stream,msgno);
   mail_fetchstructure (stream,msgno,NIL);
@@ -393,7 +388,7 @@ void display_body (body,pfx,i)
 	char *pfx;
 	long i;
 {
-  char tmp[256];
+  char tmp[MAILTMPLEN];
   char *s = tmp;
   PARAMETER *par;
   PART *part;			/* multipart doesn't have a row to itself */

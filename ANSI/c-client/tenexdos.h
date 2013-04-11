@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	12 June 1994
- * Last Edited:	23 June 1994
+ * Last Edited:	1 July 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -45,6 +45,7 @@
 	
 typedef struct tenexdos_local {
   int fd;			/* file descriptor for I/O */
+  char ch;			/* last character read in tenexdos_read */
   off_t filesize;		/* file size parsed */
 } TENEXDOSLOCAL;
 
@@ -89,6 +90,8 @@ char *tenexdos_fetchheader (MAILSTREAM *stream,long msgno);
 char *tenexdos_fetchtext (MAILSTREAM *stream,long msgno);
 char *tenexdos_fetchbody (MAILSTREAM *stream,long m,char *sec,
 			  unsigned long *len);
+char *tenexdos_slurp (MAILSTREAM *stream,unsigned long pos,
+		      unsigned long *count);
 long tenexdos_read (MAILSTREAM *stream,unsigned long count,char *buffer);
 unsigned long tenexdos_header (MAILSTREAM *stream,long msgno,
 			       unsigned long *size);
@@ -104,6 +107,7 @@ long tenexdos_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
 		  STRING *message);
 void tenexdos_gc (MAILSTREAM *stream,long gcflags);
 char *tenexdos_file (char *dst,char *name);
+unsigned long tenexdos_size (MAILSTREAM *stream,long m);
 long tenexdos_badname (char *tmp,char *s);
 long tenexdos_getflags (MAILSTREAM *stream,char *flag);
 long tenexdos_parse (MAILSTREAM *stream);

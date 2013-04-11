@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 June 1992
- * Last Edited:	23 June 1994
+ * Last Edited:	4 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -111,27 +111,26 @@ DRIVER *dawz_valid (char *name)
 long dawz_isvalid (char *name)
 {
   int fd;
+  long ret = NIL;
   char *s,tmp[MAILTMPLEN];
   struct stat sbuf;
-  errno = NIL;			/* zap error */
-				/* INBOX is always accepted */
-  if (!strcmp (ucase (strcpy (tmp,name)),"INBOX")) return T;
+  errno = EINVAL;		/* assume invalid argument */
 				/* if file, get its status */
-  if (*name != '{' && mailboxfile (tmp,name) && (stat (tmp,&sbuf) == 0)) {
-				/* allow empty file */
-    if (sbuf.st_size == 0) return LONGT;
-    if ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0 && read (fd,tmp,64) >= 0){
-      close (fd);		/* close the file */
-      if ((s = strchr (tmp,'\015')) && s[1] == '\012') {
-	*s = '\0';		/* tie off header */
+  if ((*name != '{') && mailboxfile (tmp,name) && !stat (tmp,&sbuf) &&
+      ((fd = open (tmp,O_BINARY|O_RDONLY,NIL)) >= 0)) {
+    errno = 0;			/* clear error */
+    if (sbuf.st_size && (read (fd,tmp,64) >= 0) && (s = strchr (tmp,'\015')) &&
+	s[1] == '\012') {
+      *s = '\0';		/* tie off header */
 				/* must begin with dd-mmm-yy" */
-	  if (((tmp[2] == '-' && tmp[6] == '-') ||
-	       (tmp[1] == '-' && tmp[5] == '-')) &&
-	      (s = strchr (tmp+20,',')) && strchr (s+2,';')) return LONGT;
-      }
+      ret = (((tmp[2] == '-' && tmp[6] == '-') ||
+	      (tmp[1] == '-' && tmp[5] == '-')) &&
+	     (s = strchr (tmp+20,',')) && strchr (s+2,';')) ? T : NIL;
     }
+    else errno = -1;		/* bogus format */
+    close (fd);			/* close the file */
   }
-  return NIL;			/* failed miserably */
+  return ret;			/* return what we should */
 }
 
 
@@ -153,34 +152,7 @@ void *dawz_parameters (long function,void *value)
 
 void dawz_find (MAILSTREAM *stream,char *pat)
 {
-  void *sdb = NIL;
-  struct find_t f;
-  char *s,tmp[MAILTMPLEN],file[MAILTMPLEN];
-  char *t = sm_read (&sdb);
-  int i = 0;
-  if (t) do if ((*t != '{') && strcmp (t,"INBOX") && pmatch (t,pat) &&
-		dawz_isvalid (t)) mm_mailbox (t);
-  while (t = sm_read (&sdb));	/* read subscription database */
-  else {			/* no subscriptions, do a directory */
-				/* directory specified in pattern? */
-    if ((s = strrchr (pat,'\\')) || (*(s = pat + 1) == ':')) {
-      strncpy (file,pat,i = (++s) - pat);
-      file[i] = '\0';		/* tie off prefix */
-    }
-				/* make fully-qualified file name */
-    if (!mailboxfile (tmp,pat)) return;
-				/* tie off directory name */
-    if (s = strrchr (tmp,'\\')) *s = '\0';
-    else tmp[2] = '\0';
-    sprintf (tmp + strlen (tmp),"\\*%s",DEFEXT);
-				/* loop through matching files */
-    if (!_dos_findfirst (tmp,_A_NORMAL,&f)) do {
-				/* suppress extension */
-      if (s = strchr (f.name,'.')) *s = '\0';
-      strcpy (file + i,f.name);	/* build file name */
-      if (pmatch (file,pat)) mm_mailbox (file);
-    } while (!_dos_findnext (&f));
-  }
+  if (stream) dummy_find (stream,pat);
 }
 
 
@@ -193,7 +165,8 @@ void dawz_find_bboards (MAILSTREAM *stream,char *pat)
 {
   /* Always a no-op */
 }
-
+
+
 /* Dawz mail find list of all mailboxes
  * Accepts: mail stream
  *	    pattern to search
@@ -201,27 +174,7 @@ void dawz_find_bboards (MAILSTREAM *stream,char *pat)
 
 void dawz_find_all (MAILSTREAM *stream,char *pat)
 {
-  struct find_t f;
-  char *s,tmp[MAILTMPLEN],file[MAILTMPLEN];
-  int i = 0;
-				/* directory specified in pattern? */
-  if ((s = strrchr (pat,'\\')) || (*(s = pat + 1) == ':')) {
-    strncpy (file,pat,i = (++s) - pat);
-    file[i] = '\0';		/* tie off prefix */
-  }
-				/* make fully-qualified file name */
-  if (!mailboxfile (tmp,pat)) return;
-				/* tie off directory name */
-  if (s = strrchr (tmp,'\\')) *s = '\0';
-  else tmp[2] = '\0';
-  sprintf (tmp + strlen (tmp),"\\*%s",DEFEXT);
-				/* loop through matching files */
-  if (!_dos_findfirst (tmp,_A_NORMAL,&f)) do {
-				/* suppress extension */
-    if (s = strchr (f.name,'.')) *s = '\0';
-    strcpy (file + i,f.name);	/* build file name */
-    if (pmatch (file,pat) && dawz_isvalid (file)) mm_mailbox (file);
-  } while (!_dos_findnext (&f));
+  if (stream) dummy_find_all (stream,pat);
 }
 
 /* Dawz mail subscribe to mailbox
@@ -353,8 +306,6 @@ MAILSTREAM *dawz_open (MAILSTREAM *stream)
     mm_log (tmp,ERROR);
     return NIL;
   }
-				/* hokey default for local host */
-  if (!lhostn) lhostn = cpystr ("localhost");
   stream->local = fs_get (sizeof (DAWZLOCAL));
 				/* canonicalize the stream mailbox name */
   fs_give ((void **) &stream->mailbox);
@@ -528,7 +479,7 @@ ENVELOPE *dawz_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
       d.pos = hdrpos + hdrsize;
       INIT (&bs,dawz_string,(void *) &d,textsize);
 				/* parse envelope and body */
-      rfc822_parse_msg (env,body ? b : NIL,hdr,hdrsize,&bs,lhostn,tmp);
+      rfc822_parse_msg (env,body ? b : NIL,hdr,hdrsize,&bs,mylocalhost (),tmp);
     }
     fs_give ((void **) &tmp);
     fs_give ((void **) &hdr);
@@ -983,8 +934,6 @@ long dawz_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   int fd,zone;
   char tmp[MAILTMPLEN];
   MESSAGECACHE elt;
-  time_t ti;
-  struct tm *t;
   long i;
   long size = SIZE (message);
   short f = dawz_getflags (stream,flags);
@@ -995,16 +944,18 @@ long dawz_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
       return NIL;
     }
   }
-  tzset ();			/* initialize timezone stuff */
-  if (!dawz_isvalid (mailbox)) {/* make sure valid mailbox */
-    if (errno == ENOENT)
-      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
-		 (long) NIL);
-    else if (mailboxfile (tmp,mailbox)) {
-      sprintf (tmp,"Not a Dawz-format mailbox: %s",mailbox);
-      mm_log (tmp,ERROR);
-    }
-    else dawz_badname (tmp,mailbox);
+  if (!dawz_isvalid (mailbox)) switch (errno) {
+  case ENOENT:			/* no such file? */
+    mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
+	       (long) NIL);
+    return NIL;
+  case 0:			/* merely empty file? */
+    break;
+  case EINVAL:			/* name is bogus */
+    return dawz_badname (tmp,mailbox);
+  default:			/* file exists, but not valid format */
+    sprintf (tmp,"Not a Dawz-format mailbox: %s",mailbox);
+    mm_log (tmp,ERROR);
     return NIL;
   }
 				/* open the destination */
@@ -1016,13 +967,9 @@ long dawz_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
   }
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
-  ti = time (0);		/* get time now */
-  t = localtime (&ti);		/* output local time */
   zone = -(((int)timezone)/ 60);/* get timezone from TZ environment stuff */
   if (date) mail_date(tmp,&elt);/* use date if given */
-  else sprintf (tmp,"%2d-%s-%d %02d:%02d:%02d %+03d%02d",
-		t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-		t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60);
+  else internal_date (tmp);	/* else use time now */
 				/* add remainder of header */
   sprintf (tmp + strlen (tmp),",%ld;0000000000%02o\015\012",size,f);
 
@@ -1145,7 +1092,7 @@ long dawz_parse (MAILSTREAM *stream)
 {
   struct stat sbuf;
   MESSAGECACHE *elt = NIL;
-  char c,*s,*t;
+  char c,*s,*t,*x;
   char tmp[MAILTMPLEN];
   long i;
   long curpos = LOCAL->filesize;
@@ -1153,7 +1100,8 @@ long dawz_parse (MAILSTREAM *stream)
   long recent = stream->recent;
   fstat (LOCAL->fd,&sbuf);	/* get status */
   if (sbuf.st_size < curpos) {	/* sanity check */
-    mm_log ("Mailbox shrank!",ERROR);
+    sprintf (tmp,"Mailbox shrank from %ld to %ld!",curpos,sbuf.st_size);
+    mm_log (tmp,ERROR);
     dawz_close (stream);
     return NIL;
   }
@@ -1161,16 +1109,26 @@ long dawz_parse (MAILSTREAM *stream)
   while (i = sbuf.st_size - curpos) {
 				/* get to that position in the file */
     lseek (LOCAL->fd,curpos,SEEK_SET);
-    if (!((read (LOCAL->fd,tmp,64) > 0)
-	  && (s = strchr (tmp,'\015')) && (s[1] == '\012'))) {
-      mm_log ("Unable to read internal header line",ERROR);
+    if ((i = read (LOCAL->fd,tmp,64)) <= 0) {
+      sprintf (tmp,"Unable to read internal header at %ld, size = %ld: %s",
+	       curpos,sbuf.st_size,i ? strerror (errno) : "no data read");
+      mm_log (tmp,ERROR);
+      dawz_close (stream);
+      return NIL;
+    }
+    tmp[i] = '\0';		/* tie off buffer just in case */
+    if (!((s = strchr (tmp,'\015')) && (s[1] == '\012'))) {
+      sprintf (tmp,"Unable to find end of line at %ld in %ld bytes, text: %s",
+	       curpos,i,tmp);
+      mm_log (tmp,ERROR);
       dawz_close (stream);
       return NIL;
     }
     *s = '\0';			/* tie off header line */
     i = (s + 2) - tmp;		/* note start of text offset */
     if (!((s = strchr (tmp,',')) && (t = strchr (s+1,';')))) {
-      mm_log ("Unable to parse internal header line",ERROR);
+      sprintf (tmp,"Unable to parse internal header at %ld: %s",curpos,tmp);
+      mm_log (tmp,ERROR);
       dawz_close (stream);
       return NIL;
     }
@@ -1181,12 +1139,13 @@ long dawz_parse (MAILSTREAM *stream)
     elt->data2 = i << 24;	/* as well as offset from header of message */
 				/* parse the header components */
     if (!(mail_parse_date (elt,tmp) &&
-	  (elt->rfc822_size = strtol (s,&s,10)) && (!(s && *s)) &&
+	  (elt->rfc822_size = strtol (x = s,&s,10)) && (!(s && *s)) &&
 	  isdigit (t[0]) && isdigit (t[1]) && isdigit (t[2]) &&
 	  isdigit (t[3]) && isdigit (t[4]) && isdigit (t[5]) &&
 	  isdigit (t[6]) && isdigit (t[7]) && isdigit (t[8]) &&
 	  isdigit (t[9]) && isdigit (t[10]) && isdigit (t[11]) && !t[12])) {
-      mm_log ("Unable to parse internal header line components",ERROR);
+      sprintf (tmp,"Unable to parse internal header elements at %ld: %s,%s;%s",
+	       curpos,tmp,x,t);
       dawz_close (stream);
       return NIL;
     }
@@ -1223,16 +1182,20 @@ long dawz_copy_messages (MAILSTREAM *stream,char *mailbox)
   struct stat sbuf;
   MESSAGECACHE *elt;
   unsigned long i,j,k;
+  long ret = LONGT;
   int fd;
-  if (!dawz_isvalid (mailbox)) {/* make sure valid mailbox */
-    if (errno == ENOENT)
-      mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
-		 (long) NIL);
-    else if (mailboxfile (tmp,mailbox)) {
-      sprintf (tmp,"Not a Dawz-format mailbox: %s",mailbox);
-      mm_log (tmp,ERROR);
-    }
-    else dawz_badname (tmp,mailbox);
+  if (!dawz_isvalid (mailbox)) switch (errno) {
+  case ENOENT:			/* no such file? */
+    mm_notify (stream,"[TRYCREATE] Must create mailbox before append",
+	       (long) NIL);
+    return NIL;
+  case 0:			/* merely empty file? */
+    break;
+  case EINVAL:			/* name is bogus */
+    return dawz_badname (tmp,mailbox);
+  default:			/* file exists, but not valid format */
+    sprintf (tmp,"Not a Dawz-format mailbox: %s",mailbox);
+    mm_log (tmp,ERROR);
     return NIL;
   }
 				/* open the destination */
@@ -1245,36 +1208,27 @@ long dawz_copy_messages (MAILSTREAM *stream,char *mailbox)
   mm_critical (stream);		/* go critical */
   fstat (fd,&sbuf);		/* get current file size */
 				/* for each requested message */
-  for (i = 1; i <= stream->nmsgs; i++)
+  for (i = 1; ret && (i <= stream->nmsgs); i++)
     if ((elt = mail_elt (stream,i))->sequence) {
-      lseek (LOCAL->fd,dawz_header (stream,i,&k),SEEK_SET);
-      j = 0;			/* mark first time through */
+      lseek (LOCAL->fd,elt->data1,SEEK_SET);
+				/* number of bytes to copy */
+      k = (elt->data2 >> 24) + elt->rfc822_size;
       do {			/* read from source position */
-	if (j) {		/* get another message chunk */
-	  k = min (j,(unsigned long) MAILTMPLEN);
-	  read (LOCAL->fd,tmp,(unsigned int) k);
-	}
-	else {			/* first time through */
-	  mail_date (tmp,elt);	/* make a header */
-	  sprintf (tmp + strlen (tmp),",%d;000000000000\015\012",
-		   elt->rfc822_size);
-	  k = strlen (tmp);	/* size of header string */
-				/* amount of data to write subsequently */
-	  j = elt->rfc822_size + k;
-	}
-	if (write (fd,tmp,(unsigned int) k) < 0) {
+	j = min (k,(long) MAILTMPLEN);
+	read (LOCAL->fd,tmp,(unsigned int) j);
+	if (write (fd,tmp,(unsigned int) j) < 0) {
 	  sprintf (tmp,"Unable to write message: %s",strerror (errno));
 	  mm_log (tmp,ERROR);
 	  chsize (fd,sbuf.st_size);
-	  close (fd);		/* punt */
-	  mm_nocritical (stream);
-	  return NIL;
+	  j = k;
+	  ret = NIL;		/* note error */
+	  break;
 	}
-      } while (j -= k);		/* until done */
+      } while (k -= j);		/* until done */
     }
   close (fd);			/* close the file */
   mm_nocritical (stream);	/* release critical */
-  return T;
+  return ret;
 }
 
 /* Dawz update status string
@@ -1410,11 +1364,28 @@ char dawz_search_since (MAILSTREAM *stream,long msgno,char *d,long n)
   MESSAGECACHE *elt = mail_elt (stream,msgno);
   return (char) (((elt->year << 9) + (elt->month << 5) + elt->day) >= n);
 }
-
+
+#define BUFLEN 4*MAILTMPLEN
 
 char dawz_search_body (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  return NIL;			/* need code here */
+  char tmp[BUFLEN];
+  unsigned long bufsize,hdrsize;
+  unsigned long curpos = dawz_header (stream,msgno,&hdrsize);
+  unsigned long textsize = mail_elt (stream,msgno)->rfc822_size - hdrsize;
+				/* get to header position */
+  lseek (LOCAL->fd,curpos += hdrsize,SEEK_SET);
+  while (textsize) {
+    bufsize = min (textsize,(unsigned long) BUFLEN);
+    read (LOCAL->fd,tmp,(unsigned int) bufsize);
+    if (search (tmp,bufsize,d,n)) return T;
+				/* backtrack by pattern size if not at end */
+    if (bufsize != textsize) bufsize -= n;
+    textsize -= bufsize;	/* this many bytes handled */
+    curpos += bufsize;		/* advance to that point */
+    lseek (LOCAL->fd,curpos,SEEK_SET);
+  }
+  return NIL;			/* not found */
 }
 
 
@@ -1424,10 +1395,25 @@ char dawz_search_subject (MAILSTREAM *stream,long msgno,char *d,long n)
   return s ? search (s,(long) strlen (s),d,n) : NIL;
 }
 
-
 char dawz_search_text (MAILSTREAM *stream,long msgno,char *d,long n)
 {
-  return NIL;			/* need code here */
+  char tmp[BUFLEN];
+  unsigned long bufsize,hdrsize;
+  unsigned long curpos = dawz_header (stream,msgno,&hdrsize);
+  unsigned long textsize = mail_elt (stream,msgno)->rfc822_size;
+				/* get to header position */
+  lseek (LOCAL->fd,curpos,SEEK_SET);
+  while (textsize) {
+    bufsize = min (textsize,(unsigned long) BUFLEN);
+    read (LOCAL->fd,tmp,(unsigned int) bufsize);
+    if (search (tmp,bufsize,d,n)) return T;
+				/* backtrack by pattern size if not at end */
+    if (bufsize != textsize) bufsize -= n;
+    textsize -= bufsize;	/* this many bytes handled */
+    curpos += bufsize;		/* advance to that point */
+    lseek (LOCAL->fd,curpos,SEEK_SET);
+  }
+  return NIL;			/* not found */
 }
 
 char dawz_search_bcc (MAILSTREAM *stream,long msgno,char *d,long n)
@@ -1525,8 +1511,8 @@ search_t dawz_search_string (search_t f,char **d,long *n)
       *n = strtol (c+1,&c,10);	/* get its length */
       if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
 	  *n > strlen (*d = c)) return NIL;
-      c[*n] = '\255';		/* write new delimiter */
-      strtok (c,"\255");	/* reset the strtok mechanism */
+      c[*n] = DELIM;		/* write new delimiter */
+      strtok (c,DELMS);		/* reset the strtok mechanism */
       break;
     default:			/* atomic string */
       *n = strlen (*d = strtok (c," "));

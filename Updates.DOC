@@ -2531,3 +2531,185 @@ Note: Dates in this revision history indicate when the work was completed.
 		way to coerce Microsoft MAKE into doing conditionals!
 
 		*** 3.3 frozen at this point ***
+
+26 June 1994	[bezerk.c, dawz.c, env.h, env_*.c, imap2.c, mail.c/h, mbox.c,
+		 mh.c, mmdf.c, mtest.c, mtx.c, news.c, nntpc*.c, os_mac.c,
+		 os_mnt.c, phile.c, pop3.c, smtp.c, tcp_mac.c, tcp_unix.c,
+		 tenex2.c, tenexdos.c] Eliminate lhostn.  Make new
+		mylocalhost() environment function.
+
+26 June 1994	[mail.c/h, os_d*.c, os_mac.c, tcp_dos.c/h, tcp_mac.c,
+		 tcp_unix.c] Permit settable TCP timeouts and a callback
+		routine on read timeouts to decide if the timeout is fatal.
+
+27 June 1994	[tcp_unix.c] Fix protocol number.
+
+27 June 1994	[tcp_dos.c tcp_unix.c] Add write timeout callback.
+
+27 June 1994	[mtestdpc.bat, os_dbw.c, os_dnf.c, os_dnv.c, os_dpc.c,
+		 os_dwa.c, os_wsk.c, tcp_dos.c/h] Better local hostname code.
+		Local routine to do remote hostname lookup instead of using
+		rhost() everywhere.
+
+28 June 1994	[imap2.c/h] Literals in SEARCH criteria now work.
+
+28 June 1994	[bezerk.h] Increase CHUNK to 32K.
+
+28 June 1994	[dawz.c, dummydos.c] Move find code to dummy module for DOS.
+		Fix ancient annoying double INBOX bug.
+
+28 June 1994	[os*.c, tcp.h, tcp_unix.c] Add tcp_clienthost() for server
+		logging.
+
+28 June 1994	[imapd.c] Add server logging.
+
+29 June 1994	[imapd.c, ipop2d.c, ipop3d.c] Improve imapd logs, add ipop?d
+		logs.
+
+29 June 1994	[os_wsk.c, tcp_dos.c] We all love Microsoft's C compiler.
+
+30 June 1994	[imap2.c, mail.h, rfc822.c] Permit a small number of undefined
+		content types and transfer encodings to be preserved.
+
+ 1 July 1994	[tenexdos.c/h] Make it return proper newlines and RFC822 sizes
+		not to mention terribly slow.  Fortunately it's not likely
+		that many people will use the tenexdos driver...
+
+ 6 July 1994	[env_unix.c] Black box mode requires parameter to be set that
+		defines the directory.
+
+ 6 July 1994	[bezrkdos.c/h, makefile.dos] Add bezrkdos driver.
+
+ 7 July 1994	[mh.c] Use #mhINBOX so as not to offend those who think that
+		having mh folders shouldn't make you use mh.
+
+10 July 1994	[scandir.c] Fix fs_resize() call.
+
+10 July 1994	[Makefile, os_sgi.c] Fix SGI build.
+
+11 July 1994	[i*d.c, os*c] Move include of syslog to osdep.h.
+
+11 July 1994	[imapd.c] Don't get upset if fgets() is interrupted.
+
+11 July 1994	[mtx.c, tenex2.c] Better error message when can't get header
+		line.
+
+20 July 1994	[bezerk.c, dummy.c, mail.c/h, imap2.c, pop3.c] Fix parameter
+		setting when new value is non-zero.
+
+20 July 1994	[ms.c] Don't prefetch unnecessarily.
+
+20 July 1994	[tcp_unix.c] Fix memory leak.
+
+20 July 1994	[os_ptx.c] Use correct way to get peer with PTX inetd (ugh).
+
+ 2 August 1994	[bezrkdos.c, dawz.c, nntpcdos.c, tenexdos.c] Add text search.
+
+ 2 August 1994	[mtest.c, *vms*] Add VAX/VMS port.
+
+ 7 August 1994	[rfc822.c] Make sure block initialized in rfc822_base64().
+
+ 7 August 1994	[os_sv2.c/h] Add strerror() prototype.
+
+ 9 August 1994	[Makefile] Correct minor typos.
+
+ 9 August 1994	[memmove*.c] Correct function defintion.
+
+ 9 August 1994	[os_isc.c/h] Add bsdtypes, correct include order.
+
+ 9 August 1994	[news.c/h, nntpcunx.c/h] New .newsrc management.
+
+14 August 1994	[dawz.c, mtx.c, tenex2.c, tenexdos.c] Copy preserves date and
+		flags.
+
+14 August 1994	[os_lnx.h] Change /usr/spool to /var/spool.
+
+14 August 1994	[nntpcdos.*, mail.h] Make newsrc location settable by a
+		parameter.
+
+15 August 1994	[bezerk.c, bezrkdos.c, dawz.c, mail.h, mh.c, mmdf.c, mtx.c,
+		 news.c, nntpc*.c, phile.c, pop3.c, tenex2.c, tenexdos.c,
+		 vms_mail.c] Replace \255 with \377.
+
+16 August 1994	[imap2.c] Pass full text of [READ-ONLY] notify events.
+
+16 August 1994	[news.c, nntpc*.c] Fix bogon in updating .newsrc on subscribe
+		and unsubscribe.
+
+17 August 1994	[mail.h, news.c, nntpc*.c] Default host for unqualified adrs
+		in news parsing now an invalid string.
+
+18 August 1994	[mtest.c] Increase size of temporary buffers.
+
+18 August 1994	[rfc822.c] Correct size count of trailing part when terminating
+		delimiter is missing.
+
+18 August 1994	[dawz.c, tenexdos.c] Fix LOCAL->buf references.
+
+19 August 1994	[os_*.h] Fix memmove() prototype.
+
+21 August 1994	[imapd.c] Command line too long error is now tagged whenever
+		possible, and remainder of command is flushed.
+
+21 August 1994	[news.c, nntpc*.c] Create empty .newsrc right away if one not
+		found, so warning message only happens once.
+
+21 August 1994	[tenexdos.c] Fix tenex_size and L_SET reference.
+
+21 August 1994	[nntpcdos.h] Fix typo.
+
+21 August 1994	[mail.c] Fix timezone offset handling for New Zealand.
+
+22 August 1994	[dawz.c] Fix L_SET reference.
+
+22 August 1994	[dummydos.c, env_dos.c/h, mail.h] Make DOS extension
+		configurable.
+
+22 August 1994	[news.c] Fix crash bug in updating .newsrc file.
+
+28 August 1994	[os_sgi.c] One more attempt at timezones on SGI.
+
+29 August 1994	[bezerk.c, mmdf.c] Fix problem with mmdf_eom routine becoming
+		confused with very short buffer sizes.  I don't know if the
+		bug could occur in bezerk but I fixed it too to be safe.
+
+29 August 1994	[dawz.c, dummydos.c] Return not a mailbox if a file.
+
+30 August 1994	[env_unix.c] Use $HOME environment variable if present.
+
+30 August 1994	[os_s40.c] Use wait4() on SUN-OS 4.0 instead of waitpid().
+
+30 August 1994	[dawz.c, env.h, env_*.c, mail.c/h, mtx.c, os_*.c, phile.c,
+		 tenex2.c, tenexdos.c, tz_bsd.c, tz_nul.c, tz_sv4.c]
+		New portable time handling code; timezone computed from delta
+		with GMT; internal_date() routine; OS-dependent timezone string
+		routine.
+
+30 August 1994	[nntpcdos.c] Fix newsrc updating.
+
+30 August 1994	[env_unix.c/h, log*.c] Can't use $HOME if a daemon.
+
+1 September 1994 [dummydos.c, env_dos.c] Fix compile errors.
+
+1 September 1994 [os_wsk.c] Fix hang when connection nuked.
+
+2 September 1994 [env_dos.c] Fix handling of timezones more than 10 hours from
+		GMT.
+
+2 September 1994 [mbox.c] Empty mbox files didn't trigger the mbox driver.
+
+4 September 1994 [dawz.c, mtx.c, tenex2.c, tenexdos.c] More detailed format
+		error messages.
+
+4 September 1994 [env_unix.c/h] Consolidate date handling code.  Make
+		myLocalHost available to other files.  Add set local-host
+		command to init files.  myLocalHost set up in env_init().
+		Use getlogin() call in myusername().
+
+6 September 1994 [imap2.c] Fix junk from imap_fake() when no tag.
+
+6 September 1994 [mtx.c, tenex2.c] Fix append when date not supplied.
+
+6 September 1994 [bezerk.c, mmdf.c] Punt lock if can't open lock file.
+
+6 September 1994 [news.c, nntpc*.c] Fix crash if partial line with nuls.

@@ -1,5 +1,5 @@
 /*
- * Program:	DOS/TOPS-20 crash management routines
+ * Program:	DOS/VMS/TOPS-20 crash management routines
  *
  * Author:	Mark Crispin
  *		Networks and Distributed Computing
@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	2 August 1994
  *
  * Copyright 1994 by the University of Washington
  *

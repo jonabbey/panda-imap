@@ -1,0 +1,145 @@
+/*
+ * Program:	Bezrkdos mail routines
+ *
+ * Author:	Mark Crispin
+ *		Networks and Distributed Computing
+ *		Computing & Communications
+ *		University of Washington
+ *		Administration Building, AG-44
+ *		Seattle, WA  98195
+ *		Internet: MRC@CAC.Washington.EDU
+ *
+ * Date:	3 July 1994
+ * Last Edited:	3 July 1994
+ *
+ * Copyright 1994 by the University of Washington
+ *
+ *  Permission to use, copy, modify, and distribute this software and its
+ * documentation for any purpose and without fee is hereby granted, provided
+ * that the above copyright notice appears in all copies and that both the
+ * above copyright notice and this permission notice appear in supporting
+ * documentation, and that the name of the University of Washington not be
+ * used in advertising or publicity pertaining to distribution of the software
+ * without specific, written prior permission.  This software is made
+ * available "as is", and
+ * THE UNIVERSITY OF WASHINGTON DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
+ * WITH REGARD TO THIS SOFTWARE, INCLUDING WITHOUT LIMITATION ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AND IN
+ * NO EVENT SHALL THE UNIVERSITY OF WASHINGTON BE LIABLE FOR ANY SPECIAL,
+ * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
+ * (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *
+ */
+
+/* Command bits from bezrkdos_getflags(), must correspond to mbx bit values */
+
+#define fSEEN 1
+#define fDELETED 2
+#define fFLAGGED 4
+#define fANSWERED 8
+
+
+/* BEZRKDOS I/O stream local data */
+	
+typedef struct bezrkdos_local {
+  int fd;			/* file descriptor for I/O */
+  char ch;			/* last character read in bezrkdos_read */
+  off_t filesize;		/* file size parsed */
+} BEZRKDOSLOCAL;
+
+
+/* Drive-dependent data passed to init method */
+
+typedef struct bezrkdos_data {
+  int fd;			/* file data */
+  unsigned long pos;		/* initial position */
+} BEZRKDOSDATA;
+
+
+STRINGDRIVER bezrkdos_string;
+
+/* Convenient access to local data */
+
+#define LOCAL ((BEZRKDOSLOCAL *) stream->local)
+
+/* Function prototypes */
+
+DRIVER *bezrkdos_valid (char *name);
+int bezrkdos_isvalid (char *name);
+int bezrkdos_valid_line (char *s,char **rx,int *rzn);
+void *bezrkdos_parameters (long function,void *value);
+void bezrkdos_find (MAILSTREAM *stream,char *pat);
+void bezrkdos_find_bboards (MAILSTREAM *stream,char *pat);
+void bezrkdos_find_all (MAILSTREAM *stream,char *pat);
+long bezrkdos_subscribe (MAILSTREAM *stream,char *mailbox);
+long bezrkdos_unsubscribe (MAILSTREAM *stream,char *mailbox);
+long bezrkdos_subscribe_bboard (MAILSTREAM *stream,char *mailbox);
+long bezrkdos_create (MAILSTREAM *stream,char *mailbox);
+long bezrkdos_delete (MAILSTREAM *stream,char *mailbox);
+long bezrkdos_rename (MAILSTREAM *stream,char *old,char *new);
+MAILSTREAM *bezrkdos_open (MAILSTREAM *stream);
+void bezrkdos_close (MAILSTREAM *stream);
+void bezrkdos_fetchfast (MAILSTREAM *stream,char *sequence);
+void bezrkdos_fetchflags (MAILSTREAM *stream,char *sequence);
+void bezrkdos_string_init (STRING *s,void *data,unsigned long size);
+char bezrkdos_string_next (STRING *s);
+void bezrkdos_string_setpos (STRING *s,unsigned long i);
+ENVELOPE *bezrkdos_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body);
+char *bezrkdos_fetchheader (MAILSTREAM *stream,long msgno);
+char *bezrkdos_fetchtext (MAILSTREAM *stream,long msgno);
+char *bezrkdos_fetchbody (MAILSTREAM *stream,long m,char *sec,
+			  unsigned long *len);
+char *bezrkdos_slurp (MAILSTREAM *stream,unsigned long pos,
+		      unsigned long *count);
+long bezrkdos_read (MAILSTREAM *stream,unsigned long count,char *buffer);
+unsigned long bezrkdos_header (MAILSTREAM *stream,long msgno,
+			       unsigned long *size);
+void bezrkdos_setflag (MAILSTREAM *stream,char *sequence,char *flag);
+void bezrkdos_clearflag (MAILSTREAM *stream,char *sequence,char *flag);
+void bezrkdos_search (MAILSTREAM *stream,char *criteria);
+long bezrkdos_ping (MAILSTREAM *stream);
+void bezrkdos_check (MAILSTREAM *stream);
+void bezrkdos_expunge (MAILSTREAM *stream);
+long bezrkdos_copy (MAILSTREAM *stream,char *sequence,char *mailbox);
+long bezrkdos_move (MAILSTREAM *stream,char *sequence,char *mailbox);
+long bezrkdos_append (MAILSTREAM *stream,char *mailbox,char *flags,char *date,
+		  STRING *message);
+long bezrkdos_append_putc (int fd,char *s,int *i,char c);
+void bezrkdos_gc (MAILSTREAM *stream,long gcflags);
+char *bezrkdos_file (char *dst,char *name);
+unsigned long bezrkdos_size (MAILSTREAM *stream,long m);
+long bezrkdos_badname (char *tmp,char *s);
+long bezrkdos_getflags (MAILSTREAM *stream,char *flag);
+long bezrkdos_parse (MAILSTREAM *stream);
+long bezrkdos_copy_messages (MAILSTREAM *stream,char *mailbox);
+char bezrkdos_search_all (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_answered (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_deleted (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_flagged (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_keyword (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_new (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_old (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_recent (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_seen (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_unanswered (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_undeleted (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_unflagged (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_unkeyword (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_unseen (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_before (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_on (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_since (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_body (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_subject (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_text (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_bcc (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_cc (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_from (MAILSTREAM *stream,long msgno,char *d,long n);
+char bezrkdos_search_to (MAILSTREAM *stream,long msgno,char *d,long n);
+
+typedef char (*search_t) (MAILSTREAM *stream,long msgno,char *d,long n);
+search_t bezrkdos_search_date (search_t f,long *n);
+search_t bezrkdos_search_flag (search_t f,long *n,MAILSTREAM *stream);
+search_t bezrkdos_search_string (search_t f,char **d,long *n);

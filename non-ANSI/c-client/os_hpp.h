@@ -8,7 +8,7 @@
  *		Internet: dmiller@beta.tricity.wsu.edu
  *
  * Date:	11 May 1989
- * Last Edited:	9 May 1994
+ * Last Edited:	11 July 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -46,6 +46,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <syslog.h>
 
 #define random lrand48
 

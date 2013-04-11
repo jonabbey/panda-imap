@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	28 November 1988
- * Last Edited:	16 June 1994
+ * Last Edited:	20 July 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -44,7 +44,7 @@ static char *copyright = "\
  CCMD command interface is:\n\
   Copyright 1986, 1987 Columbia University in the City of New York";
 static char *author = "Mark Crispin";
-static char *version = "7.94";
+static char *version = "7.95";
 static char *bug_mailbox = "MRC";
 static char *bug_host = "CAC.Washington.EDU";
 static char *hostlist[] = {	/* SMTP server host list */
@@ -366,6 +366,7 @@ short ms_init ()
 #endif
   flgtab._ktcnt = 0;		/* init keyword table */
 #include "linkage.c"
+  mail_parameters (NIL,SET_PREFETCH,NIL);
   mm_mailbox ("INBOX");		/* INBOX is always known!! */
   mail_find (NIL,"*");		/* find local mailboxes */
   mail_find_bboards (NIL,"*");	/* find local bboards */
@@ -934,8 +935,10 @@ Forwards the specified messages with optional comments to another mailbox.\n");
 	      msg->subject = cpystr (tmp);
 	    }
 	    i += j;		/* current text size */
+	    mail_parameters (NIL,SET_PREFETCH,(void *) T);
 				/* get header of message */
 	    text = mail_fetchheader (stream,msgno);
+	    mail_parameters (NIL,SET_PREFETCH,NIL);
 				/* resize the forward text */
 	    fs_resize ((void **) &body->contents.text,i + (j = strlen (text)));
 				/* append the forward message text */
@@ -1003,9 +1006,10 @@ void c_headers (help)
   if (help) cmxprintf ("\
 The HEADERS command displays one-line summaries of the specified messages.\n");
   else {
+    mail_parameters (NIL,SET_PREFETCH,(void *) T);
 				/* parse sequence */
-    if (!do_sequence (NIL)) return;
-    more (do_header,NIL);
+    if (do_sequence (NIL)) more (do_header,NIL);
+    mail_parameters (NIL,SET_PREFETCH,NIL);
   }
 }
 
@@ -1946,7 +1950,9 @@ Forwards this message with optional comments to another mailbox.\n");
     strcpy (++s,(mail_fetchstructure (stream,current,NIL))->subject);
     msg->subject = cpystr (tmp);/* set up subject */
 				/* get header of message */
+    mail_parameters (NIL,SET_PREFETCH,(void *) T);
     hdr = cpystr (mail_fetchheader (stream,current));
+    mail_parameters (NIL,SET_PREFETCH,NIL);
 				/* get body of message */
     text = mail_fetchtext (stream,current);
     if (body = send_text ()) {	/* get initial text of comments */
@@ -3315,10 +3321,11 @@ void literal_type_message (file,msgno)
 	FILE *file;
 	long msgno;
 {
-  char c;
-  char *t;
-  char *hdr = cpystr (mail_fetchheader (stream,msgno));
-  char *text = mail_fetchtext (stream,msgno);
+  char c,*t,*hdr,*text;
+  mail_parameters (NIL,SET_PREFETCH,(void *) T);
+  hdr = cpystr (mail_fetchheader (stream,msgno));
+  mail_parameters (NIL,SET_PREFETCH,NIL);
+  text = mail_fetchtext (stream,msgno);
 				/* output the poop */
   fprintf (file,"Message %d of %d (%d chars)\n",msgno,nmsgs,
 	   strlen (hdr) + strlen (text));
@@ -3346,7 +3353,9 @@ void remail_message (msgno,adr)
   BODY *body = mail_newbody ();
   msg->to = adr;		/* set to-list */
 				/* get header */
+  mail_parameters (NIL,SET_PREFETCH,(void *) T);
   msg->remail = cpystr (mail_fetchheader (stream,msgno));
+  mail_parameters (NIL,SET_PREFETCH,NIL);
 				/* get body of message */
   body->contents.text = (unsigned char *) cpystr(mail_fetchtext(stream,msgno));
   send_message (msg,body);	/* send off the message */

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	24 May 1993
- * Last Edited:	23 June 1994
+ * Last Edited:	1 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -41,6 +41,8 @@
 #include "mail.h"
 #include "osdep.h"
 #include <sys\stat.h>
+#include <dos.h>
+#include <io.h>
 #include "dummy.h"
 #include "misc.h"
 
@@ -88,6 +90,9 @@ DRIVER dummydriver = {
 
 				/* prototype stream */
 MAILSTREAM dummyproto = {&dummydriver};
+
+				/* driver parameters */
+static char *file_extension = NIL;
 
 /* Dummy validate mailbox
  * Accepts: mailbox name
@@ -97,10 +102,13 @@ MAILSTREAM dummyproto = {&dummydriver};
 DRIVER *dummy_valid (char *name)
 {
   char tmp[MAILTMPLEN];
+  struct stat sbuf;
 				/* must be valid local mailbox */
   return (name && *name && (*name != '*') && (*name != '{') &&
 				/* INBOX is always accepted */
-	  ((!strcmp (ucase (strcpy (tmp,name)),"INBOX"))))
+	  ((!strcmp (ucase (strcpy (tmp,name)),"INBOX")) ||
+				/* so is any file */
+	   !stat (mailboxfile (tmp,name),&sbuf)))
     ? &dummydriver : NIL;
 }
 
@@ -113,7 +121,19 @@ DRIVER *dummy_valid (char *name)
 
 void *dummy_parameters (long function,void *value)
 {
-  return NIL;
+  switch ((int) function) {
+  case SET_EXTENSION:
+    if (file_extension) fs_give ((void **) &file_extension);
+    if (*(char *) value) file_extension = cpystr ((char *) value);
+    break;
+  case GET_EXTENSION:
+    value = (void *) file_extension;
+    break;
+  default:
+    value = NIL;		/* error case */
+    break;
+  }
+  return value;
 }
 
 /* Dummy find list of subscribed mailboxes
@@ -123,7 +143,11 @@ void *dummy_parameters (long function,void *value)
 
 void dummy_find (MAILSTREAM *stream,char *pat)
 {
-				/* return silently */
+  void *sdb = NIL;
+  char *t = sm_read (&sdb);
+  if (t) do if ((*t != '{') && strcmp (t,"INBOX") && pmatch (t,pat))
+    mm_mailbox (t);
+  while (t = sm_read (&sdb));	/* read subscription database */
 }
 
 
@@ -136,8 +160,7 @@ void dummy_find_bboards (MAILSTREAM *stream,char *pat)
 {
 				/* return silently */
 }
-
-
+
 /* Dummy find list of all mailboxes
  * Accepts: mail stream
  *	    pattern to search
@@ -145,8 +168,30 @@ void dummy_find_bboards (MAILSTREAM *stream,char *pat)
 
 void dummy_find_all (MAILSTREAM *stream,char *pat)
 {
+  struct find_t f;
+  char *s,tmp[MAILTMPLEN],file[MAILTMPLEN];
+  int i = 0;
+  int doinbox = T;
+				/* directory specified in pattern? */
+  if ((s = strrchr (pat,'\\')) || (*(s = pat + 1) == ':')) {
+    strncpy (file,pat,i = (++s) - pat);
+    file[i] = '\0';		/* tie off prefix */
+  }
+				/* make fully-qualified file name */
+  if (!mailboxfile (tmp,pat)) return;
+				/* all files in directory */
+  strcpy ((s = strrchr (tmp,'\\')) ? s : tmp + 2,"\\*.");
+  strcat (s,file_extension ? file_extension : "*");
+				/* loop through matching files */
+  if (!_dos_findfirst (tmp,_A_NORMAL,&f)) do {
+				/* suppress extension */
+    if (file_extension && (s = strchr (f.name,'.'))) *s = '\0';
+    strcpy (file + i,f.name);	/* build file name */
+    if (!strcmp (f.name,"INBOX")) doinbox = 0;
+    if (pmatch (file,pat)) mm_mailbox (file);
+  } while (!_dos_findnext (&f));
 				/* always an INBOX */
-  if (pmatch ("INBOX",pat)) mm_mailbox ("INBOX");
+  if (doinbox && pmatch ("INBOX",pat)) mm_mailbox ("INBOX");
 }
 
 
@@ -251,21 +296,32 @@ long dummy_rename (MAILSTREAM *stream,char *old,char *new)
 
 MAILSTREAM *dummy_open (MAILSTREAM *stream)
 {
-  int fd;
   char tmp[MAILTMPLEN];
+  struct stat sbuf;
+  int fd = -1;
 				/* OP_PROTOTYPE call or silence */
   if (!stream || stream->silent) return NIL;
-  if (strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX")) {
-    sprintf (tmp,"Not a mailbox: %s",stream->mailbox);
-    mm_log (tmp,ERROR);
-    return NIL;			/* always fails */
-  }
-  if (!stream->silent) {	/* only if silence not requested */
+  if (strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX") &&
+      ((fd = open (mailboxfile (tmp,stream->mailbox),O_RDONLY,NIL)) < 0))
+    sprintf (tmp,"%s: %s",strerror (errno),stream->mailbox);
+  else {
+    if (fd >= 0) {		/* if got a file */
+      fstat (fd,&sbuf);		/* sniff at its size */
+      close (fd);
+      if (sbuf.st_size) sprintf (tmp,"Not a mailbox: %s",stream->mailbox);
+      else fd = -1;		/* a-OK */
+    }
+    if (fd < 0) {		/* no file, right? */
+      if (!stream->silent) {	/* only if silence not requested */
 				/* say there are 0 messages */
-    mail_exists (stream,(long) 0);
-    mail_recent (stream,(long) 0);
+	mail_exists (stream,(long) 0);
+	mail_recent (stream,(long) 0);
+      }
+      return stream;		/* return success */
+    }
   }
-  return stream;		/* return success */
+  if (!stream->silent) mm_log (tmp,ERROR);
+  return NIL;			/* always fails */
 }
 
 
@@ -395,7 +451,11 @@ void dummy_search (MAILSTREAM *stream,char *criteria)
 
 long dummy_ping (MAILSTREAM *stream)
 {
-  return T;
+  MAILSTREAM *test = mail_open (NIL,stream->mailbox,OP_PROTOTYPE);
+				/* swap streams if looks like a new driver */
+  if (test && (test->dtb != stream->dtb))
+    test = mail_open (stream,stream->mailbox,NIL);
+  return test ? T : NIL;
 }
 
 

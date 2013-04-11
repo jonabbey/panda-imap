@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	9 May 1994
+ * Last Edited:	9 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -39,14 +39,15 @@
 #define NEWSRC strcat (strcpy (tmp,myhomedir ()),"/.newsrc")
 
 #include <string.h>
-
 #include <sys/types.h>
+#include <sys/bsdtypes.h>
 #include <stdlib.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
 #include <sys/uio.h>		/* needed for writev() prototypes */
+#include <syslog.h>
 
 
 /* Different names, equivalent things in BSD and SysV */

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 November 1990
- * Last Edited:	15 June 1994
+ * Last Edited:	11 July 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -40,6 +40,7 @@
 #include "osdep.h"
 #include <stdio.h>
 #include <ctype.h>
+#include <netdb.h>
 #include <pwd.h>
 #include "misc.h"
 
@@ -66,7 +67,7 @@
 
 /* Global storage */
 
-char *version = "3.3(17)";	/* server version */
+char *version = "3.3(18)";	/* server version */
 int state = AUTHORIZATION;	/* server state */
 MAILSTREAM *stream = NIL;	/* mailbox stream */
 int logtry = LOGTRY;		/* login tries */
@@ -91,11 +92,16 @@ void main (int argc,char *argv[])
 {
   long i,j,k;
   char *s,*t;
+  struct hostent *hst;
   char tmp[TMPLEN];
 #include "linkage.c"
+  openlog ("ipop3d",LOG_PID,LOG_MAIL);
+  gethostname (tmp,TMPLEN-1);/* get local name */
+  s = cpystr ((hst = gethostbyname (tmp)) ? hst->h_name : tmp);
+  printf ("+OK %s POP3 %s w/IMAP2 client %s",s,version,
+	  "(Comments to MRC@CAC.Washington.EDU)");
   rfc822_date (tmp);		/* get date/time now */
-  printf ("+OK POP3 %s w/IMAP2 client %s at %s\015\012",version,
-	  "(Comments to MRC@CAC.Washington.EDU)",tmp);
+  printf (" at %s\015\012",tmp);
   fflush (stdout);		/* dump output buffer */
 				/* command processing loop */
   while ((state != UPDATE) && fgets (tmp,TMPLEN-1,stdin)) {
@@ -252,6 +258,7 @@ void main (int argc,char *argv[])
 				/* "now it's time to say sayonara..." */
   if (logtry) puts ("+OK Sayonara\015");
   fflush (stdout);		/* make sure output finished */
+  syslog (LOG_INFO,"Logout from %s",tcp_clienthost (tmp));
   exit (0);			/* all done */
 }
 
@@ -273,6 +280,8 @@ int login (char *t,int argc,char *argv[])
   }
   pass = cpystr (t);		/* copy password argument */
   if (host) {			/* remote; build remote INBOX */
+    syslog (LOG_INFO,"IMAP login to host=%s user=%s host=%s",host,user,
+	    tcp_clienthost (tmp));
     sprintf (tmp,"{%s}INBOX",host);
     if (pwd) {			/* try to become someone harmless */
       setgid (pwd->pw_gid);	/* set group ID */
@@ -280,14 +289,21 @@ int login (char *t,int argc,char *argv[])
     }
   }
 				/* local; attempt login, select INBOX */
-  else if (server_login (user,pass,NIL,argc,argv)) strcpy (tmp,"INBOX");
+  else if (server_login (user,pass,NIL,argc,argv)) {
+    syslog (LOG_INFO,"Login user=%s host=%s",user,tcp_clienthost (tmp));
+    strcpy (tmp,"INBOX");
+  }
   else {
     sleep (3);			/* slow the cracker down */
     if (--logtry) {		/* vague error message to confuse crackers */
       puts ("-ERR Bad login\015");
+      syslog (LOG_INFO,"Login failure user=%s host=%s",user,
+	      tcp_clienthost (tmp));
       return AUTHORIZATION;
     }
     fputs ("-ERR Too many login failures\015\012",stdout);
+    syslog (LOG_INFO,"Excessive login failures user=%s host=%s",user,
+	    tcp_clienthost (tmp));
     return UPDATE;
   }
   nmsgs = 0;			/* no messages yet */
@@ -479,6 +495,7 @@ void mm_nocritical (MAILSTREAM *stream)
 
 long mm_diskerror (MAILSTREAM *stream,long errcode,long serious)
 {
+  syslog (LOG_ALERT,"Retrying after disk error %s",strerror (errcode));
   sleep (5);			/* can't do much better than this! */
   return NIL;
 }

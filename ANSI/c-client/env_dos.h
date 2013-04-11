@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 April 1994
+ * Last Edited:	4 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -33,14 +33,11 @@
  *
  */
 
-/* Build parameters */
-
-#define DEFEXT ".MTX"
-
-
 /* Function prototypes */
 
 #include "env.h"
+
+extern char *myLocalHost;
 
 long random ();
 #if _MSC_VER < 700

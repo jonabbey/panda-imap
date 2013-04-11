@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	24 May 1994
+ * Last Edited:	28 May 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -53,3 +53,4 @@ long tcp_sout (TCPSTREAM *stream,char *string,unsigned long size);
 void tcp_close (TCPSTREAM *stream);
 char *tcp_host (TCPSTREAM *stream);
 char *tcp_localhost (TCPSTREAM *stream);
+char *tcp_clienthost (char *dst);

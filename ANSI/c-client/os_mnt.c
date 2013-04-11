@@ -7,7 +7,7 @@
  *		Internet: MRC@Panda.COM
  *
  * Date:	23 December 1993
- * Last Edited:	24 May 1994
+ * Last Edited:	4 September 1994
  *
  * Copyright 1994 by Mark Crispin
  *
@@ -49,20 +49,33 @@
 #include <errno.h>
 extern int errno;		/* just in case */
 #include <osbind.h>
-#include <netdb.h>
+
+struct hostent {
+  char *h_name;			/* official name of host */
+  char **h_aliases;		/* alias list */
+  int h_addrtype;		/* host address type */
+  int h_length;			/* length of address */
+  char **h_addr_list;		/* list of addresses from name server */
+#define	h_addr h_addr_list[0]	/* address, for backward compatiblity */
+};
+
+struct hostent *gethostbyname(char *name); 
 
 #define pascal
 
 short TCPdriver = 0;		/* MacTCP's reference number */
 short resolveropen = 0;		/* TCP's resolver open */
-char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
 #include "env_mac.c"
+#define do_date alt_do_date
+#define rfc822_date alt_rfc822_date
+#define internal_date alt_internal_date
 #include "env_unix.c"
 #include "fs_mac.c"
 #include "ftl_mac.c"
 #include "nl_mac.c"
 #include "tcp_mac.c"
+#include "tz_nul.c"
 
 #define SIG_A5 0x41352020 /* 'A5  ' */
 #define SIG_SP 0x53502020 /* 'SP  ' */

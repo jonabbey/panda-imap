@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	10 April 1992
- * Last Edited:	31 May 1994
+ * Last Edited:	4 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -34,8 +34,8 @@
  */
 
 #include "tcp_unix.h"		/* must be before osdep includes tcp.h */
-#include "osdep.h"
 #include "mail.h"
+#include "osdep.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -44,11 +44,11 @@
 #include <sys/stropts.h>
 #include <sys/poll.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <errno.h>
 #include <pwd.h>
 #include <shadow.h>
-#include <syslog.h>
 #include <sys/file.h>
 #include <sys/socket.h>
 #include "misc.h"
@@ -61,6 +61,8 @@ extern char *sys_errlist[];
 
 #define DIR_SIZE(d) d->d_reclen
 
+#define pid_t short		/* may not be known on all ISC systems */
+
 #include "fs_unix.c"
 #include "ftl_unix.c"
 #include "nl_unix.c"
@@ -68,32 +70,20 @@ extern char *sys_errlist[];
 #include "tcp_unix.c"
 #include "log_sv4.c"
 #include "gr_waitp.c"
-#include "memmove2.c"
+#include "strerror.c"
 #include "flock.c"
 #include "gettime.c"
 #include "scandir.c"
+#include "tz_sv4.c"
 
-/* Write current time in RFC 822 format
- * Accepts: destination string
+/* Emulator for BSD fsync() call
+ * Accepts: file name
+ * Returns: 0 if successful, -1 if failure
  */
 
-char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
-void rfc822_date (date)
-	char *date;
+int fsync (fd)
+	int fd;
 {
-  int zone,dstnow;
-  struct tm *t;
-  time_t time_sec = time (0);
-  tzset ();			/* initialize timezone/daylight variables */
-  t = localtime (&time_sec);	/* convert to individual items */
-				/* see if it is DST now */
-  dstnow = daylight && t->tm_isdst;
-				/* get timezone value */
-  zone = - (dstnow ? altzone : timezone) / 60;
-				/* and output it */
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-	   tzname[dstnow]);
+  sync ();
+  return 0;
 }

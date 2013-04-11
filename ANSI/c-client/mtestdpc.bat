@@ -10,7 +10,7 @@ REM		Seattle, WA  98195
 REM		Internet: MRC@CAC.Washington.EDU
 
 REM Date:	26 June 1994
-REM Last Edited:26 June 1994
+REM Last Edited:27 June 1994
 
 REM Copyright 1994 by the University of Washington
 
@@ -31,4 +31,4 @@ REM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, TORT
 REM (INCLUDING NEGLIGENCE) OR STRICT LIABILITY, ARISING OUT OF OR IN CONNECTION
 REM WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-link /NOI /stack:32767 mtest.obj,mtest.exe,,cclient.lib lsocket.lib netlib.lib lpc.lib llibce.lib
+link /NOI /stack:32767 mtest.obj,mtest.exe,,cclient.lib lsocket.lib lnetlib.lib lpc.lib lconfig.lib llibce.lib;

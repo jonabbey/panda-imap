@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	23 February 1992
- * Last Edited:	2 June 1994
+ * Last Edited:	15 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -35,7 +35,6 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <netdb.h>
 #include <errno.h>
 extern int errno;		/* just in case */
 #include "mail.h"
@@ -117,12 +116,6 @@ static char *mh_path = NIL;	/* holds MH path name */
 int mh_isvalid (char *name,char *tmp,long synonly)
 {
   struct stat sbuf;
-  struct hostent *host_name;
-  if (!lhostn) {		/* have local host yet? */
-    gethostname(tmp,MAILTMPLEN);/* get local host name */
-    lhostn = cpystr ((host_name = gethostbyname (tmp)) ?
-		     host_name->h_name : tmp);
-  }
   if (!mh_path) {		/* have MH path yet? */
     char *s,*s1,*t,*v;
     int fd;
@@ -153,8 +146,8 @@ int mh_isvalid (char *name,char *tmp,long synonly)
     }
   }
 
-				/* name must be INBOX or #mh/... */
-  if (strcmp (ucase (strcpy (tmp,name)),"INBOX") &&
+				/* name must be #MHINBOX or #mh/... */
+  if (strcmp (ucase (strcpy (tmp,name)),"#MHINBOX") &&
       !(tmp[0] == '#' && tmp[1] == 'M' && tmp[2] == 'H' && tmp[3] == '/')) {
     errno = EINVAL;		/* bogus name */
     return NIL;
@@ -219,7 +212,7 @@ void mh_find_all (MAILSTREAM *stream,char *pat)
   if (!(pat[0] == '#' && (pat[1] == 'm' || pat[1] == 'M') &&
 	(pat[2] == 'h' || pat[2] == 'H') && pat[3] == '/')) return;
 				/* must have a path */
-  if (!mh_path) mh_isvalid ("INBOX",tmp,T);
+  if (!mh_path) mh_isvalid ("#MHINBOX",tmp,T);
   if (!mh_path) return;		/* sorry */
   memset (tmp,'\0',MAILTMPLEN);	/* init directory */
   strcpy (tmp,mh_path);
@@ -434,12 +427,13 @@ MAILSTREAM *mh_open (MAILSTREAM *stream)
   }
   stream->local = fs_get (sizeof (MHLOCAL));
 				/* note if an INBOX or not */
-  LOCAL->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"INBOX");
+  LOCAL->inbox = !strcmp (ucase (strcpy (tmp,stream->mailbox)),"#MHINBOX");
   mh_file (tmp,stream->mailbox);/* get directory name */
   LOCAL->dir = cpystr (tmp);	/* copy directory name for later */
   LOCAL->hdr = NIL;		/* no current header */
 				/* make temporary buffer */
   LOCAL->buf = (char *) fs_get ((LOCAL->buflen = MAXMESSAGESIZE) + 1);
+  LOCAL->scantime = 0;		/* not scanned yet */
   stream->sequence++;		/* bump sequence number */
 				/* parse mailbox */
   stream->nmsgs = stream->recent = 0;
@@ -525,7 +519,8 @@ ENVELOPE *mh_fetchstructure (MAILSTREAM *stream,long msgno,BODY **body)
     t = stream->text ? stream->text : "";
     INIT (&bs,mail_string,(void *) t,strlen (t));
 				/* parse envelope and body */
-    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,lhostn,LOCAL->buf);
+    rfc822_parse_msg (env,body ? b : NIL,h,strlen (h),&bs,mylocalhost (),
+		      LOCAL->buf);
   }
   if (body) *body = *b;		/* return the body */
   return *env;			/* return the envelope */
@@ -804,33 +799,39 @@ long mh_ping (MAILSTREAM *stream)
 {
   MAILSTREAM *sysibx = NIL;
   MESSAGECACHE *elt,*selt;
-  struct direct **names;
   struct stat sbuf;
   char *s,tmp[MAILTMPLEN];
   int fd;
-  long i,j,r;
+  long i,j,r,old;
   long nmsgs = stream->nmsgs;
   long recent = stream->recent;
-  long old = nmsgs ? mail_elt (stream,nmsgs)->data1 : 0;
-  long nfiles = scandir (LOCAL->dir,&names,mh_select,mh_numsort);
-  for (i = 0; i < nfiles; ++i) {/* scan directory */
-    j = atoi (names[i]->d_name);/* get number of this file */
-    if (j > old) {		/* if newly seen, add to list */
-      (elt = mail_elt (stream,++nmsgs))->data1 = j;
-      if (old) {		/* other than the first pass? */
-	elt->recent = T;	/* yup, mark as recent */
-	recent++;		/* bump recent count */
+  stat (LOCAL->dir,&sbuf);
+  if (sbuf.st_ctime != LOCAL->scantime) {
+    struct direct **names;
+    long nfiles = scandir (LOCAL->dir,&names,mh_select,mh_numsort);
+    old = nmsgs ? mail_elt (stream,nmsgs)->data1 : 0;
+				/* note scanned now */
+    LOCAL->scantime = sbuf.st_ctime;
+				/* scan directory */
+    for (i = 0; i < nfiles; ++i) {
+				/* if newly seen, add to list */
+      if ((j = atoi (names[i]->d_name)) > old) {
+	(elt = mail_elt (stream,++nmsgs))->data1 = j;
+	if (old) {		/* other than the first pass? */
+	  elt->recent = T;	/* yup, mark as recent */
+	  recent++;		/* bump recent count */
+	}
+	else {			/* see if already read */
+	  sprintf (tmp,"%s/%s",LOCAL->dir,names[i]->d_name);
+	  stat (tmp,&sbuf);	/* get inode poop */
+	  if (sbuf.st_atime > sbuf.st_mtime) elt->seen = T;
+	}
       }
-      else {			/* see if already read */
-	sprintf (tmp,"%s/%s",LOCAL->dir,names[i]->d_name);
-	stat (tmp,&sbuf);	/* get inode poop */
-	if (sbuf.st_atime > sbuf.st_mtime) elt->seen = T;
-      }
+      fs_give ((void **) &names[i]);
     }
-    fs_give ((void **) &names[i]);
-  }
 				/* free directory */
-  if (names) fs_give ((void **) &names);
+    if (names) fs_give ((void **) &names);
+  }
 
   if (LOCAL->inbox) {		/* if INBOX, snarf from system INBOX  */
     old = nmsgs ? mail_elt (stream,nmsgs)->data1 : 0;
@@ -873,6 +874,8 @@ long mh_ping (MAILSTREAM *stream)
 	}
 	selt->deleted = T;	/* delete it from the sysinbox */
       }
+      stat (LOCAL->dir,&sbuf);	/* update scan time */
+      LOCAL->scantime = sbuf.st_ctime;      
       mail_expunge (sysibx);	/* now expunge all those messages */
     }
     if (sysibx) mail_close (sysibx);
@@ -1130,7 +1133,7 @@ char *mh_file (char *dst,char *name)
 {
   char tmp[MAILTMPLEN];
 				/* build composite name */
-  sprintf (dst,"%s/%s",mh_path,strcmp (ucase (strcpy (tmp,name)),"INBOX") ?
+  sprintf (dst,"%s/%s",mh_path,strcmp (ucase (strcpy (tmp,name)),"#MHINBOX") ?
 	   name + 4 : "inbox");
   return dst;
 }
@@ -1441,8 +1444,8 @@ search_t mh_search_string (search_t f,char **d,long *n)
       *n = strtol (c+1,&c,10);	/* get its length */
       if (*c++ != '}' || *c++ != '\015' || *c++ != '\012' ||
 	  *n > strlen (*d = c)) return NIL;
-      c[*n] = '\255';		/* write new delimiter */
-      strtok (c,"\255");	/* reset the strtok mechanism */
+      c[*n] = DELIM;		/* write new delimiter */
+      strtok (c,DELMS);		/* reset the strtok mechanism */
       break;
     default:			/* atomic string */
       *n = strlen (*d = strtok (c," "));

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	31 May 1994
+ * Last Edited:	4 September 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -32,14 +32,37 @@
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
+
+
+char *myLocalHost = NIL;	/* local host name */
+static char *myHomeDir = NIL;	/* home directory name */
 
 /* Write current time in RFC 822 format
  * Accepts: destination string
  */
 
-char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
 void rfc822_date (char *date)
+{
+  int zone,dstflag;
+  time_t ti = time (0);
+  struct tm *t;
+  tzset ();			/* initialize timezone stuff */
+  t = localtime (&ti);		/* output local time */
+  dstflag = daylight ? (t->tm_isdst > 0) : 0;
+				/* get timezone value */
+  zone = (int) -(timezone/60) - (dstflag ? 60 : 0);
+  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
+	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
+	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
+	   tzname[dstflag]);
+}
+
+
+/* Write current time in RFC 822 format
+ * Accepts: destination string
+ */
+
+void internal_date (char *date)
 {
   int zone;
   time_t ti = time (0);
@@ -47,32 +70,29 @@ void rfc822_date (char *date)
   tzset ();			/* initialize timezone stuff */
   t = localtime (&ti);		/* output local time */
 				/* get timezone value */
-  zone = -(((int)timezone - (t->tm_isdst ? 3600 : 0)) / 60);
-  sprintf (date,"%s, %d %s %d %02d:%02d:%02d %+03d%02d (%s)",
-	   days[t->tm_wday],t->tm_mday,months[t->tm_mon],t->tm_year+1900,
-	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60,
-	   tzname[t->tm_isdst]);
+  zone = (int) -(timezone/60) - ((daylight ? (t->tm_isdst > 0) : 0) ? 60 : 0);
+  sprintf (date,"%2d-%s-%d %02d:%02d:%02d %+03d%02d",
+	   t->tm_mday,months[t->tm_mon],t->tm_year+1900,
+	   t->tm_hour,t->tm_min,t->tm_sec,zone/60,abs (zone) % 60);
 }
-
-
+
 /* Return my home directory name
  * Returns: my home directory name
  */
-
-char *hdname = NIL;
 
 char *myhomedir ()
 {
   int i;
   char *s;
-  if (!hdname) {		/* get home directory name if not yet known */
-    hdname = cpystr ((s = getenv ("HOME")) ? s : "");
-    if ((i = strlen (hdname)) && ((hdname[i-1] == '\\') || (hdname[i-1]=='/')))
-      hdname[i-1] = '\0';	/* tie off trailing directory delimiter */
+  if (!myHomeDir) {		/* get home directory name if not yet known */
+    i = strlen (myHomeDir = cpystr ((s = getenv ("HOME")) ? s : ""));
+    if (i && ((myHomeDir[i-1] == '\\') || (myHomeDir[i-1]=='/')))
+      myHomeDir[i-1] = '\0';	/* tie off trailing directory delimiter */
   }
-  return hdname;
+  return myHomeDir;
 }
-
+
+
 /* Return mailbox file name
  * Accepts: destination buffer
  *	    mailbox name
@@ -82,11 +102,15 @@ char *myhomedir ()
 char *mailboxfile (char *dst,char *name)
 {
   char *s;
-				/* forbid extensions of filename */
-  if (strchr ((s = strrchr (name,'\\')) ? s : name,'.')) return NIL;
+  char *ext = (char *) mail_parameters (NIL,GET_EXTENSION,NIL);
+				/* forbid extraneous extensions */
+  if ((s = strchr ((s = strrchr (name,'\\')) ? s : name,'.')) &&
+      ((ext = (char *) mail_parameters (NIL,GET_EXTENSION,NIL)) ||
+       strchr (s+1,'.'))) return NIL;
 				/* absolute path name? */
-  if ((*name == '\\') || (name[1] == ':')) sprintf (dst,"%s%s",name,DEFEXT);
-  else sprintf (dst,"%s\\%s%s",myhomedir (),name,DEFEXT);
+  if ((*name == '\\') || (name[1] == ':')) strcpy (dst,name);
+  else sprintf (dst,"%s\\%s",myhomedir (),name);
+  if (ext) sprintf (dst + strlen (dst),".%s",ext);
   return ucase (dst);
 }
 
@@ -97,8 +121,8 @@ char *mailboxfile (char *dst,char *name)
 
 MAILSTREAM *default_proto ()
 {
-  extern MAILSTREAM dawzproto;
-  return &dawzproto;		/* return default driver's prototype */
+  extern MAILSTREAM DEFAULTPROTO;
+  return &DEFAULTPROTO;		/* return default driver's prototype */
 }
 
 /* This function is only used by rfc822.c for calculating cookies.  So this

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	29 May 1994
+ * Last Edited:	30 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -36,7 +36,10 @@
 /* Function prototypes */
 
 void rfc822_date  ();
+void rfc822_timezone  ();
+void internal_date  ();
 long server_login  ();
+char *mylocalhost  ();
 char *myhomedir  ();
 char *mailboxfile  ();
 MAILSTREAM *default_proto  ();

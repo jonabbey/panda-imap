@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	1 August 1988
- * Last Edited:	14 April 1994
+ * Last Edited:	9 August 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -40,9 +40,9 @@
  * Returns: destination pointer
  */
 
-char *memmove (s,ct,n)
-	char *s;
-	char *ct;
+void *memmove (s,ct,n)
+	void *s;
+	void *ct;
 	int n;
 {
   bcopy (ct,s,n);		/* they should have this one */

@@ -10,7 +10,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	11 April 1989
- * Last Edited:	24 May 1994
+ * Last Edited:	27 June 1994
  *
  * Copyright 1994 by the University of Washington
  *
@@ -54,7 +54,6 @@ TCPSTREAM {
 };
 
 
-
 /* Private function prototypes */
 
 #include "mail.h"
@@ -66,8 +65,7 @@ TCPSTREAM {
 /* Undo compatibility definition */
 
 #undef tcp_open
-
-
+
 #include "fs_dos.c"
 #include "ftl_dos.c"
 #include "nl_dos.c"
@@ -77,6 +75,30 @@ TCPSTREAM {
 /* Global data */
 
 short sock_initted = 0;		/* global so others using net can see it */
+
+
+/* Return my local host name
+ * Returns: my local host name
+ */
+
+char *mylocalhost (void)
+{
+  if (!myLocalHost) {
+    char *s,hname[32],tmp[MAILTMPLEN];
+    long myip;
+
+    if (!sock_initted++) sock_init();
+    tcp_cbrk (0x01);		/* turn off ctrl-break catching */
+    /*
+     * haven't discovered a way to find out the local host's 
+     * name with wattcp yet.
+     */
+    if (myip = gethostid ()) sprintf (s = tmp,"[%s]",inet_ntoa (hname,myip));
+    else s = "random-pc";
+    myLocalHost = cpystr (s);
+  }
+  return myLocalHost;
+}
 
 /* TCP/IP open
  * Accepts: host name
@@ -89,8 +111,8 @@ TCPSTREAM *TCP_open (char *host,char *service,long port)
 {
   TCPSTREAM *stream = NIL;
   tcp_Socket *sock;
-  long adr,i,j,k,l;
   char *s,tmp[MAILTMPLEN];
+  long adr,i,j,k,l;
 				/* initialize if first time here */
   if (!sock_initted++) sock_init();
 				/* set default gets routine */
@@ -140,11 +162,7 @@ TCPSTREAM *TCP_open (char *host,char *service,long port)
 				/* create TCP/IP stream */
   stream = (TCPSTREAM *) fs_get (sizeof (TCPSTREAM));
   stream->host = cpystr (host);	/* official host name */
-  adr = gethostid ();		/* get local IP address */
-  i = (adr >> 24) & 0xff; j = (adr >> 16) & 0xff;
-  k = (adr >> 8) & 0xff; l = adr & 0xff;
-  sprintf (tmp,"[%ld.%ld.%ld.%ld]",i,j,k,l);
-  stream->localhost = cpystr (tmp);
+  stream->localhost = cpystr (mylocalhost ());
   stream->tcps = sock;		/* init socket */
   stream->ictr = 0;		/* init input counter */
   return stream;		/* return success */
