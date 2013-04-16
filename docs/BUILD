@@ -275,7 +275,7 @@ the definition of MAILFILE in panda-imap/src/osdep/nt/mailfile.h and at the
 sysinbox() function in panda-imap/src/osdep/nt/env_nt.c to see what's there
 now, so you have a clue about how to hack it.
 
-     To build under Windows 95/98/NT, connect to the imap-2007 directory
+     To build under Windows 95/98/NT, connect to the panda-imap directory
 and do:
 	nmake -f makefile.nt
 The resulting binaries will support SSL if either schannel.dll or
@@ -283,7 +283,7 @@ security.dll is installed in Windows, using the old, undocumented, SSL
 interfaces.  You can also use this to build under Me/2000/XP, but it is
 not the preferred build on this platform.
 
-     To build with MIT Kerberos support, connect to the imap-2007 directory
+     To build with MIT Kerberos support, connect to the panda-imap directory
 and do:
 	nmake -f makefile.ntk
 The resulting binaries will support SSL if either schannel.dll or
@@ -292,7 +292,7 @@ interfaces.  They will also support MIT Kerberos.  Note, however, that
 these binaries will only run on systems which have the MIT Kerberos DLLs
 installed, and will not run otherwise.
 
-     To build under Windows Me/2000/XP, connect to the imap-2007 directory
+     To build under Windows Me/2000/XP, connect to the panda-imap directory
 and do:
 	nmake -f makefile.w2k
 The resulting binaries will support SSL and Microsoft Kerberos, using the
@@ -302,10 +302,10 @@ binaries will not run under Windows 95, Windows 98, or Windows NT4.
 			   WIN32 INSTALLATION NOTES
 
      The resulting binaries will be:
-	imap-2007\mtest\mtest.exe	(testbed client)
-	imap-2007\ipopd\ipop2d.exe	POP2 server
-	imap-2007\ipopd\ipop3d.exe	POP3 server
-	imap-2007\imapd\imapd.exe	IMAP4rev1 server
+	panda-imap\mtest\mtest.exe	(testbed client)
+	panda-imap\ipopd\ipop2d.exe	POP2 server
+	panda-imap\ipopd\ipop3d.exe	POP3 server
+	panda-imap\imapd\imapd.exe	IMAP4rev1 server
 
      These servers are stdio servers.  I wrote a simple network listener
 for NT called inetlisn; currently it is available as:
@@ -365,7 +365,7 @@ BATCON execute it.
 
 			       VMS BUILD NOTES
 
-      The VMS port has been tested with imap-2007, but as I am soon going
+      The VMS port has been tested with panda-imap, but as I am soon going
 to lose access to a VMS system I will no longer be able able to test and
 this port will be moved to the "other ports" category".
 
@@ -467,7 +467,7 @@ least install Win32s.
      I build using Visual C++ 6.0 with the WCE extensions.  The current code
 has SH3 wired in for the compiler building.
 
-     To build under NT, connect to the imap-2007 directory and do:
+     To build under NT, connect to the panda-imap directory and do:
 	nmake -f makefile.wce
 
      The only binary produced is a cclient.lib file.  I haven't gotten as far
