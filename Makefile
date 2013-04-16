@@ -79,7 +79,7 @@
 # hxd	HP-UX 10.x with DCE security (see shp)
 # isc	Interactive Systems
 # ldb	Debian Linux
-# lfd	Fedora Core 4
+# lfd	Fedora Linux
 # ln8	Linux for Nokia N800
 # lnx	Linux with traditional passwords and crypt() in the C library
 #	 (see lnp, sl4, sl5, and slx)
