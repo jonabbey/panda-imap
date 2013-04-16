@@ -8,7 +8,7 @@
 # Author:	Mark Crispin
 #
 # Date:		7 December 1989
-# Last Edited:	29 August 2011
+# Last Edited:	15 April 2013 (jonabbey@arlut.utexas.edu)
 #
 # Previous versions of this file were
 #
@@ -85,7 +85,7 @@
 #	 (see lnp, sl4, sl5, and slx)
 # lnp	Linux with Pluggable Authentication Modules (PAM)
 # lmd	Mandrake Linux
-# lr5	RedHat Enterprise 5 and later (same as lfd)
+# lr5	RedHat Enterprise Linux 5 and later (same as lfd)
 # lrh	RedHat Linux 7.2 and later
 # lsu	SuSE Linux (same as lrh)
 # lyn	LynxOS
@@ -366,7 +366,7 @@ ln8:	an
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/lib/ssl/certs MAILSPOOL=/var/mail"
 
 
-# RHE5 does not have the IPv6 bug
+# RHEL5/6 does not have the IPv6 bug
 
 lr5:	an
 	$(TOUCH) ip6
@@ -377,7 +377,7 @@ lmd:	an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
 	SPECIALS="SSLINCLUDE=/usr/include/openssl SSLLIB=/usr/lib SSLCERTS=/usr/lib/ssl/certs SSLKEYS=/usr/lib/ssl/private GSSINCLUDE=/usr/include GSSLIB=/usr/lib"
 
-# RHE3 definitely has the IPv6 bug
+# RHEL3 definitely has the IPv6 bug
 
 lrh:	lrhok an
 	$(BUILD) BUILDTYPE=lnp IP=$(IP6) \
@@ -389,7 +389,7 @@ lrhok:
 
 lrhwarn:
 	@echo You are building for OLD versions of RedHat Linux.  This build
-	@echo is NOT suitable for RedHat Enterprise 5, which stores SSL/TLS
+	@echo is NOT suitable for RedHat Enterprise 5 / 6, which store SSL/TLS
 	@echo certificates and keys in /etc/pki/tls rather than /usr/share/ssl.
 	@echo If you want to build for modern RedHat Linux, you should use
 	@echo make lr5 instead.
