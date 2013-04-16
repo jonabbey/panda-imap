@@ -12,7 +12,7 @@
  */
 
 			 BUILD AND INSTALLATION NOTES
-			 Last Updated: 15 November 2007
+			 Last Updated: 15 April 2013
 
 Table of Contents:
 1. UNIX Build Notes
@@ -38,12 +38,12 @@ the SSLBUILD file for more information.
 Note that doing so will produce an IMAP server which is NON-COMPLIANT with
 RFC 3501.
 
-     You must build through the top-level imap-2007/Makefile, which will run
-a "process" step the first time and create the imap-2007/c-client,
-imap-2007/ipopd, and imap-2007/imapd directories in which building actually
+     You must build through the top-level panda-imap/Makefile, which will run
+a "process" step the first time and create the panda-imap/c-client,
+panda-imap/ipopd, and panda-imap/imapd directories in which building actually
 takes place.
 
-     Before doing a make on UNIX, you should read imap-2007/Makefile and see
+     Before doing a make on UNIX, you should read panda-imap/Makefile and see
 if your system type is known.  The various system types are three-letter codes.
 If your system type is known, then use this as the make option.  After the
 first time you do a make, this option is remembered in a file called OSTYPE,
@@ -55,7 +55,7 @@ RedHat).  For more generic builds, try slx (shadow passwords only) or lnp (PAM).
 To build for RedHat, do:
 	make lrh
 
-     There are other make options, described in imap-2007/src/osdep/Makefile.
+     There are other make options, described in panda-imap/src/osdep/Makefile.
 
      It's probably best to see if an existing port will work on your system
 before inventing a new port.  Try:
@@ -65,7 +65,7 @@ before inventing a new port.  Try:
 	bsf		modern BSD
 
      If you must invent a new port, you need to create an entry in
-imap-2007/Makefile and imap-2007/src/osdep/Makefile for your new port, as
+panda-imap/Makefile and panda-imap/src/osdep/Makefile for your new port, as
 well as osdep/os_???.h and osdep/os_???.c files with the appropriate
 OS-dependent support for that system.  You also need to determine which setup
 process to use.  You should use the ua process unless you are sure that your
@@ -91,10 +91,10 @@ tenex, and unix drivers.
 			   UNIX INSTALLATION NOTES
 
      Binaries from the build are:
-	imap-2007/mtest/mtest		c-client testbed program
-	imap-2007/ipopd/ipop2d		POP2 daemon
-	imap-2007/ipopd/ipop3d		POP3 daemon
-	imap-2007/imapd/imapd		IMAP4rev1 daemon
+	panda-imap/mtest/mtest		c-client testbed program
+	panda-imap/ipopd/ipop2d		POP2 daemon
+	panda-imap/ipopd/ipop3d		POP3 daemon
+	panda-imap/imapd/imapd		IMAP4rev1 daemon
 
      mtest is normally not used except by c-client developers.
 
@@ -272,8 +272,8 @@ the Microsoft Platform SDK from Microsoft's web site.
 
      There is also considerable debate about how new mail is to be snarfed.
 I am currently using something that seems to work with WinSMTP.  Look at
-the definition of MAILFILE in imap-2007/src/osdep/nt/mailfile.h and at the
-sysinbox() function in imap-2007/src/osdep/nt/env_nt.c to see what's there
+the definition of MAILFILE in panda-imap/src/osdep/nt/mailfile.h and at the
+sysinbox() function in panda-imap/src/osdep/nt/env_nt.c to see what's there
 now, so you have a clue about how to hack it.
 
      To build under Windows 95/98/NT, connect to the imap-2007 directory
@@ -347,10 +347,10 @@ own in terms of a nice TOPS-20 like main program.  Maybe someday some nice
 person will try porting Pine to TOPS-20.  This assumes the use of KCC 6, and
 probably will not build with other compilers or older versions of KCC.
 
-     You do not use imap-2007/Makefile under TOPS-20, nor do you build any
+     You do not use panda-imap/Makefile under TOPS-20, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2007/src/c-client, imap-2007/src/charset, imap-2007/src/mtest, and
-imap-2007/src/osdep/tops-20 onto a single directory on TOPS-20 and build from
+panda-imap/src/c-client, panda-imap/src/charset, panda-imap/src/mtest, and
+panda-imap/src/osdep/tops-20 onto a single directory on TOPS-20 and build from
 that.  The command:
 	DO BUILD.CTL
 will build the sources.  If you don't have MIC, then SUBMIT BUILD.CTL and let
@@ -363,10 +363,10 @@ BATCON execute it.
 to lose access to a VMS system I will no longer be able able to test and
 this port will be moved to the "other ports" category".
 
-      You do not use imap-2007/Makefile under VMS, nor do you build any
+      You do not use panda-imap/Makefile under VMS, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2007/src/c-client, imap-2007/src/charset, imap-2007/src/mtest, and
-imap-2007/src/osdep/vms onto a single directory on VMS and build from that.
+panda-imap/src/c-client, panda-imap/src/charset, panda-imap/src/mtest, and
+panda-imap/src/osdep/vms onto a single directory on VMS and build from that.
 The command to build it is:
 	@BUILD MULTINET
 or	@BUILD NETLIB
@@ -401,10 +401,10 @@ OS/2		Unknown
      If you are building a Macintosh client, you will need MacTCP installed on
 your system as well as the MacTCP C includes and libraries.
 
-     You do not use imap-2007/Makefile on the Mac, nor do you build any
+     You do not use panda-imap/Makefile on the Mac, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2007/src/c-client, imap-2007/src/charset, imap-2007/src/mtest, and
-imap-2007/src/osdep/mac onto a single directory on the Mac and build from
+panda-imap/src/c-client, panda-imap/src/charset, panda-imap/src/mtest, and
+panda-imap/src/osdep/mac onto a single directory on the Mac and build from
 that.  mtext.sit.hqx is a THINK C project file and cute icon for building
 mtest, encoded with Binhex and StuffIt.
 
@@ -451,10 +451,10 @@ on your DOS system along with its development environment.  The currently
 supported stacks are Beame & Whiteside, PC-NFS, Novell, PC/IP, Waterloo, and
 Winsock.  mtest and a version of Pine called PC Pine run under DOS.
 
-      You do not use imap-2007/Makefile under DOS, nor do you build any
+      You do not use panda-imap/Makefile under DOS, nor do you build any
 components other than c-client and mtest.  Merge the contents of
-imap-2007/src/c-client, imap-2007/src/charset, imap-2007/src/mtest, and
-imap-2007/src/osdep/dos onto a single directory on DOS and build from that.
+panda-imap/src/c-client, panda-imap/src/charset, panda-imap/src/mtest, and
+panda-imap/src/osdep/dos onto a single directory on DOS and build from that.
 The MAKE command on DOS takes an argument identifying the TCP/IP stack in use.
 For example, do:
 	MAKE MAKEFILE OS=WSK   (or MAKE -F MAKEFILE OS=WSK)
