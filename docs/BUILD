@@ -19,8 +19,7 @@ Table of Contents:
 2. UNIX Installation Notes
 3. Win32 Build Notes
 4. Win32 Installation Notes
-5. Inactive Ports (TOPS-20, VMS)
-6. Other ports (Macintosh, DOS/Win16, Windows CE, Amiga, OS/2)
+5. Other ports (TOPS-20, VMS, Macintosh, DOS/Win16, Windows CE, Amiga, OS/2)
 
 
 			       UNIX BUILD NOTES
@@ -331,14 +330,21 @@ It is based on inetlisn, and essentially is a "completed" version of inetlisn.
 are unwilling to invest the time to do some programming, you probably want to
 buy a commercial server product.
 
-				INACTIVE PORTS
+				 OTHER PORTS
 
-     The TOPS-20 and VMS ports were developed at one time or another, but are
-no longer actively developed.  However, from time to time I test build both
-of these to make sure that they compile without errors and that mtest runs,
-and will continue doing so as long as I have access to systems running these
-operating systems.
+     The following ports were developed at one time or another, but are no
+longer actively developed or tested.  It is not known if they still work or
+not.
 
+  Port		Status
+  ----		------
+TOPS-20		Unsupported since Mark's passing
+VMS		Unsupported since Mark's passing
+Macintosh	Obsolete; Mac OS X uses UNIX port
+DOS/Win16	Obsolete; modern PCs use Win32 port
+Windows CE	Never completed
+Amiga		Unknown
+OS/2		Unknown
 
 			     TOPS-20 BUILD NOTES
 
@@ -379,20 +385,7 @@ wonderful VMS system that DEC loves so much doesn't maintain any concept of
 time zone; the VMS C compiler returns a null pointer from gmtime()!
 
      Otherwise you're pretty much on your own here.
-
-				 OTHER PORTS
 
-     The following ports were developed at one time or another, but are no
-longer actively developed or tested.  It is not known if they still work or
-not.
-
-  Port		Status
-  ----		------
-Macintosh	Obsolete; Mac OS X uses UNIX port
-DOS/Win16	Obsolete; modern PCs use Win32 port
-Windows CE	Never completed
-Amiga		Unknown
-OS/2		Unknown
 
 			     MACINTOSH BUILD NOTES
 
