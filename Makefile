@@ -737,7 +737,7 @@ sysexitwarn:
 
 clean:
 	@echo Removing old processed sources and binaries...
-	$(SH) -c '$(RM) an ua OSTYPE SPECIALS c-client mtest imapd ipopd mailutil mlock dmail tmail || true'
+	$(SH) -c '$(RM) an ua OSTYPE SPECIALS c-client mtest imapd ipopd mailutil mlock dmail tmail ip6 || true'
 	$(CD) tools;$(MAKE) clean
 
 
