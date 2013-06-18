@@ -42,8 +42,7 @@ SHELL= /bin/sh
 
 # Un-comment to enable the ESEARCH command.  Unfortunately, the iOS4 Mail
 # client misinterprets the ESEARCH results due to an ambiguity in RFC 4731.
-#ESEARCH=1
-
+#ESEARCH= -DESEARCH=1
 
 # Get local definitions from c-client directory
 
