@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 2008-2010 Mark Crispin
+ * Copyright 2008-2012 Mark Crispin
  * ========================================================================
  */
 
@@ -9,7 +9,7 @@
  * Author(s):	Mark Crispin
  *
  * Date:	1 March 2006
- * Last Edited:	14 June 2010
+ * Last Edited:	15 February 2012
  *
  * Previous versions of this file were
  *
@@ -2429,10 +2429,26 @@ FILE *mix_data_open (MAILSTREAM *stream,int *fd,long *size,
 	MM_LOG (tmp,WARN);	/* shouldn't happen */
       }
       close (*fd);		/* roll to a new file */
+      errno = NIL;
       while ((*fd = open (mix_file_data
 			  (LOCAL->buf,stream->mailbox,
 			   LOCAL->newmsg = mix_modseq (LOCAL->newmsg)),
-			  O_RDWR | O_CREAT | O_EXCL,sbuf.st_mode)) < 0);
+			  O_RDWR | O_CREAT | O_EXCL,sbuf.st_mode)) < 0) {
+	switch(errno) {
+	case EEXIST:		/* always retry if path exists or interrupt */
+	case EINTR:
+	  errno = NIL;
+	  break;
+	default:		/* probably EDQUOT */
+	  {
+	    char tmp[MAILTMPLEN];
+	    sprintf (tmp,"data file %.08lx creation failure: %.80s",
+		     LOCAL->newmsg,strerror (errno));
+	    MM_LOG (tmp,ERROR);	/* shouldn't happen */
+	    return NIL;
+	  }
+	}
+      }
       *size = 0;		/* brand new file */
       fchmod (*fd,sbuf.st_mode);/* with same mode as previous file */
     }

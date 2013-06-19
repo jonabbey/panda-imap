@@ -1,10 +1,10 @@
 /* ========================================================================
- * Copyright 2011 Mark Crispin
+ * Copyright 2012 Mark Crispin
  * ========================================================================
  */
 
 
-Updated: 3 October 2011
+Updated: 21 February 2012
 
 imap-2010 is Panda IMAP, forked from the University of Washington's
 final imap-2007b.
@@ -135,6 +135,8 @@ Fix memory leak when server sends invalid BODYSTRUCTURE data.
 Fix threading problem creating TCP socket.
 
 Fix loop caused by syntax errors from GMail IMAP server.
+
+Fix over-quota problem.
 
 /*
  * Previous versions of this file were

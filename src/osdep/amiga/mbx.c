@@ -1,5 +1,5 @@
 /* ========================================================================
- * Copyright 1988-2007 University of Washington
+ * Copyright 1988-2012 University of Washington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
  *		Internet: MRC@CAC.Washington.EDU
  *
  * Date:	3 October 1995
- * Last Edited:	11 October 2007
+ * Last Edited:	21 February 2012
  */
 
 
@@ -1178,8 +1178,8 @@ long mbx_append (MAILSTREAM *stream,char *mailbox,append_t af,void *data)
       else {			/* write message */
 	size_t j;
 	if (!message->cursize) SETPOS (message,GETPOS (message));
-	while (i && (j = fwrite (message->curpos,1,message->cursize,df))) {
-	  i -= j;
+	for (errno = 0; !errno && i &&
+	       (j = fwrite (message->curpos,1,message->cursize,df)); i -= j) {
 	  SETPOS (message,GETPOS (message) + j);
 	}
 				/* get next message */
