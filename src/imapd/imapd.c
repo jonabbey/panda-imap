@@ -32,6 +32,7 @@ extern int errno;		/* just in case */
 #include <signal.h>
 #include <setjmp.h>
 #include <time.h>
+#include <limits.h>
 #include "c-client.h"
 #include "newsrc.h"
 #include <sys/stat.h>
@@ -938,30 +939,58 @@ int main (int argc,char *argv[])
 
 				/* wants ALL */
 		if (retval & 0x4) {
-		  unsigned long j;
+		  unsigned long j,juid,iuid;
 				/* find first match */
 		  for (i = 1; (i <= nmsgs) && !mail_elt (stream,i)->searched;
 		       ++i);
 		  if (i <= nmsgs) {
+		    juid= (uid ? mail_uid (stream,i) : i);
 		    PSOUT (" ALL ");
-		    pnum (uid ? mail_uid (stream,i) : i);
-		    j = i;	/* last message output */
+		    pnum (juid);
+		    j = i;	/* last message index processed */
 		  }
-		  while (++i <= nmsgs) {
-		    if (mail_elt (stream,i)->searched) {
-		      while ((++i <= nmsgs) && mail_elt (stream,i)->searched);
-				/* previous message is end of range */
-		      if (j != --i) {
-			PBOUT (':');
-			pnum (uid ? mail_uid (stream,i) : i);
+		  if (uid) {	/* doing UIDs, no MRC optimization */
+		    while (++i <= nmsgs) {
+		      if (mail_elt (stream,i)->searched) {	/* this message matches */
+			iuid= mail_uid (stream,i);
+			if (juid == (iuid - (i-j))) {	/* in sequence of UIDs */
+			  if ( i < nmsgs) continue;	/* may be more, check next */
+			  PBOUT (':'); pnum(iuid);	/* done with all, tie it off */
+			  j = i; juid= iuid;
+			} else {	/* break in sequence of UIDs */
+			  if ((i-1) > j) {	/* prev sequence, tie it off */
+			    j= i-1; juid= mail_uid (stream,j);
+			    PBOUT (':'); pnum(juid);
+			  }
+			  PBOUT (','); pnum(iuid);
+			  j = i; juid= iuid;	/* record last done message/UID */
+			}
+		      } else {	/* this message doesn't match, have a pending sequence? */
+			/* if pending sequence, tie it off & reset flags */
+			if ((i-1) > j) {	/* prev sequence, tie it off */
+			  j= i-1; juid= mail_uid (stream,j);
+			  PBOUT (':'); pnum(juid);
+			}
+			j= nmsgs+1; juid= ULONG_MAX;	/* flag that we're not in a sequence of matches */
 		      }
 		    }
+		  } else {	/* doing message-IDs, use MRC optimization */
+		    while (++i <= nmsgs) {
+		      if (mail_elt (stream,i)->searched) {
+		        while ((++i <= nmsgs) && mail_elt (stream,i)->searched);
+				/* previous message is end of range */
+		        if (j != --i) {
+	 		  PBOUT (':');
+			  pnum (i);
+		        }
+		    }
 				/* search for next match */
-		    while ((++i <= nmsgs) && !mail_elt (stream,i)->searched);
-		    if (i <= nmsgs) {
-		      PBOUT (',');
-		      pnum (uid ? mail_uid (stream,i) : i);
-		      j = i;	/* last message output */
+		      while ((++i <= nmsgs) && !mail_elt (stream,i)->searched);
+		      if (i <= nmsgs) {
+		        PBOUT (',');
+		        pnum (i);
+		        j = i;	/* last message output */
+		      }
 		    }
 		  }
 		}
